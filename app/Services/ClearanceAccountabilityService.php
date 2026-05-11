@@ -10,6 +10,29 @@ use Illuminate\Support\Facades\DB;
 class ClearanceAccountabilityService
 {
     /**
+     * Create an individual accountability.
+     */
+    public function createAccountability(array $data): ClearanceAccountability
+    {
+        return DB::transaction(function () use ($data) {
+            $accountability = ClearanceAccountability::create([
+                'clearance_update_id' => $data['clearance_update_id'],
+                'student_id' => $data['student_id'],
+                'office_id' => $data['office_id'],
+                'title' => $data['title'],
+                'description' => $data['description'] ?? null,
+                'amount' => $data['amount'] ?? 0,
+                'status' => ClearanceAccountability::STATUS_PENDING,
+                'uploaded_by' => auth()->id(),
+            ]);
+
+            $this->syncStudentClearanceStatus($data['student_id'], $data['clearance_update_id'], 'accountability_added');
+            
+            return $accountability;
+        });
+    }
+
+    /**
      * Resolve an accountability.
      */
     public function resolveAccountability(int $id, ?string $remarks = null): void

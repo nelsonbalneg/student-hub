@@ -274,6 +274,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 // Accountabilities
                 Route::get('/accountabilities-center', [ClearanceAccountabilityController::class, 'center'])->name('accountabilities-center');
                 Route::get('/updates/{update}/accountabilities', [ClearanceAccountabilityController::class, 'index'])->name('accountabilities.index');
+                Route::get('/accountabilities/students', [ClearanceAccountabilityController::class, 'students'])->name('accountabilities.students.search');
+                Route::post('/updates/{update}/accountabilities', [ClearanceAccountabilityController::class, 'store'])->name('accountabilities.store');
                 Route::post('/updates/{update}/accountabilities/upload-preview', [ClearanceAccountabilityController::class, 'uploadPreview'])->name('accountabilities.upload-preview');
                 Route::post('/updates/{update}/accountabilities/upload-save', [ClearanceAccountabilityController::class, 'uploadSave'])->name('accountabilities.upload-save');
                 Route::post('/accountabilities/{accountability}/resolve', [ClearanceAccountabilityController::class, 'resolve'])->name('accountabilities.resolve');

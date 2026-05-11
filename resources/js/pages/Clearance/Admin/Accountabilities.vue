@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import {
     ChevronLeft,
     ChevronRight,
@@ -24,6 +24,8 @@ const props = defineProps<{
     offices: any;
 }>();
 
+const page = usePage();
+
 const search = ref(props.filters.search ?? '');
 const office_id = ref(props.filters.office_id ?? '');
 const status = ref(props.filters.status ?? '');
@@ -33,6 +35,47 @@ const uploadForm = useForm({
     file: null as File | null,
     office_id: '',
 });
+
+const individualModal = ref(false);
+const individualForm = useForm({
+    student_id: '',
+    office_id: (page.props.auth as any).user.office_id ?? props.filters.office_id ?? '',
+    title: '',
+    description: '',
+    amount: '',
+});
+
+const studentSearch = ref('');
+const studentsList = ref<any[]>([]);
+const isSearching = ref(false);
+
+const searchStudents = async () => {
+    if (studentSearch.value.length < 2) {
+        studentsList.value = [];
+        return;
+    }
+    isSearching.value = true;
+    try {
+        const response = await fetch(`/student-services/clearance/accountabilities/students?search=${studentSearch.value}`);
+        studentsList.value = await response.json();
+    } catch (e) {
+        console.error(e);
+    } finally {
+        isSearching.value = false;
+    }
+};
+
+let searchTimeout: any;
+watch(studentSearch, () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(searchStudents, 400);
+});
+
+const selectStudent = (student: any) => {
+    individualForm.student_id = student.id;
+    studentSearch.value = `${student.name} (${student.student_no})`;
+    studentsList.value = [];
+};
 
 const applyFilters = () => {
     router.get(
@@ -66,6 +109,16 @@ const handleUpload = () => {
     });
 };
 
+const handleIndividualAdd = () => {
+    individualForm.post(`/student-services/clearance/updates/${props.update.id}/accountabilities`, {
+        onSuccess: () => {
+            individualModal.value = false;
+            individualForm.reset();
+            studentSearch.value = '';
+        },
+    });
+};
+
 const statusBadge = (s: string) => {
     switch (s) {
         case 'pending': return 'bg-amber-100 text-amber-700';
@@ -95,7 +148,7 @@ const statusBadge = (s: string) => {
                     <Upload class="h-3.5 w-3.5" />
                     Bulk Upload
                 </Button>
-                <Button class="h-8 gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700">
+                <Button @click="individualModal = true" class="h-8 gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700">
                     <Plus class="h-3.5 w-3.5" />
                     Add Individual
                 </Button>
@@ -171,7 +224,7 @@ const statusBadge = (s: string) => {
         </div>
     </div>
 
-    <!-- Upload Modal -->
+    <!-- Modals -->
     <div v-if="uploadModal" class="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" @click.self="uploadModal = false">
         <div class="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
             <h2 class="mb-4 text-sm font-bold text-slate-900">Bulk Upload Accountabilities</h2>
@@ -192,6 +245,66 @@ const statusBadge = (s: string) => {
                 <div class="mt-2 flex justify-end gap-2">
                     <Button type="button" variant="ghost" @click="uploadModal = false">Cancel</Button>
                     <Button type="submit" class="bg-indigo-600 text-white" :disabled="uploadForm.processing">Upload & Preview</Button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Individual Add Modal -->
+    <div v-if="individualModal" class="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" @click.self="individualModal = false">
+        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h2 class="mb-4 text-sm font-bold text-slate-900">Add Individual Accountability</h2>
+            <form class="grid gap-4" @submit.prevent="handleIndividualAdd">
+                <div class="relative grid gap-1">
+                    <label class="text-[11px] font-bold text-slate-500 uppercase">Search Student</label>
+                    <input 
+                        v-model="studentSearch"
+                        type="text" 
+                        placeholder="Search by name or student no..."
+                        class="h-9 rounded-lg border border-slate-200 bg-white pr-9 pl-3 text-xs focus:border-emerald-400 focus:outline-none"
+                    />
+                    <div v-if="isSearching" class="absolute top-1/2 right-3 -translate-y-1/2">
+                        <RefreshCw class="h-3 w-3 animate-spin text-slate-400" />
+                    </div>
+                    <div v-if="studentsList.length > 0" class="absolute top-full left-0 z-10 mt-1 w-full rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+                        <button 
+                            v-for="s in studentsList" 
+                            :key="s.id"
+                            type="button"
+                            @click="selectStudent(s)"
+                            class="flex w-full flex-col px-3 py-2 text-left hover:bg-slate-50 rounded-md transition-colors"
+                        >
+                            <span class="text-xs font-bold text-slate-900">{{ s.name }}</span>
+                            <span class="text-[10px] text-slate-400">{{ s.student_no }}</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div v-if="!(page.props.auth as any).user.office_id" class="grid gap-1">
+                    <label class="text-[11px] font-bold text-slate-500 uppercase">Office</label>
+                    <select v-model="individualForm.office_id" class="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs">
+                        <option v-for="off in offices" :key="off.id" :value="off.id">{{ off.name }}</option>
+                    </select>
+                </div>
+
+                <div class="grid gap-1">
+                    <label class="text-[11px] font-bold text-slate-500 uppercase">Accountability Title</label>
+                    <input v-model="individualForm.title" type="text" placeholder="e.g. Missing Equipment, Unpaid Fees" class="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs" required />
+                </div>
+
+                <div class="grid gap-1">
+                    <label class="text-[11px] font-bold text-slate-500 uppercase">Description</label>
+                    <textarea v-model="individualForm.description" rows="2" class="rounded-lg border border-slate-200 bg-white p-3 text-xs" placeholder="Optional details..."></textarea>
+                </div>
+
+                <div class="grid gap-1">
+                    <label class="text-[11px] font-bold text-slate-500 uppercase">Amount (Optional)</label>
+                    <input v-model="individualForm.amount" type="number" step="0.01" class="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs" placeholder="0.00" />
+                </div>
+
+                <div class="mt-4 flex justify-end gap-2 border-t pt-4">
+                    <Button type="button" variant="ghost" @click="individualModal = false">Cancel</Button>
+                    <Button type="submit" class="bg-emerald-600 text-white" :disabled="individualForm.processing || !individualForm.student_id">Add Accountability</Button>
                 </div>
             </form>
         </div>

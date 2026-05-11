@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use App\Http\Resources\Clearance\ClearanceAccountabilityResource;
 use App\Http\Resources\Clearance\ClearanceUpdateResource;
 use App\Models\ClearanceAccountability;
@@ -42,6 +43,42 @@ class ClearanceAccountabilityController extends Controller
             'updates' => ClearanceUpdateResource::collection($updates)->resolve(),
             'userOffice' => $isSuperAdmin ? 'System Wide (Super Admin)' : ($user->office->name ?? 'Unknown Office'),
         ]);
+    }
+
+    public function students(Request $request): array
+    {
+        $search = $request->search;
+        if (!$search) return [];
+
+        return User::query()
+            ->whereNotNull('student_no')
+            ->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('student_no', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%");
+            })
+            ->limit(10)
+            ->get(['id', 'name', 'student_no'])
+            ->toArray();
+    }
+
+    public function store(Request $request, ClearanceUpdate $update): RedirectResponse
+    {
+        $this->authorize('upload', [ClearanceAccountability::class, $update]);
+
+        $validated = $request->validate([
+            'student_id' => ['required', 'exists:users,id'],
+            'office_id' => ['required', 'exists:offices,id'],
+            'title' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'amount' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $validated['clearance_update_id'] = $update->id;
+
+        app(ClearanceAccountabilityService::class)->createAccountability($validated);
+
+        return back()->with('success', 'Accountability added successfully.');
     }
 
     public function index(Request $request, ClearanceUpdate $update): Response
