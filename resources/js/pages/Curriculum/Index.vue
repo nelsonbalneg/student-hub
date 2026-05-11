@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, usePage } from '@inertiajs/vue3';
 import {
     AlertCircle,
     BookOpen,
@@ -337,6 +337,33 @@ const takenStatusClass = (status: string) => {
     }
 
     return '';
+};
+
+const page = usePage();
+
+const permissions = computed<string[]>(
+    () => (page.props.auth as { permissions?: string[] }).permissions ?? [],
+);
+
+const roles = computed<string[]>(
+    () => (page.props.auth as { roles?: string[] }).roles ?? [],
+);
+
+const can = (permission?: string | string[]): boolean => {
+    if (!permission) {
+        return true;
+    }
+
+    const requiredPermissions = Array.isArray(permission)
+        ? permission
+        : [permission];
+
+    return (
+        roles.value.includes('Super Admin') ||
+        requiredPermissions.some((requiredPermission) =>
+            permissions.value.includes(requiredPermission),
+        )
+    );
 };
 </script>
 
@@ -760,6 +787,7 @@ const takenStatusClass = (status: string) => {
                 </section>
 
                 <section
+                    v-if="can('curriculum.view-record-health')"
                     class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950"
                 >
                     <h2

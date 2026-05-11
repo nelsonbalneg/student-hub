@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, usePage } from '@inertiajs/vue3';
 import {
     AlertCircle,
     BookOpenCheck,
@@ -258,6 +258,33 @@ const remarkClass = (remark: string) => {
     }
 
     return 'border-red-200 bg-red-50 text-red-700 dark:border-red-400/30 dark:bg-red-500/10 dark:text-red-300';
+};
+
+const page = usePage();
+
+const permissions = computed<string[]>(
+    () => (page.props.auth as { permissions?: string[] }).permissions ?? [],
+);
+
+const roles = computed<string[]>(
+    () => (page.props.auth as { roles?: string[] }).roles ?? [],
+);
+
+const can = (permission?: string | string[]): boolean => {
+    if (!permission) {
+        return true;
+    }
+
+    const requiredPermissions = Array.isArray(permission)
+        ? permission
+        : [permission];
+
+    return (
+        roles.value.includes('Super Admin') ||
+        requiredPermissions.some((requiredPermission) =>
+            permissions.value.includes(requiredPermission),
+        )
+    );
 };
 </script>
 
@@ -637,6 +664,7 @@ const remarkClass = (remark: string) => {
                 </section>
 
                 <section
+                    v-if="can('grades.view-record-health')"
                     class="rounded-lg border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm dark:border-white/10 dark:from-slate-950 dark:to-slate-900"
                 >
                     <h2
