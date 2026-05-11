@@ -13,6 +13,7 @@ import {
     Server,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 import { dashboard } from '@/routes';
 import { format } from 'date-fns';
 
@@ -81,36 +82,71 @@ const integrationState = computed(() => {
     };
 });
 
-const statusCards = computed(() => [
-    {
-        label: 'Active Terms',
-        value: activeTermCount.value,
-        detail: activeTermCount.value === 1 ? 'Current semester' : 'Semesters',
-        icon: CalendarDays,
-        tone: 'blue',
-    },
-    {
-        label: 'Campus Link',
-        value: campusLinked.value ? 'Linked' : 'Missing',
-        detail: props.campus.name || 'SSO campus context',
-        icon: Building2,
-        tone: campusLinked.value ? 'emerald' : 'amber',
-    },
-    {
-        label: 'Tenant',
-        value: props.campus.tenant_id || '-',
-        detail: 'Identity scope',
-        icon: Database,
-        tone: 'slate',
-    },
-    {
-        label: 'Academic API',
-        value: integrationState.value.label,
-        detail: 'Active semester feed',
-        icon: Server,
-        tone: integrationState.value.tone,
-    },
-]);
+const page = usePage();
+
+const permissions = computed<string[]>(
+    () => (page.props.auth as { permissions?: string[] }).permissions ?? [],
+);
+
+const roles = computed<string[]>(
+    () => (page.props.auth as { roles?: string[] }).roles ?? [],
+);
+
+const can = (permission?: string | string[]): boolean => {
+    if (!permission) {
+        return true;
+    }
+
+    const requiredPermissions = Array.isArray(permission)
+        ? permission
+        : [permission];
+
+    return (
+        roles.value.includes('Super Admin') ||
+        requiredPermissions.some((requiredPermission) =>
+            permissions.value.includes(requiredPermission),
+        )
+    );
+};
+
+const statusCards = computed(() => {
+    const cards = [
+        {
+            label: 'Active Terms',
+            value: activeTermCount.value,
+            detail: activeTermCount.value === 1 ? 'Current semester' : 'Semesters',
+            icon: CalendarDays,
+            tone: 'blue',
+            permission: null,
+        },
+        {
+            label: 'Campus Link',
+            value: campusLinked.value ? 'Linked' : 'Missing',
+            detail: props.campus.name || 'SSO campus context',
+            icon: Building2,
+            tone: campusLinked.value ? 'emerald' : 'amber',
+            permission: 'dashboard.view-campus-identity',
+        },
+        {
+            label: 'Tenant',
+            value: props.campus.tenant_id || '-',
+            detail: 'Identity scope',
+            icon: Database,
+            tone: 'slate',
+            permission: 'dashboard.view-campus-identity',
+        },
+        {
+            label: 'Academic API',
+            value: integrationState.value.label,
+            detail: 'Active semester feed',
+            icon: Server,
+            tone: integrationState.value.tone,
+            permission: 'dashboard.view-integration-health',
+        },
+    ];
+
+    return cards.filter(card => can(card.permission));
+});
 
 defineOptions({
     layout: {
@@ -364,6 +400,7 @@ defineOptions({
                 </div>
 
                 <div
+                    v-if="can('dashboard.view-campus-identity')"
                     class="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
                 >
                     <div
@@ -413,6 +450,7 @@ defineOptions({
                 </div>
 
                 <div
+                    v-if="can('dashboard.view-integration-health')"
                     class="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
                 >
                     <div
