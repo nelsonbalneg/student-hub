@@ -290,6 +290,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/my-clearance/{clearance}', [StudentSemesterClearanceController::class, 'show'])->name('show');
             Route::post('/updates/{update}/apply', [StudentSemesterClearanceController::class, 'apply'])->name('apply');
         });
+
+    // FAQ Module
+    Route::prefix('faqs')->name('faqs.')->group(function () {
+        Route::get('/', [App\Http\Controllers\Faq\FaqPublicController::class, 'index'])->name('index');
+        Route::get('/view/{faq}', [App\Http\Controllers\Faq\FaqPublicController::class, 'show'])->name('show');
+        Route::post('/{faq}/feedback', [App\Http\Controllers\Faq\FaqFeedbackController::class, 'store'])->name('feedback');
+
+        Route::prefix('manage')->name('manage.')->group(function () {
+            Route::resource('categories', App\Http\Controllers\Faq\FaqCategoryController::class);
+            Route::get('/analytics', [App\Http\Controllers\Faq\FaqAnalyticsController::class, 'index'])->name('analytics');
+            Route::resource('faqs', App\Http\Controllers\Faq\FaqController::class);
+        });
+    });
 });
 
 require __DIR__.'/settings.php';

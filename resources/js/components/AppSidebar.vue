@@ -9,6 +9,7 @@ import {
     HelpCircle,
     LayoutGrid,
     Megaphone,
+    MessageSquareQuote,
     Settings,
     ShieldCheck,
     Sparkles,
@@ -220,6 +221,29 @@ const siteAdministrationNavItems: NavItem[] = [
             },
         ],
     },
+    {
+        title: 'FAQ Management',
+        href: '#',
+        icon: HelpCircle,
+        permission: 'faq.view',
+        items: [
+            {
+                title: 'All FAQs',
+                href: '/faqs/manage/faqs',
+                permission: 'faq.view',
+            },
+            {
+                title: 'Categories',
+                href: '/faqs/manage/categories',
+                permission: 'faq-category.view',
+            },
+            {
+                title: 'Analytics',
+                href: '/faqs/manage/analytics',
+                permission: 'faq.analytics.view',
+            },
+        ],
+    },
 ];
 
 const visibleOverviewNavItems = computed(() => visibleItems(overviewNavItems));
@@ -232,10 +256,16 @@ const homeHref = computed(() =>
 
 const footerNavItems: NavItem[] = [
     {
-        title: 'Help Center',
-        href: '#',
-        icon: HelpCircle,
+        title: 'FAQs',
+        href: '/faqs',
+        icon: MessageSquareQuote,
+        permission: 'faq.view',
     },
+    // {
+    //     title: 'Help Center',
+    //     href: '#',
+    //     icon: HelpCircle,
+    // },
 ];
 </script>
 
