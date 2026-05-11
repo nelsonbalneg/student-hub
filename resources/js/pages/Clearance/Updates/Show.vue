@@ -13,18 +13,23 @@ import {
     ChevronLeft,
     CheckCircle,
     XCircle,
-    Play,
     StopCircle,
     Trash2,
     CalendarClock,
+    Search,
+    Plus,
 } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { Button } from '@/components/ui/button';
+import InputError from '@/components/InputError.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 
 const props = defineProps<{
     update: any;
     logs: any[];
+    semesters: any[];
+    types: any[];
+    allOffices: any[];
     can: any;
 }>();
 
@@ -35,6 +40,17 @@ const extendForm = useForm({
     end_date: props.update.end_date,
     remarks: '',
 });
+
+const editModalOpen = ref(false);
+const editForm = useForm({
+    semester_id: props.update.semester.id,
+    clearance_type_id: props.update.type.id,
+    title: props.update.title,
+    description: props.update.description,
+    purpose: props.update.purpose,
+    start_date: props.update.start_date,
+    end_date: props.update.end_date,
+});
 const confirmModal = ref({
     show: false,
     title: '',
@@ -43,7 +59,19 @@ const confirmModal = ref({
     variant: 'default' as 'default' | 'destructive',
     action: () => {},
     loading: false,
+    compact: false,
 });
+
+const officeModalOpen = ref(false);
+const officeSearch = ref('');
+const filteredOffices = computed(() => {
+    if (!officeSearch.value) return props.allOffices;
+    return props.allOffices.filter(o => o.name.toLowerCase().includes(officeSearch.value.toLowerCase()));
+});
+
+const isOfficeSelected = (id: number) => {
+    return props.update.offices.some((o: any) => o.office.id === id);
+};
 
 defineOptions({
     layout: {
@@ -123,6 +151,23 @@ const extendPeriod = () => {
     });
 };
 
+const openEdit = () => {
+    editForm.semester_id = props.update.semester.id;
+    editForm.clearance_type_id = props.update.type.id;
+    editForm.title = props.update.title;
+    editForm.description = props.update.description;
+    editForm.purpose = props.update.purpose;
+    editForm.start_date = props.update.start_date;
+    editForm.end_date = props.update.end_date;
+    editModalOpen.value = true;
+};
+
+const updateDetails = () => {
+    editForm.patch(`/student-services/clearance/updates/${props.update.id}`, {
+        onSuccess: () => (editModalOpen.value = false),
+    });
+};
+
 const tabs = [
     { id: 'overview', name: 'Overview', icon: FileText },
     { id: 'offices', name: 'Participating Offices', icon: Building2 },
@@ -143,6 +188,36 @@ const statusClass = (status: string) => {
 const syncOffices = () => {
     router.post(`/student-services/clearance/updates/${props.update.id}/sync-offices`);
 };
+
+const toggleOffice = (id: number) => {
+    router.post(`/student-services/clearance/updates/${props.update.id}/toggle-office`, {
+        office_id: id
+    }, {
+        preserveScroll: true
+    });
+};
+
+const removeOffice = (id: number) => {
+    confirmModal.value = {
+        show: true,
+        title: 'Remove Office',
+        description: 'Remove this office from the clearance period?',
+        confirmText: 'Remove',
+        variant: 'destructive',
+        compact: true,
+        action: () => {
+            router.delete(`/student-services/clearance/updates/${props.update.id}/offices/${id}`, {
+                preserveScroll: true,
+                onStart: () => confirmModal.value.loading = true,
+                onFinish: () => {
+                    confirmModal.value.loading = false;
+                    confirmModal.value.show = false;
+                }
+            });
+        },
+        loading: false,
+    };
+};
 </script>
 
 <template>
@@ -161,7 +236,7 @@ const syncOffices = () => {
                             {{ update.status }}
                         </span>
                     </div>
-                    <p class="text-xs text-slate-500">{{ update.semester.campus_name }} - {{ update.semester.academic_year }} - {{ update.semester.term }} | {{ update.type.name }}</p>
+                    <p class="text-xs text-slate-500">{{ update.semester.academic_year }} - {{ update.semester.term }} - {{ update.semester.campus_name }} | {{ update.type.name }}</p>
                 </div>
             </div>
 
@@ -178,7 +253,7 @@ const syncOffices = () => {
                     <StopCircle class="h-3.5 w-3.5" />
                     Close Update
                 </Button>
-                <Button v-if="update.status === 'draft' && can.edit" variant="outline" class="h-8 text-xs font-bold">
+                <Button v-if="update.status === 'draft' && can.edit" variant="outline" class="h-8 text-xs font-bold" @click="openEdit">
                     Edit Details
                 </Button>
                 <Button v-if="update.status === 'draft' && can.delete" variant="outline" class="h-8 gap-1.5 border-red-200 bg-red-50 text-xs font-bold text-red-700 hover:bg-red-100" @click="deleteUpdate">
@@ -275,7 +350,10 @@ const syncOffices = () => {
             <div v-if="activeTab === 'offices'" class="rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950">
                 <div class="flex items-center justify-between border-b border-slate-100 p-4 dark:border-white/10">
                     <h3 class="text-sm font-bold text-slate-900 dark:text-white">Participating Offices</h3>
-                    <Button v-if="update.status === 'draft'" variant="outline" size="sm" class="h-7 text-[10px] font-bold" @click="syncOffices">Assign All Offices</Button>
+                    <div class="flex gap-2">
+                        <Button v-if="update.status === 'draft'" variant="outline" size="sm" class="h-7 text-[10px] font-bold" @click="officeModalOpen = true">Manage Offices</Button>
+                        <Button v-if="update.status === 'draft'" variant="outline" size="sm" class="h-7 text-[10px] font-bold" @click="syncOffices">Assign All Offices</Button>
+                    </div>
                 </div>
                 <div class="p-8 text-center" v-if="update.offices.length === 0">
                     <p class="text-xs text-slate-400">No participating offices added yet.</p>
@@ -293,9 +371,9 @@ const syncOffices = () => {
                     <tbody class="divide-y divide-slate-50 dark:divide-white/5">
                         <tr v-for="off in update.offices" :key="off.id">
                             <td class="px-4 py-3 text-xs font-medium">{{ off.office.name }}</td>
-                            <td class="px-4 py-3">
-                                <CheckCircle v-if="off.is_required" class="h-4 w-4 text-emerald-500" />
-                                <XCircle v-else class="h-4 w-4 text-slate-300" />
+                            <td class="px-4 py-3 text-[10px] text-slate-500">
+                                <span v-if="off.is_required" class="rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-600 dark:bg-emerald-500/10">Yes</span>
+                                <span v-else class="rounded bg-slate-50 px-1.5 py-0.5 text-slate-500 dark:bg-white/5">No</span>
                             </td>
                             <td class="px-4 py-3">
                                 <CheckCircle v-if="off.can_upload_accountability" class="h-4 w-4 text-emerald-500" />
@@ -306,7 +384,10 @@ const syncOffices = () => {
                                 <XCircle v-else class="h-4 w-4 text-slate-300" />
                             </td>
                             <td class="px-4 py-3 text-right">
-                                <Button variant="ghost" size="sm" class="h-7 w-7 p-0"><MoreHorizontal class="h-4 w-4" /></Button>
+                                <Button v-if="update.status === 'draft'" variant="ghost" size="sm" class="h-7 w-7 p-0 text-red-500 hover:bg-red-50" @click="removeOffice(off.office.id)">
+                                    <Trash2 class="h-3.5 w-3.5" />
+                                </Button>
+                                <Button v-else variant="ghost" size="sm" class="h-7 w-7 p-0"><MoreHorizontal class="h-4 w-4" /></Button>
                             </td>
                         </tr>
                     </tbody>
@@ -400,7 +481,107 @@ const syncOffices = () => {
         :confirm-text="confirmModal.confirmText"
         :variant="confirmModal.variant"
         :loading="confirmModal.loading"
+        :compact="confirmModal.compact"
         @close="confirmModal.show = false"
         @confirm="confirmModal.action"
     />
+
+    <!-- Edit Modal -->
+    <div v-if="editModalOpen" class="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" @click.self="editModalOpen = false">
+        <div class="w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl dark:bg-slate-950">
+            <h2 class="mb-4 text-sm font-bold text-slate-900 dark:text-white">Edit Clearance Update</h2>
+            <form class="grid gap-3" @submit.prevent="updateDetails">
+                <div class="grid gap-3">
+                    <label class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase">
+                        Semester
+                        <select v-model="editForm.semester_id" class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
+                            <option v-for="sem in semesters" :key="sem.id" :value="sem.id">
+                                {{ sem.academic_year }} - {{ sem.term }} - {{ sem.campus_name }}
+                            </option>
+                        </select>
+                        <InputError :message="editForm.errors.semester_id" />
+                    </label>
+                    <label class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase">
+                        Type
+                        <select v-model="editForm.clearance_type_id" class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
+                            <option v-for="type in types" :key="type.id" :value="type.id">{{ type.name }}</option>
+                        </select>
+                        <InputError :message="editForm.errors.clearance_type_id" />
+                    </label>
+                </div>
+                <label class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase">
+                    Title
+                    <input v-model="editForm.title" type="text" class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100" />
+                    <InputError :message="editForm.errors.title" />
+                </label>
+                <div class="grid grid-cols-2 gap-3">
+                    <label class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase">
+                        Start Date
+                        <input v-model="editForm.start_date" type="date" class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100" />
+                        <InputError :message="editForm.errors.start_date" />
+                    </label>
+                    <label class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase">
+                        End Date
+                        <input v-model="editForm.end_date" type="date" class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100" />
+                        <InputError :message="editForm.errors.end_date" />
+                    </label>
+                </div>
+                <label class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase">
+                    Purpose
+                    <textarea v-model="editForm.purpose" class="w-full rounded-lg border border-slate-200 bg-white p-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100" rows="2"></textarea>
+                    <InputError :message="editForm.errors.purpose" />
+                </label>
+                <div class="mt-4 flex justify-end gap-2">
+                    <Button type="button" variant="ghost" @click="editModalOpen = false">Cancel</Button>
+                    <Button type="submit" class="bg-emerald-600 text-white" :disabled="editForm.processing">Update Details</Button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Manage Offices Modal -->
+    <div v-if="officeModalOpen" class="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" @click.self="officeModalOpen = false">
+        <div class="flex max-h-[80vh] w-full max-w-lg flex-col rounded-xl bg-white shadow-xl dark:bg-slate-950">
+            <div class="border-b border-slate-100 p-4 dark:border-white/10">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-sm font-bold text-slate-900 dark:text-white">Manage Participating Offices</h2>
+                        <p class="text-[10px] text-slate-500">Select offices to include in this clearance period.</p>
+                    </div>
+                    <button class="rounded-lg p-1 hover:bg-slate-100" @click="officeModalOpen = false">
+                        <XCircle class="h-5 w-5 text-slate-400" />
+                    </button>
+                </div>
+                <div class="relative mt-3">
+                    <Search class="absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                    <input
+                        v-model="officeSearch"
+                        type="text"
+                        placeholder="Search offices..."
+                        class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-white/5"
+                    />
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto p-2">
+                <div class="grid gap-1">
+                    <label
+                        v-for="office in filteredOffices"
+                        :key="office.id"
+                        class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-white/5"
+                    >
+                        <input
+                            type="checkbox"
+                            :checked="isOfficeSelected(office.id)"
+                            @change="toggleOffice(office.id)"
+                            class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <span class="text-xs font-medium text-slate-700 dark:text-slate-200">{{ office.name }}</span>
+                    </label>
+                </div>
+            </div>
+            <div class="border-t border-slate-100 p-4 text-right dark:border-white/10">
+                <Button variant="ghost" class="h-8 text-xs font-bold" @click="officeModalOpen = false">Close</Button>
+            </div>
+        </div>
+    </div>
 </template>

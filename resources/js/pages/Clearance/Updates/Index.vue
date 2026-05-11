@@ -16,6 +16,7 @@ import {
     Clock,
     FileText,
     Trash2,
+    Pencil,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import InputError from '@/components/InputError.vue';
@@ -126,10 +127,26 @@ const openCreate = () => {
     modal.value = { type: 'create' };
 };
 
+const openEdit = (update: ClearanceUpdate) => {
+    form.clearErrors();
+    form.semester_id = update.semester.id;
+    form.clearance_type_id = update.type.id;
+    form.title = update.title;
+    form.start_date = update.start_date;
+    form.end_date = update.end_date;
+    modal.value = { type: 'edit', update };
+};
+
 const submit = () => {
-    form.post('/student-services/clearance/updates', {
-        onSuccess: () => (modal.value = null),
-    });
+    if (modal.value?.type === 'create') {
+        form.post('/student-services/clearance/updates', {
+            onSuccess: () => (modal.value = null),
+        });
+    } else if (modal.value?.type === 'edit' && modal.value.update) {
+        form.patch(`/student-services/clearance/updates/${modal.value.update.id}`, {
+            onSuccess: () => (modal.value = null),
+        });
+    }
 };
 
 const deleteUpdate = (id: number) => {
@@ -213,7 +230,7 @@ const statusClass = (status: string) => {
                     Semester
                     <select v-model="filters.semester_id" class="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs dark:border-white/10 dark:bg-slate-950">
                         <option value="">All Semesters</option>
-                        <option v-for="sem in semesters" :key="sem.id" :value="sem.id">{{ sem.campus_name }} - {{ sem.academic_year }} - {{ sem.term }}</option>
+                        <option v-for="sem in semesters" :key="sem.id" :value="sem.id">{{ sem.academic_year }} - {{ sem.term }} - {{ sem.campus_name }}</option>
                     </select>
                 </label>
                 <label class="grid gap-1 text-xs font-medium text-slate-600 dark:text-slate-300">
@@ -248,7 +265,7 @@ const statusClass = (status: string) => {
                             </Link>
                         </td>
                         <td class="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
-                            {{ update.semester.campus_name }} - {{ update.semester.academic_year }} - {{ update.semester.term }}
+                            {{ update.semester.academic_year }} - {{ update.semester.term }} - {{ update.semester.campus_name }}
                         </td>
                         <td class="px-4 py-3">
                             <span class="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
@@ -265,6 +282,13 @@ const statusClass = (status: string) => {
                         </td>
                         <td class="px-4 py-3 text-right">
                             <div class="flex justify-end gap-1">
+                                <button
+                                    v-if="update.status === 'draft' && can.edit"
+                                    class="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-emerald-600"
+                                    @click="openEdit(update)"
+                                >
+                                    <Pencil class="h-3.5 w-3.5" />
+                                </button>
                                 <Link :href="`/student-services/clearance/updates/${update.id}`" class="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700">
                                     <MoreHorizontal class="h-4 w-4" />
                                 </Link>
@@ -295,24 +319,25 @@ const statusClass = (status: string) => {
         </div>
     </div>
 
-    <!-- Create Modal -->
-    <div v-if="modal?.type === 'create'" class="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" @click.self="modal = null">
-        <div class="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl dark:bg-slate-950">
-            <h2 class="mb-4 text-sm font-bold text-slate-900 dark:text-white">Create Clearance Update</h2>
+    <!-- Create/Edit Modal -->
+    <div v-if="modal" class="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" @click.self="modal = null">
+        <div class="w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl dark:bg-slate-950">
+            <h2 class="mb-4 text-sm font-bold text-slate-900 dark:text-white">{{ modal.type === 'create' ? 'Create' : 'Edit' }} Clearance Update</h2>
             <form class="grid gap-3" @submit.prevent="submit">
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid gap-3">
                     <label class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase">
                         Semester
-                        <select v-model="form.semester_id" class="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs">
+                        <select v-model="form.semester_id" class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
                             <option v-for="sem in semesters" :key="sem.id" :value="sem.id">
-                                {{ sem.campus_name }} - {{ sem.academic_year }} - {{ sem.term }}
+                                {{ sem.academic_year }} - {{ sem.term }} - {{ sem.campus_name }}
                             </option>
                         </select>
                         <InputError :message="form.errors.semester_id" />
                     </label>
                     <label class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase">
                         Type
-                        <select v-model="form.clearance_type_id" class="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs">
+                        <select v-model="form.clearance_type_id" class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
+                            <option value="" disabled>Select Type</option>
                             <option v-for="type in types" :key="type.id" :value="type.id">{{ type.name }}</option>
                         </select>
                         <InputError :message="form.errors.clearance_type_id" />
@@ -320,29 +345,31 @@ const statusClass = (status: string) => {
                 </div>
                 <label class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase">
                     Title
-                    <input v-model="form.title" type="text" class="h-9 rounded-lg border border-slate-200 px-3 text-xs" />
+                    <input v-model="form.title" type="text" class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100" placeholder="e.g. 1st Semester Clearance 2025" />
                     <InputError :message="form.errors.title" />
                 </label>
                 <div class="grid grid-cols-2 gap-3">
                     <label class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase">
                         Start Date
-                        <input v-model="form.start_date" type="date" class="h-9 rounded-lg border border-slate-200 px-3 text-xs" />
+                        <input v-model="form.start_date" type="date" class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100" />
                         <InputError :message="form.errors.start_date" />
                     </label>
                     <label class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase">
                         End Date
-                        <input v-model="form.end_date" type="date" class="h-9 rounded-lg border border-slate-200 px-3 text-xs" />
+                        <input v-model="form.end_date" type="date" class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100" />
                         <InputError :message="form.errors.end_date" />
                     </label>
                 </div>
                 <label class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase">
                     Purpose
-                    <textarea v-model="form.purpose" class="rounded-lg border border-slate-200 p-3 text-xs" rows="2"></textarea>
+                    <textarea v-model="form.purpose" class="w-full rounded-lg border border-slate-200 bg-white p-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100" rows="2" placeholder="Brief description of the clearance purpose..."></textarea>
                     <InputError :message="form.errors.purpose" />
                 </label>
                 <div class="mt-4 flex justify-end gap-2">
                     <Button type="button" variant="ghost" @click="modal = null">Cancel</Button>
-                    <Button type="submit" class="bg-emerald-600 text-white" :disabled="form.processing">Create Draft</Button>
+                    <Button type="submit" class="bg-emerald-600 text-white" :disabled="form.processing">
+                        {{ modal.type === 'create' ? 'Create Draft' : 'Update changes' }}
+                    </Button>
                 </div>
             </form>
         </div>

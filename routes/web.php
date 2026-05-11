@@ -261,9 +261,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 Route::get('/updates', [ClearanceUpdateController::class, 'index'])->name('updates.index');
                 Route::post('/updates', [ClearanceUpdateController::class, 'store'])->name('updates.store');
                 Route::get('/updates/{update}', [ClearanceUpdateController::class, 'show'])->name('updates.show');
+                Route::patch('/updates/{update}', [ClearanceUpdateController::class, 'update'])->name('updates.update');
                 Route::post('/updates/{update}/publish', [ClearanceUpdateController::class, 'publish'])->name('updates.publish');
                 Route::post('/updates/{update}/close', [ClearanceUpdateController::class, 'close'])->name('updates.close');
                 Route::post('/updates/{update}/sync-offices', [ClearanceUpdateController::class, 'syncOffices'])->name('updates.sync-offices');
+                Route::post('/updates/{update}/toggle-office', [ClearanceUpdateController::class, 'toggleOffice'])->name('updates.toggle-office');
+                Route::delete('/updates/{update}/offices/{office}', [ClearanceUpdateController::class, 'removeOffice'])->name('updates.remove-office');
                 Route::delete('/updates/{update}', [ClearanceUpdateController::class, 'destroy'])->name('updates.destroy');
                 Route::patch('/updates/{update}/extend', [ClearanceUpdateController::class, 'extend'])->name('updates.extend');
 

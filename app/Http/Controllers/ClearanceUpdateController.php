@@ -71,6 +71,29 @@ class ClearanceUpdateController extends Controller
         return back()->with('success', 'Clearance update created as draft.');
     }
 
+    public function update(Request $request, ClearanceUpdate $update): RedirectResponse
+    {
+        $this->authorize('update', $update);
+
+        if ($update->status !== ClearanceUpdate::STATUS_DRAFT) {
+            return back()->with('error', 'Only draft clearance updates can be edited.');
+        }
+
+        $validated = $request->validate([
+            'semester_id' => ['required', 'exists:semesters,id'],
+            'clearance_type_id' => ['required', 'exists:clearance_types,id'],
+            'title' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'purpose' => ['nullable', 'string'],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        $update->update($validated);
+
+        return back()->with('success', 'Clearance update updated successfully.');
+    }
+
     public function show(ClearanceUpdate $update): Response
     {
         $this->authorize('view', $update);
@@ -85,6 +108,9 @@ class ClearanceUpdateController extends Controller
         return Inertia::render('Clearance/Updates/Show', [
             'update' => (new ClearanceUpdateResource($update))->resolve(),
             'logs' => $logs,
+            'semesters' => Semester::orderByDesc('academic_year')->orderByDesc('term')->get(['id', 'academic_year', 'term', 'campus_name']),
+            'types' => ClearanceType::all(['id', 'name']),
+            'allOffices' => Office::orderBy('name')->get(['id', 'name']),
             'can' => [
                 'publish' => auth()->user()->can('clearance-update.publish'),
                 'close' => auth()->user()->can('clearance-update.close'),
@@ -152,6 +178,49 @@ class ClearanceUpdateController extends Controller
         }
 
         return back()->with('success', 'All offices assigned to this clearance.');
+    }
+
+    public function toggleOffice(Request $request, ClearanceUpdate $update): RedirectResponse
+    {
+        $this->authorize('update', $update);
+
+        $validated = $request->validate([
+            'office_id' => ['required', 'exists:offices,id'],
+        ]);
+
+        $officeId = $validated['office_id'];
+
+        $exists = ClearanceUpdateOffice::where('clearance_update_id', $update->id)
+            ->where('office_id', $officeId)
+            ->first();
+
+        if ($exists) {
+            $exists->delete();
+            $msg = 'Office removed from clearance.';
+        } else {
+            ClearanceUpdateOffice::create([
+                'clearance_update_id' => $update->id,
+                'office_id' => $officeId,
+                'sequence' => ($update->offices()->max('sequence') ?? 0) + 1,
+                'is_required' => true,
+                'can_upload_accountability' => true,
+                'can_resolve_accountability' => true,
+            ]);
+            $msg = 'Office added to clearance.';
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    public function removeOffice(ClearanceUpdate $update, Office $office): RedirectResponse
+    {
+        $this->authorize('update', $update);
+
+        ClearanceUpdateOffice::where('clearance_update_id', $update->id)
+            ->where('office_id', $office->id)
+            ->delete();
+
+        return back()->with('success', 'Office removed.');
     }
 
     public function destroy(ClearanceUpdate $update): RedirectResponse
