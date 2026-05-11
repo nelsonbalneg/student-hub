@@ -41,4 +41,9 @@ class ClearanceUpdatePolicy
     {
         return $user->can('clearance-update.delete') && $update->status === ClearanceUpdate::STATUS_DRAFT;
     }
+
+    public function extend(User $user, ClearanceUpdate $update): bool
+    {
+        return $user->can('clearance-update.edit') && $update->status === ClearanceUpdate::STATUS_PUBLISHED;
+    }
 }

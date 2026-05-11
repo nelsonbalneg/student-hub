@@ -26,6 +26,7 @@ class ClearanceUpdateResource extends JsonResource
                 'id' => $this->semester->id,
                 'academic_year' => $this->semester->academic_year,
                 'term' => $this->semester->term,
+                'campus_name' => $this->semester->campus_name,
             ],
             'type' => [
                 'id' => $this->type->id,

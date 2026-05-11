@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\Clearance\ClearanceUpdateResource;
 use App\Models\ClearanceType;
+use App\Models\ClearanceLog;
 use App\Models\ClearanceUpdate;
 use App\Models\ClearanceUpdateOffice;
 use App\Models\Office;
@@ -35,7 +36,7 @@ class ClearanceUpdateController extends Controller
         return Inertia::render('Clearance/Updates/Index', [
             'updates' => $this->resourcePage($updates, ClearanceUpdateResource::class),
             'filters' => $request->only(['search', 'semester_id', 'status']),
-            'semesters' => Semester::orderByDesc('academic_year')->orderByDesc('term')->get(['id', 'academic_year', 'term']),
+            'semesters' => Semester::orderByDesc('academic_year')->orderByDesc('term')->get(['id', 'academic_year', 'term', 'campus_name']),
             'types' => ClearanceType::all(['id', 'name']),
             'activeSemester' => GetActiveSem::current(),
             'can' => [
@@ -76,12 +77,20 @@ class ClearanceUpdateController extends Controller
 
         $update->load(['semester', 'type', 'creator', 'offices.office']);
 
+        $logs = ClearanceLog::where('clearance_update_id', $update->id)
+            ->with(['performer', 'office'])
+            ->latest()
+            ->get();
+
         return Inertia::render('Clearance/Updates/Show', [
             'update' => (new ClearanceUpdateResource($update))->resolve(),
+            'logs' => $logs,
             'can' => [
                 'publish' => auth()->user()->can('clearance-update.publish'),
                 'close' => auth()->user()->can('clearance-update.close'),
                 'edit' => auth()->user()->can('clearance-update.edit'),
+                'delete' => auth()->user()->can('clearance-update.delete'),
+                'extend' => auth()->user()->can('extend', $update),
             ]
         ]);
     }
@@ -99,6 +108,14 @@ class ClearanceUpdateController extends Controller
             'published_at' => now(),
         ]);
 
+        // Audit Trail
+        ClearanceLog::create([
+            'clearance_update_id' => $update->id,
+            'action' => 'PUBLISHED',
+            'remarks' => 'Clearance update published to students.',
+            'performed_by' => auth()->id(),
+        ]);
+
         return back()->with('success', 'Clearance update published successfully.');
     }
 
@@ -109,6 +126,14 @@ class ClearanceUpdateController extends Controller
         $update->update([
             'status' => ClearanceUpdate::STATUS_CLOSED,
             'closed_at' => now(),
+        ]);
+
+        // Audit Trail
+        ClearanceLog::create([
+            'clearance_update_id' => $update->id,
+            'action' => 'CLOSED',
+            'remarks' => 'Clearance update closed.',
+            'performed_by' => auth()->id(),
         ]);
 
         return back()->with('success', 'Clearance update closed.');
@@ -127,6 +152,47 @@ class ClearanceUpdateController extends Controller
         }
 
         return back()->with('success', 'All offices assigned to this clearance.');
+    }
+
+    public function destroy(ClearanceUpdate $update): RedirectResponse
+    {
+        $this->authorize('delete', $update);
+
+        if ($update->status !== ClearanceUpdate::STATUS_DRAFT) {
+            return back()->with('error', 'Only draft clearance updates can be deleted.');
+        }
+
+        $update->delete();
+
+        return redirect()->route('clearance.updates.index')
+            ->with('success', 'Clearance update deleted successfully.');
+    }
+
+    public function extend(Request $request, ClearanceUpdate $update): RedirectResponse
+    {
+        $this->authorize('extend', $update);
+
+        $validated = $request->validate([
+            'end_date' => ['required', 'date', 'after_or_equal:' . now()->toDateString()],
+            'remarks' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $oldEndDate = $update->end_date->toDateString();
+        $newEndDate = $validated['end_date'];
+
+        $update->update([
+            'end_date' => $newEndDate,
+        ]);
+
+        // Audit Trail
+        ClearanceLog::create([
+            'clearance_update_id' => $update->id,
+            'action' => 'EXTEND_PERIOD',
+            'remarks' => "Extended application period from {$oldEndDate} to {$newEndDate}. " . ($validated['remarks'] ?? ''),
+            'performed_by' => auth()->id(),
+        ]);
+
+        return back()->with('success', 'Application period extended successfully.');
     }
 
     /**

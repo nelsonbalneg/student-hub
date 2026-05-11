@@ -15,10 +15,12 @@ import {
     CheckCircle2,
     Clock,
     FileText,
+    Trash2,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
+import ConfirmationModal from '@/components/ConfirmationModal.vue';
 
 type PageLink = { url: string | null; label: string; active: boolean };
 type PageMeta = {
@@ -34,7 +36,7 @@ type Page<T> = { data: T[]; links: PageLink[]; meta: PageMeta };
 type ClearanceUpdate = {
     id: number;
     title: string;
-    semester: { id: number; academic_year: string; term: string };
+    semester: { id: number; academic_year: string; term: string; campus_name?: string };
     type: { id: number; name: string };
     status: string;
     start_date: string;
@@ -45,7 +47,7 @@ type ClearanceUpdate = {
 const props = defineProps<{
     updates: Page<ClearanceUpdate>;
     filters: Record<string, string | undefined>;
-    semesters: { id: number; academic_year: string; term: string }[];
+    semesters: { id: number; academic_year: string; term: string; campus_name?: string }[];
     types: { id: number; name: string }[];
     activeSemester: any;
     can: {
@@ -70,6 +72,16 @@ const filterOpen = ref(false);
 const filters = ref({
     status: props.filters.status ?? '',
     semester_id: props.filters.semester_id ?? '',
+});
+
+const confirmModal = ref({
+    show: false,
+    title: '',
+    description: '',
+    confirmText: '',
+    variant: 'default' as 'default' | 'destructive',
+    action: () => {},
+    loading: false,
 });
 
 const modal = ref<null | { type: 'create' | 'edit'; update?: ClearanceUpdate }>(null);
@@ -118,6 +130,26 @@ const submit = () => {
     form.post('/student-services/clearance/updates', {
         onSuccess: () => (modal.value = null),
     });
+};
+
+const deleteUpdate = (id: number) => {
+    confirmModal.value = {
+        show: true,
+        title: 'Delete Clearance Update',
+        description: 'Are you sure you want to delete this clearance update? This action cannot be undone.',
+        confirmText: 'Delete Update',
+        variant: 'destructive',
+        action: () => {
+            router.delete(`/student-services/clearance/updates/${id}`, {
+                onStart: () => confirmModal.value.loading = true,
+                onFinish: () => {
+                    confirmModal.value.loading = false;
+                    confirmModal.value.show = false;
+                }
+            });
+        },
+        loading: false,
+    };
 };
 
 const navigatePage = (url: string | null) => {
@@ -181,7 +213,7 @@ const statusClass = (status: string) => {
                     Semester
                     <select v-model="filters.semester_id" class="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs dark:border-white/10 dark:bg-slate-950">
                         <option value="">All Semesters</option>
-                        <option v-for="sem in semesters" :key="sem.id" :value="sem.id">{{ sem.academic_year }} - {{ sem.term }}</option>
+                        <option v-for="sem in semesters" :key="sem.id" :value="sem.id">{{ sem.campus_name }} - {{ sem.academic_year }} - {{ sem.term }}</option>
                     </select>
                 </label>
                 <label class="grid gap-1 text-xs font-medium text-slate-600 dark:text-slate-300">
@@ -216,7 +248,7 @@ const statusClass = (status: string) => {
                             </Link>
                         </td>
                         <td class="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
-                            {{ update.semester.academic_year }} - {{ update.semester.term }}
+                            {{ update.semester.campus_name }} - {{ update.semester.academic_year }} - {{ update.semester.term }}
                         </td>
                         <td class="px-4 py-3">
                             <span class="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
@@ -232,9 +264,18 @@ const statusClass = (status: string) => {
                             </span>
                         </td>
                         <td class="px-4 py-3 text-right">
-                            <Link :href="`/student-services/clearance/updates/${update.id}`" class="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-                                <MoreHorizontal class="h-4 w-4" />
-                            </Link>
+                            <div class="flex justify-end gap-1">
+                                <Link :href="`/student-services/clearance/updates/${update.id}`" class="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                                    <MoreHorizontal class="h-4 w-4" />
+                                </Link>
+                                <button
+                                    v-if="update.status === 'draft' && can.delete"
+                                    class="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                    @click="deleteUpdate(update.id)"
+                                >
+                                    <Trash2 class="h-3.5 w-3.5" />
+                                </button>
+                            </div>
                         </td>
                     </tr>
                 </tbody>
@@ -263,7 +304,9 @@ const statusClass = (status: string) => {
                     <label class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase">
                         Semester
                         <select v-model="form.semester_id" class="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs">
-                            <option v-for="sem in semesters" :key="sem.id" :value="sem.id">{{ sem.academic_year }} - {{ sem.term }}</option>
+                            <option v-for="sem in semesters" :key="sem.id" :value="sem.id">
+                                {{ sem.campus_name }} - {{ sem.academic_year }} - {{ sem.term }}
+                            </option>
                         </select>
                         <InputError :message="form.errors.semester_id" />
                     </label>
@@ -304,4 +347,15 @@ const statusClass = (status: string) => {
             </form>
         </div>
     </div>
+
+    <ConfirmationModal
+        :show="confirmModal.show"
+        :title="confirmModal.title"
+        :description="confirmModal.description"
+        :confirm-text="confirmModal.confirmText"
+        :variant="confirmModal.variant"
+        :loading="confirmModal.loading"
+        @close="confirmModal.show = false"
+        @confirm="confirmModal.action"
+    />
 </template>

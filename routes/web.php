@@ -264,6 +264,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 Route::post('/updates/{update}/publish', [ClearanceUpdateController::class, 'publish'])->name('updates.publish');
                 Route::post('/updates/{update}/close', [ClearanceUpdateController::class, 'close'])->name('updates.close');
                 Route::post('/updates/{update}/sync-offices', [ClearanceUpdateController::class, 'syncOffices'])->name('updates.sync-offices');
+                Route::delete('/updates/{update}', [ClearanceUpdateController::class, 'destroy'])->name('updates.destroy');
+                Route::patch('/updates/{update}/extend', [ClearanceUpdateController::class, 'extend'])->name('updates.extend');
 
                 // Accountabilities
                 Route::get('/updates/{update}/accountabilities', [ClearanceAccountabilityController::class, 'index'])->name('accountabilities.index');

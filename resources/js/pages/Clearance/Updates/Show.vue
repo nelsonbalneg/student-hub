@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
     Calendar,
     CheckCircle2,
@@ -15,16 +15,35 @@ import {
     XCircle,
     Play,
     StopCircle,
+    Trash2,
+    CalendarClock,
 } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { Button } from '@/components/ui/button';
+import ConfirmationModal from '@/components/ConfirmationModal.vue';
 
 const props = defineProps<{
     update: any;
+    logs: any[];
     can: any;
 }>();
 
 const activeTab = ref('overview');
+const extendModalOpen = ref(false);
+
+const extendForm = useForm({
+    end_date: props.update.end_date,
+    remarks: '',
+});
+const confirmModal = ref({
+    show: false,
+    title: '',
+    description: '',
+    confirmText: '',
+    variant: 'default' as 'default' | 'destructive',
+    action: () => {},
+    loading: false,
+});
 
 defineOptions({
     layout: {
@@ -36,15 +55,72 @@ defineOptions({
 });
 
 const publish = () => {
-    if (confirm('Are you sure you want to publish this clearance update? Students will be able to apply once published.')) {
-        router.post(`/student-services/clearance/updates/${props.update.id}/publish`);
-    }
+    confirmModal.value = {
+        show: true,
+        title: 'Publish Clearance Update',
+        description: 'Are you sure you want to publish this clearance update? Students will be able to apply once published.',
+        confirmText: 'Publish Update',
+        variant: 'default',
+        action: () => {
+            router.post(`/student-services/clearance/updates/${props.update.id}/publish`, {}, {
+                onStart: () => confirmModal.value.loading = true,
+                onFinish: () => {
+                    confirmModal.value.loading = false;
+                    confirmModal.value.show = false;
+                }
+            });
+        },
+        loading: false,
+    };
 };
 
 const closeUpdate = () => {
-    if (confirm('Are you sure you want to close this clearance update? Students will no longer be able to apply.')) {
-        router.post(`/student-services/clearance/updates/${props.update.id}/close`);
-    }
+    confirmModal.value = {
+        show: true,
+        title: 'Close Clearance Update',
+        description: 'Are you sure you want to close this clearance update? Students will no longer be able to apply.',
+        confirmText: 'Close Update',
+        variant: 'default',
+        action: () => {
+            router.post(`/student-services/clearance/updates/${props.update.id}/close`, {}, {
+                onStart: () => confirmModal.value.loading = true,
+                onFinish: () => {
+                    confirmModal.value.loading = false;
+                    confirmModal.value.show = false;
+                }
+            });
+        },
+        loading: false,
+    };
+};
+
+const deleteUpdate = () => {
+    confirmModal.value = {
+        show: true,
+        title: 'Delete Clearance Update',
+        description: 'Are you sure you want to delete this clearance update? This action cannot be undone and all associated records will be lost.',
+        confirmText: 'Delete Update',
+        variant: 'destructive',
+        action: () => {
+            router.delete(`/student-services/clearance/updates/${props.update.id}`, {
+                onStart: () => confirmModal.value.loading = true,
+                onFinish: () => {
+                    confirmModal.value.loading = false;
+                    confirmModal.value.show = false;
+                }
+            });
+        },
+        loading: false,
+    };
+};
+
+const extendPeriod = () => {
+    extendForm.patch(`/student-services/clearance/updates/${props.update.id}/extend`, {
+        onSuccess: () => {
+            extendModalOpen.value = false;
+            extendForm.reset('remarks');
+        },
+    });
 };
 
 const tabs = [
@@ -54,6 +130,7 @@ const tabs = [
     { id: 'accountabilities', name: 'Accountabilities', icon: AlertCircle },
     { id: 'uploads', name: 'Upload History', icon: History },
     { id: 'reports', name: 'Reports', icon: FileBarChart },
+    { id: 'logs', name: 'Audit Logs', icon: History },
 ];
 
 const statusClass = (status: string) => {
@@ -84,7 +161,7 @@ const syncOffices = () => {
                             {{ update.status }}
                         </span>
                     </div>
-                    <p class="text-xs text-slate-500">{{ update.semester.academic_year }} - {{ update.semester.term }} | {{ update.type.name }}</p>
+                    <p class="text-xs text-slate-500">{{ update.semester.campus_name }} - {{ update.semester.academic_year }} - {{ update.semester.term }} | {{ update.type.name }}</p>
                 </div>
             </div>
 
@@ -93,12 +170,20 @@ const syncOffices = () => {
                     <Play class="h-3.5 w-3.5" />
                     Publish Update
                 </Button>
+                <Button v-if="update.status === 'published' && can.extend" variant="outline" class="h-8 gap-1.5 border-indigo-200 bg-indigo-50 text-xs font-bold text-indigo-700 hover:bg-indigo-100" @click="extendModalOpen = true">
+                    <CalendarClock class="h-3.5 w-3.5" />
+                    Extend Period
+                </Button>
                 <Button v-if="update.status === 'published' && can.close" variant="outline" class="h-8 gap-1.5 border-amber-200 bg-amber-50 text-xs font-bold text-amber-700 hover:bg-amber-100" @click="closeUpdate">
                     <StopCircle class="h-3.5 w-3.5" />
                     Close Update
                 </Button>
                 <Button v-if="update.status === 'draft' && can.edit" variant="outline" class="h-8 text-xs font-bold">
                     Edit Details
+                </Button>
+                <Button v-if="update.status === 'draft' && can.delete" variant="outline" class="h-8 gap-1.5 border-red-200 bg-red-50 text-xs font-bold text-red-700 hover:bg-red-100" @click="deleteUpdate">
+                    <Trash2 class="h-3.5 w-3.5" />
+                    Delete
                 </Button>
             </div>
         </div>
@@ -243,6 +328,79 @@ const syncOffices = () => {
                     <Link :href="`/student-services/clearance/updates/${update.id}/accountabilities`" class="mt-4 inline-flex text-xs font-bold text-emerald-600 hover:underline">View All Accountabilities →</Link>
                 </div>
             </div>
+
+            <div v-if="activeTab === 'logs'" class="rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950">
+                <div class="border-b border-slate-100 p-4 dark:border-white/10">
+                    <h3 class="text-sm font-bold text-slate-900 dark:text-white">Audit Trail</h3>
+                </div>
+                <div class="p-4" v-if="logs.length === 0">
+                    <p class="text-center text-xs text-slate-400">No activity logged yet.</p>
+                </div>
+                <div v-else class="relative space-y-4 p-4 before:absolute before:top-4 before:bottom-4 before:left-[21px] before:w-0.5 before:bg-slate-100 dark:before:bg-white/5">
+                    <div v-for="log in logs" :key="log.id" class="relative pl-10">
+                        <div class="absolute left-0 flex h-[42px] w-[42px] items-center justify-center rounded-full border-4 border-white bg-slate-50 text-slate-400 dark:border-slate-950 dark:bg-white/5">
+                            <History class="h-4 w-4" />
+                        </div>
+                        <div class="rounded-lg border border-slate-100 bg-white p-3 shadow-sm dark:border-white/5 dark:bg-slate-900/50">
+                            <div class="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                                <p class="text-xs font-bold text-slate-900 dark:text-white">{{ log.action.replace('_', ' ').toUpperCase() }}</p>
+                                <span class="text-[10px] text-slate-400">{{ new Date(log.created_at).toLocaleString() }}</span>
+                            </div>
+                            <p class="mt-1 text-[11px] text-slate-600 dark:text-slate-400">{{ log.remarks }}</p>
+                            <div class="mt-2 flex items-center gap-2">
+                                <div class="h-4 w-4 rounded-full bg-emerald-100 flex items-center justify-center text-[8px] font-bold text-emerald-700">
+                                    {{ log.performer?.name?.charAt(0) }}
+                                </div>
+                                <p class="text-[10px] text-slate-500">Performed by <span class="font-medium text-slate-700 dark:text-slate-300">{{ log.performer?.name }}</span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
+
+    <!-- Extend Period Modal -->
+    <div v-if="extendModalOpen" class="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" @click.self="extendModalOpen = false">
+        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-slate-950">
+            <div class="mb-4 flex items-center gap-3">
+                <div class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+                    <CalendarClock class="h-5 w-5" />
+                </div>
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900 dark:text-white">Extend Application Period</h2>
+                    <p class="text-xs text-slate-500">Update the clearance end date.</p>
+                </div>
+            </div>
+            <form class="grid gap-4" @submit.prevent="extendPeriod">
+                <div class="grid gap-1.5">
+                    <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">New End Date</label>
+                    <input v-model="extendForm.end_date" type="date" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm focus:border-indigo-500 focus:outline-none dark:border-white/10 dark:bg-slate-900" />
+                    <p v-if="extendForm.errors.end_date" class="text-[10px] text-red-500 font-medium">{{ extendForm.errors.end_date }}</p>
+                </div>
+                <div class="grid gap-1.5">
+                    <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Remarks (Internal Note)</label>
+                    <textarea v-model="extendForm.remarks" class="rounded-lg border border-slate-200 bg-white p-3 text-sm focus:border-indigo-500 focus:outline-none dark:border-white/10 dark:bg-slate-900" rows="3" placeholder="Reason for extension..."></textarea>
+                    <p v-if="extendForm.errors.remarks" class="text-[10px] text-red-500 font-medium">{{ extendForm.errors.remarks }}</p>
+                </div>
+                <div class="mt-2 flex justify-end gap-3">
+                    <Button type="button" variant="ghost" class="h-9 px-4 text-xs font-bold" @click="extendModalOpen = false">Cancel</Button>
+                    <Button type="submit" class="h-9 bg-indigo-600 px-4 text-xs font-bold text-white hover:bg-indigo-700" :disabled="extendForm.processing">
+                        Update End Date
+                    </Button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <ConfirmationModal
+        :show="confirmModal.show"
+        :title="confirmModal.title"
+        :description="confirmModal.description"
+        :confirm-text="confirmModal.confirmText"
+        :variant="confirmModal.variant"
+        :loading="confirmModal.loading"
+        @close="confirmModal.show = false"
+        @confirm="confirmModal.action"
+    />
 </template>
