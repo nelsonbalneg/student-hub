@@ -30,6 +30,7 @@ const props = defineProps<{
     semesters: any[];
     types: any[];
     allOffices: any[];
+    applications: any[];
     can: any;
 }>();
 
@@ -73,6 +74,28 @@ const isOfficeSelected = (id: number) => {
     return props.update.offices.some((o: any) => o.office.id === id);
 };
 
+const studentSearch = ref('');
+const filteredApplications = computed(() => {
+    if (!props.applications) return [];
+    if (!studentSearch.value) return props.applications;
+    const search = studentSearch.value.toLowerCase();
+    return props.applications.filter((app: any) => 
+        (app.student?.name?.toLowerCase().includes(search) || false) || 
+        (app.student?.student_id?.toLowerCase().includes(search) || false) ||
+        (app.reference_no?.toLowerCase().includes(search) || false)
+    );
+});
+
+const statusColor = (status: string) => {
+    switch (status) {
+        case 'cleared': return 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400';
+        case 'pending_review': return 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400';
+        case 'with_accountability': return 'bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400';
+        case 'completed': return 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400';
+        default: return 'bg-slate-50 text-slate-600 dark:bg-white/5 dark:text-slate-400';
+    }
+};
+
 defineOptions({
     layout: {
         breadcrumbs: [
@@ -111,6 +134,28 @@ const closeUpdate = () => {
         variant: 'default',
         action: () => {
             router.post(`/student-services/clearance/updates/${props.update.id}/close`, {}, {
+                onStart: () => confirmModal.value.loading = true,
+                onFinish: () => {
+                    confirmModal.value.loading = false;
+                    confirmModal.value.show = false;
+                }
+            });
+        },
+        loading: false,
+    };
+};
+
+const deleteApplication = (application: any) => {
+    confirmModal.value = {
+        show: true,
+        title: 'Remove Student Application',
+        description: `Are you sure you want to remove ${application.student?.name}'s application? This will permanently delete their clearance progress for this period.`,
+        confirmText: 'Remove Application',
+        variant: 'destructive',
+        compact: true,
+        action: () => {
+            router.delete(`/student-services/clearance/updates/${props.update.id}/applications/${application.id}`, {
+                preserveScroll: true,
                 onStart: () => confirmModal.value.loading = true,
                 onFinish: () => {
                     confirmModal.value.loading = false;
@@ -168,15 +213,15 @@ const updateDetails = () => {
     });
 };
 
-const tabs = [
+const tabs = computed(() => [
     { id: 'overview', name: 'Overview', icon: FileText },
-    { id: 'offices', name: 'Participating Offices', icon: Building2 },
-    { id: 'applications', name: 'Student Applications', icon: Users },
+    { id: 'offices', name: `Participating Offices (${props.update.offices?.length || 0})`, icon: Building2 },
+    { id: 'applications', name: `Student Applications (${props.applications?.length || 0})`, icon: Users },
     { id: 'accountabilities', name: 'Accountabilities', icon: AlertCircle },
     { id: 'uploads', name: 'Upload History', icon: History },
     { id: 'reports', name: 'Reports', icon: FileBarChart },
-    { id: 'logs', name: 'Audit Logs', icon: History },
-];
+    { id: 'logs', name: `Audit Logs (${props.logs?.length || 0})`, icon: History },
+]);
 
 const statusClass = (status: string) => {
     switch (status) {
@@ -217,6 +262,18 @@ const removeOffice = (id: number) => {
         },
         loading: false,
     };
+};
+
+const actionColor = (action: string) => {
+    switch (action) {
+        case 'PUBLISHED': return 'text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 dark:text-emerald-400';
+        case 'CLOSED': return 'text-slate-600 bg-slate-50 dark:bg-white/5 dark:text-slate-400';
+        case 'EXTEND_PERIOD': return 'text-indigo-600 bg-indigo-50 dark:bg-indigo-500/10 dark:text-indigo-400';
+        case 'OFFICE_ADDED': return 'text-blue-600 bg-blue-50 dark:bg-blue-500/10 dark:text-blue-400';
+        case 'OFFICE_REMOVED': return 'text-red-600 bg-red-50 dark:bg-red-500/10 dark:text-red-400';
+        case 'APPLICATION_REMOVED': return 'text-rose-600 bg-rose-50 dark:bg-rose-500/10 dark:text-rose-400';
+        default: return 'text-slate-600 bg-slate-50 dark:bg-white/5 dark:text-slate-400';
+    }
 };
 </script>
 
@@ -394,6 +451,86 @@ const removeOffice = (id: number) => {
                 </table>
             </div>
 
+            <div v-if="activeTab === 'applications'" class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900 dark:text-white">Student Applications</h3>
+                        <p class="text-[10px] text-slate-500">List of students who applied for this clearance period.</p>
+                    </div>
+                    <div class="relative w-64">
+                        <Search class="absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                        <input
+                            v-model="studentSearch"
+                            type="text"
+                            placeholder="Search name or ID..."
+                            class="h-8 w-full rounded-lg border border-slate-200 bg-white pl-9 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-950"
+                        />
+                    </div>
+                </div>
+
+                <div class="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-white/10 dark:bg-slate-950">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="border-b border-slate-100 bg-slate-50/50 text-[10px] font-bold text-slate-500 uppercase tracking-wider dark:border-white/10 dark:bg-white/5">
+                                <th class="px-4 py-3">Student</th>
+                                <th class="px-4 py-3">Ref No.</th>
+                                <th class="px-4 py-3 text-center">Status</th>
+                                <th class="px-4 py-3 text-center">Applied Date</th>
+                                <th class="px-4 py-3 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-50 dark:divide-white/5">
+                            <tr v-for="app in filteredApplications" :key="app.id" class="hover:bg-slate-50 dark:hover:bg-white/5">
+                                <td class="px-4 py-3">
+                                    <div class="flex items-center gap-3">
+                                        <div class="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 dark:bg-white/5 dark:text-slate-400">
+                                            {{ app.student?.name?.charAt(0) || '?' }}
+                                        </div>
+                                        <div class="flex flex-col">
+                                            <span class="text-xs font-bold text-slate-900 dark:text-white">{{ app.student?.name || 'Unknown Student' }}</span>
+                                            <span class="text-[10px] text-slate-500">{{ app.student?.student_id || 'N/A' }}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3 text-[10px] font-mono text-slate-500">{{ app.reference_no }}</td>
+                                <td class="px-4 py-3 text-center">
+                                    <span :class="['rounded-full px-2 py-0.5 text-[10px] font-bold uppercase', statusColor(app.status)]">
+                                        {{ app.status?.replace('_', ' ') || 'Unknown' }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-center text-[10px] text-slate-500">
+                                    {{ app.applied_at }}
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <div class="flex items-center justify-end gap-2">
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            class="h-7 px-2 text-[10px] font-bold text-emerald-600 hover:bg-emerald-50"
+                                            @click="router.visit(`/student-services/clearance/my-clearance/${app.id}`)"
+                                        >
+                                            View Details
+                                        </Button>
+                                        <Button 
+                                            v-if="update.status === 'draft'"
+                                            variant="ghost" 
+                                            size="sm" 
+                                            class="h-7 w-7 p-0 text-red-500 hover:bg-red-50 hover:text-red-600"
+                                            @click="deleteApplication(app)"
+                                        >
+                                            <Trash2 class="h-3.5 w-3.5" />
+                                        </Button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr v-if="filteredApplications.length === 0">
+                                <td colspan="5" class="p-8 text-center text-xs text-slate-400">No applications found.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <div v-if="activeTab === 'accountabilities'" class="space-y-4">
                 <div class="flex items-center justify-between">
                     <h3 class="text-sm font-bold text-slate-900 dark:text-white">Accountability Management</h3>
@@ -419,12 +556,14 @@ const removeOffice = (id: number) => {
                 </div>
                 <div v-else class="relative space-y-4 p-4 before:absolute before:top-4 before:bottom-4 before:left-[21px] before:w-0.5 before:bg-slate-100 dark:before:bg-white/5">
                     <div v-for="log in logs" :key="log.id" class="relative pl-10">
-                        <div class="absolute left-0 flex h-[42px] w-[42px] items-center justify-center rounded-full border-4 border-white bg-slate-50 text-slate-400 dark:border-slate-950 dark:bg-white/5">
+                        <div :class="['absolute left-0 flex h-[42px] w-[42px] items-center justify-center rounded-full border-4 border-white shadow-sm dark:border-slate-950', actionColor(log.action)]">
                             <History class="h-4 w-4" />
                         </div>
                         <div class="rounded-lg border border-slate-100 bg-white p-3 shadow-sm dark:border-white/5 dark:bg-slate-900/50">
                             <div class="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-                                <p class="text-xs font-bold text-slate-900 dark:text-white">{{ log.action.replace('_', ' ').toUpperCase() }}</p>
+                                <div :class="['inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-tight', actionColor(log.action)]">
+                                    {{ log.action?.replace('_', ' ') }}
+                                </div>
                                 <span class="text-[10px] text-slate-400">{{ new Date(log.created_at).toLocaleString() }}</span>
                             </div>
                             <p class="mt-1 text-[11px] text-slate-600 dark:text-slate-400">{{ log.remarks }}</p>

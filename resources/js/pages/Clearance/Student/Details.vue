@@ -47,7 +47,7 @@ const statusColor = (s: string) => {
                     <ChevronLeft class="h-4 w-4" />
                 </Link>
                 <div>
-                    <h1 class="text-base font-bold text-slate-900 dark:text-white">{{ clearance.clearance_update.title }}</h1>
+                    <h1 class="text-base font-bold text-slate-900 dark:text-white">{{ clearance.clearance_update?.title || 'Clearance Details' }}</h1>
                     <p class="text-xs text-slate-500">Ref: {{ clearance.reference_no }}</p>
                 </div>
             </div>
@@ -69,7 +69,7 @@ const statusColor = (s: string) => {
                         <div>
                             <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Current Status</p>
                             <h2 :class="['text-lg font-bold', clearance.status === 'cleared' ? 'text-emerald-700' : 'text-amber-700']">
-                                {{ clearance.status.replace('_', ' ').toUpperCase() }}
+                                {{ clearance.status?.replace('_', ' ').toUpperCase() || 'UNKNOWN' }}
                             </h2>
                         </div>
                     </div>
@@ -84,8 +84,8 @@ const statusColor = (s: string) => {
                     <div class="border-b border-slate-100 p-4 dark:border-white/10">
                         <h3 class="text-sm font-bold text-slate-900 dark:text-white">Active Accountabilities</h3>
                     </div>
-                    <div v-if="clearance.clearance_update.accountabilities.length === 0" class="p-8 text-center">
-                        <p class="text-sm text-slate-400">No accountabilities found. You are cleared!</p>
+                    <div v-if="!clearance.clearance_update?.accountabilities || clearance.clearance_update.accountabilities.length === 0" class="p-8 text-center">
+                        <p class="text-sm text-slate-400 font-medium">No Accountabilities</p>
                     </div>
                     <div v-else class="divide-y divide-slate-50 dark:divide-white/5">
                         <div v-for="acc in clearance.clearance_update.accountabilities" :key="acc.id" class="p-4 flex items-start justify-between gap-4">
@@ -99,7 +99,7 @@ const statusColor = (s: string) => {
                                     <div class="mt-2 flex items-center gap-3">
                                         <div class="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase">
                                             <Building2 class="h-3 w-3" />
-                                            {{ acc.office.name }}
+                                            {{ acc.office?.name || 'Unknown Office' }}
                                         </div>
                                         <div v-if="acc.amount" class="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
                                             ₱{{ acc.amount }}
@@ -122,7 +122,7 @@ const statusColor = (s: string) => {
                     <div class="space-y-4">
                         <div v-for="log in clearance.logs" :key="log.id" class="relative pl-6 pb-4 border-l border-slate-100 last:border-0 last:pb-0 dark:border-white/10">
                             <div class="absolute -left-1.5 top-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500 dark:border-slate-950"></div>
-                            <p class="text-[10px] font-bold text-slate-900 dark:text-white uppercase">{{ log.action.replace('_', ' ') }}</p>
+                            <p class="text-[10px] font-bold text-slate-900 dark:text-white uppercase">{{ log.action?.replace('_', ' ') || 'ACTION' }}</p>
                             <p class="text-[10px] text-slate-500 mt-0.5">{{ log.remarks }}</p>
                             <p class="text-[9px] text-slate-400 mt-1">{{ log.created_at }}</p>
                         </div>
@@ -132,8 +132,8 @@ const statusColor = (s: string) => {
                 <div class="rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-slate-950">
                     <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Required Offices</h3>
                     <div class="grid gap-3">
-                        <div v-for="off in clearance.clearance_update.offices" :key="off.id" class="flex items-center justify-between text-xs">
-                            <span class="text-slate-600">{{ off.office.name }}</span>
+                        <div v-for="off in clearance.clearance_update?.offices" :key="off.id" class="flex items-center justify-between text-xs">
+                            <span class="text-slate-600">{{ off.office?.name || 'Unknown Office' }}</span>
                             <CheckCircle2 class="h-3.5 w-3.5 text-emerald-500" />
                         </div>
                     </div>

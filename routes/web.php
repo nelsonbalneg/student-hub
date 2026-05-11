@@ -267,6 +267,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 Route::post('/updates/{update}/sync-offices', [ClearanceUpdateController::class, 'syncOffices'])->name('updates.sync-offices');
                 Route::post('/updates/{update}/toggle-office', [ClearanceUpdateController::class, 'toggleOffice'])->name('updates.toggle-office');
                 Route::delete('/updates/{update}/offices/{office}', [ClearanceUpdateController::class, 'removeOffice'])->name('updates.remove-office');
+                Route::delete('/updates/{update}/applications/{application}', [ClearanceUpdateController::class, 'deleteApplication'])->name('updates.delete-application');
                 Route::delete('/updates/{update}', [ClearanceUpdateController::class, 'destroy'])->name('updates.destroy');
                 Route::patch('/updates/{update}/extend', [ClearanceUpdateController::class, 'extend'])->name('updates.extend');
 

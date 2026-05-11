@@ -65,6 +65,11 @@ class ClearanceUpdate extends Model
         return $this->hasMany(StudentSemesterClearance::class);
     }
 
+    public function applications(): HasMany
+    {
+        return $this->studentClearances();
+    }
+
     public function accountabilities(): HasMany
     {
         return $this->hasMany(ClearanceAccountability::class);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\Clearance\ClearanceUpdateResource;
+use App\Http\Resources\Clearance\StudentClearanceResource;
 use App\Models\ClearanceType;
 use App\Models\ClearanceLog;
 use App\Models\ClearanceUpdate;
@@ -111,6 +112,9 @@ class ClearanceUpdateController extends Controller
             'semesters' => Semester::orderByDesc('academic_year')->orderByDesc('term')->get(['id', 'academic_year', 'term', 'campus_name']),
             'types' => ClearanceType::all(['id', 'name']),
             'allOffices' => Office::orderBy('name')->get(['id', 'name']),
+            'applications' => StudentClearanceResource::collection(
+                $update->applications()->with('student')->latest()->get()
+            )->resolve(),
             'can' => [
                 'publish' => auth()->user()->can('clearance-update.publish'),
                 'close' => auth()->user()->can('clearance-update.close'),
@@ -195,9 +199,13 @@ class ClearanceUpdateController extends Controller
             ->first();
 
         if ($exists) {
+            $officeName = $exists->office->name;
             $exists->delete();
             $msg = 'Office removed from clearance.';
+            $action = 'OFFICE_REMOVED';
+            $remarks = "Removed office: {$officeName}.";
         } else {
+            $office = Office::find($officeId);
             ClearanceUpdateOffice::create([
                 'clearance_update_id' => $update->id,
                 'office_id' => $officeId,
@@ -207,7 +215,16 @@ class ClearanceUpdateController extends Controller
                 'can_resolve_accountability' => true,
             ]);
             $msg = 'Office added to clearance.';
+            $action = 'OFFICE_ADDED';
+            $remarks = "Added office: {$office->name}.";
         }
+
+        ClearanceLog::create([
+            'clearance_update_id' => $update->id,
+            'action' => $action,
+            'remarks' => $remarks,
+            'performed_by' => auth()->id(),
+        ]);
 
         return back()->with('success', $msg);
     }
@@ -219,6 +236,13 @@ class ClearanceUpdateController extends Controller
         ClearanceUpdateOffice::where('clearance_update_id', $update->id)
             ->where('office_id', $office->id)
             ->delete();
+
+        ClearanceLog::create([
+            'clearance_update_id' => $update->id,
+            'action' => 'OFFICE_REMOVED',
+            'remarks' => "Removed office: {$office->name}.",
+            'performed_by' => auth()->id(),
+        ]);
 
         return back()->with('success', 'Office removed.');
     }
@@ -282,5 +306,22 @@ class ClearanceUpdateController extends Controller
             ],
             'links' => $paginator->linkCollection(),
         ];
+    }
+
+    public function deleteApplication(Request $request, ClearanceUpdate $update, StudentSemesterClearance $application): RedirectResponse
+    {
+        $this->authorize('update', $update);
+
+        $studentName = $application->student->name;
+        $application->delete();
+
+        ClearanceLog::create([
+            'clearance_update_id' => $update->id,
+            'action' => 'APPLICATION_REMOVED',
+            'remarks' => "Removed student application: {$studentName}.",
+            'performed_by' => auth()->id(),
+        ]);
+
+        return back()->with('success', 'Student application removed.');
     }
 }
