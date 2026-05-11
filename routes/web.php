@@ -280,6 +280,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 Route::post('/updates/{update}/accountabilities/upload-save', [ClearanceAccountabilityController::class, 'uploadSave'])->name('accountabilities.upload-save');
                 Route::post('/accountabilities/{accountability}/resolve', [ClearanceAccountabilityController::class, 'resolve'])->name('accountabilities.resolve');
                 Route::post('/accountabilities/{accountability}/waive', [ClearanceAccountabilityController::class, 'waive'])->name('accountabilities.waive');
+                Route::post('/accountabilities/{accountability}/reset', [ClearanceAccountabilityController::class, 'reset'])->name('accountabilities.reset');
+                Route::patch('/accountabilities/{accountability}', [ClearanceAccountabilityController::class, 'update'])->name('accountabilities.update');
+                Route::delete('/accountabilities/{accountability}', [ClearanceAccountabilityController::class, 'destroy'])->name('accountabilities.destroy');
             });
 
             // Student Routes

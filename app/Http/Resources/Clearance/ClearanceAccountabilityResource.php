@@ -39,6 +39,7 @@ class ClearanceAccountabilityResource extends JsonResource
             ]),
             'resolved_at' => $this->resolved_at?->format('Y-m-d H:i:s'),
             'created_at' => $this->created_at->format('Y-m-d H:i:s'),
+            'children' => ClearanceAccountabilityResource::collection($this->whenLoaded('children')),
         ];
     }
 }

@@ -78,7 +78,9 @@ class StudentSemesterClearanceController extends Controller
         $clearance->load([
             'clearanceUpdate.offices.office', 
             'clearanceUpdate.accountabilities' => function($query) use ($clearance) {
-                $query->where('student_id', $clearance->student_id)->with(['student', 'office']);
+                $query->where('student_id', $clearance->student_id)
+                      ->whereNull('parent_id')
+                      ->with(['student', 'office', 'children', 'children.student', 'children.office']);
             },
             'logs.performer'
         ]);

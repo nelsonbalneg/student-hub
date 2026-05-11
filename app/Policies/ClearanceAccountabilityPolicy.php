@@ -27,4 +27,24 @@ class ClearanceAccountabilityPolicy
     {
         return $user->can('clearance-accountability.waive') && $accountability->status === ClearanceAccountability::STATUS_PENDING;
     }
+
+    public function reset(User $user, ClearanceAccountability $accountability): bool
+    {
+        return $user->can('clearance-accountability.reset') && $accountability->status !== ClearanceAccountability::STATUS_PENDING;
+    }
+
+    public function create(User $user): bool
+    {
+        return $user->can('clearance-accountability.create');
+    }
+
+    public function update(User $user, ClearanceAccountability $accountability): bool
+    {
+        return $user->can('clearance-accountability.update');
+    }
+
+    public function delete(User $user, ClearanceAccountability $accountability): bool
+    {
+        return $user->can('clearance-accountability.delete');
+    }
 }

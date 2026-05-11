@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'semester_id',
     'student_id',
     'office_id',
+    'parent_id',
     'uploaded_by',
     'title',
     'description',
@@ -67,5 +68,15 @@ class ClearanceAccountability extends Model
     public function resolver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'resolved_by');
+    }
+
+    public function children(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ClearanceAccountability::class, 'parent_id');
+    }
+
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(ClearanceAccountability::class, 'parent_id');
     }
 }

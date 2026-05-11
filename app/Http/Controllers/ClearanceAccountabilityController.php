@@ -66,19 +66,53 @@ class ClearanceAccountabilityController extends Controller
     {
         $this->authorize('upload', [ClearanceAccountability::class, $update]);
 
-        $validated = $request->validate([
+        $request->validate([
             'student_id' => ['required', 'exists:users,id'],
             'office_id' => ['required', 'exists:offices,id'],
-            'title' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'amount' => ['nullable', 'numeric', 'min:0'],
+            'group_title' => ['required_if:items_count,>1', 'nullable', 'string', 'max:255'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.title' => ['required', 'string', 'max:255'],
+            'items.*.description' => ['nullable', 'string'],
+            'items.*.amount' => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        $validated['clearance_update_id'] = $update->id;
+        $service = app(ClearanceAccountabilityService::class);
+        $parentId = null;
 
-        app(ClearanceAccountabilityService::class)->createAccountability($validated);
+        // If multiple items, create a parent accountability
+        if (count($request->items) > 1) {
+            $parent = $service->createAccountability([
+                'student_id' => $request->student_id,
+                'office_id' => $request->office_id,
+                'clearance_update_id' => $update->id,
+                'semester_id' => $update->semester_id,
+                'title' => $request->group_title ?? 'Multiple Accountabilities',
+                'description' => 'Group parent for ' . count($request->items) . ' items.',
+                'amount' => collect($request->items)->sum('amount'),
+            ]);
+            $parentId = $parent->id;
+        }
+        
+        foreach ($request->items as $item) {
+            $data = $item;
+            $data['student_id'] = $request->student_id;
+            $data['office_id'] = $request->office_id;
+            $data['clearance_update_id'] = $update->id;
+            $data['semester_id'] = $update->semester_id;
+            $data['parent_id'] = $parentId;
+            $service->createAccountability($data);
+        }
 
-        return back()->with('success', 'Accountability added successfully.');
+        return back()->with('success', 'Accountabilities added successfully.');
+    }
+
+    public function reset(Request $request, ClearanceAccountability $accountability): RedirectResponse
+    {
+        $this->authorize('reset', $accountability);
+
+        app(ClearanceAccountabilityService::class)->resetAccountability($accountability->id);
+
+        return back()->with('success', 'Accountability status reset to pending.');
     }
 
     public function index(Request $request, ClearanceUpdate $update): Response
@@ -87,7 +121,8 @@ class ClearanceAccountabilityController extends Controller
 
         $accountabilities = ClearanceAccountability::query()
             ->where('clearance_update_id', $update->id)
-            ->with(['student:id,name,student_no', 'office', 'uploader:id,name', 'resolver:id,name'])
+            ->whereNull('parent_id') // Only show top-level accountabilities
+            ->with(['student:id,name,student_no', 'office', 'uploader:id,name', 'resolver:id,name', 'children', 'children.student', 'children.office', 'children.uploader', 'children.resolver'])
             ->when($request->search, function ($query, $search) {
                 $query->whereHas('student', function ($q) use ($search) {
                     $q->where('name', 'like', "%{$search}%")
@@ -124,6 +159,36 @@ class ClearanceAccountabilityController extends Controller
         app(ClearanceAccountabilityService::class)->waiveAccountability($accountability->id, $request->remarks);
 
         return back()->with('success', 'Accountability waived.');
+    }
+
+    public function update(Request $request, ClearanceAccountability $accountability): RedirectResponse
+    {
+        $this->authorize('update', $accountability);
+
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'amount' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $accountability->update($validated);
+
+        return back()->with('success', 'Accountability updated.');
+    }
+
+    public function destroy(ClearanceAccountability $accountability): RedirectResponse
+    {
+        $this->authorize('delete', $accountability);
+
+        $studentId = $accountability->student_id;
+        $updateId = $accountability->clearance_update_id;
+
+        $accountability->delete();
+
+        // Sync status after deletion
+        app(ClearanceAccountabilityService::class)->syncStudentClearanceStatus($studentId, $updateId, 'accountability_deleted');
+
+        return back()->with('success', 'Accountability deleted.');
     }
 
     public function uploadPreview(Request $request, ClearanceUpdate $update): Response
