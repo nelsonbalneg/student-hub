@@ -442,276 +442,286 @@ const statusBadge = (s: string) => {
         </div>
     </div>
 
-    <!-- Individual Add Modal -->
-    <div v-if="individualModal" class="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" @click.self="individualModal = false">
-        <div class="w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
-            <div class="flex items-center justify-between mb-6">
-                <h2 class="text-lg font-bold text-slate-900">Add Individual Accountability</h2>
-                <Button variant="ghost" size="sm" @click="individualModal = false"><XCircle class="h-5 w-5 text-slate-400" /></Button>
+    <!-- Compact Individual Add Modal -->
+    <div v-if="individualModal" class="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 backdrop-blur-sm p-4" @click.self="individualModal = false">
+        <div class="w-full max-w-2xl rounded-2xl bg-white shadow-2xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                <div>
+                    <h2 class="text-sm font-black text-slate-900 uppercase tracking-widest">Add Individual Accountability</h2>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Register new student requirement</p>
+                </div>
+                <button @click="individualModal = false" class="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all">
+                    <XCircle class="h-5 w-5" />
+                </button>
             </div>
             
-            <form class="grid gap-6" @submit.prevent="handleIndividualAdd">
-                <div class="grid md:grid-cols-2 gap-4">
-                    <div class="relative grid gap-1">
-                        <label class="text-[11px] font-bold text-slate-500 uppercase">Search Student</label>
-                        <input 
-                            v-model="studentSearch"
-                            type="text" 
-                            placeholder="Search by name or student no..."
-                            class="h-10 rounded-lg border border-slate-200 bg-white pr-9 pl-3 text-sm focus:border-emerald-400 focus:outline-none"
-                        />
-                        <div v-if="isSearching" class="absolute top-1/2 right-3 translate-y-1/2">
-                            <RefreshCw class="h-3.5 w-3.5 animate-spin text-slate-400" />
+            <form class="flex-1 overflow-y-auto p-6" @submit.prevent="handleIndividualAdd">
+                <div class="grid md:grid-cols-2 gap-4 mb-6">
+                    <div class="relative grid gap-1.5">
+                        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Student Lookup</label>
+                        <div class="relative">
+                            <Search class="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-300" />
+                            <input 
+                                v-model="studentSearch"
+                                type="text" 
+                                placeholder="Name or Student ID..."
+                                class="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-200 bg-slate-50/50 text-xs focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all"
+                            />
                         </div>
-                        <div v-if="studentsList.length > 0" class="absolute top-full left-0 z-10 mt-1 w-full rounded-lg border border-slate-200 bg-white p-1 shadow-lg max-h-48 overflow-y-auto">
+                        <div v-if="studentsList.length > 0" class="absolute top-full left-0 z-20 mt-1 w-full rounded-xl border border-slate-200 bg-white p-1 shadow-xl max-h-40 overflow-y-auto">
                             <button 
                                 v-for="s in studentsList" 
                                 :key="s.id"
                                 type="button"
                                 @click="selectStudent(s)"
-                                class="flex w-full flex-col px-3 py-2 text-left hover:bg-slate-50 rounded-md transition-colors"
+                                class="flex w-full flex-col px-3 py-2 text-left hover:bg-indigo-50 rounded-lg transition-colors group"
                             >
-                                <span class="text-xs font-bold text-slate-900">{{ s.name }}</span>
-                                <span class="text-[10px] text-slate-400">{{ s.student_no }}</span>
+                                <span class="text-xs font-bold text-slate-700 group-hover:text-indigo-600">{{ s.name }}</span>
+                                <span class="text-[9px] font-mono text-slate-400">{{ s.student_no }}</span>
                             </button>
                         </div>
                     </div>
 
-                    <div v-if="!(page.props.auth as any).user.office_id" class="grid gap-1">
-                        <label class="text-[11px] font-bold text-slate-500 uppercase">Office</label>
-                        <select v-model="individualForm.office_id" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm">
+                    <div v-if="!(page.props.auth as any).user.office_id" class="grid gap-1.5">
+                        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Department</label>
+                        <select v-model="individualForm.office_id" class="h-9 rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-bold text-slate-600">
                             <option v-for="off in offices" :key="off.id" :value="off.id">{{ off.name }}</option>
                         </select>
                     </div>
                 </div>
 
-                <div v-if="individualForm.items.length > 1" class="grid gap-1">
-                    <label class="text-[11px] font-bold text-slate-500 uppercase">Main Group Title</label>
-                    <input v-model="individualForm.group_title" type="text" placeholder="e.g. Incomplete Enrollment Documents" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm" required />
-                    <p class="text-[10px] text-slate-400 italic">This will be the main heading for this group of accountabilities.</p>
+                <div v-if="individualForm.items.length > 1" class="grid gap-1.5 mb-6">
+                    <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Group Heading</label>
+                    <input v-model="individualForm.group_title" type="text" placeholder="e.g. Enrollment Requirements Pack" class="h-9 rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-bold" required />
                 </div>
 
-                <div class="border-t pt-4">
+                <div class="pt-4 border-t border-slate-100">
                     <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Accountability Items</h3>
-                        <Button type="button" size="sm" variant="outline" class="h-8 gap-1.5 text-emerald-600 border-emerald-100 hover:bg-emerald-50" @click="addItem">
-                            <Plus class="h-3.5 w-3.5" />
+                        <h3 class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Accountability Line Items</h3>
+                        <button type="button" @click="addItem" class="h-7 gap-1.5 px-3 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-black border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all flex items-center">
+                            <Plus class="h-3 w-3" />
                             Add Item
-                        </Button>
+                        </button>
                     </div>
 
-                    <div class="grid gap-4">
-                        <div v-for="(item, index) in individualForm.items" :key="index" class="relative grid gap-4 p-4 rounded-xl border border-slate-100 bg-slate-50/50">
+                    <div class="grid gap-3">
+                        <div v-for="(item, index) in individualForm.items" :key="index" class="relative group/item grid gap-3 p-4 rounded-xl border border-slate-100 bg-slate-50/30">
                             <button 
                                 v-if="individualForm.items.length > 1"
                                 type="button" 
                                 @click="removeItem(index)"
-                                class="absolute top-2 right-2 text-slate-300 hover:text-red-500 transition-colors"
+                                class="absolute top-2 right-2 h-6 w-6 rounded-lg flex items-center justify-center text-slate-300 hover:bg-red-50 hover:text-red-500 transition-all"
                             >
-                                <Trash2 class="h-4 w-4" />
+                                <Trash2 class="h-3.5 w-3.5" />
                             </button>
 
-                            <div class="grid md:grid-cols-2 gap-4">
+                            <div class="grid md:grid-cols-2 gap-3">
                                 <div class="grid gap-1">
-                                    <label class="text-[10px] font-bold text-slate-400 uppercase">Accountability Title</label>
-                                    <input v-model="item.title" type="text" placeholder="e.g. Missing Equipment" class="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs" required />
+                                    <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest">Item Title</label>
+                                    <input v-model="item.title" type="text" placeholder="e.g. PSA Birth Certificate" class="h-8 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-bold" required />
                                 </div>
                                 <div class="grid gap-1">
-                                    <label class="text-[10px] font-bold text-slate-400 uppercase">Amount (Optional)</label>
-                                    <input v-model="item.amount" type="number" step="0.01" class="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs" placeholder="0.00" />
+                                    <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest">Fee (Optional)</label>
+                                    <input v-model="item.amount" type="number" step="0.01" class="h-8 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-mono" placeholder="0.00" />
                                 </div>
                             </div>
                             <div class="grid gap-1">
-                                <label class="text-[10px] font-bold text-slate-400 uppercase">Description</label>
-                                <textarea v-model="item.description" rows="2" class="rounded-lg border border-slate-200 bg-white p-3 text-xs" placeholder="Optional details..."></textarea>
+                                <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest">Detailed Remarks</label>
+                                <textarea v-model="item.description" rows="1" class="rounded-lg border border-slate-200 bg-white p-2 text-[11px] leading-relaxed" placeholder="Additional details..."></textarea>
                             </div>
                         </div>
                     </div>
                 </div>
-
-                <div class="mt-4 flex justify-end gap-2 border-t pt-6">
-                    <Button type="button" variant="ghost" @click="individualModal = false">Cancel</Button>
-                    <Button type="submit" class="bg-emerald-600 text-white px-6 font-bold" :disabled="individualForm.processing || !individualForm.student_id">Save Accountabilities</Button>
-                </div>
             </form>
+
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2">
+                <Button type="button" variant="ghost" class="h-9 px-4 text-xs font-bold text-slate-500" @click="individualModal = false">Discard</Button>
+                <Button type="submit" @click="handleIndividualAdd" class="h-9 bg-emerald-600 hover:bg-emerald-700 text-white px-6 text-xs font-black shadow-lg shadow-emerald-600/10" :disabled="individualForm.processing || !individualForm.student_id">
+                    Finalize & Save
+                </Button>
+            </div>
         </div>
     </div>
 
-    <!-- Details Modal -->
-    <div v-if="detailsModal && selectedAcc" class="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" @click.self="detailsModal = false">
-        <div class="w-full max-w-2xl rounded-2xl bg-white p-0 shadow-2xl overflow-hidden border border-slate-200">
-            <div class="relative bg-slate-900 p-8 text-white">
-                <button @click="detailsModal = false" class="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors">
-                    <XCircle class="h-6 w-6" />
+    <!-- Compact Details Modal -->
+    <div v-if="detailsModal && selectedAcc" class="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 backdrop-blur-sm p-4" @click.self="detailsModal = false">
+        <div class="w-full max-w-2xl rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden border border-slate-200 max-h-[90vh]">
+            <div class="relative bg-slate-900 px-6 py-5 text-white">
+                <button @click="detailsModal = false" class="absolute top-4 right-4 text-slate-500 hover:text-white transition-colors">
+                    <XCircle class="h-5 w-5" />
                 </button>
-                <div class="flex items-center gap-4 mb-4">
-                    <div class="h-12 w-12 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                        <AlertCircle class="h-6 w-6 text-white" />
+                <div class="flex items-center gap-4">
+                    <div class="h-11 w-11 rounded-xl bg-indigo-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                        <RotateCcw class="h-5 w-5 text-white" />
                     </div>
                     <div>
-                        <h2 class="text-xl font-bold tracking-tight">{{ selectedAcc.title }}</h2>
-                        <div class="flex items-center gap-2 mt-1">
-                            <span :class="['rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest', statusBadge(selectedAcc.status)]">
+                        <h2 class="text-base font-black tracking-tight leading-tight">{{ selectedAcc.title }}</h2>
+                        <div class="flex items-center gap-2 mt-0.5">
+                            <span :class="['rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-widest border', statusBadge(selectedAcc.status)]">
                                 {{ selectedAcc.status }}
                             </span>
-                            <span class="text-[10px] text-slate-400 font-medium uppercase tracking-widest">{{ selectedAcc.office.name }}</span>
+                            <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest">{{ selectedAcc.office.name }}</span>
                         </div>
                     </div>
                 </div>
             </div>
             
-            <div class="p-8 grid gap-8 bg-white">
-                <div class="grid md:grid-cols-3 gap-6">
-                    <div class="space-y-1 p-4 rounded-xl bg-slate-50 border border-slate-100">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Student Information</span>
-                        <p class="text-sm font-bold text-slate-900 leading-tight">{{ selectedAcc.student.name }}</p>
-                        <p class="text-[11px] text-slate-500">{{ selectedAcc.student.student_no }}</p>
+            <div class="flex-1 overflow-y-auto p-6 space-y-6">
+                <div class="grid md:grid-cols-3 gap-3">
+                    <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                        <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Student</span>
+                        <p class="text-xs font-bold text-slate-900 leading-tight">{{ selectedAcc.student.name }}</p>
+                        <p class="text-[9px] font-mono text-slate-500">{{ selectedAcc.student.student_no }}</p>
                     </div>
-                    <div class="space-y-1 p-4 rounded-xl bg-slate-50 border border-slate-100">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Amount</span>
-                        <p class="text-lg font-mono font-bold text-slate-900">{{ selectedAcc.amount ? '₱' + Number(selectedAcc.amount).toLocaleString(undefined, {minimumFractionDigits: 2}) : '-' }}</p>
+                    <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                        <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Total Due</span>
+                        <p class="text-sm font-mono font-black text-slate-900">{{ selectedAcc.amount ? '₱' + Number(selectedAcc.amount).toLocaleString(undefined, {minimumFractionDigits: 2}) : '-' }}</p>
                     </div>
-                    <div class="space-y-1 p-4 rounded-xl bg-slate-50 border border-slate-100">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Recorded On</span>
-                        <p class="text-sm font-bold text-slate-900">{{ selectedAcc.created_at }}</p>
-                        <p class="text-[11px] text-slate-500">By {{ selectedAcc.uploader.name }}</p>
+                    <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                        <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Timeline</span>
+                        <p class="text-[10px] font-bold text-slate-900 leading-tight">{{ selectedAcc.created_at }}</p>
+                        <p class="text-[9px] text-slate-400">By {{ selectedAcc.uploader.name }}</p>
                     </div>
                 </div>
 
-                <div v-if="selectedAcc.description" class="space-y-2">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Description / Remarks</span>
-                    <div class="p-4 rounded-xl bg-slate-50/50 border border-slate-100 text-xs text-slate-600 leading-relaxed italic">
+                <div v-if="selectedAcc.description" class="space-y-1.5">
+                    <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest">Administrative Remarks</span>
+                    <div class="p-3 rounded-xl bg-slate-50/50 border border-slate-100 text-[11px] text-slate-600 leading-relaxed italic">
                         "{{ selectedAcc.description }}"
                     </div>
                 </div>
 
-                <!-- Sub-items (Children) -->
-                <div v-if="(selectedAcc.children?.length > 0 || selectedAcc.children?.data?.length > 0)" class="space-y-4">
+                <!-- Sub-items Breakdown -->
+                <div v-if="(selectedAcc.children?.length > 0 || selectedAcc.children?.data?.length > 0)" class="space-y-3">
                     <div class="flex items-center justify-between">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Itemized Breakdown</span>
-                        <span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">{{ (selectedAcc.children?.data || selectedAcc.children).length }} items total</span>
+                        <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest">Child Requirements Breakdown</span>
+                        <span class="text-[8px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100 uppercase tracking-widest">{{ (selectedAcc.children?.data || selectedAcc.children).length }} total</span>
                     </div>
-                    <div class="grid gap-3 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
-                        <div v-for="child in (selectedAcc.children?.data || selectedAcc.children)" :key="child.id" class="flex flex-col rounded-xl border border-slate-100 p-4 transition-all hover:border-indigo-200 hover:shadow-md hover:shadow-indigo-500/5 group/child bg-white">
-                            <div class="flex items-center justify-between mb-3">
+                    <div class="grid gap-2">
+                        <div v-for="child in (selectedAcc.children?.data || selectedAcc.children)" :key="child.id" class="flex flex-col rounded-xl border border-slate-100 p-3 transition-all hover:bg-slate-50 group/child">
+                            <div class="flex items-center justify-between gap-4">
                                 <div class="flex items-center gap-3">
-                                    <div class="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 group-hover/child:bg-indigo-500 group-hover/child:text-white transition-colors">
-                                        <span class="text-xs font-bold">{{ child.id }}</span>
+                                    <div class="h-7 w-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-[9px] font-black text-slate-400 group-hover/child:bg-indigo-500 group-hover/child:text-white group-hover/child:border-indigo-500 transition-all">
+                                        {{ child.id }}
                                     </div>
-                                    <div class="grid gap-0.5">
-                                        <span class="text-sm font-bold text-slate-800">{{ child.title }}</span>
-                                        <span class="text-[10px] font-mono text-slate-500">{{ child.amount ? '₱' + Number(child.amount).toLocaleString() : 'No fee' }}</span>
+                                    <div class="grid gap-0">
+                                        <span class="text-[11px] font-bold text-slate-800 leading-tight">{{ child.title }}</span>
+                                        <span class="text-[9px] font-mono text-slate-500">{{ child.amount ? '₱' + Number(child.amount).toLocaleString() : 'No charge' }}</span>
                                     </div>
                                 </div>
-                                <span :class="['rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider', statusBadge(child.status)]">
-                                    {{ child.status }}
-                                </span>
-                            </div>
-
-                            <div v-if="child.description" class="mb-3 p-2 rounded-lg bg-slate-50 text-[10px] text-slate-500 italic">
-                                {{ child.description }}
-                            </div>
-
-                            <div class="flex items-center justify-between pt-3 border-t border-slate-50">
-                                <div class="flex gap-1">
-                                    <button @click="openEdit(child)" class="h-7 px-2 text-[10px] font-bold text-slate-500 hover:bg-slate-100 rounded transition-colors flex items-center gap-1">
-                                        <Pencil class="h-3 w-3" /> Edit
-                                    </button>
-                                    <button @click="deleteAcc(child.id)" class="h-7 px-2 text-[10px] font-bold text-red-400 hover:bg-red-50 rounded transition-colors flex items-center gap-1">
-                                        <Trash2 class="h-3 w-3" /> Delete
-                                    </button>
+                                <div class="flex items-center gap-2">
+                                    <span :class="['rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-widest border', statusBadge(child.status)]">
+                                        {{ child.status }}
+                                    </span>
+                                    <div class="flex items-center opacity-0 group-hover/child:opacity-100 transition-all">
+                                        <button @click="openEdit(child)" class="h-6 w-6 rounded-lg flex items-center justify-center text-slate-400 hover:bg-amber-100 hover:text-amber-600 transition-all">
+                                            <Pencil class="h-3 w-3" />
+                                        </button>
+                                        <button @click="deleteAcc(child.id)" class="h-6 w-6 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-100 hover:text-red-600 transition-all">
+                                            <Trash2 class="h-3 w-3" />
+                                        </button>
+                                    </div>
                                 </div>
-                                <div class="flex gap-1">
-                                    <template v-if="child.status === 'pending'">
-                                        <button @click="resolve(child.id)" class="h-7 px-3 text-[10px] font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded shadow-sm transition-all">Resolve</button>
-                                        <button @click="waive(child.id)" class="h-7 px-3 text-[10px] font-bold text-white bg-indigo-500 hover:bg-indigo-600 rounded shadow-sm transition-all">Waive</button>
-                                    </template>
-                                    <template v-else>
-                                        <button @click="reset(child.id)" class="h-7 px-3 text-[10px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded transition-all">Reset to Pending</button>
-                                    </template>
-                                </div>
+                            </div>
+                            <div class="mt-2 flex justify-end gap-1.5 border-t border-slate-100/50 pt-2">
+                                <template v-if="child.status === 'pending'">
+                                    <button @click="resolve(child.id)" class="h-6 px-2.5 rounded-lg bg-emerald-50 text-emerald-600 text-[9px] font-black border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all">Clear</button>
+                                    <button @click="waive(child.id)" class="h-6 px-2.5 rounded-lg bg-indigo-50 text-indigo-600 text-[9px] font-black border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all">Waive</button>
+                                </template>
+                                <template v-else>
+                                    <button @click="reset(child.id)" class="h-6 px-2.5 rounded-lg bg-slate-100 text-slate-600 text-[9px] font-black border border-slate-200 hover:bg-slate-200 transition-all">Reset</button>
+                                </template>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div v-if="selectedAcc.status !== 'pending' && selectedAcc.resolver" class="rounded-xl border border-emerald-100 bg-emerald-50/30 p-6 flex items-center justify-between">
-                    <div class="flex items-center gap-4">
-                        <div class="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                            <CheckCircle2 class="h-5 w-5 text-emerald-600" />
-                        </div>
+                <div v-if="selectedAcc.status !== 'pending' && selectedAcc.resolver" class="rounded-xl border border-emerald-100 bg-emerald-50/30 px-4 py-3 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <CheckCircle2 class="h-4 w-4 text-emerald-500" />
                         <div>
-                            <p class="text-[10px] font-bold text-emerald-800 uppercase tracking-widest">Resolution Information</p>
-                            <p class="text-xs text-emerald-700 font-medium">Cleared by <span class="font-bold">{{ selectedAcc.resolver.name }}</span> on {{ selectedAcc.resolved_at }}</p>
+                            <p class="text-[8px] font-black text-emerald-800 uppercase tracking-widest">Resolution Audit</p>
+                            <p class="text-[10px] text-emerald-700 font-bold">Approved by {{ selectedAcc.resolver.name }} on {{ selectedAcc.resolved_at }}</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="flex items-center justify-between border-t bg-slate-50/50 p-6">
-                <div class="flex gap-2">
-                    <Button variant="outline" class="h-10 gap-2 text-slate-600 border-slate-200 hover:bg-white px-4" @click="openEdit(selectedAcc)">
-                        <Pencil class="h-4 w-4" />
-                        Edit Group
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                <div class="flex gap-1.5">
+                    <Button variant="outline" class="h-8 gap-1.5 text-[10px] font-black text-slate-600 border-slate-200 px-3" @click="openEdit(selectedAcc)">
+                        <Pencil class="h-3 w-3" /> Edit Group
                     </Button>
-                    <Button variant="outline" class="h-10 gap-2 text-red-600 border-red-100 hover:bg-red-50 px-4" @click="deleteAcc(selectedAcc.id)">
-                        <Trash2 class="h-4 w-4" />
-                        Delete All
+                    <Button variant="outline" class="h-8 gap-1.5 text-[10px] font-black text-red-600 border-red-100 px-3" @click="deleteAcc(selectedAcc.id)">
+                        <Trash2 class="h-3 w-3" /> Purge
                     </Button>
                 </div>
-                <div class="flex gap-3">
-                    <Button variant="ghost" class="h-10 px-6 font-bold text-slate-500" @click="detailsModal = false">Close</Button>
-                    <Button v-if="selectedAcc.status === 'pending'" class="h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-8 shadow-lg shadow-emerald-500/20" @click="resolve(selectedAcc.id)">Clear Everything</Button>
-                    <Button v-else class="h-10 bg-slate-900 hover:bg-slate-800 text-white font-bold px-8 shadow-lg shadow-slate-900/20" @click="reset(selectedAcc.id)">Revert to Pending</Button>
+                <div class="flex gap-2">
+                    <Button variant="ghost" class="h-8 px-4 text-[10px] font-black text-slate-500" @click="detailsModal = false">Close</Button>
+                    <Button v-if="selectedAcc.status === 'pending'" class="h-8 bg-indigo-600 hover:bg-indigo-700 text-white px-5 text-[10px] font-black shadow-lg shadow-indigo-600/10" @click="resolve(selectedAcc.id)">Approve All</Button>
+                    <Button v-else class="h-8 bg-slate-900 hover:bg-slate-800 text-white px-5 text-[10px] font-black shadow-lg shadow-slate-900/10" @click="reset(selectedAcc.id)">Revert Status</Button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Edit Modal -->
-    <div v-if="editModal" class="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" @click.self="editModal = false">
-        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-            <h2 class="mb-4 text-sm font-bold text-slate-900 uppercase tracking-wider">Edit Accountability</h2>
-            <form class="grid gap-4" @submit.prevent="handleUpdate">
-                <div class="grid gap-1">
-                    <label class="text-[11px] font-bold text-slate-500 uppercase">Title</label>
-                    <input v-model="editForm.title" type="text" class="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs" required />
+    <!-- Compact Edit Modal -->
+    <div v-if="editModal" class="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 backdrop-blur-sm p-4" @click.self="editModal = false">
+        <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden border border-slate-200">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                <div>
+                    <h2 class="text-sm font-black text-slate-900 uppercase tracking-widest">Edit Accountability</h2>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Modify requirement details</p>
                 </div>
-                <div class="grid gap-1">
-                    <label class="text-[11px] font-bold text-slate-500 uppercase">Amount</label>
-                    <input v-model="editForm.amount" type="number" step="0.01" class="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs" />
+                <button @click="editModal = false" class="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all">
+                    <XCircle class="h-5 w-5" />
+                </button>
+            </div>
+            
+            <form class="p-6 grid gap-4" @submit.prevent="handleUpdate">
+                <div class="grid gap-1.5">
+                    <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Requirement Title</label>
+                    <input v-model="editForm.title" type="text" class="h-9 rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-bold" required />
                 </div>
-                <div class="grid gap-1">
-                    <label class="text-[11px] font-bold text-slate-500 uppercase">Description</label>
-                    <textarea v-model="editForm.description" rows="3" class="rounded-lg border border-slate-200 bg-white p-3 text-xs"></textarea>
+                <div class="grid gap-1.5">
+                    <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Fee / Amount</label>
+                    <input v-model="editForm.amount" type="number" step="0.01" class="h-9 rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-mono" placeholder="0.00" />
                 </div>
-                <div class="mt-4 flex justify-end gap-2 border-t pt-4">
-                    <Button type="button" variant="ghost" @click="editModal = false">Cancel</Button>
-                    <Button type="submit" class="bg-indigo-600 text-white px-6 font-bold" :disabled="editForm.processing">Update</Button>
+                <div class="grid gap-1.5">
+                    <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Administrative Remarks</label>
+                    <textarea v-model="editForm.description" rows="3" class="rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-xs leading-relaxed" placeholder="Add context..."></textarea>
+                </div>
+                <div class="mt-2 flex justify-end gap-2 pt-4 border-t border-slate-100">
+                    <Button type="button" variant="ghost" class="h-9 px-4 text-xs font-bold text-slate-500" @click="editModal = false">Discard</Button>
+                    <Button type="submit" class="h-9 bg-indigo-600 hover:bg-indigo-700 text-white px-6 text-xs font-black shadow-lg shadow-indigo-600/10" :disabled="editForm.processing">
+                        Save Changes
+                    </Button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Confirmation Modal -->
+    <!-- Compact Confirmation Modal -->
     <div v-if="confirmationModal.show" class="fixed inset-0 z-[100] grid place-items-center bg-slate-900/60 backdrop-blur-sm p-4">
-        <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
-            <div class="flex items-center gap-4 mb-4">
-                <div class="h-12 w-12 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
-                    <AlertTriangle class="h-6 w-6" />
-                </div>
-                <div>
-                    <h3 class="text-base font-bold text-slate-900">{{ confirmationModal.title }}</h3>
-                    <p class="text-xs text-slate-500 leading-relaxed">{{ confirmationModal.message }}</p>
+        <div class="w-full max-w-sm rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+            <div class="p-6">
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="h-11 w-11 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+                        <AlertTriangle class="h-6 w-6" />
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-black text-slate-900 uppercase tracking-widest">{{ confirmationModal.title }}</h3>
+                        <p class="text-[11px] text-slate-500 leading-relaxed font-medium">{{ confirmationModal.message }}</p>
+                    </div>
                 </div>
             </div>
-            <div class="flex gap-3 justify-end mt-6">
-                <Button variant="ghost" class="h-10 px-4 font-bold text-slate-500" @click="confirmationModal.show = false" :disabled="confirmationModal.loading">Cancel</Button>
-                <Button class="h-10 px-6 font-bold bg-slate-900 text-white shadow-lg shadow-slate-900/20" @click="confirmationModal.action" :disabled="confirmationModal.loading">
+            <div class="flex gap-2 justify-end px-6 py-4 bg-slate-50/50 border-t border-slate-100">
+                <Button variant="ghost" class="h-9 px-4 text-xs font-bold text-slate-500" @click="confirmationModal.show = false" :disabled="confirmationModal.loading">Discard</Button>
+                <Button class="h-9 px-6 text-xs font-black bg-slate-900 text-white shadow-lg shadow-slate-900/10" @click="confirmationModal.action" :disabled="confirmationModal.loading">
                     <span v-if="confirmationModal.loading" class="flex items-center gap-2">
-                        <Loader2 class="h-4 w-4 animate-spin" /> Processing...
+                        <Loader2 class="h-3.5 w-3.5 animate-spin" /> Working...
                     </span>
-                    <span v-else>Confirm Action</span>
+                    <span v-else>Proceed</span>
                 </Button>
             </div>
         </div>

@@ -81,157 +81,152 @@ const formatDate = (date: string) => {
 <template>
     <Head title="My Clearance" />
 
-    <div class="flex h-full flex-1 flex-col gap-6 p-4">
-        <div class="flex flex-col gap-1">
-            <h1 class="text-xl font-bold text-slate-900 dark:text-white">My Clearance</h1>
-            <p class="text-sm text-slate-500">View and manage your semestral clearances.</p>
-        </div>
-
-        <div v-if="activeSemester" class="space-y-4">
-            <div class="flex items-center gap-4">
-                <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                    <Calendar class="h-5 w-5" />
+    <div class="flex h-full flex-1 flex-col gap-6 p-6 bg-slate-50/30">
+        <!-- Compact Enterprise Header -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="grid gap-0.5">
+                <h1 class="text-base font-black tracking-tight text-slate-900 uppercase tracking-widest">Clearance Portal</h1>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Academic Year & Term Monitor</p>
+            </div>
+            <div v-if="activeSemester" class="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-white border border-slate-200 shadow-sm">
+                <div class="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <Calendar class="h-4 w-4" />
                 </div>
-                <div>
-                    <p class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Current Semester</p>
-                    <h2 class="text-base font-bold text-slate-900 dark:text-white">{{ activeSemester.academic_year }} - {{ activeSemester.term }}</h2>
+                <div class="grid gap-0">
+                    <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Active Session</span>
+                    <span class="text-[11px] font-black text-slate-700 uppercase tracking-tight">{{ activeSemester.academic_year }} • {{ activeSemester.term }}</span>
                 </div>
             </div>
+        </div>
 
-            <!-- Desktop Table View -->
-            <div class="hidden md:block rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-white/10 dark:bg-slate-950">
+        <div v-if="activeSemester" class="space-y-6">
+            <!-- High-Density Desktop Monitor -->
+            <div class="hidden md:block rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
                 <table class="w-full text-left">
                     <thead>
-                        <tr class="border-b border-slate-100 bg-slate-50/50 text-[10px] font-bold text-slate-500 uppercase tracking-wider dark:border-white/10 dark:bg-white/5">
-                            <th class="px-4 py-3">Clearance Title</th>
-                            <th class="px-4 py-3">Description</th>
-                            <th class="px-4 py-3">Status / Action</th>
+                        <tr class="border-b border-slate-100 bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                            <th class="px-6 py-3">Clearance Specification</th>
+                            <th class="px-6 py-3">Reference & Details</th>
+                            <th class="px-6 py-3 text-right">Fulfillment Status</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-slate-50 dark:divide-white/5">
+                    <tbody class="divide-y divide-slate-50">
                         <template v-for="update in activeUpdates" :key="update.id">
-                            <tr class="hover:bg-slate-50/50 dark:hover:bg-white/5">
-                                <td class="px-4 py-4">
-                                    <p class="text-xs font-bold text-slate-900 dark:text-white">{{ update.title }}</p>
-                                    <p class="text-[10px] text-slate-400 mt-1">End Date: {{ formatDate(update.end_date) }}</p>
+                            <tr class="group hover:bg-slate-50/30 transition-colors">
+                                <td class="px-6 py-4">
+                                    <div class="flex items-center gap-3">
+                                        <div class="h-9 w-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm">
+                                            <FileText class="h-4 w-4" />
+                                        </div>
+                                        <div class="grid gap-0">
+                                            <p class="text-xs font-black text-slate-900 tracking-tight">{{ update.title }}</p>
+                                            <p class="text-[9px] font-mono text-indigo-500 font-bold uppercase tracking-widest">SEC-{{ update.id.toString().padStart(4, '0') }}</p>
+                                        </div>
+                                    </div>
                                 </td>
-                                <td class="px-4 py-4 text-xs text-slate-500 max-w-xs truncate">{{ update.description || 'No description' }}</td>
-                                <td class="px-4 py-4">
-                                    <div v-if="myClearances.find(c => c.clearance_update.id === update.id)" class="flex flex-col gap-2">
-                                        <div class="flex items-center justify-between gap-4">
-                                            <span :class="['rounded-full px-2 py-0.5 text-[10px] font-bold uppercase', statusColor(myClearances.find(c => c.clearance_update.id === update.id).status)]">
+                                <td class="px-6 py-4 text-[10px] font-bold text-slate-500">
+                                    <p class="line-clamp-1 max-w-xs">{{ update.description || 'General Semestral Clearance' }}</p>
+                                    <p class="text-[9px] text-slate-400 mt-0.5 uppercase tracking-tighter italic">Deadline: {{ formatDate(update.end_date) }}</p>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div v-if="myClearances.find(c => c.clearance_update.id === update.id)" class="flex items-center justify-end gap-4">
+                                        <div class="flex flex-col items-end gap-1">
+                                            <span :class="['rounded-full px-2.5 py-0.5 text-[8px] font-black uppercase tracking-widest border', statusColor(myClearances.find(c => c.clearance_update.id === update.id).status)]">
                                                 {{ myClearances.find(c => c.clearance_update.id === update.id).status.replace('_', ' ') }}
                                             </span>
-                                            <div class="flex items-center gap-3">
-                                                <button 
-                                                    class="flex items-center gap-1 text-[10px] font-bold text-slate-400 hover:text-emerald-600 transition-colors"
-                                                    @click="toggleOffices(update.id)"
-                                                >
-                                                    {{ expandedUpdates.includes(update.id) ? 'Hide Offices' : 'Show Offices' }}
-                                                    <ChevronUp v-if="expandedUpdates.includes(update.id)" class="h-3 w-3" />
-                                                    <ChevronDown v-else class="h-3 w-3" />
-                                                </button>
-                                                <Link :href="`/student-services/clearance/my-clearance/${myClearances.find(c => c.clearance_update.id === update.id).id}`" class="text-[10px] font-bold text-emerald-600 hover:underline">
-                                                    View Details
-                                                </Link>
-                                            </div>
+                                            <button 
+                                                class="text-[8px] font-black text-slate-400 hover:text-indigo-600 uppercase tracking-tighter"
+                                                @click="toggleOffices(update.id)"
+                                            >
+                                                {{ expandedUpdates.includes(update.id) ? 'Hide Grid' : 'Review Nodes' }}
+                                            </button>
                                         </div>
-                                        
-                                        <div v-if="expandedUpdates.includes(update.id)" class="mt-2 rounded-lg border border-slate-100 bg-slate-50/50 p-2 dark:border-white/5 dark:bg-white/5 overflow-hidden transition-all">
-                                            <p class="text-[9px] font-bold text-slate-400 uppercase mb-2">Office Status</p>
-                                            <div class="grid grid-cols-2 gap-2">
-                                                <div v-for="off in update.offices" :key="off.id" class="flex items-center justify-between rounded bg-white p-1.5 border border-slate-100 dark:bg-slate-900 dark:border-white/5">
-                                                    <span class="text-[9px] font-medium text-slate-600 truncate mr-2">{{ off.office.name }}</span>
-                                                    <div v-if="getOfficeStatus(myClearances.find(c => c.clearance_update.id === update.id), off.office.id).cleared">
-                                                        <Check class="h-3 w-3 text-emerald-500" />
-                                                    </div>
-                                                    <div v-else class="group relative">
-                                                        <X class="h-3 w-3 text-red-500" />
-                                                        <div class="invisible group-hover:visible absolute right-0 top-5 z-50 w-48 rounded-lg bg-slate-900 p-2 text-[9px] text-white shadow-xl">
-                                                            <p class="font-bold border-b border-white/10 pb-1 mb-1">Accountabilities:</p>
-                                                            <ul class="space-y-1">
-                                                                <li v-for="acc in getOfficeStatus(myClearances.find(c => c.clearance_update.id === update.id), off.office.id).accountabilities" :key="acc.id">
-                                                                    • {{ acc.title }}
-                                                                </li>
-                                                            </ul>
-                                                        </div>
-                                                    </div>
+                                        <Link :href="`/student-services/clearance/my-clearance/${myClearances.find(c => c.clearance_update.id === update.id).id}`" class="h-8 px-4 flex items-center justify-center rounded-lg bg-slate-900 text-white text-[10px] font-black hover:bg-indigo-600 transition-all shadow-lg shadow-slate-900/10">
+                                            Manage
+                                        </Link>
+                                    </div>
+                                    <div v-else class="flex justify-end">
+                                        <Button 
+                                            class="h-8 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black px-5 rounded-lg shadow-lg shadow-emerald-600/10" 
+                                            @click="apply(update.id)"
+                                        >
+                                            Initiate Application
+                                            <ArrowRight class="h-3 w-3" />
+                                        </Button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr v-if="expandedUpdates.includes(update.id)">
+                                <td colspan="3" class="px-6 py-0 bg-slate-50/50">
+                                    <div class="py-4 border-t border-slate-100 grid grid-cols-4 lg:grid-cols-6 gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                        <div v-for="off in update.offices" :key="off.id" class="p-2 rounded-xl bg-white border border-slate-200 flex items-center justify-between group/node hover:border-indigo-300 hover:shadow-md transition-all">
+                                            <span class="text-[9px] font-black text-slate-500 uppercase tracking-tighter truncate">{{ off.office.name }}</span>
+                                            <div v-if="getOfficeStatus(myClearances.find(c => c.clearance_update.id === update.id), off.office.id).cleared">
+                                                <CheckCircle2 class="h-3 w-3 text-emerald-500" />
+                                            </div>
+                                            <div v-else class="group relative flex items-center">
+                                                <AlertCircle class="h-3 w-3 text-amber-500" />
+                                                <div class="invisible group-hover:visible absolute right-0 top-6 z-50 w-48 rounded-xl bg-slate-900 p-3 text-[9px] text-white shadow-2xl border border-white/10">
+                                                    <p class="font-black border-b border-white/5 pb-2 mb-2 uppercase tracking-widest text-amber-400">Blocked By:</p>
+                                                    <ul class="space-y-1.5">
+                                                        <li v-for="acc in getOfficeStatus(myClearances.find(c => c.clearance_update.id === update.id), off.office.id).accountabilities" :key="acc.id" class="flex items-start gap-1.5 leading-tight">
+                                                            <span class="text-amber-500">•</span>
+                                                            {{ acc.title }}
+                                                        </li>
+                                                    </ul>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
-                                    <Button 
-                                        v-else
-                                        class="h-7 gap-1.5 bg-emerald-600 text-[10px] font-bold text-white hover:bg-emerald-700" 
-                                        @click="apply(update.id)"
-                                    >
-                                        Apply Clearance
-                                        <ArrowRight class="h-3 w-3" />
-                                    </Button>
                                 </td>
                             </tr>
                         </template>
-                        <tr v-if="activeUpdates.length === 0">
-                            <td colspan="3" class="py-12 text-center text-xs text-slate-400 italic">No active clearance updates found for this semester.</td>
-                        </tr>
                     </tbody>
                 </table>
             </div>
 
-            <!-- Mobile Card View -->
+            <!-- Compact Mobile Layout -->
             <div class="grid gap-4 md:hidden">
-                <div v-for="update in activeUpdates" :key="update.id" class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950">
-                    <div class="flex items-start justify-between gap-4 mb-3">
-                        <div>
-                            <h3 class="text-sm font-bold text-slate-900 dark:text-white">{{ update.title }}</h3>
-                            <p class="text-[10px] text-slate-400 mt-0.5">End Date: {{ formatDate(update.end_date) }}</p>
+                <div v-for="update in activeUpdates" :key="update.id" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div class="flex items-start justify-between gap-4 mb-4">
+                        <div class="grid gap-0">
+                            <h3 class="text-sm font-black text-slate-900 tracking-tight">{{ update.title }}</h3>
+                            <p class="text-[9px] font-mono text-indigo-500 font-bold uppercase">{{ formatDate(update.end_date) }}</p>
                         </div>
                         <div v-if="myClearances.find(c => c.clearance_update.id === update.id)">
-                            <span :class="['rounded-full px-2 py-0.5 text-[9px] font-bold uppercase', statusColor(myClearances.find(c => c.clearance_update.id === update.id).status)]">
+                            <span :class="['rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-widest border', statusColor(myClearances.find(c => c.clearance_update.id === update.id).status)]">
                                 {{ myClearances.find(c => c.clearance_update.id === update.id).status.replace('_', ' ') }}
                             </span>
                         </div>
                     </div>
                     
-                    <p class="text-xs text-slate-500 mb-4 line-clamp-2">{{ update.description || 'No description' }}</p>
-
-                    <div v-if="myClearances.find(c => c.clearance_update.id === update.id)" class="space-y-3">
-                        <div class="flex items-center justify-between border-t border-slate-50 pt-3 dark:border-white/5">
+                    <div v-if="myClearances.find(c => c.clearance_update.id === update.id)" class="space-y-4">
+                        <div class="flex items-center justify-between border-t border-slate-50 pt-4">
                             <button 
-                                class="flex items-center gap-1 text-[10px] font-bold text-slate-400 hover:text-emerald-600"
+                                class="text-[9px] font-black text-slate-400 hover:text-indigo-600 uppercase tracking-widest"
                                 @click="toggleOffices(update.id)"
                             >
-                                {{ expandedUpdates.includes(update.id) ? 'Hide Offices' : 'Show Offices' }}
-                                <ChevronDown v-if="!expandedUpdates.includes(update.id)" class="h-3 w-3" />
-                                <ChevronUp v-else class="h-3 w-3" />
+                                {{ expandedUpdates.includes(update.id) ? 'Hide Nodes' : 'Review Nodes' }}
                             </button>
-                            <Link :href="`/student-services/clearance/my-clearance/${myClearances.find(c => c.clearance_update.id === update.id).id}`" class="text-[10px] font-bold text-emerald-600">
-                                View Details
+                            <Link :href="`/student-services/clearance/my-clearance/${myClearances.find(c => c.clearance_update.id === update.id).id}`" class="text-[10px] font-black text-indigo-600 uppercase tracking-widest">
+                                Manage Application
                             </Link>
                         </div>
 
-                        <div v-if="expandedUpdates.includes(update.id)" class="space-y-2 pt-2 border-t border-slate-50 dark:border-white/5">
-                            <div v-for="off in update.offices" :key="off.id" class="flex items-center justify-between rounded-lg bg-slate-50 p-2 dark:bg-white/5">
-                                <span class="text-[10px] font-medium text-slate-700 dark:text-slate-300">{{ off.office.name }}</span>
-                                <div class="flex items-center gap-2">
-                                    <div v-if="getOfficeStatus(myClearances.find(c => c.clearance_update.id === update.id), off.office.id).cleared">
-                                        <span class="text-[9px] font-bold text-emerald-600">CLEARED</span>
-                                        <Check class="h-3 w-3 text-emerald-500 inline ml-1" />
-                                    </div>
-                                    <div v-else class="text-right">
-                                        <span class="text-[9px] font-bold text-red-500">PENDING</span>
-                                        <X class="h-3 w-3 text-red-500 inline ml-1" />
-                                    </div>
-                                </div>
+                        <div v-if="expandedUpdates.includes(update.id)" class="grid grid-cols-2 gap-2 pt-2 animate-in fade-in slide-in-from-top-1">
+                            <div v-for="off in update.offices" :key="off.id" class="flex items-center justify-between rounded-xl bg-slate-50 p-2 border border-slate-100">
+                                <span class="text-[9px] font-black text-slate-600 uppercase tracking-tighter truncate">{{ off.office.name }}</span>
+                                <CheckCircle2 v-if="getOfficeStatus(myClearances.find(c => c.clearance_update.id === update.id), off.office.id).cleared" class="h-3 w-3 text-emerald-500" />
+                                <AlertCircle v-else class="h-3 w-3 text-amber-500" />
                             </div>
                         </div>
                     </div>
                     <Button 
                         v-else
-                        class="w-full h-8 gap-1.5 bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700" 
+                        class="w-full h-9 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase shadow-lg shadow-emerald-600/10" 
                         @click="apply(update.id)"
                     >
-                        Apply Clearance
+                        Initiate Application
                         <ArrowRight class="h-3.5 w-3.5" />
                     </Button>
                 </div>
