@@ -57,7 +57,11 @@ const statusColor = (s: string) => {
 };
 
 const getOfficeStatus = (clearance: any, officeId: number) => {
-    const accs = clearance.clearance_update?.accountabilities;
+    let accs = clearance.clearance_update?.accountabilities;
+    if (accs && !Array.isArray(accs) && accs.data) {
+        accs = accs.data;
+    }
+    
     if (!accs || !Array.isArray(accs)) return { cleared: true };
     
     const accountabilities = accs.filter(
@@ -165,12 +169,12 @@ const formatDate = (date: string) => {
                                                 <CheckCircle2 class="h-3 w-3 text-emerald-500" />
                                             </div>
                                             <div v-else class="group relative flex items-center">
-                                                <AlertCircle class="h-3 w-3 text-amber-500" />
+                                                <X class="h-3 w-3 text-red-500" />
                                                 <div class="invisible group-hover:visible absolute right-0 top-6 z-50 w-48 rounded-xl bg-slate-900 p-3 text-[9px] text-white shadow-2xl border border-white/10">
-                                                    <p class="font-black border-b border-white/5 pb-2 mb-2 uppercase tracking-widest text-amber-400">Blocked By:</p>
+                                                    <p class="font-black border-b border-white/5 pb-2 mb-2 uppercase tracking-widest text-red-400">Tagged Accountability:</p>
                                                     <ul class="space-y-1.5">
                                                         <li v-for="acc in getOfficeStatus(myClearances.find(c => c.clearance_update.id === update.id), off.office.id).accountabilities" :key="acc.id" class="flex items-start gap-1.5 leading-tight">
-                                                            <span class="text-amber-500">•</span>
+                                                            <span class="text-red-500">•</span>
                                                             {{ acc.title }}
                                                         </li>
                                                     </ul>
@@ -217,7 +221,7 @@ const formatDate = (date: string) => {
                             <div v-for="off in update.offices" :key="off.id" class="flex items-center justify-between rounded-xl bg-slate-50 p-2 border border-slate-100">
                                 <span class="text-[9px] font-black text-slate-600 uppercase tracking-tighter truncate">{{ off.office.name }}</span>
                                 <CheckCircle2 v-if="getOfficeStatus(myClearances.find(c => c.clearance_update.id === update.id), off.office.id).cleared" class="h-3 w-3 text-emerald-500" />
-                                <AlertCircle v-else class="h-3 w-3 text-amber-500" />
+                                <X v-else class="h-3 w-3 text-red-500" />
                             </div>
                         </div>
                     </div>

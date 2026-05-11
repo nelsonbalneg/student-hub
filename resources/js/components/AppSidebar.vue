@@ -99,13 +99,13 @@ const overviewNavItems: NavItem[] = [
             {
                 title: 'Grades',
                 href: '/grades',
-                icon: Archive,
+                // icon: Archive,
                 permission: 'grades.view',
             },
             {
                 title: 'Curriculum',
                 href: '/curriculum',
-                icon: BookOpen,
+                // icon: BookOpen,
                 permission: 'curriculum.view',
             },
         ],

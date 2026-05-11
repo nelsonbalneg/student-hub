@@ -31,7 +31,14 @@ class StudentSemesterClearanceController extends Controller
 
         $myClearances = StudentSemesterClearance::query()
             ->where('student_id', $request->user()->id)
-            ->with(['clearanceUpdate.type', 'semester'])
+            ->with([
+                'clearanceUpdate.type', 
+                'semester',
+                'clearanceUpdate.offices.office',
+                'clearanceUpdate.accountabilities' => function($query) use ($request) {
+                    $query->where('student_id', $request->user()->id);
+                }
+            ])
             ->latest()
             ->get();
 
