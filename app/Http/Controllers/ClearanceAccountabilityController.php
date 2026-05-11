@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\Clearance\ClearanceAccountabilityResource;
+use App\Http\Resources\Clearance\ClearanceUpdateResource;
 use App\Models\ClearanceAccountability;
 use App\Models\ClearanceUpdate;
 use App\Models\Office;
@@ -16,6 +17,33 @@ use Inertia\Response;
 
 class ClearanceAccountabilityController extends Controller
 {
+    public function center(Request $request): Response
+    {
+        $user = $request->user();
+        $isSuperAdmin = $user->hasRole('Super Admin');
+        
+        // Ensure user has an office tagged if not Super Admin
+        if (!$isSuperAdmin && !$user->office_id) {
+            abort(403, 'You are not tagged to any office. Please contact the administrator.');
+        }
+
+        $updates = ClearanceUpdate::query()
+            ->when(!$isSuperAdmin, function($query) use ($user) {
+                $query->whereHas('offices', function($q) use ($user) {
+                    $q->where('office_id', $user->office_id);
+                });
+            })
+            ->with(['semester', 'type'])
+            ->where('status', '!=', 'draft')
+            ->latest()
+            ->get();
+
+        return Inertia::render('Clearance/Accountabilities/Center', [
+            'updates' => ClearanceUpdateResource::collection($updates)->resolve(),
+            'userOffice' => $isSuperAdmin ? 'System Wide (Super Admin)' : ($user->office->name ?? 'Unknown Office'),
+        ]);
+    }
+
     public function index(Request $request, ClearanceUpdate $update): Response
     {
         $this->authorize('viewAny', [ClearanceAccountability::class, $update]);

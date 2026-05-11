@@ -15,6 +15,7 @@ import {
     User,
     Users,
     FileCheck,
+    Building2,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
@@ -178,6 +179,11 @@ const overviewNavItems: NavItem[] = [
                 title: 'My Clearance',
                 href: '/student-services/clearance/my-clearance',
                 permission: 'clearance-application.view',
+            },
+            {
+                title: 'Accountabilities Center',
+                href: '/student-services/clearance/accountabilities-center',
+                permission: 'clearance-update.view',
             },
             {
                 title: 'Clearance Updates',
