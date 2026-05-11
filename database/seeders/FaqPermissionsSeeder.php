@@ -37,5 +37,15 @@ class FaqPermissionsSeeder extends Seeder
         if ($adminRole) {
             $adminRole->givePermissionTo($permissions);
         }
+
+        $studentRole = Role::findByName('Student');
+        if ($studentRole) {
+            $studentRole->givePermissionTo('faq.view');
+        }
+
+        $registrarRole = Role::findByName('Registrar');
+        if ($registrarRole) {
+            $registrarRole->givePermissionTo('faq.view');
+        }
     }
 }

@@ -225,12 +225,12 @@ const siteAdministrationNavItems: NavItem[] = [
         title: 'FAQ Management',
         href: '#',
         icon: HelpCircle,
-        permission: 'faq.view',
+        permission: 'faq.create',
         items: [
             {
                 title: 'All FAQs',
                 href: '/faqs/manage/faqs',
-                permission: 'faq.view',
+                permission: 'faq.create',
             },
             {
                 title: 'Categories',
