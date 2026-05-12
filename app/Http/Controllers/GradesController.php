@@ -22,16 +22,14 @@ class GradesController extends Controller
         $gradeReport = $this->academicApi->gradeReportForStudent($studentNo, $tenantId);
         $evaluations = [];
 
-        // ONLY fetch evaluations for Term 102 as requested
-        $terms = collect($gradeReport['data'] ?? []);
-        foreach ($terms as $termGroup) {
-            $termId = $termGroup['termId'] ?? $termGroup['semesterId'] ?? $termGroup['id'] ?? null;
-            if ($termId == 102) {
-                $result = $this->academicApi->facultyEvaluations($campusId, (int) $termId, $studentNo);
-                if (! empty($result['data']['subjects'])) {
-                    $evaluations[] = $result['data'];
-                }
-            }
+        // Fetch evaluations for the active term resolved by the API service
+        $result = $this->academicApi->facultyEvaluations($campusId, null, $studentNo);
+        if (! empty($result['data']['subjects'])) {
+            $evaluations = [
+                'term_name' => $result['term_name'],
+                'term_id' => $result['term_id'],
+                'data' => $result['data']
+            ];
         }
 
         return Inertia::render('Grades/Index', [

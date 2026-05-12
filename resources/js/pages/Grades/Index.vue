@@ -63,7 +63,11 @@ const props = defineProps<{
         data: GradeRecord[] | Record<string, unknown>;
         error: string | null;
     };
-    evaluations: EvaluationData[] | EvaluationData | null;
+    evaluations: {
+        term_name: string | null;
+        term_id: number | string | null;
+        data: EvaluationData;
+    } | null;
 }>();
 
 const expandedTerms = ref<Record<string, boolean>>({});
@@ -329,25 +333,17 @@ const can = (permission?: string | string[]): boolean => {
  * Rule: grade.courseId === evaluationSubject.subjectId && grade.termId === evaluation.termId
  */
 const evaluationLookup = computed(() => {
-    if (!props.evaluations) return {};
+    const evalData = props.evaluations?.data;
+    if (!evalData?.subjects || !props.evaluations?.term_id) return {};
 
     const map: Record<string, any> = {};
+    const termId = String(props.evaluations.term_id);
 
-    // Normalize to array for consistent processing
-    const evalArray = Array.isArray(props.evaluations)
-        ? props.evaluations
-        : [props.evaluations];
-
-    evalArray.forEach((evalData) => {
-        if (!evalData?.subjects || !evalData?.termId) return;
-
-        const termId = String(evalData.termId);
-        evalData.subjects.forEach((s) => {
-            const subjectId = String(s.subjectId || '');
-            if (subjectId) {
-                map[`${termId}-${subjectId}`] = s;
-            }
-        });
+    evalData.subjects.forEach((s) => {
+        const subjectId = String(s.subjectId || '');
+        if (subjectId) {
+            map[`${termId}-${subjectId}`] = s;
+        }
     });
 
     return map;
@@ -369,8 +365,8 @@ const getEvaluationForGrade = (row: GradeRecord, termId?: string) => {
 const isPendingEvaluation = (row: GradeRecord, termId?: string) => {
     const rowTermId = String(termId || row.termId || row.term_id || '');
 
-    // ONLY apply this logic to Term 102 as requested
-    if (rowTermId !== '102') return false;
+    // Dynamic term check based on fetched evaluation term
+    if (!props.evaluations?.term_id || rowTermId !== String(props.evaluations.term_id)) return false;
 
     const evaluation = getEvaluationForGrade(row, rowTermId);
     if (!evaluation) return false;
@@ -901,21 +897,23 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                     subjects
                                 </dd>
                             </div>
-                            <div class="flex items-center justify-between gap-3">
-                                <dt
-                                    class="text-[10px] font-medium text-slate-500 dark:text-slate-400"
-                                >
-                                    Terms loaded
-                                </dt>
-                                <dd
-                                    class="truncate text-[10px] font-medium text-slate-600 dark:text-slate-300"
-                                >
-                                    {{
-                                        Array.isArray(props.evaluations)
-                                            ? props.evaluations.length
-                                            : 1
-                                    }}
-                                </dd>
+                            <div class="flex flex-col gap-1 border-t border-slate-100 pt-2 dark:border-white/5">
+                                <div class="flex items-center justify-between gap-3">
+                                    <dt class="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                                        Current Term
+                                    </dt>
+                                    <dd class="truncate text-[10px] font-bold text-sky-600 dark:text-sky-400">
+                                        {{ evaluations.term_name || '-' }}
+                                    </dd>
+                                </div>
+                                <div class="flex items-center justify-between gap-3">
+                                    <dt class="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                                        System ID
+                                    </dt>
+                                    <dd class="truncate text-[10px] font-mono font-bold text-slate-900 dark:text-white">
+                                        #{{ evaluations.term_id || '-' }}
+                                    </dd>
+                                </div>
                             </div>
                         </div>
                     </dl>

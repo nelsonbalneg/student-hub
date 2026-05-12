@@ -219,6 +219,12 @@ const siteAdministrationNavItems: NavItem[] = [
                 icon: BookOpen,
                 permission: 'roles.view',
             },
+            {
+                title: 'Site Settings',
+                href: '/admin/site-settings/campuses',
+                icon: Building2,
+                permission: 'site-settings.view',
+            },
         ],
     },
     {

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Models\SiteAcademicTerm;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
@@ -329,6 +330,21 @@ class AcademicApiService
 
     public function facultyEvaluations(?int $campusId, ?int $termId, ?string $studentNo): array
     {
+        $activeTerm = null;
+
+        // Resolve correctly from site settings based on the campus
+        if ($campusId) {
+            $activeTerm = SiteAcademicTerm::where('status', 'Active')
+                ->whereHas('campus', function ($query) use ($campusId) {
+                    $query->where('real_campus_id', $campusId);
+                })
+                ->first();
+
+            if ($activeTerm) {
+                $termId = (int) $activeTerm->term_id;
+            }
+        }
+
         if (! $campusId || ! $termId || ! $studentNo) {
             return [
                 'data' => null,
@@ -352,6 +368,8 @@ class AcademicApiService
 
             return [
                 'data' => $response->json(),
+                'term_id' => $termId,
+                'term_name' => $activeTerm ? "{$activeTerm->school_year} {$activeTerm->semester}" : null,
                 'error' => null,
             ];
         } catch (Throwable $exception) {

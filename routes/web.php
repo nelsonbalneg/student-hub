@@ -15,7 +15,10 @@ use App\Http\Controllers\ClearanceUpdateController;
 use App\Http\Controllers\StudentSemesterClearanceController;
 use App\Http\Controllers\ClearanceAccountabilityController;
 use App\Http\Controllers\Admin\ReferenceLookupController;
+use App\Http\Controllers\SiteSettings\SiteCampusController;
+use App\Http\Controllers\SiteSettings\SiteAcademicTermController;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 use Laravel\Fortify\Features;
 
 Route::get('/', function () {
@@ -307,6 +310,27 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::resource('faqs', App\Http\Controllers\Faq\FaqController::class);
         });
     });
+
+    // Site Settings
+    Route::prefix('admin/site-settings')
+        ->name('site-settings.')
+        ->group(function () {
+            Route::resource('campuses', SiteCampusController::class);
+            Route::prefix('campuses/{campus}')
+                ->name('campuses.')
+                ->group(function () {
+                    Route::post('terms', [SiteAcademicTermController::class, 'store'])->name('terms.store');
+                    Route::patch('terms/{term}', [SiteAcademicTermController::class, 'update'])->name('terms.update');
+                    Route::patch('terms/{term}/activate', [SiteAcademicTermController::class, 'activate'])->name('terms.activate');
+                    Route::delete('terms/{term}', [SiteAcademicTermController::class, 'destroy'])->name('terms.destroy');
+                });
+
+            // Placeholder routes for new tabs
+            Route::get('evaluation', fn() => Inertia::render('SiteSettings/Placeholder', ['title' => 'Evaluation']))->name('evaluation');
+            Route::get('ccd-cares', fn() => Inertia::render('SiteSettings/Placeholder', ['title' => 'CCD Cares']))->name('ccd-cares');
+            Route::get('grade-viewing', fn() => Inertia::render('SiteSettings/Placeholder', ['title' => 'Grade Viewing']))->name('grade-viewing');
+            Route::get('sar', fn() => Inertia::render('SiteSettings/Placeholder', ['title' => 'SAR']))->name('sar');
+        });
 });
 
 require __DIR__.'/settings.php';
