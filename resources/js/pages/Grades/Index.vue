@@ -313,25 +313,66 @@ const can = (permission?: string | string[]): boolean => {
 const getEvaluationStatus = (row: GradeRecord) => {
     if (!props.evaluations?.subjects) return null;
 
-    const rowSubjectId = numericValue(row, [
+    const rowId = pick(row, [
         'courseId',
         'course_id',
         'subjectId',
         'subject_id',
         'id',
     ]);
+    const rowCode = pick(row, [
+        'courseCode',
+        'course_code',
+        'subjectCode',
+        'subject_code',
+        'code',
+    ])
+        .trim()
+        .toLowerCase();
 
-    if (rowSubjectId === null) return null;
+    const rowTitle = pick(row, [
+        'courseTitle',
+        'course_title',
+        'courseDescription',
+        'course_description',
+        'subjectDescription',
+        'subject_description',
+        'description',
+        'title',
+    ])
+        .trim()
+        .toLowerCase();
 
-    const evaluation = props.evaluations.subjects.find(
-        (s) => Number(s.subjectId) === rowSubjectId,
-    );
+    const evaluation = props.evaluations.subjects.find((s) => {
+        const evalId = String(s.subjectId || '').trim();
+        const evalCode = String(s.subjectCode || s.courseCode || '')
+            .trim()
+            .toLowerCase();
+        const evalTitle = String(
+            s.subjectDescription || s.subject_description || s.courseTitle || '',
+        )
+            .trim()
+            .toLowerCase();
+
+        const idMatch = rowId !== '-' && evalId !== '' && evalId === rowId;
+        const codeMatch =
+            rowCode !== '-' && rowCode !== '' && evalCode === rowCode;
+        const titleMatch =
+            rowTitle !== '-' && rowTitle !== '' && evalTitle === rowTitle;
+
+        return idMatch || codeMatch || titleMatch;
+    });
 
     return evaluation?.status ?? null;
 };
 
 const isPendingEvaluation = (row: GradeRecord) => {
-    return getEvaluationStatus(row) === 'Pending for evaluation';
+    const status = getEvaluationStatus(row);
+    if (!status) return false;
+
+    const s = status.toLowerCase().trim();
+
+    return s === 'pending for evaluation' || s === 'pending' || s.includes('evaluation');
 };
 </script>
 
@@ -602,12 +643,46 @@ const isPendingEvaluation = (row: GradeRecord) => {
                                             <td
                                                 class="px-4 py-3 text-center align-top text-xs font-medium text-slate-500 dark:text-slate-400"
                                             >
-                                                {{ pick(row, columns[3].keys) }}
+                                                <template
+                                                    v-if="
+                                                        isPendingEvaluation(row)
+                                                    "
+                                                >
+                                                    <span
+                                                        class="text-[10px] text-slate-300 dark:text-slate-600"
+                                                        >-</span
+                                                    >
+                                                </template>
+                                                <template v-else>
+                                                    {{
+                                                        pick(
+                                                            row,
+                                                            columns[3].keys,
+                                                        )
+                                                    }}
+                                                </template>
                                             </td>
                                             <td
                                                 class="px-4 py-3 text-center align-top text-xs font-medium text-slate-500 dark:text-slate-400"
                                             >
-                                                {{ pick(row, columns[4].keys) }}
+                                                <template
+                                                    v-if="
+                                                        isPendingEvaluation(row)
+                                                    "
+                                                >
+                                                    <span
+                                                        class="text-[10px] text-slate-300 dark:text-slate-600"
+                                                        >-</span
+                                                    >
+                                                </template>
+                                                <template v-else>
+                                                    {{
+                                                        pick(
+                                                            row,
+                                                            columns[4].keys,
+                                                        )
+                                                    }}
+                                                </template>
                                             </td>
                                             <td
                                                 class="px-4 py-3 text-center align-top"

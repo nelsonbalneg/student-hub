@@ -19,7 +19,7 @@ class GradesController extends Controller
 
         $activeSemester = $this->academicApi->getActiveSemesterForUser($user);
         $termId = $activeSemester['termId'] ?: 102;
-        $campusId = $activeSemester['campusId'];
+        $campusId = $activeSemester['campusId'] ?: 1;
 
         $evaluations = $this->academicApi->facultyEvaluations($campusId, (int) $termId, $studentNo);
 
