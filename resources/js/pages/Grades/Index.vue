@@ -144,11 +144,16 @@ const groupedGrades = computed<TermGroup[]>(() => {
         })
         .filter((group) => group.rows.length);
 
-    if (groups.length > 0 && Object.keys(expandedTerms.value).length === 0) {
-        expandedTerms.value[groups[0].term] = true;
+    const finalGroups = [...groups].reverse();
+
+    if (
+        finalGroups.length > 0 &&
+        Object.keys(expandedTerms.value).length === 0
+    ) {
+        expandedTerms.value[finalGroups[0].term] = true;
     }
 
-    return groups;
+    return finalGroups;
 });
 
 const records = computed(() =>
@@ -619,9 +624,6 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                     >
                                         <tr>
                                             <th class="px-4 py-3">Course</th>
-                                            <th class="px-4 py-3">
-                                                Description
-                                            </th>
                                             <th class="px-4 py-3 text-center">
                                                 Units
                                             </th>
@@ -649,15 +651,31 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                             :key="rowIndex"
                                             class="hover:bg-slate-50/80 dark:hover:bg-white/5"
                                         >
-                                            <td
-                                                class="px-4 py-3 align-top text-xs font-bold text-slate-900 dark:text-white"
-                                            >
-                                                {{ pick(row, columns[0].keys) }}
-                                            </td>
-                                            <td
-                                                class="max-w-md px-4 py-3 align-top text-xs font-medium text-slate-600 dark:text-slate-300"
-                                            >
-                                                {{ pick(row, columns[1].keys) }}
+                                            <td class="px-4 py-3">
+                                                <div
+                                                    class="flex flex-col gap-0.5"
+                                                >
+                                                    <span
+                                                        class="font-bold text-slate-900 dark:text-white"
+                                                    >
+                                                        {{
+                                                            pick(
+                                                                row,
+                                                                columns[0].keys,
+                                                            )
+                                                        }}
+                                                    </span>
+                                                    <span
+                                                        class="max-w-[400px] truncate text-xs text-slate-500 dark:text-slate-400"
+                                                    >
+                                                        {{
+                                                            pick(
+                                                                row,
+                                                                columns[1].keys,
+                                                            )
+                                                        }}
+                                                    </span>
+                                                </div>
                                             </td>
                                             <td
                                                 class="px-4 py-3 text-center align-top text-xs font-bold text-slate-700 dark:text-slate-200"
@@ -735,10 +753,21 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                             Evaluate
                                                         </button>
                                                         <span
-                                                            class="whitespace-nowrap text-[8px] font-medium text-slate-400"
+                                                            class="max-w-[120px] truncate text-[9px] font-bold text-slate-600 dark:text-slate-400"
+                                                            v-if="
+                                                                getEvaluationForGrade(
+                                                                    row,
+                                                                    group.termId,
+                                                                )?.facultyName
+                                                            "
                                                         >
-                                                            Grade hidden. Please
-                                                            complete evaluation.
+                                                            {{
+                                                                getEvaluationForGrade(
+                                                                    row,
+                                                                    group.termId,
+                                                                )
+                                                                    ?.facultyName
+                                                            }}
                                                         </span>
                                                     </div>
                                                 </template>
