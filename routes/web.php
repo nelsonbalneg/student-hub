@@ -18,9 +18,13 @@ use App\Http\Controllers\Admin\ReferenceLookupController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 
-Route::inertia('/', 'Welcome', [
-    'canRegister' => Features::enabled(Features::registration()),
-])->name('home');
+Route::get('/', function () {
+    if (auth()->check()) {
+        return redirect()->route('dashboard');
+    }
+
+    return redirect()->route('auth.sso.redirect');
+})->name('home');
 
 Route::middleware('guest')->group(function () {
     Route::get('auth/sso/redirect', [SsoAuthenticatedSessionController::class, 'redirect'])
