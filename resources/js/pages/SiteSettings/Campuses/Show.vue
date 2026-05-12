@@ -46,10 +46,6 @@ import { format } from 'date-fns';
 import * as campusRoutes from '@/routes/site-settings/campuses';
 import * as termRoutes from '@/routes/site-settings/campuses/terms';
 
-defineOptions({
-    layout: SiteSettingsLayout,
-});
-
 interface AcademicTerm {
     id: number;
     school_year: string;
@@ -182,8 +178,9 @@ const getStatusBadgeClass = (status: string) => {
 <template>
     <Head :title="`${props.campus.campus_name} - Details`" />
 
-    <div class="flex flex-col gap-8 p-6 lg:p-10">
-        <!-- Header Section -->
+    <SiteSettingsLayout>
+        <div class="flex flex-col gap-8 p-6 lg:p-10">
+            <!-- Header Section -->
         <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                 <div class="flex items-center gap-6">
                     <div class="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-3xl bg-white p-1 shadow-xl shadow-slate-200/50 ring-1 ring-slate-200 dark:bg-white/5 dark:shadow-none dark:ring-white/10">
@@ -592,4 +589,5 @@ const getStatusBadgeClass = (status: string) => {
             @close="showDeleteTermModal = false"
         />
     </div>
+</SiteSettingsLayout>
 </template>

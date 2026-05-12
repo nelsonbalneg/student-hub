@@ -43,10 +43,6 @@ import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import SiteSettingsLayout from '@/layouts/SiteSettingsLayout.vue';
 import * as campusRoutes from '@/routes/site-settings/campuses';
 
-defineOptions({
-    layout: SiteSettingsLayout,
-});
-
 interface Campus {
     id: number;
     campus_name: string;
@@ -134,8 +130,9 @@ const handleSearch = () => {
 <template>
     <Head title="Site Settings - Campuses" />
 
-    <div class="p-6 lg:p-10 space-y-10">
-        <!-- Header Section -->
+    <SiteSettingsLayout>
+        <div class="p-6 lg:p-10 space-y-10">
+            <!-- Header Section -->
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <h1 class="text-2xl font-bold tracking-tight text-slate-950 dark:text-white">Campuses</h1>
@@ -326,4 +323,5 @@ const handleSearch = () => {
             @close="showDeleteModal = false"
         />
     </div>
+</SiteSettingsLayout>
 </template>
