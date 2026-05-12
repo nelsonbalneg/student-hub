@@ -43,6 +43,12 @@ return [
         'connect_timeout' => env('ACADEMIC_API_CONNECT_TIMEOUT', 5),
     ],
 
+    'evaluation_api' => [
+        'base_url' => env('EVALUATION_API_BASE_URL', 'http://172.16.0.60:44311/api/app'),
+        'timeout' => env('EVALUATION_API_TIMEOUT', 15),
+        'connect_timeout' => env('EVALUATION_API_CONNECT_TIMEOUT', 5),
+    ],
+
     'mikrotik' => [
         'base_url' => env('MIKROTIK_API_BASE_URL'),
         'token' => env('MIKROTIK_API_TOKEN'),

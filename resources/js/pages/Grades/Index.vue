@@ -25,55 +25,50 @@ type Student = {
     campus_name: string | null;
     tenant_id: string | null;
     bypass_evaluation?: boolean;
+    evaluation_id?: string | null;
 };
 
-type GradeRecord = Record<string, unknown>;
+type PendingEvaluation = {
+    faculty: string;
+    facultyEmployeeId: string;
+    type: 'lecture' | 'lab' | 'unknown';
+    id: string;
+    surveyTemplateId: string;
+};
+
+type GradeRecord = {
+    requires_evaluation?: boolean;
+    evaluation_status?: string;
+    evaluation_period_id?: string;
+    subject_for_evaluation_id?: string;
+    subject_id?: string;
+    subject_title?: string;
+    pending_evaluations?: PendingEvaluation[];
+    faculty_names?: string[];
+    evaluation_payload?: Record<string, any>;
+} & Record<string, any>;
 
 type TermGroup = {
     term: string;
+    termId: string;
     section: string;
     creditUnits: string;
     gpa: string;
     rows: GradeRecord[];
 };
 
-type EvaluationSubject = {
-    facultyId: string;
-    facultyName: string;
-    subjectId: number | string;
-    subjectCode: string;
-    subjectDescription: string;
-    notCounted: boolean;
-    status: string;
-};
-
-type EvaluationData = {
-    studentNo: string;
-    evaluationStatus: string;
-    campusId: number;
-    termId: number;
-    totalSubjectsEnrolled: number;
-    totalFacultyEvaluated: number;
-    totalFacultyForEvaluation: number;
-    subjects: EvaluationSubject[];
-};
-
 const props = defineProps<{
     student: Student;
     gradeReport: {
-        data: GradeRecord[] | Record<string, unknown>;
+        data: GradeRecord[] | Record<string, any>;
         error: string | null;
     };
-    evaluations: {
-        term_name: string | null;
-        term_id: number | string | null;
-        data: EvaluationData;
-    } | null;
+    evaluation_error: string | null;
 }>();
 
 const expandedTerms = ref<Record<string, boolean>>({});
 
-const asArray = (value: unknown): GradeRecord[] => {
+const asArray = (value: any): GradeRecord[] => {
     if (Array.isArray(value)) {
         return value.filter(
             (item): item is GradeRecord =>
@@ -82,7 +77,7 @@ const asArray = (value: unknown): GradeRecord[] => {
     }
 
     if (value && typeof value === 'object') {
-        const record = value as Record<string, unknown>;
+        const record = value as Record<string, any>;
         const nested = [
             'grades',
             'data',
@@ -108,8 +103,9 @@ const pick = (row: GradeRecord, keys: string[]): string => {
 };
 
 const groupedGrades = computed<TermGroup[]>(() => {
-    const groups = asArray(props.gradeReport.data)
-        .map((term) => {
+    const rawData = asArray(props.gradeReport.data);
+    
+    const groups = rawData.map((term) => {
             const termName = pick(term, [
                 'termName',
                 'semesterName',
@@ -249,6 +245,11 @@ const termUnits = (group: TermGroup) => {
 };
 
 const calculatedGpa = (rows: GradeRecord[]) => {
+    // If any row requires evaluation, we hide the GPA
+    if (rows.some(row => row.requires_evaluation)) {
+        return 'Evaluation Required';
+    }
+
     const gradedRows = rows
         .map((row) => ({
             grade: numericValue(row, columns[5].keys),
@@ -327,66 +328,22 @@ const can = (permission?: string | string[]): boolean => {
     );
 };
 
-/**
- * Evaluation Lookup Logic
- *
- * Pattern: Build a lookup map where key is `${termId}-${subjectId}`
- * Rule: grade.courseId === evaluationSubject.subjectId && grade.termId === evaluation.termId
- */
-const evaluationLookup = computed(() => {
-    const evalData = props.evaluations?.data;
-    if (!evalData?.subjects || !props.evaluations?.term_id) return {};
-
-    const map: Record<string, any> = {};
-    const termId = String(props.evaluations.term_id);
-
-    evalData.subjects.forEach((s) => {
-        const subjectId = String(s.subjectId || '');
-        if (subjectId) {
-            map[`${termId}-${subjectId}`] = s;
-        }
-    });
-
-    return map;
-});
-
-const getEvaluationForGrade = (row: GradeRecord, termId?: string) => {
-    // Determine the term ID for this specific grade row
-    const rowTermId = String(termId || row.termId || row.term_id || '');
-    const rowCourseId = String(
-        row.courseId || row.course_id || row.subjectId || '',
-    );
-
-    if (!rowTermId || !rowCourseId) return null;
-
-    // Check if we have a matching evaluation in our lookup map
-    return evaluationLookup.value[`${rowTermId}-${rowCourseId}`] || null;
-};
-
-const isPendingEvaluation = (row: GradeRecord, termId?: string) => {
-    const rowTermId = String(termId || row.termId || row.term_id || '');
-
-    // Honor the bypass evaluation rule from site settings
-    if (props.student.bypass_evaluation) return false;
-
-    // Dynamic term check based on fetched evaluation term
-    if (!props.evaluations?.term_id || rowTermId !== String(props.evaluations.term_id)) return false;
-
-    const evaluation = getEvaluationForGrade(row, rowTermId);
-    if (!evaluation) return false;
-
-    const status = (evaluation.status || '').toLowerCase().trim();
-
-    // Hide grades if status matches "Pending for evaluation"
-    return (
-        status === 'pending for evaluation' ||
-        status === 'pending' ||
-        status.includes('evaluation')
-    );
+const evaluate = (row: GradeRecord, evalItem: PendingEvaluation) => {
+    const payload = {
+        ...(row.evaluation_payload || {}),
+        facultyEmployeeId: evalItem.facultyEmployeeId,
+        evaluationId: evalItem.id,
+        surveyTemplateId: evalItem.surveyTemplateId,
+        type: evalItem.type,
+    };
+    
+    console.log('Opening evaluation with payload:', payload);
+    // Here you would typically navigate to the evaluation page or open a modal
+    // window.location.href = route('evaluations.show', payload);
 };
 
 const groupHasPendingEvaluations = (group: TermGroup) => {
-    return group.rows.some((row) => isPendingEvaluation(row, group.termId));
+    return group.rows.some((row) => row.requires_evaluation);
 };
 </script>
 
@@ -394,6 +351,12 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
     <Head title="My Grades" />
 
     <div class="flex h-full flex-1 flex-col gap-4 p-4 lg:p-5">
+        <!-- Evaluation Warning Banner -->
+        <div v-if="evaluation_error" class="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200">
+            <AlertCircle class="size-5 shrink-0 text-amber-600" />
+            <p class="font-medium">{{ evaluation_error }}</p>
+        </div>
+
         <section
             class="rounded-lg border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-sky-50/60 shadow-sm dark:border-white/10 dark:from-slate-950 dark:via-slate-950 dark:to-sky-950/20"
         >
@@ -687,12 +650,12 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                             >
                                                 <template
                                                     v-if="
-                                                        isPendingEvaluation(row)
+                                                        row.requires_evaluation
                                                     "
                                                 >
                                                     <span
-                                                        class="text-[10px] text-slate-300 dark:text-slate-600"
-                                                        >-</span
+                                                        class="text-[10px] font-bold text-slate-300 dark:text-slate-600"
+                                                        >LOCKED</span
                                                     >
                                                 </template>
                                                 <template v-else>
@@ -709,15 +672,12 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                             >
                                                 <template
                                                     v-if="
-                                                        isPendingEvaluation(
-                                                            row,
-                                                            group.termId,
-                                                        )
+                                                        row.requires_evaluation
                                                     "
                                                 >
                                                     <span
-                                                        class="text-[10px] text-slate-300 dark:text-slate-600"
-                                                        >-</span
+                                                        class="text-[10px] font-bold text-slate-300 dark:text-slate-600"
+                                                        >LOCKED</span
                                                     >
                                                 </template>
                                                 <template v-else>
@@ -734,39 +694,46 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                             >
                                                 <template
                                                     v-if="
-                                                        isPendingEvaluation(
-                                                            row,
-                                                            group.termId,
-                                                        )
+                                                        row.requires_evaluation
                                                     "
                                                 >
                                                     <div
-                                                        class="flex flex-col items-center gap-1"
+                                                        class="flex flex-col items-center gap-1.5"
                                                     >
-                                                        <button
-                                                            type="button"
-                                                            class="inline-flex h-7 items-center justify-center gap-1.5 rounded-md bg-sky-600 px-3 text-[10px] font-bold text-white transition hover:bg-sky-700 dark:bg-sky-500 dark:hover:bg-sky-400"
+                                                        <div
+                                                            v-for="evalItem in row.pending_evaluations"
+                                                            :key="evalItem.id"
                                                         >
-                                                            <MessageSquareQuote
-                                                                class="size-3"
-                                                            />
-                                                            Evaluate
-                                                        </button>
+                                                            <button
+                                                                type="button"
+                                                                class="inline-flex h-7 items-center justify-center gap-1.5 rounded-md bg-indigo-600 px-3 text-[10px] font-bold text-white shadow-sm shadow-indigo-200 transition hover:bg-indigo-700 dark:shadow-none"
+                                                                @click="
+                                                                    evaluate(
+                                                                        row,
+                                                                        evalItem,
+                                                                    )
+                                                                "
+                                                            >
+                                                                <MessageSquareQuote
+                                                                    class="size-3"
+                                                                />
+                                                                Evaluate
+                                                                {{
+                                                                    evalItem.type
+                                                                }}
+                                                            </button>
+                                                        </div>
                                                         <span
-                                                            class="max-w-[120px] truncate text-[9px] font-bold text-slate-600 dark:text-slate-400"
                                                             v-if="
-                                                                getEvaluationForGrade(
-                                                                    row,
-                                                                    group.termId,
-                                                                )?.facultyName
+                                                                row.faculty_names
+                                                                    ?.length
                                                             "
+                                                            class="max-w-[120px] truncate text-[9px] font-bold text-slate-400"
                                                         >
                                                             {{
-                                                                getEvaluationForGrade(
-                                                                    row,
-                                                                    group.termId,
+                                                                row.faculty_names.join(
+                                                                    ', ',
                                                                 )
-                                                                    ?.facultyName
                                                             }}
                                                         </span>
                                                     </div>
@@ -788,10 +755,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                             >
                                                 <template
                                                     v-if="
-                                                        isPendingEvaluation(
-                                                            row,
-                                                            group.termId,
-                                                        )
+                                                        row.requires_evaluation
                                                     "
                                                 >
                                                     <span
@@ -829,136 +793,88 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                 </div>
             </section>
 
-            <aside class="grid content-start gap-4">
+            <aside class="space-y-4">
                 <section
-                    class="rounded-lg border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm dark:border-white/10 dark:from-slate-950 dark:to-slate-900"
+                    class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950"
                 >
                     <div class="flex items-center gap-3">
                         <div
-                            class="flex size-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-200"
+                            class="flex size-10 items-center justify-center rounded-lg bg-slate-50 text-slate-700 dark:bg-white/5 dark:text-slate-200"
                         >
-                            <User class="size-4" />
+                            <User class="size-5" />
                         </div>
                         <div class="min-w-0">
-                            <h2
-                                class="truncate text-sm font-bold text-slate-950 dark:text-white"
-                            >
-                                {{ student.name }}
-                            </h2>
                             <p
                                 class="truncate text-xs font-medium text-slate-500 dark:text-slate-400"
                             >
-                                Verified academic identity
+                                Student Information
                             </p>
+                            <h3
+                                class="truncate text-sm font-bold text-slate-900 dark:text-white"
+                            >
+                                {{ student.name }}
+                            </h3>
                         </div>
                     </div>
 
-                    <dl class="mt-4 grid gap-2 text-xs">
-                        <div
-                            class="flex items-center justify-between gap-3 rounded-md bg-slate-50 px-3 py-2 dark:bg-white/5"
-                        >
-                            <dt
-                                class="font-bold text-slate-500 dark:text-slate-400"
+                    <div
+                        class="mt-4 space-y-3 border-t border-slate-100 pt-4 dark:border-white/5"
+                    >
+                        <div class="flex items-center justify-between gap-3">
+                            <span
+                                class="text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400"
                             >
-                                Student No.
-                            </dt>
-                            <dd
-                                class="truncate font-bold text-slate-900 dark:text-white"
+                                Student ID
+                            </span>
+                            <span
+                                class="font-mono text-xs font-bold text-slate-900 dark:text-white"
                             >
-                                {{ student.student_no || '-' }}
-                            </dd>
+                                {{ student.student_no }}
+                            </span>
                         </div>
-                        <div
-                            class="flex items-center justify-between gap-3 rounded-md bg-slate-50 px-3 py-2 dark:bg-white/5"
-                        >
-                            <dt
-                                class="font-bold text-slate-500 dark:text-slate-400"
+                        <div class="flex items-center justify-between gap-3">
+                            <span
+                                class="text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400"
                             >
                                 Campus
-                            </dt>
-                            <dd
-                                class="truncate font-bold text-slate-900 dark:text-white"
+                            </span>
+                            <span
+                                class="text-xs font-bold text-slate-900 dark:text-white"
                             >
-                                {{ student.campus_name || '-' }}
-                            </dd>
+                                {{ student.campus_name }}
+                            </span>
                         </div>
-                        <div
-                            v-if="evaluations"
-                            class="flex flex-col gap-2 rounded-md bg-slate-50 px-3 py-2 dark:bg-white/5"
-                        >
-                            <div class="flex items-center justify-between gap-3">
-                                <dt
-                                    class="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400"
-                                >
-                                    Eval API Status
-                                </dt>
-                                <dd
-                                    class="truncate text-[10px] font-bold text-slate-900 dark:text-white"
-                                >
-                                    {{
-                                        Object.keys(evaluationLookup).length
-                                    }}
-                                    subjects
-                                </dd>
-                            </div>
-                            <div class="flex flex-col gap-1 border-t border-slate-100 pt-2 dark:border-white/5">
-                                <div class="flex items-center justify-between gap-3">
-                                    <dt class="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                                        Current Term
-                                    </dt>
-                                    <dd class="truncate text-[10px] font-bold text-sky-600 dark:text-sky-400">
-                                        {{ evaluations.term_name || '-' }}
-                                    </dd>
-                                </div>
-                                <div class="flex items-center justify-between gap-3">
-                                    <dt class="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                                        System ID
-                                    </dt>
-                                    <dd class="truncate text-[10px] font-mono font-bold text-slate-900 dark:text-white">
-                                        #{{ evaluations.term_id || '-' }}
-                                    </dd>
-                                </div>
-                            </div>
-                        </div>
-                    </dl>
+                    </div>
                 </section>
 
                 <section
-                    v-if="can('grades.view-record-health')"
-                    class="rounded-lg border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm dark:border-white/10 dark:from-slate-950 dark:to-slate-900"
+                    class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950"
                 >
-                    <h2
-                        class="text-sm font-bold text-slate-950 dark:text-white"
+                    <h3 class="text-xs font-bold text-slate-900 dark:text-white">
+                        About Grade Report
+                    </h3>
+                    <p
+                        class="mt-2 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400"
                     >
-                        Record Health
-                    </h2>
-                    <div class="mt-3 grid gap-2">
-                        <div
-                            class="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-xs dark:border-white/10"
-                        >
+                        Your grade report displays official academic records per
+                        term. Grades for subjects requiring faculty evaluation
+                        are hidden until the evaluation process is completed.
+                    </p>
+                    <div class="mt-4 flex flex-col gap-2">
+                        <div class="flex items-center gap-2">
+                            <div class="size-2 rounded-full bg-indigo-600"></div>
                             <span
-                                class="font-bold text-slate-500 dark:text-slate-400"
+                                class="text-[10px] font-bold text-slate-700 dark:text-slate-300"
                             >
-                                Source
-                            </span>
-                            <span
-                                class="rounded-full bg-emerald-50 px-2 py-0.5 font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
-                            >
-                                Academic API
+                                Requires Evaluation
                             </span>
                         </div>
-                        <div
-                            class="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-xs dark:border-white/10"
-                        >
+                        <div class="flex items-center gap-2">
+                            <div class="size-2 rounded-full bg-slate-900 dark:bg-white"></div>
                             <span
-                                class="font-bold text-slate-500 dark:text-slate-400"
+                                class="text-[10px] font-bold text-slate-700 dark:text-slate-300"
                             >
-                                Tenant
-                            </span>
-                            <span
-                                class="truncate font-bold text-slate-900 dark:text-white"
-                            >
-                                {{ student.tenant_id || '-' }}
+                                Official Grade Posted
                             </span>
                         </div>
                     </div>
