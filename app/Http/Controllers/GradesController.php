@@ -17,6 +17,12 @@ class GradesController extends Controller
         $studentNo = $this->academicApi->studentNumberFor($user);
         $tenantId = blank($user->tenant_id) ? null : (string) $user->tenant_id;
 
+        $activeSemester = $this->academicApi->getActiveSemesterForUser($user);
+        $termId = $activeSemester['termId'] ?: 102;
+        $campusId = $activeSemester['campusId'];
+
+        $evaluations = $this->academicApi->facultyEvaluations($campusId, (int) $termId, $studentNo);
+
         return Inertia::render('Grades/Index', [
             'student' => [
                 'name' => $user->name,
@@ -25,6 +31,7 @@ class GradesController extends Controller
                 'tenant_id' => $tenantId,
             ],
             'gradeReport' => $this->academicApi->gradeReportForStudent($studentNo, $tenantId),
+            'evaluations' => $evaluations['data'],
         ]);
     }
 }

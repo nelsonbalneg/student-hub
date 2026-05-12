@@ -327,6 +327,50 @@ class AcademicApiService
         }
     }
 
+    public function facultyEvaluations(?int $campusId, ?int $termId, ?string $studentNo): array
+    {
+        if (! $campusId || ! $termId || ! $studentNo) {
+            return [
+                'data' => null,
+                'error' => 'Missing required parameters for faculty evaluations.',
+            ];
+        }
+
+        $endpoint = "FacultyEvaluations/campus/{$campusId}/term/{$termId}/student/".rawurlencode($studentNo);
+
+        try {
+            $response = $this->client()->get($endpoint);
+
+            if ($response->status() === 404) {
+                return [
+                    'data' => null,
+                    'error' => 'No faculty evaluations found.',
+                ];
+            }
+
+            $response->throw();
+
+            return [
+                'data' => $response->json(),
+                'error' => null,
+            ];
+        } catch (Throwable $exception) {
+            Log::warning('Unable to load faculty evaluations', [
+                'student_no' => $studentNo,
+                'campus_id' => $campusId,
+                'term_id' => $termId,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+                'url' => $this->urlFor($endpoint),
+            ]);
+
+            return [
+                'data' => null,
+                'error' => 'Unable to load faculty evaluations right now.',
+            ];
+        }
+    }
+
     private function client(): PendingRequest
     {
         return Http::baseUrl($this->baseUrl)

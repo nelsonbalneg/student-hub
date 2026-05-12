@@ -8,6 +8,7 @@ import {
     ChevronDown,
     FileText,
     GraduationCap,
+    MessageSquareQuote,
     Printer,
     TrendingUp,
     User,
@@ -35,12 +36,34 @@ type TermGroup = {
     rows: GradeRecord[];
 };
 
+type EvaluationSubject = {
+    facultyId: string;
+    facultyName: string;
+    subjectId: number | string;
+    subjectCode: string;
+    subjectDescription: string;
+    notCounted: boolean;
+    status: string;
+};
+
+type EvaluationData = {
+    studentNo: string;
+    evaluationStatus: string;
+    campusId: number;
+    termId: number;
+    totalSubjectsEnrolled: number;
+    totalFacultyEvaluated: number;
+    totalFacultyForEvaluation: number;
+    subjects: EvaluationSubject[];
+};
+
 const props = defineProps<{
     student: Student;
     gradeReport: {
         data: GradeRecord[] | Record<string, unknown>;
         error: string | null;
     };
+    evaluations: EvaluationData | null;
 }>();
 
 const expandedTerms = ref<Record<string, boolean>>({});
@@ -285,6 +308,30 @@ const can = (permission?: string | string[]): boolean => {
             permissions.value.includes(requiredPermission),
         )
     );
+};
+
+const getEvaluationStatus = (row: GradeRecord) => {
+    if (!props.evaluations?.subjects) return null;
+
+    const rowSubjectId = numericValue(row, [
+        'courseId',
+        'course_id',
+        'subjectId',
+        'subject_id',
+        'id',
+    ]);
+
+    if (rowSubjectId === null) return null;
+
+    const evaluation = props.evaluations.subjects.find(
+        (s) => Number(s.subjectId) === rowSubjectId,
+    );
+
+    return evaluation?.status ?? null;
+};
+
+const isPendingEvaluation = (row: GradeRecord) => {
+    return getEvaluationStatus(row) === 'Pending for evaluation';
 };
 </script>
 
@@ -565,7 +612,23 @@ const can = (permission?: string | string[]): boolean => {
                                             <td
                                                 class="px-4 py-3 text-center align-top"
                                             >
+                                                <template
+                                                    v-if="
+                                                        isPendingEvaluation(row)
+                                                    "
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        class="inline-flex h-7 items-center justify-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 text-[10px] font-bold text-amber-700 transition hover:bg-amber-100 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20"
+                                                    >
+                                                        <MessageSquareQuote
+                                                            class="size-3"
+                                                        />
+                                                        Evaluate
+                                                    </button>
+                                                </template>
                                                 <span
+                                                    v-else
                                                     class="inline-flex min-w-10 items-center justify-center rounded-md bg-slate-900 px-2 py-1 text-xs font-bold text-white dark:bg-white dark:text-slate-950"
                                                 >
                                                     {{
@@ -579,7 +642,19 @@ const can = (permission?: string | string[]): boolean => {
                                             <td
                                                 class="px-4 py-3 text-center align-top"
                                             >
+                                                <template
+                                                    v-if="
+                                                        isPendingEvaluation(row)
+                                                    "
+                                                >
+                                                    <span
+                                                        class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300"
+                                                    >
+                                                        Evaluation Required
+                                                    </span>
+                                                </template>
                                                 <span
+                                                    v-else
                                                     class="inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase"
                                                     :class="
                                                         remarkClass(
