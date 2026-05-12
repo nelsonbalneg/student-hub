@@ -19,6 +19,13 @@ class GradesController extends Controller
 
         $activeSemester = $this->academicApi->getActiveSemesterForUser($user);
         $campusId = $activeSemester['campusId'] ?: 1;
+        
+        // Check for grade viewing bypass rule
+        $bypassEvaluation = \App\Models\GradeViewingRule::where('site_campus_id', $user->campus_id)
+            ->where('is_active', true)
+            ->where('bypass_evaluation', true)
+            ->exists();
+
         $gradeReport = $this->academicApi->gradeReportForStudent($studentNo, $tenantId);
         $evaluations = [];
 
@@ -38,6 +45,7 @@ class GradesController extends Controller
                 'student_no' => $studentNo,
                 'campus_name' => $user->campus_name,
                 'tenant_id' => $tenantId,
+                'bypass_evaluation' => $bypassEvaluation,
             ],
             'gradeReport' => $gradeReport,
             'evaluations' => $evaluations,

@@ -17,6 +17,7 @@ use App\Http\Controllers\ClearanceAccountabilityController;
 use App\Http\Controllers\Admin\ReferenceLookupController;
 use App\Http\Controllers\SiteSettings\SiteCampusController;
 use App\Http\Controllers\SiteSettings\SiteAcademicTermController;
+use App\Http\Controllers\SiteSettings\SiteGradeViewingController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
@@ -328,7 +329,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
             // Placeholder routes for new tabs
             Route::get('evaluation', fn() => Inertia::render('SiteSettings/Placeholder', ['title' => 'Evaluation']))->name('evaluation');
             Route::get('ccd-cares', fn() => Inertia::render('SiteSettings/Placeholder', ['title' => 'CCD Cares']))->name('ccd-cares');
-            Route::get('grade-viewing', fn() => Inertia::render('SiteSettings/Placeholder', ['title' => 'Grade Viewing']))->name('grade-viewing');
+            
+            Route::get('grade-viewing', [SiteGradeViewingController::class, 'index'])->name('grade-viewing.index');
+            Route::post('grade-viewing', [SiteGradeViewingController::class, 'store'])->name('grade-viewing.store');
+            Route::patch('grade-viewing/{rule}', [SiteGradeViewingController::class, 'update'])->name('grade-viewing.update');
+            Route::delete('grade-viewing/{rule}', [SiteGradeViewingController::class, 'destroy'])->name('grade-viewing.destroy');
+            Route::patch('grade-viewing/{rule}/toggle', [SiteGradeViewingController::class, 'toggle'])->name('grade-viewing.toggle');
+            
             Route::get('sar', fn() => Inertia::render('SiteSettings/Placeholder', ['title' => 'SAR']))->name('sar');
         });
 });

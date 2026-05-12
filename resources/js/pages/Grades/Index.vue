@@ -24,6 +24,7 @@ type Student = {
     student_no: string | null;
     campus_name: string | null;
     tenant_id: string | null;
+    bypass_evaluation?: boolean;
 };
 
 type GradeRecord = Record<string, unknown>;
@@ -364,6 +365,9 @@ const getEvaluationForGrade = (row: GradeRecord, termId?: string) => {
 
 const isPendingEvaluation = (row: GradeRecord, termId?: string) => {
     const rowTermId = String(termId || row.termId || row.term_id || '');
+
+    // Honor the bypass evaluation rule from site settings
+    if (props.student.bypass_evaluation) return false;
 
     // Dynamic term check based on fetched evaluation term
     if (!props.evaluations?.term_id || rowTermId !== String(props.evaluations.term_id)) return false;
