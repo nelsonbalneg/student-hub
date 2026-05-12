@@ -63,7 +63,7 @@ const props = defineProps<{
         data: GradeRecord[] | Record<string, unknown>;
         error: string | null;
     };
-    evaluations: EvaluationData | null;
+    evaluations: EvaluationData[] | EvaluationData | null;
 }>();
 
 const expandedTerms = ref<Record<string, boolean>>({});
@@ -120,6 +120,13 @@ const groupedGrades = computed<TermGroup[]>(() => {
             ]);
 
             return {
+                termId: pick(term, [
+                    'termId',
+                    'term_id',
+                    'semesterId',
+                    'semester_id',
+                    'id',
+                ]),
                 term:
                     [academicYear, termName]
                         .filter((value) => value !== '-')
@@ -310,69 +317,71 @@ const can = (permission?: string | string[]): boolean => {
     );
 };
 
-const getEvaluationStatus = (row: GradeRecord) => {
-    if (!props.evaluations?.subjects) return null;
+/**
+ * Evaluation Lookup Logic
+ *
+ * Pattern: Build a lookup map where key is `${termId}-${subjectId}`
+ * Rule: grade.courseId === evaluationSubject.subjectId && grade.termId === evaluation.termId
+ */
+const evaluationLookup = computed(() => {
+    if (!props.evaluations) return {};
 
-    const rowId = pick(row, [
-        'courseId',
-        'course_id',
-        'subjectId',
-        'subject_id',
-        'id',
-    ]);
-    const rowCode = pick(row, [
-        'courseCode',
-        'course_code',
-        'subjectCode',
-        'subject_code',
-        'code',
-    ])
-        .trim()
-        .toLowerCase();
+    const map: Record<string, any> = {};
 
-    const rowTitle = pick(row, [
-        'courseTitle',
-        'course_title',
-        'courseDescription',
-        'course_description',
-        'subjectDescription',
-        'subject_description',
-        'description',
-        'title',
-    ])
-        .trim()
-        .toLowerCase();
+    // Normalize to array for consistent processing
+    const evalArray = Array.isArray(props.evaluations)
+        ? props.evaluations
+        : [props.evaluations];
 
-    const evaluation = props.evaluations.subjects.find((s) => {
-        const evalId = String(s.subjectId || '').trim();
-        const evalCode = String(s.subjectCode || s.courseCode || '')
-            .trim()
-            .toLowerCase();
-        const evalTitle = String(
-            s.subjectDescription || s.subject_description || s.courseTitle || '',
-        )
-            .trim()
-            .toLowerCase();
+    evalArray.forEach((evalData) => {
+        if (!evalData?.subjects || !evalData?.termId) return;
 
-        const idMatch = rowId !== '-' && evalId !== '' && evalId === rowId;
-        const codeMatch =
-            rowCode !== '-' && rowCode !== '' && evalCode === rowCode;
-        const titleMatch =
-            rowTitle !== '-' && rowTitle !== '' && evalTitle === rowTitle;
-
-        return idMatch || codeMatch || titleMatch;
+        const termId = String(evalData.termId);
+        evalData.subjects.forEach((s) => {
+            const subjectId = String(s.subjectId || '');
+            if (subjectId) {
+                map[`${termId}-${subjectId}`] = s;
+            }
+        });
     });
 
-    return evaluation?.status ?? null;
+    return map;
+});
+
+const getEvaluationForGrade = (row: GradeRecord, termId?: string) => {
+    // Determine the term ID for this specific grade row
+    const rowTermId = String(termId || row.termId || row.term_id || '');
+    const rowCourseId = String(
+        row.courseId || row.course_id || row.subjectId || '',
+    );
+
+    if (!rowTermId || !rowCourseId) return null;
+
+    // Check if we have a matching evaluation in our lookup map
+    return evaluationLookup.value[`${rowTermId}-${rowCourseId}`] || null;
 };
 
-const isPendingEvaluation = (row: GradeRecord) => {
-    const status = getEvaluationStatus(row);
-    if (!status) return false;
+const isPendingEvaluation = (row: GradeRecord, termId?: string) => {
+    const rowTermId = String(termId || row.termId || row.term_id || '');
 
-    const s = status.toLowerCase().trim();
+    // ONLY apply this logic to Term 102 as requested
+    if (rowTermId !== '102') return false;
 
-    return s === 'pending for evaluation' || s === 'pending' || s.includes('evaluation');
+    const evaluation = getEvaluationForGrade(row, rowTermId);
+    if (!evaluation) return false;
+
+    const status = (evaluation.status || '').toLowerCase().trim();
+
+    // Hide grades if status matches "Pending for evaluation"
+    return (
+        status === 'pending for evaluation' ||
+        status === 'pending' ||
+        status.includes('evaluation')
+    );
+};
+
+const groupHasPendingEvaluations = (group: TermGroup) => {
+    return group.rows.some((row) => isPendingEvaluation(row, group.termId));
 };
 </script>
 
@@ -570,8 +579,23 @@ const isPendingEvaluation = (row: GradeRecord) => {
                                     >
                                         {{ group.rows.length }} courses /
                                         {{ termUnits(group) }} units /
-                                        Calculated GPA
-                                        {{ calculatedGpa(group.rows) }}
+                                        <template
+                                            v-if="
+                                                groupHasPendingEvaluations(
+                                                    group,
+                                                )
+                                            "
+                                        >
+                                            <span
+                                                class="font-bold text-amber-600 dark:text-amber-400"
+                                            >
+                                                GPA Hidden (Evaluation Required)
+                                            </span>
+                                        </template>
+                                        <template v-else>
+                                            Calculated GPA
+                                            {{ calculatedGpa(group.rows) }}
+                                        </template>
                                     </p>
                                 </div>
                                 <ChevronDown
@@ -667,7 +691,10 @@ const isPendingEvaluation = (row: GradeRecord) => {
                                             >
                                                 <template
                                                     v-if="
-                                                        isPendingEvaluation(row)
+                                                        isPendingEvaluation(
+                                                            row,
+                                                            group.termId,
+                                                        )
                                                     "
                                                 >
                                                     <span
@@ -689,18 +716,31 @@ const isPendingEvaluation = (row: GradeRecord) => {
                                             >
                                                 <template
                                                     v-if="
-                                                        isPendingEvaluation(row)
+                                                        isPendingEvaluation(
+                                                            row,
+                                                            group.termId,
+                                                        )
                                                     "
                                                 >
-                                                    <button
-                                                        type="button"
-                                                        class="inline-flex h-7 items-center justify-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 text-[10px] font-bold text-amber-700 transition hover:bg-amber-100 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20"
+                                                    <div
+                                                        class="flex flex-col items-center gap-1"
                                                     >
-                                                        <MessageSquareQuote
-                                                            class="size-3"
-                                                        />
-                                                        Evaluate
-                                                    </button>
+                                                        <button
+                                                            type="button"
+                                                            class="inline-flex h-7 items-center justify-center gap-1.5 rounded-md bg-sky-600 px-3 text-[10px] font-bold text-white transition hover:bg-sky-700 dark:bg-sky-500 dark:hover:bg-sky-400"
+                                                        >
+                                                            <MessageSquareQuote
+                                                                class="size-3"
+                                                            />
+                                                            Evaluate
+                                                        </button>
+                                                        <span
+                                                            class="whitespace-nowrap text-[8px] font-medium text-slate-400"
+                                                        >
+                                                            Grade hidden. Please
+                                                            complete evaluation.
+                                                        </span>
+                                                    </div>
                                                 </template>
                                                 <span
                                                     v-else
@@ -719,7 +759,10 @@ const isPendingEvaluation = (row: GradeRecord) => {
                                             >
                                                 <template
                                                     v-if="
-                                                        isPendingEvaluation(row)
+                                                        isPendingEvaluation(
+                                                            row,
+                                                            group.termId,
+                                                        )
                                                     "
                                                 >
                                                     <span
@@ -809,6 +852,42 @@ const isPendingEvaluation = (row: GradeRecord) => {
                             >
                                 {{ student.campus_name || '-' }}
                             </dd>
+                        </div>
+                        <div
+                            v-if="evaluations"
+                            class="flex flex-col gap-2 rounded-md bg-slate-50 px-3 py-2 dark:bg-white/5"
+                        >
+                            <div class="flex items-center justify-between gap-3">
+                                <dt
+                                    class="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400"
+                                >
+                                    Eval API Status
+                                </dt>
+                                <dd
+                                    class="truncate text-[10px] font-bold text-slate-900 dark:text-white"
+                                >
+                                    {{
+                                        Object.keys(evaluationLookup).length
+                                    }}
+                                    subjects
+                                </dd>
+                            </div>
+                            <div class="flex items-center justify-between gap-3">
+                                <dt
+                                    class="text-[10px] font-medium text-slate-500 dark:text-slate-400"
+                                >
+                                    Terms loaded
+                                </dt>
+                                <dd
+                                    class="truncate text-[10px] font-medium text-slate-600 dark:text-slate-300"
+                                >
+                                    {{
+                                        Array.isArray(props.evaluations)
+                                            ? props.evaluations.length
+                                            : 1
+                                    }}
+                                </dd>
+                            </div>
                         </div>
                     </dl>
                 </section>

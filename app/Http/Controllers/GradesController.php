@@ -18,10 +18,21 @@ class GradesController extends Controller
         $tenantId = blank($user->tenant_id) ? null : (string) $user->tenant_id;
 
         $activeSemester = $this->academicApi->getActiveSemesterForUser($user);
-        $termId = $activeSemester['termId'] ?: 102;
         $campusId = $activeSemester['campusId'] ?: 1;
+        $gradeReport = $this->academicApi->gradeReportForStudent($studentNo, $tenantId);
+        $evaluations = [];
 
-        $evaluations = $this->academicApi->facultyEvaluations($campusId, (int) $termId, $studentNo);
+        // ONLY fetch evaluations for Term 102 as requested
+        $terms = collect($gradeReport['data'] ?? []);
+        foreach ($terms as $termGroup) {
+            $termId = $termGroup['termId'] ?? $termGroup['semesterId'] ?? $termGroup['id'] ?? null;
+            if ($termId == 102) {
+                $result = $this->academicApi->facultyEvaluations($campusId, (int) $termId, $studentNo);
+                if (! empty($result['data']['subjects'])) {
+                    $evaluations[] = $result['data'];
+                }
+            }
+        }
 
         return Inertia::render('Grades/Index', [
             'student' => [
@@ -30,8 +41,8 @@ class GradesController extends Controller
                 'campus_name' => $user->campus_name,
                 'tenant_id' => $tenantId,
             ],
-            'gradeReport' => $this->academicApi->gradeReportForStudent($studentNo, $tenantId),
-            'evaluations' => $evaluations['data'],
+            'gradeReport' => $gradeReport,
+            'evaluations' => $evaluations,
         ]);
     }
 }
