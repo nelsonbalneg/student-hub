@@ -48,6 +48,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('grades', GradesController::class)
         ->middleware('can:grades.view')
         ->name('grades.index');
+    Route::post('grades/evaluation/submit', [GradesController::class, 'submitEvaluation'])
+        ->middleware('can:grades.view')
+        ->name('grades.evaluation.submit');
     Route::get('curriculum', CurriculumController::class)
         ->middleware('can:curriculum.view')
         ->name('curriculum.index');
