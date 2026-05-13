@@ -389,6 +389,71 @@ class AcademicApiService
         }
     }
 
+    public function generateSarToken(string $studentNo, int|string $campusId, int|string $tenantId): array
+    {
+        try {
+            $tenantQuery = (string) ($tenantId ?: $campusId);
+            $endpoint = 'Auth/token/'.rawurlencode($studentNo).'/'.rawurlencode((string) $campusId).'?tenantId='.rawurlencode($tenantQuery);
+
+            $client = $this->client()->withHeaders(['accept' => 'text/plain']);
+
+            $getResponse = $client->get($endpoint);
+            if ($getResponse->successful()) {
+                return ['ok' => true, 'token' => (string) $getResponse->body(), 'error' => null];
+            }
+
+            $postResponse = $client->post($endpoint);
+            if ($postResponse->successful()) {
+                return ['ok' => true, 'token' => (string) $postResponse->body(), 'error' => null];
+            }
+
+            Log::warning('SAR token request rejected', [
+                'endpoint' => $this->urlFor($endpoint),
+                'get_status' => $getResponse->status(),
+                'get_body' => $getResponse->body(),
+                'post_status' => $postResponse->status(),
+                'post_body' => $postResponse->body(),
+            ]);
+
+            return [
+                'ok' => false,
+                'token' => null,
+                'error' => 'Token API rejected request: GET '.$getResponse->status().' / POST '.$postResponse->status(),
+            ];
+        } catch (Throwable $exception) {
+            Log::warning('Unable to generate SAR token', [
+                'student_no' => $studentNo,
+                'campus_id' => $campusId,
+                'tenant_id' => $tenantId,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return ['ok' => false, 'token' => null, 'error' => 'Unable to generate token: '.$exception->getMessage()];
+        }
+    }
+
+    public function submitSarConfirmation(array $payload, string $username, int|string $tenantId): array
+    {
+        try {
+            $response = Http::baseUrl($this->baseUrl)
+                ->withHeaders([
+                    'Content-type' => 'application/json',
+                    'Username' => $username,
+                ])
+                ->connectTimeout($this->connectTimeout)
+                ->timeout($this->timeout)
+                ->post('sar/SarTrialPrograms?tenantId='.rawurlencode((string) $tenantId), $payload);
+
+            if (!in_array($response->status(), [200, 201], true)) {
+                return ['ok' => false, 'message' => $response->body(), 'status' => $response->status()];
+            }
+
+            return ['ok' => true, 'message' => $response->body(), 'status' => $response->status()];
+        } catch (Throwable $exception) {
+            return ['ok' => false, 'message' => $exception->getMessage(), 'status' => 500];
+        }
+    }
+
     private function client(): PendingRequest
     {
         return Http::baseUrl($this->baseUrl)

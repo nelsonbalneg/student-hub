@@ -49,6 +49,11 @@ return [
         'connect_timeout' => env('EVALUATION_API_CONNECT_TIMEOUT', 5),
     ],
 
+    'academic_jwt' => [
+        'secret' => env('ACADEMIC_JWT_SECRET'),
+        'algorithm' => env('ACADEMIC_JWT_ALGORITHM', 'HS256'),
+    ],
+
     'mikrotik' => [
         'base_url' => env('MIKROTIK_API_BASE_URL'),
         'token' => env('MIKROTIK_API_TOKEN'),

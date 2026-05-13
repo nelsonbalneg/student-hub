@@ -3,6 +3,7 @@ import { Link, usePage } from '@inertiajs/vue3';
 import {
     Archive,
     BookOpen,
+    FileSignature,
     ClipboardCheck,
     Wifi,
     GraduationCap,
@@ -108,6 +109,17 @@ const overviewNavItems: NavItem[] = [
                 href: '/curriculum',
                 // icon: BookOpen,
                 permission: 'curriculum.view',
+            },
+        ],
+    },
+    {
+        title: 'Enrollment',
+        href: '/student-academic-registration',
+        icon: FileSignature,
+        items: [
+            {
+                title: 'Student Academic Registration',
+                href: '/student-academic-registration',
             },
         ],
     },
