@@ -6,6 +6,9 @@ use App\Services\AcademicApiService;
 use App\Services\StudentEvaluationApiService;
 use App\Services\GetActiveAcademicTermService;
 use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Support\Facades\Log;
@@ -26,12 +29,24 @@ class GradesController extends Controller
 
         $activeSemester = $this->academicApi->getActiveSemesterForUser($user);
         $campusId = $activeSemester['campusId'] ?: 1;
+        $evaluationId = null;
         
-        // Check for grade viewing bypass rule
-        $bypassEvaluation = \App\Models\GradeViewingRule::where('site_campus_id', $user->campus_id)
-            ->where('is_active', true)
-            ->where('bypass_evaluation', true)
-            ->exists();
+        // Check for grade viewing bypass rule with safe fallback.
+        // If table/campus data is not ready yet, do not block grade/evaluation flow.
+        $bypassEvaluation = false;
+        if (!blank($user->campus_id)) {
+            try {
+                $bypassEvaluation = \App\Models\GradeViewingRule::where('site_campus_id', $user->campus_id)
+                    ->where('is_active', true)
+                    ->where('bypass_evaluation', true)
+                    ->exists();
+            } catch (\Throwable $e) {
+                Log::warning('Grade viewing rules lookup failed; defaulting bypass_evaluation to false', [
+                    'campus_id' => $user->campus_id,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
 
         $gradeReport = $this->academicApi->gradeReportForStudent($studentNo, $tenantId);
         
@@ -46,7 +61,7 @@ class GradesController extends Controller
                 
                 if ($evaluationId) {
                     $details = $this->evaluationApi->getStudentEvaluationDetails($evaluationId);
-                    $evaluationLookup = $this->evaluationApi->buildEvaluationLookup($details['evaluationPeriods'] ?? []);
+                    $evaluationLookup = $this->evaluationApi->buildEvaluationLookup($details);
                 }
             } catch (\Exception $e) {
                 Log::error('Evaluation API error in GradesController', [
@@ -118,5 +133,103 @@ class GradesController extends Controller
             'gradeReport' => $gradeReport,
             'evaluation_error' => $evaluationError,
         ]);
+    }
+
+    public function submitEvaluation(Request $request): RedirectResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'templateSurveyId' => ['required'],
+            'studentId' => ['nullable'],
+            'evaluationId' => ['required'],
+            'code' => ['nullable', 'string'],
+            'name' => ['nullable', 'string'],
+            'studentNo' => ['nullable', 'string'],
+            'studentName' => ['nullable', 'string'],
+            'subjectId' => ['required'],
+            'schedId' => ['nullable'],
+            'campusId' => ['nullable'],
+            'termId' => ['nullable'],
+            'isLaboratory' => ['required', 'boolean'],
+            'surveyAnswers' => ['required', 'array', 'min:1'],
+            'surveyAnswers.*.sortOrder' => ['required'],
+            'surveyAnswers.*.templateQuestionId' => ['required'],
+            'surveyAnswers.*.questionType' => ['required'],
+            'surveyAnswers.*.questionStatement' => ['required', 'string'],
+            'surveyAnswers.*.description' => ['nullable', 'string'],
+            'surveyAnswers.*.starCount' => ['nullable'],
+            'surveyAnswers.*.starRating' => ['nullable'],
+            'surveyAnswers.*.shortAnswer' => ['nullable', 'string'],
+        ]);
+
+        if ($validator->fails()) {
+            Log::warning('Grades evaluation validation failed', [
+                'errors' => $validator->errors()->toArray(),
+                'payload' => $request->all(),
+            ]);
+
+            throw ValidationException::withMessages($validator->errors()->toArray());
+        }
+
+        $validated = $validator->validated();
+
+        $payload = [
+            'templateSurveyId' => $validated['templateSurveyId'],
+            'studentId' => $validated['studentId'] ?? '',
+            'evaluationId' => (string) $validated['evaluationId'],
+            'code' => $validated['code'] ?? '',
+            'name' => $validated['name'] ?? '',
+            'description' => '',
+            'studentNo' => $validated['studentNo'],
+            'studentName' => $validated['studentName'],
+            'subjectId' => $validated['subjectId'],
+            'schedId' => $validated['schedId'] ?? '',
+            'campusId' => $validated['campusId'] ?? '',
+            'termId' => $validated['termId'],
+            'scheduleId' => $validated['schedId'] ?? '',
+            'isLaboratory' => $validated['isLaboratory'],
+            'surveyAnswers' => array_map(static function (array $item): array {
+                return [
+                    'sortOrder' => $item['sortOrder'],
+                    'templateQuestionId' => $item['templateQuestionId'],
+                    'questionType' => $item['questionType'],
+                    'questionStatement' => $item['questionStatement'],
+                    'description' => $item['description'] ?? '',
+                    'shortAnswer' => $item['shortAnswer'] ?? '',
+                    'longAnswer' => '',
+                    'selectionItems' => '',
+                    'selectedItem' => '',
+                    'starCount' => $item['starCount'] ?? 0,
+                    'starRating' => (int) ($item['starRating'] ?? 0),
+                    'multipleChoiceSelections' => '',
+                    'multipleChoiceAnswer' => '',
+                    'allowMultipleSelections' => true,
+                ];
+            }, $validated['surveyAnswers']),
+        ];
+
+        $result = $this->evaluationApi->submitSurvey($payload);
+        Log::info('Grades evaluation submit attempt', [
+            'payload' => $payload,
+            'result' => $result,
+        ]);
+
+        if (!($result['ok'] ?? false)) {
+            Log::warning('Grades evaluation submit failed', [
+                'message' => $result['message'] ?? null,
+                'payload' => $payload,
+            ]);
+
+            throw ValidationException::withMessages([
+                'evaluation_submit' => $result['message'] ?? 'Unable to submit your evaluation. Please try again.',
+            ]);
+        }
+
+        Log::info('Grades evaluation submit success', [
+            'evaluation_id' => $validated['evaluationId'] ?? null,
+            'template_survey_id' => $validated['templateSurveyId'] ?? null,
+            'student_no' => $validated['studentNo'] ?? null,
+        ]);
+
+        return back()->with('success', 'Evaluation submitted successfully.');
     }
 }

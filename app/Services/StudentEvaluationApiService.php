@@ -73,12 +73,19 @@ class StudentEvaluationApiService
     /**
      * Build lookup key: `${termId}-${subjectId}`
      */
-    public function buildEvaluationLookup(array $evaluationPeriods): array
+    public function buildEvaluationLookup(array $studentDetails): array
     {
+        $evaluationPeriods = $studentDetails['evaluationPeriods'] ?? [];
+        $studentId = $studentDetails['id'] ?? '';
+        $studentNo = $studentDetails['studentNo'] ?? '';
+        $studentName = $studentDetails['name'] ?? '';
+        $campusId = $studentDetails['campusId'] ?? '';
+
         $lookup = [];
 
         foreach ($evaluationPeriods as $period) {
             $termId = $period['termId'] ?? null;
+            $periodStudentId = $period['studentId'] ?? $studentId;
             
             // API Spelling: subjectsForEvalution
             $subjects = $period['subjectsForEvalution'] ?? [];
@@ -99,6 +106,23 @@ class StudentEvaluationApiService
 
                     foreach ($evaluations as $eval) {
                         if (($eval['status'] ?? '') === 'Not Evaluated') {
+                            $surveyTemplate = $eval['surveyTemplate'] ?? null;
+                            $jsonString = [
+                                'studentId' => $periodStudentId,
+                                'templateSurveyId' => $surveyTemplate['id'] ?? ($eval['surveyTemplateId'] ?? ''),
+                                'evaluationId' => $eval['id'] ?? '',
+                                'code' => $surveyTemplate['code'] ?? '',
+                                'name' => $surveyTemplate['name'] ?? '',
+                                'description' => $surveyTemplate['description'] ?? '',
+                                'studentNo' => $studentNo,
+                                'studentName' => $studentName,
+                                'subjectId' => $subjectId,
+                                'schedId' => $subject['schedId'] ?? '',
+                                'campusId' => $campusId,
+                                'termId' => $termId,
+                                'isLaboratory' => (bool) ($eval['lab'] ?? false),
+                            ];
+
                             $hasPendingEvaluations = true;
                             $pendingItems[] = [
                                 'faculty' => $eval['faculty'] ?? 'Unknown Faculty',
@@ -106,6 +130,9 @@ class StudentEvaluationApiService
                                 'type' => ($eval['lecture'] ?? false) ? 'lecture' : (($eval['lab'] ?? false) ? 'lab' : 'unknown'),
                                 'id' => $eval['id'] ?? '',
                                 'surveyTemplateId' => $eval['surveyTemplateId'] ?? '',
+                                'surveyTemplateDescription' => $surveyTemplate['description'] ?? '',
+                                'encodedSurveyTemplate' => base64_encode((string) json_encode($surveyTemplate ?? new \stdClass())),
+                                'encodedJsonString' => base64_encode((string) json_encode($jsonString)),
                             ];
                         }
                     }
@@ -132,6 +159,40 @@ class StudentEvaluationApiService
         }
 
         return $lookup;
+    }
+
+    public function submitSurvey(array $payload): array
+    {
+        try {
+            $response = $this->client()
+                ->post('survey/', $payload);
+
+            if ($response->failed()) {
+                $body = $response->body();
+                Log::warning('Evaluation API rejected survey submission', [
+                    'status' => $response->status(),
+                    'body' => $body,
+                    'payload' => $payload,
+                ]);
+                return [
+                    'ok' => false,
+                    'message' => "Evaluation API rejected request (HTTP {$response->status()}): {$body}",
+                ];
+            }
+
+            return ['ok' => true, 'message' => null];
+        } catch (Throwable $exception) {
+            Log::warning('Unable to submit evaluation survey', [
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+                'payload' => $payload,
+            ]);
+
+            return [
+                'ok' => false,
+                'message' => $exception->getMessage(),
+            ];
+        }
     }
 
     private function client(): PendingRequest
