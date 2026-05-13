@@ -27,6 +27,8 @@ class RolesAndPermissionsSeeder extends Seeder
             ['module' => 'Dashboard', 'name' => 'dashboard.view'],
             ['module' => 'Grades', 'name' => 'grades.view'],
             ['module' => 'Curriculum', 'name' => 'curriculum.view'],
+            ['module' => 'Academic', 'name' => 'view class schedule'],
+            ['module' => 'Academic', 'name' => 'download cor'],
             ['module' => 'Student Profile', 'name' => 'student-profile.view'],
             ['module' => 'Internet Accounts', 'name' => 'internet-accounts.view'],
             ['module' => 'Internet Accounts', 'name' => 'internet-accounts.create'],
@@ -141,6 +143,8 @@ class RolesAndPermissionsSeeder extends Seeder
         );
 
         $studentRole->givePermissionTo([
+            'view class schedule',
+            'download cor',
             'evaluation.view',
             'evaluation.submit-intent',
         ]);

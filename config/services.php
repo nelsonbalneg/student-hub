@@ -43,6 +43,12 @@ return [
         'connect_timeout' => env('ACADEMIC_API_CONNECT_TIMEOUT', 5),
     ],
 
+    'report_server' => [
+        'base_url' => env('REPORT_SERVER_BASE_URL', 'http://172.16.0.41/api/app'),
+        'timeout' => env('REPORT_SERVER_TIMEOUT', 30),
+        'connect_timeout' => env('REPORT_SERVER_CONNECT_TIMEOUT', 5),
+    ],
+
     'evaluation_api' => [
         'base_url' => env('EVALUATION_API_BASE_URL', 'http://172.16.0.60:44311/api/app'),
         'timeout' => env('EVALUATION_API_TIMEOUT', 15),
