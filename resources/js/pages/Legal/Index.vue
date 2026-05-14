@@ -7,6 +7,7 @@ import {
     Eye,
     FileText,
     MoreHorizontal,
+    Pencil,
     Plus,
     ShieldCheck,
     Trash2,
@@ -117,14 +118,14 @@ const runPendingAction = () => {
 <template>
     <Head title="Legal Documents" />
 
-    <div class="flex h-full flex-1 flex-col gap-5 bg-slate-50/60 p-4 dark:bg-slate-950 lg:p-6">
-        <header class="border-b border-slate-200 pb-5 dark:border-white/10">
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div class="flex h-full flex-1 flex-col gap-3 bg-slate-50/60 p-3 dark:bg-slate-950 lg:p-4">
+        <header class="border-b border-slate-200 pb-3 dark:border-white/10">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                     <p class="text-xs font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">
                         Settings
                     </p>
-                    <h1 class="mt-2 text-2xl font-bold tracking-tight text-slate-950 dark:text-white">
+                    <h1 class="mt-1 text-xl font-bold tracking-tight text-slate-950 dark:text-white">
                         Legal Documents
                     </h1>
                     <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -132,7 +133,7 @@ const runPendingAction = () => {
                     </p>
                 </div>
                 <Link v-if="can.create" :href="create.url()">
-                    <Button class="bg-emerald-600 text-white hover:bg-emerald-700">
+                    <Button class="h-8 bg-emerald-600 px-3 text-xs text-white hover:bg-emerald-700">
                         <Plus class="mr-2 size-4" />
                         New Document
                     </Button>
@@ -140,23 +141,23 @@ const runPendingAction = () => {
             </div>
         </header>
 
-        <section class="grid gap-3 sm:grid-cols-3">
-            <div class="rounded-lg border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950">
+        <section class="grid gap-2 sm:grid-cols-3">
+            <div class="rounded-lg border border-slate-200 bg-white px-3 py-2.5 dark:border-white/10 dark:bg-slate-950">
                 <p class="text-xs font-bold uppercase text-slate-400">Documents</p>
-                <p class="mt-2 text-2xl font-bold text-slate-950 dark:text-white">{{ documents.meta.total }}</p>
+                <p class="mt-1 text-xl font-bold text-slate-950 dark:text-white">{{ documents.meta.total }}</p>
             </div>
-            <div class="rounded-lg border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950">
+            <div class="rounded-lg border border-slate-200 bg-white px-3 py-2.5 dark:border-white/10 dark:bg-slate-950">
                 <p class="text-xs font-bold uppercase text-slate-400">Active on page</p>
-                <p class="mt-2 text-2xl font-bold text-emerald-600">{{ activeDocuments }}</p>
+                <p class="mt-1 text-xl font-bold text-emerald-600">{{ activeDocuments }}</p>
             </div>
-            <div class="rounded-lg border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950">
+            <div class="rounded-lg border border-slate-200 bg-white px-3 py-2.5 dark:border-white/10 dark:bg-slate-950">
                 <p class="text-xs font-bold uppercase text-slate-400">Document types</p>
-                <p class="mt-2 text-2xl font-bold text-slate-950 dark:text-white">{{ types.length }}</p>
+                <p class="mt-1 text-xl font-bold text-slate-950 dark:text-white">{{ types.length }}</p>
             </div>
         </section>
 
         <section class="rounded-lg border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950">
-            <div class="flex flex-col gap-3 border-b border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-white/10">
+            <div class="flex flex-col gap-2 border-b border-slate-200 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-white/10">
                 <div class="flex flex-col gap-2 sm:flex-row">
                     <select v-model="typeFilter" class="legal-filter" @change="applyFilters">
                         <option value="">All types</option>
@@ -175,9 +176,9 @@ const runPendingAction = () => {
                 </p>
             </div>
 
-            <div v-if="documents.data.length === 0" class="grid min-h-72 place-items-center p-8 text-center">
+            <div v-if="documents.data.length === 0" class="grid min-h-52 place-items-center p-6 text-center">
                 <div>
-                    <FileText class="mx-auto mb-3 size-12 text-slate-300 dark:text-slate-700" />
+                    <FileText class="mx-auto mb-2 size-10 text-slate-300 dark:text-slate-700" />
                     <h2 class="text-sm font-bold text-slate-900 dark:text-white">No legal documents yet</h2>
                     <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
                         Create the first Terms, Cookie Policy, or Privacy Policy document.
@@ -189,29 +190,29 @@ const runPendingAction = () => {
                 <table class="min-w-full divide-y divide-slate-100 text-sm dark:divide-white/10">
                     <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/[0.03]">
                         <tr>
-                            <th class="px-4 py-3 text-left font-bold">Document</th>
-                            <th class="px-4 py-3 text-left font-bold">Type</th>
-                            <th class="px-4 py-3 text-left font-bold">Version</th>
-                            <th class="px-4 py-3 text-left font-bold">Status</th>
-                            <th class="px-4 py-3 text-left font-bold">Acceptances</th>
-                            <th class="px-4 py-3 text-right font-bold">Actions</th>
+                            <th class="px-3 py-2 text-left font-bold">Document</th>
+                            <th class="px-3 py-2 text-left font-bold">Type</th>
+                            <th class="px-3 py-2 text-left font-bold">Version</th>
+                            <th class="px-3 py-2 text-left font-bold">Status</th>
+                            <th class="px-3 py-2 text-left font-bold">Acceptances</th>
+                            <th class="px-3 py-2 text-right font-bold">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 dark:divide-white/10">
                         <tr v-for="document in documents.data" :key="document.id" class="hover:bg-slate-50/80 dark:hover:bg-white/[0.03]">
-                            <td class="px-4 py-3">
+                            <td class="px-3 py-2">
                                 <div class="font-semibold text-slate-900 dark:text-white">{{ document.title }}</div>
                                 <div class="text-xs text-slate-500">{{ document.slug }}</div>
                             </td>
-                            <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ typeLabel(document.type) }}</td>
-                            <td class="px-4 py-3">
-                                <span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                            <td class="px-3 py-2 text-slate-600 dark:text-slate-300">{{ typeLabel(document.type) }}</td>
+                            <td class="px-3 py-2">
+                                <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
                                     {{ document.version || 'Unversioned' }}
                                 </span>
                             </td>
-                            <td class="px-4 py-3">
+                            <td class="px-3 py-2">
                                 <span
-                                    class="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-bold"
+                                    class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold"
                                     :class="document.is_active ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300'"
                                 >
                                     <CheckCircle2 v-if="document.is_active" class="size-3" />
@@ -219,11 +220,11 @@ const runPendingAction = () => {
                                     {{ document.is_active ? 'Active' : 'Inactive' }}
                                 </span>
                             </td>
-                            <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ document.acceptances_count }}</td>
-                            <td class="px-4 py-3 text-right">
+                            <td class="px-3 py-2 text-slate-600 dark:text-slate-300">{{ document.acceptances_count }}</td>
+                            <td class="px-3 py-2 text-right">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger as-child>
-                                        <Button variant="ghost" size="icon" class="size-8">
+                                        <Button variant="ghost" size="icon" class="size-7">
                                             <MoreHorizontal class="size-4" />
                                         </Button>
                                     </DropdownMenuTrigger>
@@ -235,7 +236,10 @@ const runPendingAction = () => {
                                             </DropdownMenuItem>
                                         </Link>
                                         <Link v-if="can.edit" :href="edit.url(document.id)">
-                                            <DropdownMenuItem>Edit</DropdownMenuItem>
+                                            <DropdownMenuItem>
+                                                <Pencil class="mr-2 size-4" />
+                                                Edit
+                                            </DropdownMenuItem>
                                         </Link>
                                         <DropdownMenuItem
                                             v-if="can.activate && !document.is_active"
@@ -268,7 +272,7 @@ const runPendingAction = () => {
                 </table>
             </div>
 
-            <div v-if="documents.meta.last_page > 1" class="flex items-center justify-end gap-1 border-t border-slate-200 p-3 dark:border-white/10">
+            <div v-if="documents.meta.last_page > 1" class="flex items-center justify-end gap-1 border-t border-slate-200 p-2 dark:border-white/10">
                 <button class="legal-page-btn" :disabled="!documents.links[0]?.url" @click="navigatePage(documents.links[0]?.url)">
                     <ChevronLeft class="size-4" />
                 </button>
@@ -311,7 +315,7 @@ const runPendingAction = () => {
 @reference "tailwindcss";
 
 .legal-filter {
-    @apply h-9 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200;
+    @apply h-8 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200;
     color-scheme: light;
     background-color: #ffffff;
     color: #334155;
@@ -334,6 +338,6 @@ const runPendingAction = () => {
 }
 
 .legal-page-btn {
-    @apply inline-flex size-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:text-slate-300 dark:hover:bg-white/10;
+    @apply inline-flex size-7 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:text-slate-300 dark:hover:bg-white/10;
 }
 </style>
