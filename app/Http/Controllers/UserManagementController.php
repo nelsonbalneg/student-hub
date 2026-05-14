@@ -30,6 +30,8 @@ use Spatie\Permission\PermissionRegistrar;
 
 class UserManagementController extends Controller
 {
+    private const USER_PAGE_SIZES = [10, 25, 50, 100];
+
     public function index(Request $request): Response
     {
         Gate::authorize('viewAny', User::class);
@@ -37,13 +39,14 @@ class UserManagementController extends Controller
         $hasRoles = Schema::hasTable('roles');
 
         return Inertia::render('UserManagement/Users', [
-            'filters' => $request->only(['user_search', 'status', 'role', 'office', 'department', 'user_type']),
+            'filters' => $request->only(['user_search', 'status', 'role', 'office', 'department', 'user_type', 'per_page']),
             'filterOptions' => [
                 'roles' => $hasRoles ? Role::query()->orderBy('name')->pluck('name') : [],
                 'offices' => $this->userColumnOptions('office'),
                 'departments' => $this->userColumnOptions('department'),
                 'userTypes' => $this->userColumnOptions('user_type'),
             ],
+            'pageSizeOptions' => self::USER_PAGE_SIZES,
             'allRoles' => $hasRoles ? Role::query()->orderBy('name')->get(['id', 'name']) : [],
             'can' => [
                 'create' => Gate::allows('create', User::class),
@@ -134,6 +137,7 @@ class UserManagementController extends Controller
 
         return back()->with('success', 'User updated.');
     }
+
     public function assignRoles(AssignRoleRequest $request, User $user): RedirectResponse
     {
         $user->syncRoles($request->validated('roles') ?? []);
@@ -283,6 +287,8 @@ class UserManagementController extends Controller
     {
         $users = User::query()
             ->when($request->query('user_search'), function ($query, string $search): void {
+                $search = $this->escapedLike($search);
+
                 $query->where(function ($query) use ($search): void {
                     $query->where('name', 'like', "%{$search}%")
                         ->orWhere('email', 'like', "%{$search}%");
@@ -301,7 +307,7 @@ class UserManagementController extends Controller
 
         $users->with('office:id,name,code');
 
-        return $this->resourcePage($users->paginate(10)->withQueryString(), UserResource::class);
+        return $this->resourcePage($users->paginate($this->userPageSize($request))->withQueryString(), UserResource::class);
     }
 
     /**
@@ -391,6 +397,18 @@ class UserManagementController extends Controller
             ->orderBy($column)
             ->pluck($column)
             ->all();
+    }
+
+    private function userPageSize(Request $request): int
+    {
+        $pageSize = $request->integer('per_page', 10);
+
+        return in_array($pageSize, self::USER_PAGE_SIZES, true) ? $pageSize : 10;
+    }
+
+    private function escapedLike(string $value): string
+    {
+        return addcslashes($value, '%_\\');
     }
 
     /**

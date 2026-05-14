@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { Head, router, useForm } from '@inertiajs/vue3';
 import {
     ChevronLeft,
     ChevronRight,
@@ -16,6 +16,15 @@ import {
 import { computed, ref, watch } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
+import { index as userManagementIndex } from '@/routes/user-management';
+import {
+    destroy as destroyUserRoute,
+    store as storeUserRoute,
+    tagOffice as tagOfficeUserRoute,
+    toggle as toggleUserRoute,
+    update as updateUserRoute,
+} from '@/routes/user-management/users';
+import { update as updateUserRolesRoute } from '@/routes/user-management/users/roles';
 
 type PageLink = { url: string | null; label: string; active: boolean };
 type PageMeta = {
@@ -28,6 +37,7 @@ type PageMeta = {
 };
 type Page<T> = { data: T[]; links: PageLink[]; meta: PageMeta };
 type Role = { id: number; name: string };
+type TableQuery = Record<string, string | number>;
 type ManagedUser = {
     id: number;
     name: string;
@@ -52,6 +62,7 @@ const props = defineProps<{
         departments: string[];
         userTypes: string[];
     };
+    pageSizeOptions: number[];
     allRoles: Role[];
     can: {
         create: boolean;
@@ -74,6 +85,7 @@ defineOptions({
 });
 
 const search = ref(props.filters.user_search ?? '');
+const perPage = ref(Number(props.filters.per_page ?? props.users.meta.per_page));
 const filterOpen = ref(false);
 const filters = ref({
     status: props.filters.status ?? '',
@@ -118,14 +130,24 @@ const someChecked = computed(
     () => selectedIds.value.length > 0 && !allChecked.value,
 );
 
+const tableQuery = (): TableQuery =>
+    Object.fromEntries(
+        Object.entries({
+            user_search: search.value,
+            status: filters.value.status,
+            role: filters.value.role,
+            user_type: filters.value.user_type,
+            office: filters.value.office,
+            department: filters.value.department,
+            per_page: perPage.value,
+        }).filter(([, value]) => value !== ''),
+    ) as TableQuery;
+
 const applyFilters = () => {
     router.get(
-        '/user-management',
-        {
-            user_search: search.value,
-            ...filters.value,
-        },
-        { preserveState: true, replace: true },
+        userManagementIndex.url(),
+        tableQuery(),
+        { preserveState: true, preserveScroll: true, replace: true },
     );
 };
 
@@ -135,6 +157,14 @@ watch(search, () => {
     searchTimeout = setTimeout(applyFilters, 400);
 });
 watch(filters, applyFilters, { deep: true });
+watch(perPage, applyFilters);
+watch(
+    () => props.users.data,
+    () => {
+        selectedIds.value = [];
+        menuUser.value = null;
+    },
+);
 
 const clearFilters = () => {
     search.value = '';
@@ -145,7 +175,6 @@ const clearFilters = () => {
         office: '',
         department: '',
     };
-    applyFilters();
 };
 
 const toggleAll = () => {
@@ -189,7 +218,7 @@ const openAssignRole = (user: ManagedUser) => {
 
 const saveUser = () => {
     if (modal.value?.type === 'edit') {
-        userForm.patch(`/user-management/users/${modal.value.user.id}`, {
+        userForm.patch(updateUserRoute.url(modal.value.user.id), {
             preserveScroll: true,
             onSuccess: () => (modal.value = null),
         });
@@ -197,7 +226,7 @@ const saveUser = () => {
         return;
     }
 
-    userForm.post('/user-management/users', {
+    userForm.post(storeUserRoute.url(), {
         preserveScroll: true,
         onSuccess: () => (modal.value = null),
     });
@@ -208,7 +237,7 @@ const saveAssignedRoles = () => {
         return;
     }
 
-    userForm.patch(`/user-management/users/${modal.value.user.id}/roles`, {
+    userForm.patch(updateUserRolesRoute.url(modal.value.user.id), {
         preserveScroll: true,
         onSuccess: () => (modal.value = null),
     });
@@ -225,7 +254,7 @@ const saveAssignedOffice = () => {
         return;
     }
 
-    userForm.patch(`/user-management/users/${modal.value.user.id}/office`, {
+    userForm.patch(tagOfficeUserRoute.url(modal.value.user.id), {
         preserveScroll: true,
         onSuccess: () => (modal.value = null),
     });
@@ -236,7 +265,7 @@ const confirmDelete = () => {
         return;
     }
 
-    router.delete(`/user-management/users/${modal.value.user.id}`, {
+    router.delete(destroyUserRoute.url(modal.value.user.id), {
         preserveScroll: true,
         onSuccess: () => (modal.value = null),
     });
@@ -244,7 +273,7 @@ const confirmDelete = () => {
 
 const toggleUserStatus = (user: ManagedUser) => {
     router.patch(
-        `/user-management/users/${user.id}/toggle`,
+        toggleUserRoute.url(user.id),
         {},
         { preserveScroll: true },
     );
@@ -255,7 +284,7 @@ const navigatePage = (url: string | null) => {
         return;
     }
 
-    router.get(url, {}, { preserveState: true });
+    router.get(url, {}, { preserveState: true, preserveScroll: true });
 };
 </script>
 
@@ -424,7 +453,7 @@ const navigatePage = (url: string | null) => {
             class="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
         >
             <div
-                class="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-white/10"
+                class="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-white/10"
             >
                 <p class="text-sm text-slate-500 dark:text-slate-400">
                     Showing
@@ -441,6 +470,23 @@ const navigatePage = (url: string | null) => {
                     </span>
                     users
                 </p>
+                <label
+                    class="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400"
+                >
+                    Rows
+                    <select
+                        v-model.number="perPage"
+                        class="rows-select"
+                    >
+                        <option
+                            v-for="size in pageSizeOptions"
+                            :key="size"
+                            :value="size"
+                        >
+                            {{ size }}
+                        </option>
+                    </select>
+                </label>
             </div>
 
             <div class="overflow-x-auto">
@@ -949,6 +995,13 @@ const navigatePage = (url: string | null) => {
     color: #334155;
 }
 
+.rows-select {
+    @apply h-8 w-20 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700 focus:border-emerald-400 focus:outline-none;
+    color-scheme: light;
+    background-color: #ffffff;
+    color: #334155;
+}
+
 .filter-select option {
     @apply bg-white text-slate-700;
     background-color: #ffffff;
@@ -979,17 +1032,20 @@ const navigatePage = (url: string | null) => {
 
 <style>
 .dark .filter-select,
+.dark .rows-select,
 .dark .form-input {
     color-scheme: dark;
 }
 
-.dark .filter-select {
+.dark .filter-select,
+.dark .rows-select {
     border-color: rgb(255 255 255 / 0.1);
     background-color: #020617;
     color: #f1f5f9;
 }
 
-.dark .filter-select option {
+.dark .filter-select option,
+.dark .rows-select option {
     background-color: #020617;
     color: #f1f5f9;
 }
