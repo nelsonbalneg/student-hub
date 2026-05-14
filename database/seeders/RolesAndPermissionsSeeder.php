@@ -84,6 +84,11 @@ class RolesAndPermissionsSeeder extends Seeder
             ['module' => 'Evaluation', 'name' => 'evaluation.mark-done'],
             ['module' => 'Reports', 'name' => 'reports.view'],
             ['module' => 'Settings', 'name' => 'settings.view'],
+            ['module' => 'Legal', 'name' => 'legal.view'],
+            ['module' => 'Legal', 'name' => 'legal.create'],
+            ['module' => 'Legal', 'name' => 'legal.edit'],
+            ['module' => 'Legal', 'name' => 'legal.delete'],
+            ['module' => 'Legal', 'name' => 'legal.activate'],
         ];
 
         foreach ($permissions as $permission) {

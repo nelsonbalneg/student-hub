@@ -1,0 +1,40 @@
+<script setup lang="ts">
+import { Head } from '@inertiajs/vue3';
+import Form from './Form.vue';
+
+type LegalType = { value: string; label: string };
+type LegalDocument = {
+    id: number;
+    type: string;
+    title: string;
+    slug?: string | null;
+    content: string;
+    version?: string | null;
+    is_active: boolean;
+};
+
+defineProps<{
+    document: LegalDocument;
+    types: LegalType[];
+}>();
+</script>
+
+<template>
+    <Head :title="`Edit ${document.title}`" />
+
+    <div class="flex h-full flex-1 flex-col gap-5 bg-slate-50/60 p-4 dark:bg-slate-950 lg:p-6">
+        <header class="border-b border-slate-200 pb-5 dark:border-white/10">
+            <p class="text-xs font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">
+                Settings · Legal
+            </p>
+            <h1 class="mt-2 text-2xl font-bold tracking-tight text-slate-950 dark:text-white">
+                Edit {{ document.title }}
+            </h1>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Update content, version, and publication status.
+            </p>
+        </header>
+
+        <Form :types="types" :document="document" mode="edit" />
+    </div>
+</template>

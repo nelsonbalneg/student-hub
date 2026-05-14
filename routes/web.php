@@ -18,6 +18,8 @@ use App\Http\Controllers\Faq\FaqFeedbackController;
 use App\Http\Controllers\Faq\FaqPublicController;
 use App\Http\Controllers\GradesController;
 use App\Http\Controllers\InternetAccountController;
+use App\Http\Controllers\LegalDocumentController;
+use App\Http\Controllers\LegalPublicController;
 use App\Http\Controllers\SiteSettings\SiteAcademicTermController;
 use App\Http\Controllers\SiteSettings\SiteCampusController;
 use App\Http\Controllers\SiteSettings\SiteGradeViewingController;
@@ -36,6 +38,10 @@ Route::get('/', function () {
     return redirect()->route('auth.sso.redirect');
 })->name('home');
 
+Route::get('legal/{type}', [LegalPublicController::class, 'show'])
+    ->whereIn('type', ['terms', 'cookie_policy', 'privacy_policy'])
+    ->name('legal.public.show');
+
 Route::middleware('guest')->group(function () {
     Route::get('auth/sso/redirect', [SsoAuthenticatedSessionController::class, 'redirect'])
         ->name('auth.sso.redirect');
@@ -48,6 +54,11 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::post('legal/accept-terms', [LegalPublicController::class, 'acceptTerms'])
+        ->name('legal.accept-terms');
+});
+
+Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
     Route::get('dashboard', DashboardController::class)
         ->middleware('can:dashboard.view')
         ->name('dashboard');
@@ -201,6 +212,39 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::delete('/permissions/{permission}', 'destroyPermission')
                 ->middleware('can:permissions.delete')
                 ->name('permissions.destroy');
+        });
+
+    Route::prefix('settings/legal')
+        ->name('legal.')
+        ->controller(LegalDocumentController::class)
+        ->group(function () {
+            Route::get('/', 'index')
+                ->middleware('can:legal.view')
+                ->name('index');
+            Route::get('/create', 'create')
+                ->middleware('can:legal.create')
+                ->name('create');
+            Route::post('/', 'store')
+                ->middleware('can:legal.create')
+                ->name('store');
+            Route::get('/{legalDocument}', 'show')
+                ->middleware('can:legal.view')
+                ->name('show');
+            Route::get('/{legalDocument}/edit', 'edit')
+                ->middleware('can:legal.edit')
+                ->name('edit');
+            Route::put('/{legalDocument}', 'update')
+                ->middleware('can:legal.edit')
+                ->name('update');
+            Route::delete('/{legalDocument}', 'destroy')
+                ->middleware('can:legal.delete')
+                ->name('destroy');
+            Route::patch('/{legalDocument}/activate', 'activate')
+                ->middleware('can:legal.activate')
+                ->name('activate');
+            Route::patch('/{legalDocument}/deactivate', 'deactivate')
+                ->middleware('can:legal.activate')
+                ->name('deactivate');
         });
 
     // Reference Lookups

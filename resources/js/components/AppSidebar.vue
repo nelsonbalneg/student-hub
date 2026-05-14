@@ -19,6 +19,7 @@ import {
     User,
     Users,
     FileCheck,
+    FileText,
     Building2,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
@@ -36,6 +37,7 @@ import {
     SidebarSeparator,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { index as legalIndex } from '@/routes/legal';
 import type { NavItem } from '@/types';
 
 const page = usePage();
@@ -261,6 +263,12 @@ const siteAdministrationNavItems: NavItem[] = [
                 href: '/admin/site-settings/campuses',
                 icon: Building2,
                 permission: 'site-settings.view',
+            },
+            {
+                title: 'Legal',
+                href: legalIndex(),
+                icon: FileText,
+                permission: 'legal.view',
             },
         ],
     },
