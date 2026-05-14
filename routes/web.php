@@ -54,6 +54,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('curriculum', CurriculumController::class)
         ->middleware('can:curriculum.view')
         ->name('curriculum.index');
+    Route::get('student-academic-registration', fn() => Inertia::render('Enrollment/StudentAcademicRegistration'))
+        ->name('enrollment.student-academic-registration');
+    Route::get('student-academic-registration/confirm', fn() => redirect()->route('enrollment.student-academic-registration'));
+    Route::post('student-academic-registration/confirm', [EnrollmentController::class, 'submitConfirmation'])
+        ->name('enrollment.student-academic-registration.confirm');
     Route::get('student-profile', StudentProfileController::class)
         ->middleware('can:student-profile.view')
         ->name('student-profile.index');
