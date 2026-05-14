@@ -17,6 +17,7 @@ import {
     Users,
     FileCheck,
     Building2,
+    FolderOpen,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
@@ -190,6 +191,19 @@ const overviewNavItems: NavItem[] = [
                 title: 'Clearance Updates',
                 href: '/student-services/clearance/updates',
                 permission: 'clearance-update.view',
+            },
+        ],
+    },
+    {
+        title: 'File Vault',
+        href: '/student-services/file-vault/dossiers',
+        icon: FolderOpen,
+        permission: 'dossiers.view',
+        items: [
+            {
+                title: 'Dossiers',
+                href: '/student-services/file-vault/dossiers',
+                permission: 'dossiers.view',
             },
         ],
     },

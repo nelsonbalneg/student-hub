@@ -15,6 +15,8 @@ use App\Http\Controllers\ClearanceUpdateController;
 use App\Http\Controllers\StudentSemesterClearanceController;
 use App\Http\Controllers\ClearanceAccountabilityController;
 use App\Http\Controllers\Admin\ReferenceLookupController;
+use App\Http\Controllers\FileVault\DossierDocumentController;
+use App\Http\Controllers\FileVault\StudentDossierController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 
@@ -303,6 +305,55 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::resource('faqs', App\Http\Controllers\Faq\FaqController::class);
         });
     });
+
+    // File Vault Dossier Module
+    Route::prefix('student-services/file-vault')
+        ->name('file-vault.')
+        ->group(function () {
+            Route::get('/dossiers', [StudentDossierController::class, 'index'])
+                ->middleware('can:dossiers.view')
+                ->name('dossiers.index');
+            Route::post('/dossiers', [StudentDossierController::class, 'store'])
+                ->middleware('can:dossiers.create')
+                ->name('dossiers.store');
+            Route::get('/dossiers/{studentDossier}', [StudentDossierController::class, 'show'])
+                ->middleware('can:dossiers.view')
+                ->name('dossiers.show');
+            Route::patch('/dossiers/{studentDossier}', [StudentDossierController::class, 'update'])
+                ->middleware('can:dossiers.update')
+                ->name('dossiers.update');
+            Route::patch('/dossiers/{studentDossier}/status', [StudentDossierController::class, 'updateStatus'])
+                ->middleware('can:dossiers.transition')
+                ->name('dossiers.status');
+            Route::post('/dossiers/{studentDossier}/assign', [StudentDossierController::class, 'assign'])
+                ->middleware('can:dossiers.assign')
+                ->name('dossiers.assign');
+            Route::post('/dossiers/{studentDossier}/archive', [StudentDossierController::class, 'archive'])
+                ->middleware('can:dossiers.archive')
+                ->name('dossiers.archive');
+            Route::post('/dossiers/{studentDossier}/approve', [StudentDossierController::class, 'approve'])
+                ->middleware('can:dossiers.approve')
+                ->name('dossiers.approve');
+            Route::get('/dossiers/{studentDossier}/audit-logs', [StudentDossierController::class, 'auditLogs'])
+                ->middleware('can:dossiers.audit.view')
+                ->name('dossiers.audit-logs');
+
+            Route::post('/dossiers/{studentDossier}/documents', [DossierDocumentController::class, 'store'])
+                ->middleware('can:dossiers.documents.upload')
+                ->name('dossiers.documents.store');
+            Route::patch('/documents/{document}/verify', [DossierDocumentController::class, 'verify'])
+                ->middleware('can:dossiers.documents.verify')
+                ->name('documents.verify');
+            Route::post('/documents/{document}/retry-scan', [DossierDocumentController::class, 'retryScan'])
+                ->middleware('can:dossiers.documents.verify')
+                ->name('documents.retry-scan');
+            Route::delete('/documents/{document}', [DossierDocumentController::class, 'destroy'])
+                ->middleware('can:dossiers.documents.upload')
+                ->name('documents.destroy');
+            Route::get('/documents/{document}/download', [DossierDocumentController::class, 'download'])
+                ->middleware('can:dossiers.download')
+                ->name('documents.download');
+        });
 });
 
 require __DIR__.'/settings.php';

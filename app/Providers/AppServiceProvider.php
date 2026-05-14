@@ -4,8 +4,10 @@ namespace App\Providers;
 
 use App\Models\User;
 use App\Models\Announcement;
+use App\Models\DossierDocument;
 use App\Models\EvaluationPeriod;
 use App\Models\EvaluationRequest;
+use App\Models\StudentDossier;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -63,6 +65,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Announcement::class, \App\Policies\AnnouncementPolicy::class);
         Gate::policy(EvaluationPeriod::class, \App\Policies\EvaluationPeriodPolicy::class);
         Gate::policy(EvaluationRequest::class, \App\Policies\EvaluationRequestPolicy::class);
+        Gate::policy(StudentDossier::class, \App\Policies\StudentDossierPolicy::class);
+        Gate::policy(DossierDocument::class, \App\Policies\DossierDocumentPolicy::class);
         Gate::policy(Role::class, \App\Policies\RolePolicy::class);
         Gate::policy(Permission::class, \App\Policies\PermissionPolicy::class);
     }
