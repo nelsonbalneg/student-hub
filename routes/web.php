@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\SsoAuthenticatedSessionController;
 use App\Http\Controllers\CurriculumController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\GradesController;
 use App\Http\Controllers\InternetAccountController;
 use App\Http\Controllers\StudentProfileController;
@@ -56,6 +57,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('curriculum.index');
     Route::get('student-academic-registration', fn() => Inertia::render('Enrollment/StudentAcademicRegistration'))
         ->name('enrollment.student-academic-registration');
+    Route::get('student-academic-registration/status', [EnrollmentController::class, 'status'])
+        ->name('enrollment.student-academic-registration.status');
     Route::get('student-academic-registration/confirm', fn() => redirect()->route('enrollment.student-academic-registration'));
     Route::post('student-academic-registration/confirm', [EnrollmentController::class, 'submitConfirmation'])
         ->name('enrollment.student-academic-registration.confirm');

@@ -16,6 +16,7 @@ import {
     User,
     Users,
     FileCheck,
+    FileSignature,
     Building2,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
@@ -108,6 +109,19 @@ const overviewNavItems: NavItem[] = [
                 href: '/curriculum',
                 // icon: BookOpen,
                 permission: 'curriculum.view',
+            },
+        ],
+    },
+    {
+        title: 'Enrollment',
+        href: '/student-academic-registration',
+        icon: FileSignature,
+        permission: 'grades.view',
+        items: [
+            {
+                title: 'Student Academic Registration',
+                href: '/student-academic-registration',
+                permission: 'grades.view',
             },
         ],
     },

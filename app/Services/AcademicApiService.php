@@ -454,6 +454,43 @@ class AcademicApiService
         }
     }
 
+    public function sarStatusByStudent(string $studentNo, int|string $termId, int|string $tenantId): array
+    {
+        try {
+            $endpoint = 'sar/SarTrialPrograms/by-student/'.rawurlencode($studentNo).'/'.rawurlencode((string) $termId);
+            $response = $this->client()->get($endpoint, [
+                'tenantId' => $tenantId,
+            ]);
+
+            if ($response->status() === 404) {
+                return ['ok' => true, 'data' => null, 'status' => 404];
+            }
+
+            if (! $response->successful()) {
+                Log::warning('SAR status request failed', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                    'student_no' => $studentNo,
+                    'term_id' => (string) $termId,
+                    'tenant_query' => (string) $tenantId,
+                ]);
+
+                return ['ok' => false, 'data' => null, 'status' => $response->status()];
+            }
+
+            return ['ok' => true, 'data' => $response->json(), 'status' => $response->status()];
+        } catch (Throwable $exception) {
+            Log::warning('SAR status request exception', [
+                'student_no' => $studentNo,
+                'term_id' => (string) $termId,
+                'tenant_query' => (string) $tenantId,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return ['ok' => false, 'data' => null, 'status' => 500];
+        }
+    }
+
     private function client(): PendingRequest
     {
         return Http::baseUrl($this->baseUrl)
