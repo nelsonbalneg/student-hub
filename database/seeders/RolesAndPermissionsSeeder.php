@@ -27,6 +27,8 @@ class RolesAndPermissionsSeeder extends Seeder
             ['module' => 'Dashboard', 'name' => 'dashboard.view'],
             ['module' => 'Grades', 'name' => 'grades.view'],
             ['module' => 'Curriculum', 'name' => 'curriculum.view'],
+            ['module' => 'Academic', 'name' => 'view class schedule'],
+            ['module' => 'Academic', 'name' => 'download cor'],
             ['module' => 'Student Profile', 'name' => 'student-profile.view'],
             ['module' => 'Internet Accounts', 'name' => 'internet-accounts.view'],
             ['module' => 'Internet Accounts', 'name' => 'internet-accounts.create'],
@@ -95,6 +97,11 @@ class RolesAndPermissionsSeeder extends Seeder
             ['module' => 'Dossiers', 'name' => 'dossiers.audit.view'],
             ['module' => 'Reports', 'name' => 'reports.view'],
             ['module' => 'Settings', 'name' => 'settings.view'],
+            ['module' => 'Legal', 'name' => 'legal.view'],
+            ['module' => 'Legal', 'name' => 'legal.create'],
+            ['module' => 'Legal', 'name' => 'legal.edit'],
+            ['module' => 'Legal', 'name' => 'legal.delete'],
+            ['module' => 'Legal', 'name' => 'legal.activate'],
         ];
 
         foreach ($permissions as $permission) {
@@ -154,6 +161,8 @@ class RolesAndPermissionsSeeder extends Seeder
         );
 
         $studentRole->givePermissionTo([
+            'view class schedule',
+            'download cor',
             'evaluation.view',
             'evaluation.submit-intent',
         ]);

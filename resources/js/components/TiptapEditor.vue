@@ -45,7 +45,7 @@ const editor = useEditor({
     ],
     editorProps: {
         attributes: {
-            class: 'prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-[200px] p-4',
+            class: 'prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-[200px] p-4 bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100',
         },
     },
     onUpdate: ({ editor }) => {
@@ -69,8 +69,8 @@ const addImage = () => {
 </script>
 
 <template>
-    <div class="rounded-md border bg-background overflow-hidden">
-        <div v-if="editor" class="flex flex-wrap items-center gap-1 border-b bg-muted/50 p-1">
+    <div class="overflow-hidden rounded-md border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-900">
+        <div v-if="editor" class="flex flex-wrap items-center gap-1 border-b border-slate-200 bg-slate-50 p-1 dark:border-white/10 dark:bg-white/[0.03]">
             <Button
                 type="button"
                 variant="ghost"
@@ -186,5 +186,13 @@ const addImage = () => {
     color: #adb5bd;
     pointer-events: none;
     height: 0;
+}
+
+.ProseMirror {
+    color-scheme: light;
+}
+
+.dark .ProseMirror {
+    color-scheme: dark;
 }
 </style>
