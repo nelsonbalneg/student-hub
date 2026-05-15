@@ -65,6 +65,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('student-profile', StudentProfileController::class)
         ->middleware('can:student-profile.view')
         ->name('student-profile.index');
+    Route::patch('student-profile', [StudentProfileController::class, 'update'])
+        ->middleware('can:student-profile.view')
+        ->name('student-profile.update');
     Route::get('internet-accounts', [InternetAccountController::class, 'index'])
         ->name('internet-accounts.index');
     Route::post('internet-accounts', [InternetAccountController::class, 'store'])

@@ -268,6 +268,29 @@ class AcademicApiService
         }
     }
 
+    public function profileLookups(): array
+    {
+        $fetch = function (string $endpoint): array {
+            try {
+                $response = $this->client()->get($endpoint);
+                if (! $response->successful()) {
+                    return [];
+                }
+                $data = $response->json();
+                return is_array($data) ? $data : [];
+            } catch (Throwable) {
+                return [];
+            }
+        };
+
+        return [
+            'tribes' => $fetch('Tribes/list'),
+            'civilStatuses' => $fetch('CivilStatus/list'),
+            'religions' => $fetch('Religions/list'),
+            'nationalities' => $fetch('Nationalities/list'),
+        ];
+    }
+
     public function gradeReportForStudent(?string $studentNo, ?string $tenantId): array
     {
         if (blank($studentNo)) {
@@ -491,6 +514,56 @@ class AcademicApiService
         }
     }
 
+    public function updateProfileForStudent(string $studentNo, int|string $campusId, int|string $tenantId, array $changes): array
+    {
+        $current = $this->profileForStudent($studentNo, (string) $tenantId);
+
+        if (!empty($current['error']) || empty($current['data'])) {
+            return ['ok' => false, 'error' => 'Unable to load current profile before update.'];
+        }
+
+        $currentData = (array) $current['data'];
+        $payload = array_merge($currentData, $changes);
+
+        try {
+            $response = $this->client()->withHeaders([
+                'accept' => '*/*',
+                'Content-Type' => 'application/json-patch+json',
+                'x-api-version' => '2.0',
+            ])->put('Students/'.rawurlencode($studentNo).'?campusId='.rawurlencode((string) $campusId).'&tenantId='.rawurlencode((string) $tenantId), $payload);
+
+            if (! $response->successful()) {
+                $changed = [];
+                foreach ($changes as $k => $v) {
+                    $old = $currentData[$k] ?? null;
+                    if ($old !== $v) {
+                        $changed[$k] = [
+                            'old' => $old,
+                            'new' => $v,
+                            'new_type' => gettype($v),
+                        ];
+                    }
+                }
+                Log::warning('Student profile update failed', [
+                    'student_no' => $studentNo,
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                    'changed_fields' => $changed,
+                ]);
+
+                return ['ok' => false, 'error' => 'Profile update failed: HTTP '.$response->status().' '.$response->body()];
+            }
+
+            return ['ok' => true];
+        } catch (Throwable $exception) {
+            Log::warning('Student profile update exception', [
+                'student_no' => $studentNo,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return ['ok' => false, 'error' => 'Profile update failed: '.$exception->getMessage()];
+        }
+    }
     private function client(): PendingRequest
     {
         return Http::baseUrl($this->baseUrl)
@@ -504,3 +577,4 @@ class AcademicApiService
         return $this->baseUrl.'/'.ltrim($endpoint, '/');
     }
 }
+

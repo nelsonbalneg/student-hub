@@ -1,0 +1,4945 @@
+{
+  "RECORDS": [
+    {
+      "citymunDesc": "ADAMS"
+    },
+    {
+      "citymunDesc": "BACARRA"
+    },
+    {
+      "citymunDesc": "BADOC"
+    },
+    {
+      "citymunDesc": "BANGUI"
+    },
+    {
+      "citymunDesc": "CITY OF BATAC"
+    },
+    {
+      "citymunDesc": "BURGOS"
+    },
+    {
+      "citymunDesc": "CARASI"
+    },
+    {
+      "citymunDesc": "CURRIMAO"
+    },
+    {
+      "citymunDesc": "DINGRAS"
+    },
+    {
+      "citymunDesc": "DUMALNEG"
+    },
+    {
+      "citymunDesc": "BANNA (ESPIRITU)"
+    },
+    {
+      "citymunDesc": "LAOAG CITY (Capital)"
+    },
+    {
+      "citymunDesc": "MARCOS"
+    },
+    {
+      "citymunDesc": "NUEVA ERA"
+    },
+    {
+      "citymunDesc": "PAGUDPUD"
+    },
+    {
+      "citymunDesc": "PAOAY"
+    },
+    {
+      "citymunDesc": "PASUQUIN"
+    },
+    {
+      "citymunDesc": "PIDDIG"
+    },
+    {
+      "citymunDesc": "PINILI"
+    },
+    {
+      "citymunDesc": "SAN NICOLAS"
+    },
+    {
+      "citymunDesc": "SARRAT"
+    },
+    {
+      "citymunDesc": "SOLSONA"
+    },
+    {
+      "citymunDesc": "VINTAR"
+    },
+    {
+      "citymunDesc": "ALILEM"
+    },
+    {
+      "citymunDesc": "BANAYOYO"
+    },
+    {
+      "citymunDesc": "BANTAY"
+    },
+    {
+      "citymunDesc": "BURGOS"
+    },
+    {
+      "citymunDesc": "CABUGAO"
+    },
+    {
+      "citymunDesc": "CITY OF CANDON"
+    },
+    {
+      "citymunDesc": "CAOAYAN"
+    },
+    {
+      "citymunDesc": "CERVANTES"
+    },
+    {
+      "citymunDesc": "GALIMUYOD"
+    },
+    {
+      "citymunDesc": "GREGORIO DEL PILAR (CONCEPCION)"
+    },
+    {
+      "citymunDesc": "LIDLIDDA"
+    },
+    {
+      "citymunDesc": "MAGSINGAL"
+    },
+    {
+      "citymunDesc": "NAGBUKEL"
+    },
+    {
+      "citymunDesc": "NARVACAN"
+    },
+    {
+      "citymunDesc": "QUIRINO (ANGKAKI)"
+    },
+    {
+      "citymunDesc": "SALCEDO (BAUGEN)"
+    },
+    {
+      "citymunDesc": "SAN EMILIO"
+    },
+    {
+      "citymunDesc": "SAN ESTEBAN"
+    },
+    {
+      "citymunDesc": "SAN ILDEFONSO"
+    },
+    {
+      "citymunDesc": "SAN JUAN (LAPOG)"
+    },
+    {
+      "citymunDesc": "SAN VICENTE"
+    },
+    {
+      "citymunDesc": "SANTA"
+    },
+    {
+      "citymunDesc": "SANTA CATALINA"
+    },
+    {
+      "citymunDesc": "SANTA CRUZ"
+    },
+    {
+      "citymunDesc": "SANTA LUCIA"
+    },
+    {
+      "citymunDesc": "SANTA MARIA"
+    },
+    {
+      "citymunDesc": "SANTIAGO"
+    },
+    {
+      "citymunDesc": "SANTO DOMINGO"
+    },
+    {
+      "citymunDesc": "SIGAY"
+    },
+    {
+      "citymunDesc": "SINAIT"
+    },
+    {
+      "citymunDesc": "SUGPON"
+    },
+    {
+      "citymunDesc": "SUYO"
+    },
+    {
+      "citymunDesc": "TAGUDIN"
+    },
+    {
+      "citymunDesc": "CITY OF VIGAN (Capital)"
+    },
+    {
+      "citymunDesc": "AGOO"
+    },
+    {
+      "citymunDesc": "ARINGAY"
+    },
+    {
+      "citymunDesc": "BACNOTAN"
+    },
+    {
+      "citymunDesc": "BAGULIN"
+    },
+    {
+      "citymunDesc": "BALAOAN"
+    },
+    {
+      "citymunDesc": "BANGAR"
+    },
+    {
+      "citymunDesc": "BAUANG"
+    },
+    {
+      "citymunDesc": "BURGOS"
+    },
+    {
+      "citymunDesc": "CABA"
+    },
+    {
+      "citymunDesc": "LUNA"
+    },
+    {
+      "citymunDesc": "NAGUILIAN"
+    },
+    {
+      "citymunDesc": "PUGO"
+    },
+    {
+      "citymunDesc": "ROSARIO"
+    },
+    {
+      "citymunDesc": "CITY OF SAN FERNANDO (Capital)"
+    },
+    {
+      "citymunDesc": "SAN GABRIEL"
+    },
+    {
+      "citymunDesc": "SAN JUAN"
+    },
+    {
+      "citymunDesc": "SANTO TOMAS"
+    },
+    {
+      "citymunDesc": "SANTOL"
+    },
+    {
+      "citymunDesc": "SUDIPEN"
+    },
+    {
+      "citymunDesc": "TUBAO"
+    },
+    {
+      "citymunDesc": "AGNO"
+    },
+    {
+      "citymunDesc": "AGUILAR"
+    },
+    {
+      "citymunDesc": "CITY OF ALAMINOS"
+    },
+    {
+      "citymunDesc": "ALCALA"
+    },
+    {
+      "citymunDesc": "ANDA"
+    },
+    {
+      "citymunDesc": "ASINGAN"
+    },
+    {
+      "citymunDesc": "BALUNGAO"
+    },
+    {
+      "citymunDesc": "BANI"
+    },
+    {
+      "citymunDesc": "BASISTA"
+    },
+    {
+      "citymunDesc": "BAUTISTA"
+    },
+    {
+      "citymunDesc": "BAYAMBANG"
+    },
+    {
+      "citymunDesc": "BINALONAN"
+    },
+    {
+      "citymunDesc": "BINMALEY"
+    },
+    {
+      "citymunDesc": "BOLINAO"
+    },
+    {
+      "citymunDesc": "BUGALLON"
+    },
+    {
+      "citymunDesc": "BURGOS"
+    },
+    {
+      "citymunDesc": "CALASIAO"
+    },
+    {
+      "citymunDesc": "DAGUPAN CITY"
+    },
+    {
+      "citymunDesc": "DASOL"
+    },
+    {
+      "citymunDesc": "INFANTA"
+    },
+    {
+      "citymunDesc": "LABRADOR"
+    },
+    {
+      "citymunDesc": "LINGAYEN (Capital)"
+    },
+    {
+      "citymunDesc": "MABINI"
+    },
+    {
+      "citymunDesc": "MALASIQUI"
+    },
+    {
+      "citymunDesc": "MANAOAG"
+    },
+    {
+      "citymunDesc": "MANGALDAN"
+    },
+    {
+      "citymunDesc": "MANGATAREM"
+    },
+    {
+      "citymunDesc": "MAPANDAN"
+    },
+    {
+      "citymunDesc": "NATIVIDAD"
+    },
+    {
+      "citymunDesc": "POZORRUBIO"
+    },
+    {
+      "citymunDesc": "ROSALES"
+    },
+    {
+      "citymunDesc": "SAN CARLOS CITY"
+    },
+    {
+      "citymunDesc": "SAN FABIAN"
+    },
+    {
+      "citymunDesc": "SAN JACINTO"
+    },
+    {
+      "citymunDesc": "SAN MANUEL"
+    },
+    {
+      "citymunDesc": "SAN NICOLAS"
+    },
+    {
+      "citymunDesc": "SAN QUINTIN"
+    },
+    {
+      "citymunDesc": "SANTA BARBARA"
+    },
+    {
+      "citymunDesc": "SANTA MARIA"
+    },
+    {
+      "citymunDesc": "SANTO TOMAS"
+    },
+    {
+      "citymunDesc": "SISON"
+    },
+    {
+      "citymunDesc": "SUAL"
+    },
+    {
+      "citymunDesc": "TAYUG"
+    },
+    {
+      "citymunDesc": "UMINGAN"
+    },
+    {
+      "citymunDesc": "URBIZTONDO"
+    },
+    {
+      "citymunDesc": "CITY OF URDANETA"
+    },
+    {
+      "citymunDesc": "VILLASIS"
+    },
+    {
+      "citymunDesc": "LAOAC"
+    },
+    {
+      "citymunDesc": "BASCO (Capital)"
+    },
+    {
+      "citymunDesc": "ITBAYAT"
+    },
+    {
+      "citymunDesc": "IVANA"
+    },
+    {
+      "citymunDesc": "MAHATAO"
+    },
+    {
+      "citymunDesc": "SABTANG"
+    },
+    {
+      "citymunDesc": "UYUGAN"
+    },
+    {
+      "citymunDesc": "ABULUG"
+    },
+    {
+      "citymunDesc": "ALCALA"
+    },
+    {
+      "citymunDesc": "ALLACAPAN"
+    },
+    {
+      "citymunDesc": "AMULUNG"
+    },
+    {
+      "citymunDesc": "APARRI"
+    },
+    {
+      "citymunDesc": "BAGGAO"
+    },
+    {
+      "citymunDesc": "BALLESTEROS"
+    },
+    {
+      "citymunDesc": "BUGUEY"
+    },
+    {
+      "citymunDesc": "CALAYAN"
+    },
+    {
+      "citymunDesc": "CAMALANIUGAN"
+    },
+    {
+      "citymunDesc": "CLAVERIA"
+    },
+    {
+      "citymunDesc": "ENRILE"
+    },
+    {
+      "citymunDesc": "GATTARAN"
+    },
+    {
+      "citymunDesc": "GONZAGA"
+    },
+    {
+      "citymunDesc": "IGUIG"
+    },
+    {
+      "citymunDesc": "LAL-LO"
+    },
+    {
+      "citymunDesc": "LASAM"
+    },
+    {
+      "citymunDesc": "PAMPLONA"
+    },
+    {
+      "citymunDesc": "PEÑABLANCA"
+    },
+    {
+      "citymunDesc": "PIAT"
+    },
+    {
+      "citymunDesc": "RIZAL"
+    },
+    {
+      "citymunDesc": "SANCHEZ-MIRA"
+    },
+    {
+      "citymunDesc": "SANTA ANA"
+    },
+    {
+      "citymunDesc": "SANTA PRAXEDES"
+    },
+    {
+      "citymunDesc": "SANTA TERESITA"
+    },
+    {
+      "citymunDesc": "SANTO NIÑO (FAIRE)"
+    },
+    {
+      "citymunDesc": "SOLANA"
+    },
+    {
+      "citymunDesc": "TUAO"
+    },
+    {
+      "citymunDesc": "TUGUEGARAO CITY (Capital)"
+    },
+    {
+      "citymunDesc": "ALICIA"
+    },
+    {
+      "citymunDesc": "ANGADANAN"
+    },
+    {
+      "citymunDesc": "AURORA"
+    },
+    {
+      "citymunDesc": "BENITO SOLIVEN"
+    },
+    {
+      "citymunDesc": "BURGOS"
+    },
+    {
+      "citymunDesc": "CABAGAN"
+    },
+    {
+      "citymunDesc": "CABATUAN"
+    },
+    {
+      "citymunDesc": "CITY OF CAUAYAN"
+    },
+    {
+      "citymunDesc": "CORDON"
+    },
+    {
+      "citymunDesc": "DINAPIGUE"
+    },
+    {
+      "citymunDesc": "DIVILACAN"
+    },
+    {
+      "citymunDesc": "ECHAGUE"
+    },
+    {
+      "citymunDesc": "GAMU"
+    },
+    {
+      "citymunDesc": "ILAGAN CITY (Capital)"
+    },
+    {
+      "citymunDesc": "JONES"
+    },
+    {
+      "citymunDesc": "LUNA"
+    },
+    {
+      "citymunDesc": "MACONACON"
+    },
+    {
+      "citymunDesc": "DELFIN ALBANO (MAGSAYSAY)"
+    },
+    {
+      "citymunDesc": "MALLIG"
+    },
+    {
+      "citymunDesc": "NAGUILIAN"
+    },
+    {
+      "citymunDesc": "PALANAN"
+    },
+    {
+      "citymunDesc": "QUEZON"
+    },
+    {
+      "citymunDesc": "QUIRINO"
+    },
+    {
+      "citymunDesc": "RAMON"
+    },
+    {
+      "citymunDesc": "REINA MERCEDES"
+    },
+    {
+      "citymunDesc": "ROXAS"
+    },
+    {
+      "citymunDesc": "SAN AGUSTIN"
+    },
+    {
+      "citymunDesc": "SAN GUILLERMO"
+    },
+    {
+      "citymunDesc": "SAN ISIDRO"
+    },
+    {
+      "citymunDesc": "SAN MANUEL"
+    },
+    {
+      "citymunDesc": "SAN MARIANO"
+    },
+    {
+      "citymunDesc": "SAN MATEO"
+    },
+    {
+      "citymunDesc": "SAN PABLO"
+    },
+    {
+      "citymunDesc": "SANTA MARIA"
+    },
+    {
+      "citymunDesc": "CITY OF SANTIAGO"
+    },
+    {
+      "citymunDesc": "SANTO TOMAS"
+    },
+    {
+      "citymunDesc": "TUMAUINI"
+    },
+    {
+      "citymunDesc": "AMBAGUIO"
+    },
+    {
+      "citymunDesc": "ARITAO"
+    },
+    {
+      "citymunDesc": "BAGABAG"
+    },
+    {
+      "citymunDesc": "BAMBANG"
+    },
+    {
+      "citymunDesc": "BAYOMBONG (Capital)"
+    },
+    {
+      "citymunDesc": "DIADI"
+    },
+    {
+      "citymunDesc": "DUPAX DEL NORTE"
+    },
+    {
+      "citymunDesc": "DUPAX DEL SUR"
+    },
+    {
+      "citymunDesc": "KASIBU"
+    },
+    {
+      "citymunDesc": "KAYAPA"
+    },
+    {
+      "citymunDesc": "QUEZON"
+    },
+    {
+      "citymunDesc": "SANTA FE"
+    },
+    {
+      "citymunDesc": "SOLANO"
+    },
+    {
+      "citymunDesc": "VILLAVERDE"
+    },
+    {
+      "citymunDesc": "ALFONSO CASTANEDA"
+    },
+    {
+      "citymunDesc": "AGLIPAY"
+    },
+    {
+      "citymunDesc": "CABARROGUIS (Capital)"
+    },
+    {
+      "citymunDesc": "DIFFUN"
+    },
+    {
+      "citymunDesc": "MADDELA"
+    },
+    {
+      "citymunDesc": "SAGUDAY"
+    },
+    {
+      "citymunDesc": "NAGTIPUNAN"
+    },
+    {
+      "citymunDesc": "ABUCAY"
+    },
+    {
+      "citymunDesc": "BAGAC"
+    },
+    {
+      "citymunDesc": "CITY OF BALANGA (Capital)"
+    },
+    {
+      "citymunDesc": "DINALUPIHAN"
+    },
+    {
+      "citymunDesc": "HERMOSA"
+    },
+    {
+      "citymunDesc": "LIMAY"
+    },
+    {
+      "citymunDesc": "MARIVELES"
+    },
+    {
+      "citymunDesc": "MORONG"
+    },
+    {
+      "citymunDesc": "ORANI"
+    },
+    {
+      "citymunDesc": "ORION"
+    },
+    {
+      "citymunDesc": "PILAR"
+    },
+    {
+      "citymunDesc": "SAMAL"
+    },
+    {
+      "citymunDesc": "ANGAT"
+    },
+    {
+      "citymunDesc": "BALAGTAS (BIGAA)"
+    },
+    {
+      "citymunDesc": "BALIUAG"
+    },
+    {
+      "citymunDesc": "BOCAUE"
+    },
+    {
+      "citymunDesc": "BULACAN"
+    },
+    {
+      "citymunDesc": "BUSTOS"
+    },
+    {
+      "citymunDesc": "CALUMPIT"
+    },
+    {
+      "citymunDesc": "GUIGUINTO"
+    },
+    {
+      "citymunDesc": "HAGONOY"
+    },
+    {
+      "citymunDesc": "CITY OF MALOLOS (Capital)"
+    },
+    {
+      "citymunDesc": "MARILAO"
+    },
+    {
+      "citymunDesc": "CITY OF MEYCAUAYAN"
+    },
+    {
+      "citymunDesc": "NORZAGARAY"
+    },
+    {
+      "citymunDesc": "OBANDO"
+    },
+    {
+      "citymunDesc": "PANDI"
+    },
+    {
+      "citymunDesc": "PAOMBONG"
+    },
+    {
+      "citymunDesc": "PLARIDEL"
+    },
+    {
+      "citymunDesc": "PULILAN"
+    },
+    {
+      "citymunDesc": "SAN ILDEFONSO"
+    },
+    {
+      "citymunDesc": "CITY OF SAN JOSE DEL MONTE"
+    },
+    {
+      "citymunDesc": "SAN MIGUEL"
+    },
+    {
+      "citymunDesc": "SAN RAFAEL"
+    },
+    {
+      "citymunDesc": "SANTA MARIA"
+    },
+    {
+      "citymunDesc": "DOÑA REMEDIOS TRINIDAD"
+    },
+    {
+      "citymunDesc": "ALIAGA"
+    },
+    {
+      "citymunDesc": "BONGABON"
+    },
+    {
+      "citymunDesc": "CABANATUAN CITY"
+    },
+    {
+      "citymunDesc": "CABIAO"
+    },
+    {
+      "citymunDesc": "CARRANGLAN"
+    },
+    {
+      "citymunDesc": "CUYAPO"
+    },
+    {
+      "citymunDesc": "GABALDON (BITULOK & SABANI)"
+    },
+    {
+      "citymunDesc": "CITY OF GAPAN"
+    },
+    {
+      "citymunDesc": "GENERAL MAMERTO NATIVIDAD"
+    },
+    {
+      "citymunDesc": "GENERAL TINIO (PAPAYA)"
+    },
+    {
+      "citymunDesc": "GUIMBA"
+    },
+    {
+      "citymunDesc": "JAEN"
+    },
+    {
+      "citymunDesc": "LAUR"
+    },
+    {
+      "citymunDesc": "LICAB"
+    },
+    {
+      "citymunDesc": "LLANERA"
+    },
+    {
+      "citymunDesc": "LUPAO"
+    },
+    {
+      "citymunDesc": "SCIENCE CITY OF MUÑOZ"
+    },
+    {
+      "citymunDesc": "NAMPICUAN"
+    },
+    {
+      "citymunDesc": "PALAYAN CITY (Capital)"
+    },
+    {
+      "citymunDesc": "PANTABANGAN"
+    },
+    {
+      "citymunDesc": "PEÑARANDA"
+    },
+    {
+      "citymunDesc": "QUEZON"
+    },
+    {
+      "citymunDesc": "RIZAL"
+    },
+    {
+      "citymunDesc": "SAN ANTONIO"
+    },
+    {
+      "citymunDesc": "SAN ISIDRO"
+    },
+    {
+      "citymunDesc": "SAN JOSE CITY"
+    },
+    {
+      "citymunDesc": "SAN LEONARDO"
+    },
+    {
+      "citymunDesc": "SANTA ROSA"
+    },
+    {
+      "citymunDesc": "SANTO DOMINGO"
+    },
+    {
+      "citymunDesc": "TALAVERA"
+    },
+    {
+      "citymunDesc": "TALUGTUG"
+    },
+    {
+      "citymunDesc": "ZARAGOZA"
+    },
+    {
+      "citymunDesc": "ANGELES CITY"
+    },
+    {
+      "citymunDesc": "APALIT"
+    },
+    {
+      "citymunDesc": "ARAYAT"
+    },
+    {
+      "citymunDesc": "BACOLOR"
+    },
+    {
+      "citymunDesc": "CANDABA"
+    },
+    {
+      "citymunDesc": "FLORIDABLANCA"
+    },
+    {
+      "citymunDesc": "GUAGUA"
+    },
+    {
+      "citymunDesc": "LUBAO"
+    },
+    {
+      "citymunDesc": "MABALACAT CITY"
+    },
+    {
+      "citymunDesc": "MACABEBE"
+    },
+    {
+      "citymunDesc": "MAGALANG"
+    },
+    {
+      "citymunDesc": "MASANTOL"
+    },
+    {
+      "citymunDesc": "MEXICO"
+    },
+    {
+      "citymunDesc": "MINALIN"
+    },
+    {
+      "citymunDesc": "PORAC"
+    },
+    {
+      "citymunDesc": "CITY OF SAN FERNANDO (Capital)"
+    },
+    {
+      "citymunDesc": "SAN LUIS"
+    },
+    {
+      "citymunDesc": "SAN SIMON"
+    },
+    {
+      "citymunDesc": "SANTA ANA"
+    },
+    {
+      "citymunDesc": "SANTA RITA"
+    },
+    {
+      "citymunDesc": "SANTO TOMAS"
+    },
+    {
+      "citymunDesc": "SASMUAN (Sexmoan)"
+    },
+    {
+      "citymunDesc": "ANAO"
+    },
+    {
+      "citymunDesc": "BAMBAN"
+    },
+    {
+      "citymunDesc": "CAMILING"
+    },
+    {
+      "citymunDesc": "CAPAS"
+    },
+    {
+      "citymunDesc": "CONCEPCION"
+    },
+    {
+      "citymunDesc": "GERONA"
+    },
+    {
+      "citymunDesc": "LA PAZ"
+    },
+    {
+      "citymunDesc": "MAYANTOC"
+    },
+    {
+      "citymunDesc": "MONCADA"
+    },
+    {
+      "citymunDesc": "PANIQUI"
+    },
+    {
+      "citymunDesc": "PURA"
+    },
+    {
+      "citymunDesc": "RAMOS"
+    },
+    {
+      "citymunDesc": "SAN CLEMENTE"
+    },
+    {
+      "citymunDesc": "SAN MANUEL"
+    },
+    {
+      "citymunDesc": "SANTA IGNACIA"
+    },
+    {
+      "citymunDesc": "CITY OF TARLAC (Capital)"
+    },
+    {
+      "citymunDesc": "VICTORIA"
+    },
+    {
+      "citymunDesc": "SAN JOSE"
+    },
+    {
+      "citymunDesc": "BOTOLAN"
+    },
+    {
+      "citymunDesc": "CABANGAN"
+    },
+    {
+      "citymunDesc": "CANDELARIA"
+    },
+    {
+      "citymunDesc": "CASTILLEJOS"
+    },
+    {
+      "citymunDesc": "IBA (Capital)"
+    },
+    {
+      "citymunDesc": "MASINLOC"
+    },
+    {
+      "citymunDesc": "OLONGAPO CITY"
+    },
+    {
+      "citymunDesc": "PALAUIG"
+    },
+    {
+      "citymunDesc": "SAN ANTONIO"
+    },
+    {
+      "citymunDesc": "SAN FELIPE"
+    },
+    {
+      "citymunDesc": "SAN MARCELINO"
+    },
+    {
+      "citymunDesc": "SAN NARCISO"
+    },
+    {
+      "citymunDesc": "SANTA CRUZ"
+    },
+    {
+      "citymunDesc": "SUBIC"
+    },
+    {
+      "citymunDesc": "BALER (Capital)"
+    },
+    {
+      "citymunDesc": "CASIGURAN"
+    },
+    {
+      "citymunDesc": "DILASAG"
+    },
+    {
+      "citymunDesc": "DINALUNGAN"
+    },
+    {
+      "citymunDesc": "DINGALAN"
+    },
+    {
+      "citymunDesc": "DIPACULAO"
+    },
+    {
+      "citymunDesc": "MARIA AURORA"
+    },
+    {
+      "citymunDesc": "SAN LUIS"
+    },
+    {
+      "citymunDesc": "AGONCILLO"
+    },
+    {
+      "citymunDesc": "ALITAGTAG"
+    },
+    {
+      "citymunDesc": "BALAYAN"
+    },
+    {
+      "citymunDesc": "BALETE"
+    },
+    {
+      "citymunDesc": "BATANGAS CITY (Capital)"
+    },
+    {
+      "citymunDesc": "BAUAN"
+    },
+    {
+      "citymunDesc": "CALACA"
+    },
+    {
+      "citymunDesc": "CALATAGAN"
+    },
+    {
+      "citymunDesc": "CUENCA"
+    },
+    {
+      "citymunDesc": "IBAAN"
+    },
+    {
+      "citymunDesc": "LAUREL"
+    },
+    {
+      "citymunDesc": "LEMERY"
+    },
+    {
+      "citymunDesc": "LIAN"
+    },
+    {
+      "citymunDesc": "LIPA CITY"
+    },
+    {
+      "citymunDesc": "LOBO"
+    },
+    {
+      "citymunDesc": "MABINI"
+    },
+    {
+      "citymunDesc": "MALVAR"
+    },
+    {
+      "citymunDesc": "MATAASNAKAHOY"
+    },
+    {
+      "citymunDesc": "NASUGBU"
+    },
+    {
+      "citymunDesc": "PADRE GARCIA"
+    },
+    {
+      "citymunDesc": "ROSARIO"
+    },
+    {
+      "citymunDesc": "SAN JOSE"
+    },
+    {
+      "citymunDesc": "SAN JUAN"
+    },
+    {
+      "citymunDesc": "SAN LUIS"
+    },
+    {
+      "citymunDesc": "SAN NICOLAS"
+    },
+    {
+      "citymunDesc": "SAN PASCUAL"
+    },
+    {
+      "citymunDesc": "SANTA TERESITA"
+    },
+    {
+      "citymunDesc": "SANTO TOMAS"
+    },
+    {
+      "citymunDesc": "TAAL"
+    },
+    {
+      "citymunDesc": "TALISAY"
+    },
+    {
+      "citymunDesc": "CITY OF TANAUAN"
+    },
+    {
+      "citymunDesc": "TAYSAN"
+    },
+    {
+      "citymunDesc": "TINGLOY"
+    },
+    {
+      "citymunDesc": "TUY"
+    },
+    {
+      "citymunDesc": "ALFONSO"
+    },
+    {
+      "citymunDesc": "AMADEO"
+    },
+    {
+      "citymunDesc": "BACOOR CITY"
+    },
+    {
+      "citymunDesc": "CARMONA"
+    },
+    {
+      "citymunDesc": "CAVITE CITY"
+    },
+    {
+      "citymunDesc": "CITY OF DASMARIÑAS"
+    },
+    {
+      "citymunDesc": "GENERAL EMILIO AGUINALDO"
+    },
+    {
+      "citymunDesc": "GENERAL TRIAS"
+    },
+    {
+      "citymunDesc": "IMUS CITY"
+    },
+    {
+      "citymunDesc": "INDANG"
+    },
+    {
+      "citymunDesc": "KAWIT"
+    },
+    {
+      "citymunDesc": "MAGALLANES"
+    },
+    {
+      "citymunDesc": "MARAGONDON"
+    },
+    {
+      "citymunDesc": "MENDEZ (MENDEZ-NUÑEZ)"
+    },
+    {
+      "citymunDesc": "NAIC"
+    },
+    {
+      "citymunDesc": "NOVELETA"
+    },
+    {
+      "citymunDesc": "ROSARIO"
+    },
+    {
+      "citymunDesc": "SILANG"
+    },
+    {
+      "citymunDesc": "TAGAYTAY CITY"
+    },
+    {
+      "citymunDesc": "TANZA"
+    },
+    {
+      "citymunDesc": "TERNATE"
+    },
+    {
+      "citymunDesc": "TRECE MARTIRES CITY (Capital)"
+    },
+    {
+      "citymunDesc": "GEN. MARIANO ALVAREZ"
+    },
+    {
+      "citymunDesc": "ALAMINOS"
+    },
+    {
+      "citymunDesc": "BAY"
+    },
+    {
+      "citymunDesc": "CITY OF BIÑAN"
+    },
+    {
+      "citymunDesc": "CABUYAO CITY"
+    },
+    {
+      "citymunDesc": "CITY OF CALAMBA"
+    },
+    {
+      "citymunDesc": "CALAUAN"
+    },
+    {
+      "citymunDesc": "CAVINTI"
+    },
+    {
+      "citymunDesc": "FAMY"
+    },
+    {
+      "citymunDesc": "KALAYAAN"
+    },
+    {
+      "citymunDesc": "LILIW"
+    },
+    {
+      "citymunDesc": "LOS BAÑOS"
+    },
+    {
+      "citymunDesc": "LUISIANA"
+    },
+    {
+      "citymunDesc": "LUMBAN"
+    },
+    {
+      "citymunDesc": "MABITAC"
+    },
+    {
+      "citymunDesc": "MAGDALENA"
+    },
+    {
+      "citymunDesc": "MAJAYJAY"
+    },
+    {
+      "citymunDesc": "NAGCARLAN"
+    },
+    {
+      "citymunDesc": "PAETE"
+    },
+    {
+      "citymunDesc": "PAGSANJAN"
+    },
+    {
+      "citymunDesc": "PAKIL"
+    },
+    {
+      "citymunDesc": "PANGIL"
+    },
+    {
+      "citymunDesc": "PILA"
+    },
+    {
+      "citymunDesc": "RIZAL"
+    },
+    {
+      "citymunDesc": "SAN PABLO CITY"
+    },
+    {
+      "citymunDesc": "CITY OF SAN PEDRO"
+    },
+    {
+      "citymunDesc": "SANTA CRUZ (Capital)"
+    },
+    {
+      "citymunDesc": "SANTA MARIA"
+    },
+    {
+      "citymunDesc": "CITY OF SANTA ROSA"
+    },
+    {
+      "citymunDesc": "SINILOAN"
+    },
+    {
+      "citymunDesc": "VICTORIA"
+    },
+    {
+      "citymunDesc": "AGDANGAN"
+    },
+    {
+      "citymunDesc": "ALABAT"
+    },
+    {
+      "citymunDesc": "ATIMONAN"
+    },
+    {
+      "citymunDesc": "BUENAVISTA"
+    },
+    {
+      "citymunDesc": "BURDEOS"
+    },
+    {
+      "citymunDesc": "CALAUAG"
+    },
+    {
+      "citymunDesc": "CANDELARIA"
+    },
+    {
+      "citymunDesc": "CATANAUAN"
+    },
+    {
+      "citymunDesc": "DOLORES"
+    },
+    {
+      "citymunDesc": "GENERAL LUNA"
+    },
+    {
+      "citymunDesc": "GENERAL NAKAR"
+    },
+    {
+      "citymunDesc": "GUINAYANGAN"
+    },
+    {
+      "citymunDesc": "GUMACA"
+    },
+    {
+      "citymunDesc": "INFANTA"
+    },
+    {
+      "citymunDesc": "JOMALIG"
+    },
+    {
+      "citymunDesc": "LOPEZ"
+    },
+    {
+      "citymunDesc": "LUCBAN"
+    },
+    {
+      "citymunDesc": "LUCENA CITY (Capital)"
+    },
+    {
+      "citymunDesc": "MACALELON"
+    },
+    {
+      "citymunDesc": "MAUBAN"
+    },
+    {
+      "citymunDesc": "MULANAY"
+    },
+    {
+      "citymunDesc": "PADRE BURGOS"
+    },
+    {
+      "citymunDesc": "PAGBILAO"
+    },
+    {
+      "citymunDesc": "PANUKULAN"
+    },
+    {
+      "citymunDesc": "PATNANUNGAN"
+    },
+    {
+      "citymunDesc": "PEREZ"
+    },
+    {
+      "citymunDesc": "PITOGO"
+    },
+    {
+      "citymunDesc": "PLARIDEL"
+    },
+    {
+      "citymunDesc": "POLILLO"
+    },
+    {
+      "citymunDesc": "QUEZON"
+    },
+    {
+      "citymunDesc": "REAL"
+    },
+    {
+      "citymunDesc": "SAMPALOC"
+    },
+    {
+      "citymunDesc": "SAN ANDRES"
+    },
+    {
+      "citymunDesc": "SAN ANTONIO"
+    },
+    {
+      "citymunDesc": "SAN FRANCISCO (AURORA)"
+    },
+    {
+      "citymunDesc": "SAN NARCISO"
+    },
+    {
+      "citymunDesc": "SARIAYA"
+    },
+    {
+      "citymunDesc": "TAGKAWAYAN"
+    },
+    {
+      "citymunDesc": "CITY OF TAYABAS"
+    },
+    {
+      "citymunDesc": "TIAONG"
+    },
+    {
+      "citymunDesc": "UNISAN"
+    },
+    {
+      "citymunDesc": "ANGONO"
+    },
+    {
+      "citymunDesc": "CITY OF ANTIPOLO"
+    },
+    {
+      "citymunDesc": "BARAS"
+    },
+    {
+      "citymunDesc": "BINANGONAN"
+    },
+    {
+      "citymunDesc": "CAINTA"
+    },
+    {
+      "citymunDesc": "CARDONA"
+    },
+    {
+      "citymunDesc": "JALA-JALA"
+    },
+    {
+      "citymunDesc": "RODRIGUEZ (MONTALBAN)"
+    },
+    {
+      "citymunDesc": "MORONG"
+    },
+    {
+      "citymunDesc": "PILILLA"
+    },
+    {
+      "citymunDesc": "SAN MATEO"
+    },
+    {
+      "citymunDesc": "TANAY"
+    },
+    {
+      "citymunDesc": "TAYTAY"
+    },
+    {
+      "citymunDesc": "TERESA"
+    },
+    {
+      "citymunDesc": "BOAC (Capital)"
+    },
+    {
+      "citymunDesc": "BUENAVISTA"
+    },
+    {
+      "citymunDesc": "GASAN"
+    },
+    {
+      "citymunDesc": "MOGPOG"
+    },
+    {
+      "citymunDesc": "SANTA CRUZ"
+    },
+    {
+      "citymunDesc": "TORRIJOS"
+    },
+    {
+      "citymunDesc": "ABRA DE ILOG"
+    },
+    {
+      "citymunDesc": "CALINTAAN"
+    },
+    {
+      "citymunDesc": "LOOC"
+    },
+    {
+      "citymunDesc": "LUBANG"
+    },
+    {
+      "citymunDesc": "MAGSAYSAY"
+    },
+    {
+      "citymunDesc": "MAMBURAO (Capital)"
+    },
+    {
+      "citymunDesc": "PALUAN"
+    },
+    {
+      "citymunDesc": "RIZAL"
+    },
+    {
+      "citymunDesc": "SABLAYAN"
+    },
+    {
+      "citymunDesc": "SAN JOSE"
+    },
+    {
+      "citymunDesc": "SANTA CRUZ"
+    },
+    {
+      "citymunDesc": "BACO"
+    },
+    {
+      "citymunDesc": "BANSUD"
+    },
+    {
+      "citymunDesc": "BONGABONG"
+    },
+    {
+      "citymunDesc": "BULALACAO (SAN PEDRO)"
+    },
+    {
+      "citymunDesc": "CITY OF CALAPAN (Capital)"
+    },
+    {
+      "citymunDesc": "GLORIA"
+    },
+    {
+      "citymunDesc": "MANSALAY"
+    },
+    {
+      "citymunDesc": "NAUJAN"
+    },
+    {
+      "citymunDesc": "PINAMALAYAN"
+    },
+    {
+      "citymunDesc": "POLA"
+    },
+    {
+      "citymunDesc": "PUERTO GALERA"
+    },
+    {
+      "citymunDesc": "ROXAS"
+    },
+    {
+      "citymunDesc": "SAN TEODORO"
+    },
+    {
+      "citymunDesc": "SOCORRO"
+    },
+    {
+      "citymunDesc": "VICTORIA"
+    },
+    {
+      "citymunDesc": "ABORLAN"
+    },
+    {
+      "citymunDesc": "AGUTAYA"
+    },
+    {
+      "citymunDesc": "ARACELI"
+    },
+    {
+      "citymunDesc": "BALABAC"
+    },
+    {
+      "citymunDesc": "BATARAZA"
+    },
+    {
+      "citymunDesc": "BROOKE'S POINT"
+    },
+    {
+      "citymunDesc": "BUSUANGA"
+    },
+    {
+      "citymunDesc": "CAGAYANCILLO"
+    },
+    {
+      "citymunDesc": "CORON"
+    },
+    {
+      "citymunDesc": "CUYO"
+    },
+    {
+      "citymunDesc": "DUMARAN"
+    },
+    {
+      "citymunDesc": "EL NIDO (BACUIT)"
+    },
+    {
+      "citymunDesc": "LINAPACAN"
+    },
+    {
+      "citymunDesc": "MAGSAYSAY"
+    },
+    {
+      "citymunDesc": "NARRA"
+    },
+    {
+      "citymunDesc": "PUERTO PRINCESA CITY (Capital)"
+    },
+    {
+      "citymunDesc": "QUEZON"
+    },
+    {
+      "citymunDesc": "ROXAS"
+    },
+    {
+      "citymunDesc": "SAN VICENTE"
+    },
+    {
+      "citymunDesc": "TAYTAY"
+    },
+    {
+      "citymunDesc": "KALAYAAN"
+    },
+    {
+      "citymunDesc": "CULION"
+    },
+    {
+      "citymunDesc": "RIZAL (MARCOS)"
+    },
+    {
+      "citymunDesc": "SOFRONIO ESPAÑOLA"
+    },
+    {
+      "citymunDesc": "ALCANTARA"
+    },
+    {
+      "citymunDesc": "BANTON"
+    },
+    {
+      "citymunDesc": "CAJIDIOCAN"
+    },
+    {
+      "citymunDesc": "CALATRAVA"
+    },
+    {
+      "citymunDesc": "CONCEPCION"
+    },
+    {
+      "citymunDesc": "CORCUERA"
+    },
+    {
+      "citymunDesc": "LOOC"
+    },
+    {
+      "citymunDesc": "MAGDIWANG"
+    },
+    {
+      "citymunDesc": "ODIONGAN"
+    },
+    {
+      "citymunDesc": "ROMBLON (Capital)"
+    },
+    {
+      "citymunDesc": "SAN AGUSTIN"
+    },
+    {
+      "citymunDesc": "SAN ANDRES"
+    },
+    {
+      "citymunDesc": "SAN FERNANDO"
+    },
+    {
+      "citymunDesc": "SAN JOSE"
+    },
+    {
+      "citymunDesc": "SANTA FE"
+    },
+    {
+      "citymunDesc": "FERROL"
+    },
+    {
+      "citymunDesc": "SANTA MARIA (IMELDA)"
+    },
+    {
+      "citymunDesc": "BACACAY"
+    },
+    {
+      "citymunDesc": "CAMALIG"
+    },
+    {
+      "citymunDesc": "DARAGA (LOCSIN)"
+    },
+    {
+      "citymunDesc": "GUINOBATAN"
+    },
+    {
+      "citymunDesc": "JOVELLAR"
+    },
+    {
+      "citymunDesc": "LEGAZPI CITY (Capital)"
+    },
+    {
+      "citymunDesc": "LIBON"
+    },
+    {
+      "citymunDesc": "CITY OF LIGAO"
+    },
+    {
+      "citymunDesc": "MALILIPOT"
+    },
+    {
+      "citymunDesc": "MALINAO"
+    },
+    {
+      "citymunDesc": "MANITO"
+    },
+    {
+      "citymunDesc": "OAS"
+    },
+    {
+      "citymunDesc": "PIO DURAN"
+    },
+    {
+      "citymunDesc": "POLANGUI"
+    },
+    {
+      "citymunDesc": "RAPU-RAPU"
+    },
+    {
+      "citymunDesc": "SANTO DOMINGO (LIBOG)"
+    },
+    {
+      "citymunDesc": "CITY OF TABACO"
+    },
+    {
+      "citymunDesc": "TIWI"
+    },
+    {
+      "citymunDesc": "BASUD"
+    },
+    {
+      "citymunDesc": "CAPALONGA"
+    },
+    {
+      "citymunDesc": "DAET (Capital)"
+    },
+    {
+      "citymunDesc": "SAN LORENZO RUIZ (IMELDA)"
+    },
+    {
+      "citymunDesc": "JOSE PANGANIBAN"
+    },
+    {
+      "citymunDesc": "LABO"
+    },
+    {
+      "citymunDesc": "MERCEDES"
+    },
+    {
+      "citymunDesc": "PARACALE"
+    },
+    {
+      "citymunDesc": "SAN VICENTE"
+    },
+    {
+      "citymunDesc": "SANTA ELENA"
+    },
+    {
+      "citymunDesc": "TALISAY"
+    },
+    {
+      "citymunDesc": "VINZONS"
+    },
+    {
+      "citymunDesc": "BAAO"
+    },
+    {
+      "citymunDesc": "BALATAN"
+    },
+    {
+      "citymunDesc": "BATO"
+    },
+    {
+      "citymunDesc": "BOMBON"
+    },
+    {
+      "citymunDesc": "BUHI"
+    },
+    {
+      "citymunDesc": "BULA"
+    },
+    {
+      "citymunDesc": "CABUSAO"
+    },
+    {
+      "citymunDesc": "CALABANGA"
+    },
+    {
+      "citymunDesc": "CAMALIGAN"
+    },
+    {
+      "citymunDesc": "CANAMAN"
+    },
+    {
+      "citymunDesc": "CARAMOAN"
+    },
+    {
+      "citymunDesc": "DEL GALLEGO"
+    },
+    {
+      "citymunDesc": "GAINZA"
+    },
+    {
+      "citymunDesc": "GARCHITORENA"
+    },
+    {
+      "citymunDesc": "GOA"
+    },
+    {
+      "citymunDesc": "IRIGA CITY"
+    },
+    {
+      "citymunDesc": "LAGONOY"
+    },
+    {
+      "citymunDesc": "LIBMANAN"
+    },
+    {
+      "citymunDesc": "LUPI"
+    },
+    {
+      "citymunDesc": "MAGARAO"
+    },
+    {
+      "citymunDesc": "MILAOR"
+    },
+    {
+      "citymunDesc": "MINALABAC"
+    },
+    {
+      "citymunDesc": "NABUA"
+    },
+    {
+      "citymunDesc": "NAGA CITY"
+    },
+    {
+      "citymunDesc": "OCAMPO"
+    },
+    {
+      "citymunDesc": "PAMPLONA"
+    },
+    {
+      "citymunDesc": "PASACAO"
+    },
+    {
+      "citymunDesc": "PILI (Capital)"
+    },
+    {
+      "citymunDesc": "PRESENTACION (PARUBCAN)"
+    },
+    {
+      "citymunDesc": "RAGAY"
+    },
+    {
+      "citymunDesc": "SAGÑAY"
+    },
+    {
+      "citymunDesc": "SAN FERNANDO"
+    },
+    {
+      "citymunDesc": "SAN JOSE"
+    },
+    {
+      "citymunDesc": "SIPOCOT"
+    },
+    {
+      "citymunDesc": "SIRUMA"
+    },
+    {
+      "citymunDesc": "TIGAON"
+    },
+    {
+      "citymunDesc": "TINAMBAC"
+    },
+    {
+      "citymunDesc": "BAGAMANOC"
+    },
+    {
+      "citymunDesc": "BARAS"
+    },
+    {
+      "citymunDesc": "BATO"
+    },
+    {
+      "citymunDesc": "CARAMORAN"
+    },
+    {
+      "citymunDesc": "GIGMOTO"
+    },
+    {
+      "citymunDesc": "PANDAN"
+    },
+    {
+      "citymunDesc": "PANGANIBAN (PAYO)"
+    },
+    {
+      "citymunDesc": "SAN ANDRES (CALOLBON)"
+    },
+    {
+      "citymunDesc": "SAN MIGUEL"
+    },
+    {
+      "citymunDesc": "VIGA"
+    },
+    {
+      "citymunDesc": "VIRAC (Capital)"
+    },
+    {
+      "citymunDesc": "AROROY"
+    },
+    {
+      "citymunDesc": "BALENO"
+    },
+    {
+      "citymunDesc": "BALUD"
+    },
+    {
+      "citymunDesc": "BATUAN"
+    },
+    {
+      "citymunDesc": "CATAINGAN"
+    },
+    {
+      "citymunDesc": "CAWAYAN"
+    },
+    {
+      "citymunDesc": "CLAVERIA"
+    },
+    {
+      "citymunDesc": "DIMASALANG"
+    },
+    {
+      "citymunDesc": "ESPERANZA"
+    },
+    {
+      "citymunDesc": "MANDAON"
+    },
+    {
+      "citymunDesc": "CITY OF MASBATE (Capital)"
+    },
+    {
+      "citymunDesc": "MILAGROS"
+    },
+    {
+      "citymunDesc": "MOBO"
+    },
+    {
+      "citymunDesc": "MONREAL"
+    },
+    {
+      "citymunDesc": "PALANAS"
+    },
+    {
+      "citymunDesc": "PIO V. CORPUZ (LIMBUHAN)"
+    },
+    {
+      "citymunDesc": "PLACER"
+    },
+    {
+      "citymunDesc": "SAN FERNANDO"
+    },
+    {
+      "citymunDesc": "SAN JACINTO"
+    },
+    {
+      "citymunDesc": "SAN PASCUAL"
+    },
+    {
+      "citymunDesc": "USON"
+    },
+    {
+      "citymunDesc": "BARCELONA"
+    },
+    {
+      "citymunDesc": "BULAN"
+    },
+    {
+      "citymunDesc": "BULUSAN"
+    },
+    {
+      "citymunDesc": "CASIGURAN"
+    },
+    {
+      "citymunDesc": "CASTILLA"
+    },
+    {
+      "citymunDesc": "DONSOL"
+    },
+    {
+      "citymunDesc": "GUBAT"
+    },
+    {
+      "citymunDesc": "IROSIN"
+    },
+    {
+      "citymunDesc": "JUBAN"
+    },
+    {
+      "citymunDesc": "MAGALLANES"
+    },
+    {
+      "citymunDesc": "MATNOG"
+    },
+    {
+      "citymunDesc": "PILAR"
+    },
+    {
+      "citymunDesc": "PRIETO DIAZ"
+    },
+    {
+      "citymunDesc": "SANTA MAGDALENA"
+    },
+    {
+      "citymunDesc": "CITY OF SORSOGON (Capital)"
+    },
+    {
+      "citymunDesc": "ALTAVAS"
+    },
+    {
+      "citymunDesc": "BALETE"
+    },
+    {
+      "citymunDesc": "BANGA"
+    },
+    {
+      "citymunDesc": "BATAN"
+    },
+    {
+      "citymunDesc": "BURUANGA"
+    },
+    {
+      "citymunDesc": "IBAJAY"
+    },
+    {
+      "citymunDesc": "KALIBO (Capital)"
+    },
+    {
+      "citymunDesc": "LEZO"
+    },
+    {
+      "citymunDesc": "LIBACAO"
+    },
+    {
+      "citymunDesc": "MADALAG"
+    },
+    {
+      "citymunDesc": "MAKATO"
+    },
+    {
+      "citymunDesc": "MALAY"
+    },
+    {
+      "citymunDesc": "MALINAO"
+    },
+    {
+      "citymunDesc": "NABAS"
+    },
+    {
+      "citymunDesc": "NEW WASHINGTON"
+    },
+    {
+      "citymunDesc": "NUMANCIA"
+    },
+    {
+      "citymunDesc": "TANGALAN"
+    },
+    {
+      "citymunDesc": "ANINI-Y"
+    },
+    {
+      "citymunDesc": "BARBAZA"
+    },
+    {
+      "citymunDesc": "BELISON"
+    },
+    {
+      "citymunDesc": "BUGASONG"
+    },
+    {
+      "citymunDesc": "CALUYA"
+    },
+    {
+      "citymunDesc": "CULASI"
+    },
+    {
+      "citymunDesc": "TOBIAS FORNIER (DAO)"
+    },
+    {
+      "citymunDesc": "HAMTIC"
+    },
+    {
+      "citymunDesc": "LAUA-AN"
+    },
+    {
+      "citymunDesc": "LIBERTAD"
+    },
+    {
+      "citymunDesc": "PANDAN"
+    },
+    {
+      "citymunDesc": "PATNONGON"
+    },
+    {
+      "citymunDesc": "SAN JOSE (Capital)"
+    },
+    {
+      "citymunDesc": "SAN REMIGIO"
+    },
+    {
+      "citymunDesc": "SEBASTE"
+    },
+    {
+      "citymunDesc": "SIBALOM"
+    },
+    {
+      "citymunDesc": "TIBIAO"
+    },
+    {
+      "citymunDesc": "VALDERRAMA"
+    },
+    {
+      "citymunDesc": "CUARTERO"
+    },
+    {
+      "citymunDesc": "DAO"
+    },
+    {
+      "citymunDesc": "DUMALAG"
+    },
+    {
+      "citymunDesc": "DUMARAO"
+    },
+    {
+      "citymunDesc": "IVISAN"
+    },
+    {
+      "citymunDesc": "JAMINDAN"
+    },
+    {
+      "citymunDesc": "MA-AYON"
+    },
+    {
+      "citymunDesc": "MAMBUSAO"
+    },
+    {
+      "citymunDesc": "PANAY"
+    },
+    {
+      "citymunDesc": "PANITAN"
+    },
+    {
+      "citymunDesc": "PILAR"
+    },
+    {
+      "citymunDesc": "PONTEVEDRA"
+    },
+    {
+      "citymunDesc": "PRESIDENT ROXAS"
+    },
+    {
+      "citymunDesc": "ROXAS CITY (Capital)"
+    },
+    {
+      "citymunDesc": "SAPI-AN"
+    },
+    {
+      "citymunDesc": "SIGMA"
+    },
+    {
+      "citymunDesc": "TAPAZ"
+    },
+    {
+      "citymunDesc": "AJUY"
+    },
+    {
+      "citymunDesc": "ALIMODIAN"
+    },
+    {
+      "citymunDesc": "ANILAO"
+    },
+    {
+      "citymunDesc": "BADIANGAN"
+    },
+    {
+      "citymunDesc": "BALASAN"
+    },
+    {
+      "citymunDesc": "BANATE"
+    },
+    {
+      "citymunDesc": "BAROTAC NUEVO"
+    },
+    {
+      "citymunDesc": "BAROTAC VIEJO"
+    },
+    {
+      "citymunDesc": "BATAD"
+    },
+    {
+      "citymunDesc": "BINGAWAN"
+    },
+    {
+      "citymunDesc": "CABATUAN"
+    },
+    {
+      "citymunDesc": "CALINOG"
+    },
+    {
+      "citymunDesc": "CARLES"
+    },
+    {
+      "citymunDesc": "CONCEPCION"
+    },
+    {
+      "citymunDesc": "DINGLE"
+    },
+    {
+      "citymunDesc": "DUEÑAS"
+    },
+    {
+      "citymunDesc": "DUMANGAS"
+    },
+    {
+      "citymunDesc": "ESTANCIA"
+    },
+    {
+      "citymunDesc": "GUIMBAL"
+    },
+    {
+      "citymunDesc": "IGBARAS"
+    },
+    {
+      "citymunDesc": "ILOILO CITY (Capital)"
+    },
+    {
+      "citymunDesc": "JANIUAY"
+    },
+    {
+      "citymunDesc": "LAMBUNAO"
+    },
+    {
+      "citymunDesc": "LEGANES"
+    },
+    {
+      "citymunDesc": "LEMERY"
+    },
+    {
+      "citymunDesc": "LEON"
+    },
+    {
+      "citymunDesc": "MAASIN"
+    },
+    {
+      "citymunDesc": "MIAGAO"
+    },
+    {
+      "citymunDesc": "MINA"
+    },
+    {
+      "citymunDesc": "NEW LUCENA"
+    },
+    {
+      "citymunDesc": "OTON"
+    },
+    {
+      "citymunDesc": "CITY OF PASSI"
+    },
+    {
+      "citymunDesc": "PAVIA"
+    },
+    {
+      "citymunDesc": "POTOTAN"
+    },
+    {
+      "citymunDesc": "SAN DIONISIO"
+    },
+    {
+      "citymunDesc": "SAN ENRIQUE"
+    },
+    {
+      "citymunDesc": "SAN JOAQUIN"
+    },
+    {
+      "citymunDesc": "SAN MIGUEL"
+    },
+    {
+      "citymunDesc": "SAN RAFAEL"
+    },
+    {
+      "citymunDesc": "SANTA BARBARA"
+    },
+    {
+      "citymunDesc": "SARA"
+    },
+    {
+      "citymunDesc": "TIGBAUAN"
+    },
+    {
+      "citymunDesc": "TUBUNGAN"
+    },
+    {
+      "citymunDesc": "ZARRAGA"
+    },
+    {
+      "citymunDesc": "BACOLOD CITY (Capital)"
+    },
+    {
+      "citymunDesc": "BAGO CITY"
+    },
+    {
+      "citymunDesc": "BINALBAGAN"
+    },
+    {
+      "citymunDesc": "CADIZ CITY"
+    },
+    {
+      "citymunDesc": "CALATRAVA"
+    },
+    {
+      "citymunDesc": "CANDONI"
+    },
+    {
+      "citymunDesc": "CAUAYAN"
+    },
+    {
+      "citymunDesc": "ENRIQUE B. MAGALONA (SARAVIA)"
+    },
+    {
+      "citymunDesc": "CITY OF ESCALANTE"
+    },
+    {
+      "citymunDesc": "CITY OF HIMAMAYLAN"
+    },
+    {
+      "citymunDesc": "HINIGARAN"
+    },
+    {
+      "citymunDesc": "HINOBA-AN (ASIA)"
+    },
+    {
+      "citymunDesc": "ILOG"
+    },
+    {
+      "citymunDesc": "ISABELA"
+    },
+    {
+      "citymunDesc": "CITY OF KABANKALAN"
+    },
+    {
+      "citymunDesc": "LA CARLOTA CITY"
+    },
+    {
+      "citymunDesc": "LA CASTELLANA"
+    },
+    {
+      "citymunDesc": "MANAPLA"
+    },
+    {
+      "citymunDesc": "MOISES PADILLA (MAGALLON)"
+    },
+    {
+      "citymunDesc": "MURCIA"
+    },
+    {
+      "citymunDesc": "PONTEVEDRA"
+    },
+    {
+      "citymunDesc": "PULUPANDAN"
+    },
+    {
+      "citymunDesc": "SAGAY CITY"
+    },
+    {
+      "citymunDesc": "SAN CARLOS CITY"
+    },
+    {
+      "citymunDesc": "SAN ENRIQUE"
+    },
+    {
+      "citymunDesc": "SILAY CITY"
+    },
+    {
+      "citymunDesc": "CITY OF SIPALAY"
+    },
+    {
+      "citymunDesc": "CITY OF TALISAY"
+    },
+    {
+      "citymunDesc": "TOBOSO"
+    },
+    {
+      "citymunDesc": "VALLADOLID"
+    },
+    {
+      "citymunDesc": "CITY OF VICTORIAS"
+    },
+    {
+      "citymunDesc": "SALVADOR BENEDICTO"
+    },
+    {
+      "citymunDesc": "BUENAVISTA"
+    },
+    {
+      "citymunDesc": "JORDAN (Capital)"
+    },
+    {
+      "citymunDesc": "NUEVA VALENCIA"
+    },
+    {
+      "citymunDesc": "SAN LORENZO"
+    },
+    {
+      "citymunDesc": "SIBUNAG"
+    },
+    {
+      "citymunDesc": "ALBURQUERQUE"
+    },
+    {
+      "citymunDesc": "ALICIA"
+    },
+    {
+      "citymunDesc": "ANDA"
+    },
+    {
+      "citymunDesc": "ANTEQUERA"
+    },
+    {
+      "citymunDesc": "BACLAYON"
+    },
+    {
+      "citymunDesc": "BALILIHAN"
+    },
+    {
+      "citymunDesc": "BATUAN"
+    },
+    {
+      "citymunDesc": "BILAR"
+    },
+    {
+      "citymunDesc": "BUENAVISTA"
+    },
+    {
+      "citymunDesc": "CALAPE"
+    },
+    {
+      "citymunDesc": "CANDIJAY"
+    },
+    {
+      "citymunDesc": "CARMEN"
+    },
+    {
+      "citymunDesc": "CATIGBIAN"
+    },
+    {
+      "citymunDesc": "CLARIN"
+    },
+    {
+      "citymunDesc": "CORELLA"
+    },
+    {
+      "citymunDesc": "CORTES"
+    },
+    {
+      "citymunDesc": "DAGOHOY"
+    },
+    {
+      "citymunDesc": "DANAO"
+    },
+    {
+      "citymunDesc": "DAUIS"
+    },
+    {
+      "citymunDesc": "DIMIAO"
+    },
+    {
+      "citymunDesc": "DUERO"
+    },
+    {
+      "citymunDesc": "GARCIA HERNANDEZ"
+    },
+    {
+      "citymunDesc": "GUINDULMAN"
+    },
+    {
+      "citymunDesc": "INABANGA"
+    },
+    {
+      "citymunDesc": "JAGNA"
+    },
+    {
+      "citymunDesc": "JETAFE"
+    },
+    {
+      "citymunDesc": "LILA"
+    },
+    {
+      "citymunDesc": "LOAY"
+    },
+    {
+      "citymunDesc": "LOBOC"
+    },
+    {
+      "citymunDesc": "LOON"
+    },
+    {
+      "citymunDesc": "MABINI"
+    },
+    {
+      "citymunDesc": "MARIBOJOC"
+    },
+    {
+      "citymunDesc": "PANGLAO"
+    },
+    {
+      "citymunDesc": "PILAR"
+    },
+    {
+      "citymunDesc": "PRES. CARLOS P. GARCIA (PITOGO)"
+    },
+    {
+      "citymunDesc": "SAGBAYAN (BORJA)"
+    },
+    {
+      "citymunDesc": "SAN ISIDRO"
+    },
+    {
+      "citymunDesc": "SAN MIGUEL"
+    },
+    {
+      "citymunDesc": "SEVILLA"
+    },
+    {
+      "citymunDesc": "SIERRA BULLONES"
+    },
+    {
+      "citymunDesc": "SIKATUNA"
+    },
+    {
+      "citymunDesc": "TAGBILARAN CITY (Capital)"
+    },
+    {
+      "citymunDesc": "TALIBON"
+    },
+    {
+      "citymunDesc": "TRINIDAD"
+    },
+    {
+      "citymunDesc": "TUBIGON"
+    },
+    {
+      "citymunDesc": "UBAY"
+    },
+    {
+      "citymunDesc": "VALENCIA"
+    },
+    {
+      "citymunDesc": "BIEN UNIDO"
+    },
+    {
+      "citymunDesc": "ALCANTARA"
+    },
+    {
+      "citymunDesc": "ALCOY"
+    },
+    {
+      "citymunDesc": "ALEGRIA"
+    },
+    {
+      "citymunDesc": "ALOGUINSAN"
+    },
+    {
+      "citymunDesc": "ARGAO"
+    },
+    {
+      "citymunDesc": "ASTURIAS"
+    },
+    {
+      "citymunDesc": "BADIAN"
+    },
+    {
+      "citymunDesc": "BALAMBAN"
+    },
+    {
+      "citymunDesc": "BANTAYAN"
+    },
+    {
+      "citymunDesc": "BARILI"
+    },
+    {
+      "citymunDesc": "CITY OF BOGO"
+    },
+    {
+      "citymunDesc": "BOLJOON"
+    },
+    {
+      "citymunDesc": "BORBON"
+    },
+    {
+      "citymunDesc": "CITY OF CARCAR"
+    },
+    {
+      "citymunDesc": "CARMEN"
+    },
+    {
+      "citymunDesc": "CATMON"
+    },
+    {
+      "citymunDesc": "CEBU CITY (Capital)"
+    },
+    {
+      "citymunDesc": "COMPOSTELA"
+    },
+    {
+      "citymunDesc": "CONSOLACION"
+    },
+    {
+      "citymunDesc": "CORDOVA"
+    },
+    {
+      "citymunDesc": "DAANBANTAYAN"
+    },
+    {
+      "citymunDesc": "DALAGUETE"
+    },
+    {
+      "citymunDesc": "DANAO CITY"
+    },
+    {
+      "citymunDesc": "DUMANJUG"
+    },
+    {
+      "citymunDesc": "GINATILAN"
+    },
+    {
+      "citymunDesc": "LAPU-LAPU CITY (OPON)"
+    },
+    {
+      "citymunDesc": "LILOAN"
+    },
+    {
+      "citymunDesc": "MADRIDEJOS"
+    },
+    {
+      "citymunDesc": "MALABUYOC"
+    },
+    {
+      "citymunDesc": "MANDAUE CITY"
+    },
+    {
+      "citymunDesc": "MEDELLIN"
+    },
+    {
+      "citymunDesc": "MINGLANILLA"
+    },
+    {
+      "citymunDesc": "MOALBOAL"
+    },
+    {
+      "citymunDesc": "CITY OF NAGA"
+    },
+    {
+      "citymunDesc": "OSLOB"
+    },
+    {
+      "citymunDesc": "PILAR"
+    },
+    {
+      "citymunDesc": "PINAMUNGAHAN"
+    },
+    {
+      "citymunDesc": "PORO"
+    },
+    {
+      "citymunDesc": "RONDA"
+    },
+    {
+      "citymunDesc": "SAMBOAN"
+    },
+    {
+      "citymunDesc": "SAN FERNANDO"
+    },
+    {
+      "citymunDesc": "SAN FRANCISCO"
+    },
+    {
+      "citymunDesc": "SAN REMIGIO"
+    },
+    {
+      "citymunDesc": "SANTA FE"
+    },
+    {
+      "citymunDesc": "SANTANDER"
+    },
+    {
+      "citymunDesc": "SIBONGA"
+    },
+    {
+      "citymunDesc": "SOGOD"
+    },
+    {
+      "citymunDesc": "TABOGON"
+    },
+    {
+      "citymunDesc": "TABUELAN"
+    },
+    {
+      "citymunDesc": "CITY OF TALISAY"
+    },
+    {
+      "citymunDesc": "TOLEDO CITY"
+    },
+    {
+      "citymunDesc": "TUBURAN"
+    },
+    {
+      "citymunDesc": "TUDELA"
+    },
+    {
+      "citymunDesc": "AMLAN (AYUQUITAN)"
+    },
+    {
+      "citymunDesc": "AYUNGON"
+    },
+    {
+      "citymunDesc": "BACONG"
+    },
+    {
+      "citymunDesc": "BAIS CITY"
+    },
+    {
+      "citymunDesc": "BASAY"
+    },
+    {
+      "citymunDesc": "CITY OF BAYAWAN (TULONG)"
+    },
+    {
+      "citymunDesc": "BINDOY (PAYABON)"
+    },
+    {
+      "citymunDesc": "CANLAON CITY"
+    },
+    {
+      "citymunDesc": "DAUIN"
+    },
+    {
+      "citymunDesc": "DUMAGUETE CITY (Capital)"
+    },
+    {
+      "citymunDesc": "CITY OF GUIHULNGAN"
+    },
+    {
+      "citymunDesc": "JIMALALUD"
+    },
+    {
+      "citymunDesc": "LA LIBERTAD"
+    },
+    {
+      "citymunDesc": "MABINAY"
+    },
+    {
+      "citymunDesc": "MANJUYOD"
+    },
+    {
+      "citymunDesc": "PAMPLONA"
+    },
+    {
+      "citymunDesc": "SAN JOSE"
+    },
+    {
+      "citymunDesc": "SANTA CATALINA"
+    },
+    {
+      "citymunDesc": "SIATON"
+    },
+    {
+      "citymunDesc": "SIBULAN"
+    },
+    {
+      "citymunDesc": "CITY OF TANJAY"
+    },
+    {
+      "citymunDesc": "TAYASAN"
+    },
+    {
+      "citymunDesc": "VALENCIA (LUZURRIAGA)"
+    },
+    {
+      "citymunDesc": "VALLEHERMOSO"
+    },
+    {
+      "citymunDesc": "ZAMBOANGUITA"
+    },
+    {
+      "citymunDesc": "ENRIQUE VILLANUEVA"
+    },
+    {
+      "citymunDesc": "LARENA"
+    },
+    {
+      "citymunDesc": "LAZI"
+    },
+    {
+      "citymunDesc": "MARIA"
+    },
+    {
+      "citymunDesc": "SAN JUAN"
+    },
+    {
+      "citymunDesc": "SIQUIJOR (Capital)"
+    },
+    {
+      "citymunDesc": "ARTECHE"
+    },
+    {
+      "citymunDesc": "BALANGIGA"
+    },
+    {
+      "citymunDesc": "BALANGKAYAN"
+    },
+    {
+      "citymunDesc": "CITY OF BORONGAN (Capital)"
+    },
+    {
+      "citymunDesc": "CAN-AVID"
+    },
+    {
+      "citymunDesc": "DOLORES"
+    },
+    {
+      "citymunDesc": "GENERAL MACARTHUR"
+    },
+    {
+      "citymunDesc": "GIPORLOS"
+    },
+    {
+      "citymunDesc": "GUIUAN"
+    },
+    {
+      "citymunDesc": "HERNANI"
+    },
+    {
+      "citymunDesc": "JIPAPAD"
+    },
+    {
+      "citymunDesc": "LAWAAN"
+    },
+    {
+      "citymunDesc": "LLORENTE"
+    },
+    {
+      "citymunDesc": "MASLOG"
+    },
+    {
+      "citymunDesc": "MAYDOLONG"
+    },
+    {
+      "citymunDesc": "MERCEDES"
+    },
+    {
+      "citymunDesc": "ORAS"
+    },
+    {
+      "citymunDesc": "QUINAPONDAN"
+    },
+    {
+      "citymunDesc": "SALCEDO"
+    },
+    {
+      "citymunDesc": "SAN JULIAN"
+    },
+    {
+      "citymunDesc": "SAN POLICARPO"
+    },
+    {
+      "citymunDesc": "SULAT"
+    },
+    {
+      "citymunDesc": "TAFT"
+    },
+    {
+      "citymunDesc": "ABUYOG"
+    },
+    {
+      "citymunDesc": "ALANGALANG"
+    },
+    {
+      "citymunDesc": "ALBUERA"
+    },
+    {
+      "citymunDesc": "BABATNGON"
+    },
+    {
+      "citymunDesc": "BARUGO"
+    },
+    {
+      "citymunDesc": "BATO"
+    },
+    {
+      "citymunDesc": "CITY OF BAYBAY"
+    },
+    {
+      "citymunDesc": "BURAUEN"
+    },
+    {
+      "citymunDesc": "CALUBIAN"
+    },
+    {
+      "citymunDesc": "CAPOOCAN"
+    },
+    {
+      "citymunDesc": "CARIGARA"
+    },
+    {
+      "citymunDesc": "DAGAMI"
+    },
+    {
+      "citymunDesc": "DULAG"
+    },
+    {
+      "citymunDesc": "HILONGOS"
+    },
+    {
+      "citymunDesc": "HINDANG"
+    },
+    {
+      "citymunDesc": "INOPACAN"
+    },
+    {
+      "citymunDesc": "ISABEL"
+    },
+    {
+      "citymunDesc": "JARO"
+    },
+    {
+      "citymunDesc": "JAVIER (BUGHO)"
+    },
+    {
+      "citymunDesc": "JULITA"
+    },
+    {
+      "citymunDesc": "KANANGA"
+    },
+    {
+      "citymunDesc": "LA PAZ"
+    },
+    {
+      "citymunDesc": "LEYTE"
+    },
+    {
+      "citymunDesc": "MACARTHUR"
+    },
+    {
+      "citymunDesc": "MAHAPLAG"
+    },
+    {
+      "citymunDesc": "MATAG-OB"
+    },
+    {
+      "citymunDesc": "MATALOM"
+    },
+    {
+      "citymunDesc": "MAYORGA"
+    },
+    {
+      "citymunDesc": "MERIDA"
+    },
+    {
+      "citymunDesc": "ORMOC CITY"
+    },
+    {
+      "citymunDesc": "PALO"
+    },
+    {
+      "citymunDesc": "PALOMPON"
+    },
+    {
+      "citymunDesc": "PASTRANA"
+    },
+    {
+      "citymunDesc": "SAN ISIDRO"
+    },
+    {
+      "citymunDesc": "SAN MIGUEL"
+    },
+    {
+      "citymunDesc": "SANTA FE"
+    },
+    {
+      "citymunDesc": "TABANGO"
+    },
+    {
+      "citymunDesc": "TABONTABON"
+    },
+    {
+      "citymunDesc": "TACLOBAN CITY (Capital)"
+    },
+    {
+      "citymunDesc": "TANAUAN"
+    },
+    {
+      "citymunDesc": "TOLOSA"
+    },
+    {
+      "citymunDesc": "TUNGA"
+    },
+    {
+      "citymunDesc": "VILLABA"
+    },
+    {
+      "citymunDesc": "ALLEN"
+    },
+    {
+      "citymunDesc": "BIRI"
+    },
+    {
+      "citymunDesc": "BOBON"
+    },
+    {
+      "citymunDesc": "CAPUL"
+    },
+    {
+      "citymunDesc": "CATARMAN (Capital)"
+    },
+    {
+      "citymunDesc": "CATUBIG"
+    },
+    {
+      "citymunDesc": "GAMAY"
+    },
+    {
+      "citymunDesc": "LAOANG"
+    },
+    {
+      "citymunDesc": "LAPINIG"
+    },
+    {
+      "citymunDesc": "LAS NAVAS"
+    },
+    {
+      "citymunDesc": "LAVEZARES"
+    },
+    {
+      "citymunDesc": "MAPANAS"
+    },
+    {
+      "citymunDesc": "MONDRAGON"
+    },
+    {
+      "citymunDesc": "PALAPAG"
+    },
+    {
+      "citymunDesc": "PAMBUJAN"
+    },
+    {
+      "citymunDesc": "ROSARIO"
+    },
+    {
+      "citymunDesc": "SAN ANTONIO"
+    },
+    {
+      "citymunDesc": "SAN ISIDRO"
+    },
+    {
+      "citymunDesc": "SAN JOSE"
+    },
+    {
+      "citymunDesc": "SAN ROQUE"
+    },
+    {
+      "citymunDesc": "SAN VICENTE"
+    },
+    {
+      "citymunDesc": "SILVINO LOBOS"
+    },
+    {
+      "citymunDesc": "VICTORIA"
+    },
+    {
+      "citymunDesc": "LOPE DE VEGA"
+    },
+    {
+      "citymunDesc": "ALMAGRO"
+    },
+    {
+      "citymunDesc": "BASEY"
+    },
+    {
+      "citymunDesc": "CALBAYOG CITY"
+    },
+    {
+      "citymunDesc": "CALBIGA"
+    },
+    {
+      "citymunDesc": "CITY OF CATBALOGAN (Capital)"
+    },
+    {
+      "citymunDesc": "DARAM"
+    },
+    {
+      "citymunDesc": "GANDARA"
+    },
+    {
+      "citymunDesc": "HINABANGAN"
+    },
+    {
+      "citymunDesc": "JIABONG"
+    },
+    {
+      "citymunDesc": "MARABUT"
+    },
+    {
+      "citymunDesc": "MATUGUINAO"
+    },
+    {
+      "citymunDesc": "MOTIONG"
+    },
+    {
+      "citymunDesc": "PINABACDAO"
+    },
+    {
+      "citymunDesc": "SAN JOSE DE BUAN"
+    },
+    {
+      "citymunDesc": "SAN SEBASTIAN"
+    },
+    {
+      "citymunDesc": "SANTA MARGARITA"
+    },
+    {
+      "citymunDesc": "SANTA RITA"
+    },
+    {
+      "citymunDesc": "SANTO NIÑO"
+    },
+    {
+      "citymunDesc": "TALALORA"
+    },
+    {
+      "citymunDesc": "TARANGNAN"
+    },
+    {
+      "citymunDesc": "VILLAREAL"
+    },
+    {
+      "citymunDesc": "PARANAS (WRIGHT)"
+    },
+    {
+      "citymunDesc": "ZUMARRAGA"
+    },
+    {
+      "citymunDesc": "TAGAPUL-AN"
+    },
+    {
+      "citymunDesc": "SAN JORGE"
+    },
+    {
+      "citymunDesc": "PAGSANGHAN"
+    },
+    {
+      "citymunDesc": "ANAHAWAN"
+    },
+    {
+      "citymunDesc": "BONTOC"
+    },
+    {
+      "citymunDesc": "HINUNANGAN"
+    },
+    {
+      "citymunDesc": "HINUNDAYAN"
+    },
+    {
+      "citymunDesc": "LIBAGON"
+    },
+    {
+      "citymunDesc": "LILOAN"
+    },
+    {
+      "citymunDesc": "CITY OF MAASIN (Capital)"
+    },
+    {
+      "citymunDesc": "MACROHON"
+    },
+    {
+      "citymunDesc": "MALITBOG"
+    },
+    {
+      "citymunDesc": "PADRE BURGOS"
+    },
+    {
+      "citymunDesc": "PINTUYAN"
+    },
+    {
+      "citymunDesc": "SAINT BERNARD"
+    },
+    {
+      "citymunDesc": "SAN FRANCISCO"
+    },
+    {
+      "citymunDesc": "SAN JUAN (CABALIAN)"
+    },
+    {
+      "citymunDesc": "SAN RICARDO"
+    },
+    {
+      "citymunDesc": "SILAGO"
+    },
+    {
+      "citymunDesc": "SOGOD"
+    },
+    {
+      "citymunDesc": "TOMAS OPPUS"
+    },
+    {
+      "citymunDesc": "LIMASAWA"
+    },
+    {
+      "citymunDesc": "ALMERIA"
+    },
+    {
+      "citymunDesc": "BILIRAN"
+    },
+    {
+      "citymunDesc": "CABUCGAYAN"
+    },
+    {
+      "citymunDesc": "CAIBIRAN"
+    },
+    {
+      "citymunDesc": "CULABA"
+    },
+    {
+      "citymunDesc": "KAWAYAN"
+    },
+    {
+      "citymunDesc": "MARIPIPI"
+    },
+    {
+      "citymunDesc": "NAVAL (Capital)"
+    },
+    {
+      "citymunDesc": "DAPITAN CITY"
+    },
+    {
+      "citymunDesc": "DIPOLOG CITY (Capital)"
+    },
+    {
+      "citymunDesc": "KATIPUNAN"
+    },
+    {
+      "citymunDesc": "LA LIBERTAD"
+    },
+    {
+      "citymunDesc": "LABASON"
+    },
+    {
+      "citymunDesc": "LILOY"
+    },
+    {
+      "citymunDesc": "MANUKAN"
+    },
+    {
+      "citymunDesc": "MUTIA"
+    },
+    {
+      "citymunDesc": "PIÑAN (NEW PIÑAN)"
+    },
+    {
+      "citymunDesc": "POLANCO"
+    },
+    {
+      "citymunDesc": "PRES. MANUEL A. ROXAS"
+    },
+    {
+      "citymunDesc": "RIZAL"
+    },
+    {
+      "citymunDesc": "SALUG"
+    },
+    {
+      "citymunDesc": "SERGIO OSMEÑA SR."
+    },
+    {
+      "citymunDesc": "SIAYAN"
+    },
+    {
+      "citymunDesc": "SIBUCO"
+    },
+    {
+      "citymunDesc": "SIBUTAD"
+    },
+    {
+      "citymunDesc": "SINDANGAN"
+    },
+    {
+      "citymunDesc": "SIOCON"
+    },
+    {
+      "citymunDesc": "SIRAWAI"
+    },
+    {
+      "citymunDesc": "TAMPILISAN"
+    },
+    {
+      "citymunDesc": "JOSE DALMAN (PONOT)"
+    },
+    {
+      "citymunDesc": "GUTALAC"
+    },
+    {
+      "citymunDesc": "BALIGUIAN"
+    },
+    {
+      "citymunDesc": "GODOD"
+    },
+    {
+      "citymunDesc": "BACUNGAN (Leon T. Postigo)"
+    },
+    {
+      "citymunDesc": "KALAWIT"
+    },
+    {
+      "citymunDesc": "AURORA"
+    },
+    {
+      "citymunDesc": "BAYOG"
+    },
+    {
+      "citymunDesc": "DIMATALING"
+    },
+    {
+      "citymunDesc": "DINAS"
+    },
+    {
+      "citymunDesc": "DUMALINAO"
+    },
+    {
+      "citymunDesc": "DUMINGAG"
+    },
+    {
+      "citymunDesc": "KUMALARANG"
+    },
+    {
+      "citymunDesc": "LABANGAN"
+    },
+    {
+      "citymunDesc": "LAPUYAN"
+    },
+    {
+      "citymunDesc": "MAHAYAG"
+    },
+    {
+      "citymunDesc": "MARGOSATUBIG"
+    },
+    {
+      "citymunDesc": "MIDSALIP"
+    },
+    {
+      "citymunDesc": "MOLAVE"
+    },
+    {
+      "citymunDesc": "PAGADIAN CITY (Capital)"
+    },
+    {
+      "citymunDesc": "RAMON MAGSAYSAY (LIARGO)"
+    },
+    {
+      "citymunDesc": "SAN MIGUEL"
+    },
+    {
+      "citymunDesc": "SAN PABLO"
+    },
+    {
+      "citymunDesc": "TABINA"
+    },
+    {
+      "citymunDesc": "TAMBULIG"
+    },
+    {
+      "citymunDesc": "TUKURAN"
+    },
+    {
+      "citymunDesc": "ZAMBOANGA CITY"
+    },
+    {
+      "citymunDesc": "LAKEWOOD"
+    },
+    {
+      "citymunDesc": "JOSEFINA"
+    },
+    {
+      "citymunDesc": "PITOGO"
+    },
+    {
+      "citymunDesc": "SOMINOT (DON MARIANO MARCOS)"
+    },
+    {
+      "citymunDesc": "VINCENZO A. SAGUN"
+    },
+    {
+      "citymunDesc": "GUIPOS"
+    },
+    {
+      "citymunDesc": "TIGBAO"
+    },
+    {
+      "citymunDesc": "ALICIA"
+    },
+    {
+      "citymunDesc": "BUUG"
+    },
+    {
+      "citymunDesc": "DIPLAHAN"
+    },
+    {
+      "citymunDesc": "IMELDA"
+    },
+    {
+      "citymunDesc": "IPIL (Capital)"
+    },
+    {
+      "citymunDesc": "KABASALAN"
+    },
+    {
+      "citymunDesc": "MABUHAY"
+    },
+    {
+      "citymunDesc": "MALANGAS"
+    },
+    {
+      "citymunDesc": "NAGA"
+    },
+    {
+      "citymunDesc": "OLUTANGA"
+    },
+    {
+      "citymunDesc": "PAYAO"
+    },
+    {
+      "citymunDesc": "ROSELLER LIM"
+    },
+    {
+      "citymunDesc": "SIAY"
+    },
+    {
+      "citymunDesc": "TALUSAN"
+    },
+    {
+      "citymunDesc": "TITAY"
+    },
+    {
+      "citymunDesc": "TUNGAWAN"
+    },
+    {
+      "citymunDesc": "CITY OF ISABELA"
+    },
+    {
+      "citymunDesc": "BAUNGON"
+    },
+    {
+      "citymunDesc": "DAMULOG"
+    },
+    {
+      "citymunDesc": "DANGCAGAN"
+    },
+    {
+      "citymunDesc": "DON CARLOS"
+    },
+    {
+      "citymunDesc": "IMPASUG-ONG"
+    },
+    {
+      "citymunDesc": "KADINGILAN"
+    },
+    {
+      "citymunDesc": "KALILANGAN"
+    },
+    {
+      "citymunDesc": "KIBAWE"
+    },
+    {
+      "citymunDesc": "KITAOTAO"
+    },
+    {
+      "citymunDesc": "LANTAPAN"
+    },
+    {
+      "citymunDesc": "LIBONA"
+    },
+    {
+      "citymunDesc": "CITY OF MALAYBALAY (Capital)"
+    },
+    {
+      "citymunDesc": "MALITBOG"
+    },
+    {
+      "citymunDesc": "MANOLO FORTICH"
+    },
+    {
+      "citymunDesc": "MARAMAG"
+    },
+    {
+      "citymunDesc": "PANGANTUCAN"
+    },
+    {
+      "citymunDesc": "QUEZON"
+    },
+    {
+      "citymunDesc": "SAN FERNANDO"
+    },
+    {
+      "citymunDesc": "SUMILAO"
+    },
+    {
+      "citymunDesc": "TALAKAG"
+    },
+    {
+      "citymunDesc": "CITY OF VALENCIA"
+    },
+    {
+      "citymunDesc": "CABANGLASAN"
+    },
+    {
+      "citymunDesc": "CATARMAN"
+    },
+    {
+      "citymunDesc": "GUINSILIBAN"
+    },
+    {
+      "citymunDesc": "MAHINOG"
+    },
+    {
+      "citymunDesc": "MAMBAJAO (Capital)"
+    },
+    {
+      "citymunDesc": "SAGAY"
+    },
+    {
+      "citymunDesc": "BACOLOD"
+    },
+    {
+      "citymunDesc": "BALOI"
+    },
+    {
+      "citymunDesc": "BAROY"
+    },
+    {
+      "citymunDesc": "ILIGAN CITY"
+    },
+    {
+      "citymunDesc": "KAPATAGAN"
+    },
+    {
+      "citymunDesc": "SULTAN NAGA DIMAPORO (KAROMATAN)"
+    },
+    {
+      "citymunDesc": "KAUSWAGAN"
+    },
+    {
+      "citymunDesc": "KOLAMBUGAN"
+    },
+    {
+      "citymunDesc": "LALA"
+    },
+    {
+      "citymunDesc": "LINAMON"
+    },
+    {
+      "citymunDesc": "MAGSAYSAY"
+    },
+    {
+      "citymunDesc": "MAIGO"
+    },
+    {
+      "citymunDesc": "MATUNGAO"
+    },
+    {
+      "citymunDesc": "MUNAI"
+    },
+    {
+      "citymunDesc": "NUNUNGAN"
+    },
+    {
+      "citymunDesc": "PANTAO RAGAT"
+    },
+    {
+      "citymunDesc": "POONA PIAGAPO"
+    },
+    {
+      "citymunDesc": "SALVADOR"
+    },
+    {
+      "citymunDesc": "SAPAD"
+    },
+    {
+      "citymunDesc": "TAGOLOAN"
+    },
+    {
+      "citymunDesc": "TANGCAL"
+    },
+    {
+      "citymunDesc": "TUBOD (Capital)"
+    },
+    {
+      "citymunDesc": "PANTAR"
+    },
+    {
+      "citymunDesc": "ALORAN"
+    },
+    {
+      "citymunDesc": "BALIANGAO"
+    },
+    {
+      "citymunDesc": "BONIFACIO"
+    },
+    {
+      "citymunDesc": "CALAMBA"
+    },
+    {
+      "citymunDesc": "CLARIN"
+    },
+    {
+      "citymunDesc": "CONCEPCION"
+    },
+    {
+      "citymunDesc": "JIMENEZ"
+    },
+    {
+      "citymunDesc": "LOPEZ JAENA"
+    },
+    {
+      "citymunDesc": "OROQUIETA CITY (Capital)"
+    },
+    {
+      "citymunDesc": "OZAMIS CITY"
+    },
+    {
+      "citymunDesc": "PANAON"
+    },
+    {
+      "citymunDesc": "PLARIDEL"
+    },
+    {
+      "citymunDesc": "SAPANG DALAGA"
+    },
+    {
+      "citymunDesc": "SINACABAN"
+    },
+    {
+      "citymunDesc": "TANGUB CITY"
+    },
+    {
+      "citymunDesc": "TUDELA"
+    },
+    {
+      "citymunDesc": "DON VICTORIANO CHIONGBIAN  (DON MARIANO MARCOS)"
+    },
+    {
+      "citymunDesc": "ALUBIJID"
+    },
+    {
+      "citymunDesc": "BALINGASAG"
+    },
+    {
+      "citymunDesc": "BALINGOAN"
+    },
+    {
+      "citymunDesc": "BINUANGAN"
+    },
+    {
+      "citymunDesc": "CAGAYAN DE ORO CITY (Capital)"
+    },
+    {
+      "citymunDesc": "CLAVERIA"
+    },
+    {
+      "citymunDesc": "CITY OF EL SALVADOR"
+    },
+    {
+      "citymunDesc": "GINGOOG CITY"
+    },
+    {
+      "citymunDesc": "GITAGUM"
+    },
+    {
+      "citymunDesc": "INITAO"
+    },
+    {
+      "citymunDesc": "JASAAN"
+    },
+    {
+      "citymunDesc": "KINOGUITAN"
+    },
+    {
+      "citymunDesc": "LAGONGLONG"
+    },
+    {
+      "citymunDesc": "LAGUINDINGAN"
+    },
+    {
+      "citymunDesc": "LIBERTAD"
+    },
+    {
+      "citymunDesc": "LUGAIT"
+    },
+    {
+      "citymunDesc": "MAGSAYSAY (LINUGOS)"
+    },
+    {
+      "citymunDesc": "MANTICAO"
+    },
+    {
+      "citymunDesc": "MEDINA"
+    },
+    {
+      "citymunDesc": "NAAWAN"
+    },
+    {
+      "citymunDesc": "OPOL"
+    },
+    {
+      "citymunDesc": "SALAY"
+    },
+    {
+      "citymunDesc": "SUGBONGCOGON"
+    },
+    {
+      "citymunDesc": "TAGOLOAN"
+    },
+    {
+      "citymunDesc": "TALISAYAN"
+    },
+    {
+      "citymunDesc": "VILLANUEVA"
+    },
+    {
+      "citymunDesc": "ASUNCION (SAUG)"
+    },
+    {
+      "citymunDesc": "CARMEN"
+    },
+    {
+      "citymunDesc": "KAPALONG"
+    },
+    {
+      "citymunDesc": "NEW CORELLA"
+    },
+    {
+      "citymunDesc": "CITY OF PANABO"
+    },
+    {
+      "citymunDesc": "ISLAND GARDEN CITY OF SAMAL"
+    },
+    {
+      "citymunDesc": "SANTO TOMAS"
+    },
+    {
+      "citymunDesc": "CITY OF TAGUM (Capital)"
+    },
+    {
+      "citymunDesc": "TALAINGOD"
+    },
+    {
+      "citymunDesc": "BRAULIO E. DUJALI"
+    },
+    {
+      "citymunDesc": "SAN ISIDRO"
+    },
+    {
+      "citymunDesc": "BANSALAN"
+    },
+    {
+      "citymunDesc": "DAVAO CITY"
+    },
+    {
+      "citymunDesc": "CITY OF DIGOS (Capital)"
+    },
+    {
+      "citymunDesc": "HAGONOY"
+    },
+    {
+      "citymunDesc": "KIBLAWAN"
+    },
+    {
+      "citymunDesc": "MAGSAYSAY"
+    },
+    {
+      "citymunDesc": "MALALAG"
+    },
+    {
+      "citymunDesc": "MATANAO"
+    },
+    {
+      "citymunDesc": "PADADA"
+    },
+    {
+      "citymunDesc": "SANTA CRUZ"
+    },
+    {
+      "citymunDesc": "SULOP"
+    },
+    {
+      "citymunDesc": "BAGANGA"
+    },
+    {
+      "citymunDesc": "BANAYBANAY"
+    },
+    {
+      "citymunDesc": "BOSTON"
+    },
+    {
+      "citymunDesc": "CARAGA"
+    },
+    {
+      "citymunDesc": "CATEEL"
+    },
+    {
+      "citymunDesc": "GOVERNOR GENEROSO"
+    },
+    {
+      "citymunDesc": "LUPON"
+    },
+    {
+      "citymunDesc": "MANAY"
+    },
+    {
+      "citymunDesc": "CITY OF MATI (Capital)"
+    },
+    {
+      "citymunDesc": "SAN ISIDRO"
+    },
+    {
+      "citymunDesc": "TARRAGONA"
+    },
+    {
+      "citymunDesc": "COMPOSTELA"
+    },
+    {
+      "citymunDesc": "LAAK (SAN VICENTE)"
+    },
+    {
+      "citymunDesc": "MABINI (DOÑA ALICIA)"
+    },
+    {
+      "citymunDesc": "MACO"
+    },
+    {
+      "citymunDesc": "MARAGUSAN (SAN MARIANO)"
+    },
+    {
+      "citymunDesc": "MAWAB"
+    },
+    {
+      "citymunDesc": "MONKAYO"
+    },
+    {
+      "citymunDesc": "MONTEVISTA"
+    },
+    {
+      "citymunDesc": "NABUNTURAN (Capital)"
+    },
+    {
+      "citymunDesc": "NEW BATAAN"
+    },
+    {
+      "citymunDesc": "PANTUKAN"
+    },
+    {
+      "citymunDesc": "DON MARCELINO"
+    },
+    {
+      "citymunDesc": "JOSE ABAD SANTOS (TRINIDAD)"
+    },
+    {
+      "citymunDesc": "MALITA"
+    },
+    {
+      "citymunDesc": "SANTA MARIA"
+    },
+    {
+      "citymunDesc": "SARANGANI"
+    },
+    {
+      "citymunDesc": "ALAMADA"
+    },
+    {
+      "citymunDesc": "CARMEN"
+    },
+    {
+      "citymunDesc": "KABACAN"
+    },
+    {
+      "citymunDesc": "CITY OF KIDAPAWAN (Capital)"
+    },
+    {
+      "citymunDesc": "LIBUNGAN"
+    },
+    {
+      "citymunDesc": "MAGPET"
+    },
+    {
+      "citymunDesc": "MAKILALA"
+    },
+    {
+      "citymunDesc": "MATALAM"
+    },
+    {
+      "citymunDesc": "MIDSAYAP"
+    },
+    {
+      "citymunDesc": "M'LANG"
+    },
+    {
+      "citymunDesc": "PIGKAWAYAN"
+    },
+    {
+      "citymunDesc": "PIKIT"
+    },
+    {
+      "citymunDesc": "PRESIDENT ROXAS"
+    },
+    {
+      "citymunDesc": "TULUNAN"
+    },
+    {
+      "citymunDesc": "ANTIPAS"
+    },
+    {
+      "citymunDesc": "BANISILAN"
+    },
+    {
+      "citymunDesc": "ALEOSAN"
+    },
+    {
+      "citymunDesc": "ARAKAN"
+    },
+    {
+      "citymunDesc": "BANGA"
+    },
+    {
+      "citymunDesc": "GENERAL SANTOS CITY"
+    },
+    {
+      "citymunDesc": "CITY OF KORONADAL (Capital)"
+    },
+    {
+      "citymunDesc": "NORALA"
+    },
+    {
+      "citymunDesc": "POLOMOLOK"
+    },
+    {
+      "citymunDesc": "SURALLAH"
+    },
+    {
+      "citymunDesc": "TAMPAKAN"
+    },
+    {
+      "citymunDesc": "TANTANGAN"
+    },
+    {
+      "citymunDesc": "T'BOLI"
+    },
+    {
+      "citymunDesc": "TUPI"
+    },
+    {
+      "citymunDesc": "SANTO NIÑO"
+    },
+    {
+      "citymunDesc": "LAKE SEBU"
+    },
+    {
+      "citymunDesc": "BAGUMBAYAN"
+    },
+    {
+      "citymunDesc": "COLUMBIO"
+    },
+    {
+      "citymunDesc": "ESPERANZA"
+    },
+    {
+      "citymunDesc": "ISULAN (Capital)"
+    },
+    {
+      "citymunDesc": "KALAMANSIG"
+    },
+    {
+      "citymunDesc": "LEBAK"
+    },
+    {
+      "citymunDesc": "LUTAYAN"
+    },
+    {
+      "citymunDesc": "LAMBAYONG (MARIANO MARCOS)"
+    },
+    {
+      "citymunDesc": "PALIMBANG"
+    },
+    {
+      "citymunDesc": "PRESIDENT QUIRINO"
+    },
+    {
+      "citymunDesc": "CITY OF TACURONG"
+    },
+    {
+      "citymunDesc": "SEN. NINOY AQUINO"
+    },
+    {
+      "citymunDesc": "ALABEL (Capital)"
+    },
+    {
+      "citymunDesc": "GLAN"
+    },
+    {
+      "citymunDesc": "KIAMBA"
+    },
+    {
+      "citymunDesc": "MAASIM"
+    },
+    {
+      "citymunDesc": "MAITUM"
+    },
+    {
+      "citymunDesc": "MALAPATAN"
+    },
+    {
+      "citymunDesc": "MALUNGON"
+    },
+    {
+      "citymunDesc": "COTABATO CITY"
+    },
+    {
+      "citymunDesc": "TONDO I / II"
+    },
+    {
+      "citymunDesc": "BINONDO"
+    },
+    {
+      "citymunDesc": "QUIAPO"
+    },
+    {
+      "citymunDesc": "SAN NICOLAS"
+    },
+    {
+      "citymunDesc": "SANTA CRUZ"
+    },
+    {
+      "citymunDesc": "SAMPALOC"
+    },
+    {
+      "citymunDesc": "SAN MIGUEL"
+    },
+    {
+      "citymunDesc": "ERMITA"
+    },
+    {
+      "citymunDesc": "INTRAMUROS"
+    },
+    {
+      "citymunDesc": "MALATE"
+    },
+    {
+      "citymunDesc": "PACO"
+    },
+    {
+      "citymunDesc": "PANDACAN"
+    },
+    {
+      "citymunDesc": "PORT AREA"
+    },
+    {
+      "citymunDesc": "SANTA ANA"
+    },
+    {
+      "citymunDesc": "CITY OF MANDALUYONG"
+    },
+    {
+      "citymunDesc": "CITY OF MARIKINA"
+    },
+    {
+      "citymunDesc": "CITY OF PASIG"
+    },
+    {
+      "citymunDesc": "QUEZON CITY"
+    },
+    {
+      "citymunDesc": "CITY OF SAN JUAN"
+    },
+    {
+      "citymunDesc": "CALOOCAN CITY"
+    },
+    {
+      "citymunDesc": "CITY OF MALABON"
+    },
+    {
+      "citymunDesc": "CITY OF NAVOTAS"
+    },
+    {
+      "citymunDesc": "CITY OF VALENZUELA"
+    },
+    {
+      "citymunDesc": "CITY OF LAS PIÑAS"
+    },
+    {
+      "citymunDesc": "CITY OF MAKATI"
+    },
+    {
+      "citymunDesc": "CITY OF MUNTINLUPA"
+    },
+    {
+      "citymunDesc": "CITY OF PARAÑAQUE"
+    },
+    {
+      "citymunDesc": "PASAY CITY"
+    },
+    {
+      "citymunDesc": "PATEROS"
+    },
+    {
+      "citymunDesc": "TAGUIG CITY"
+    },
+    {
+      "citymunDesc": "BANGUED (Capital)"
+    },
+    {
+      "citymunDesc": "BOLINEY"
+    },
+    {
+      "citymunDesc": "BUCAY"
+    },
+    {
+      "citymunDesc": "BUCLOC"
+    },
+    {
+      "citymunDesc": "DAGUIOMAN"
+    },
+    {
+      "citymunDesc": "DANGLAS"
+    },
+    {
+      "citymunDesc": "DOLORES"
+    },
+    {
+      "citymunDesc": "LA PAZ"
+    },
+    {
+      "citymunDesc": "LACUB"
+    },
+    {
+      "citymunDesc": "LAGANGILANG"
+    },
+    {
+      "citymunDesc": "LAGAYAN"
+    },
+    {
+      "citymunDesc": "LANGIDEN"
+    },
+    {
+      "citymunDesc": "LICUAN-BAAY (LICUAN)"
+    },
+    {
+      "citymunDesc": "LUBA"
+    },
+    {
+      "citymunDesc": "MALIBCONG"
+    },
+    {
+      "citymunDesc": "MANABO"
+    },
+    {
+      "citymunDesc": "PEÑARRUBIA"
+    },
+    {
+      "citymunDesc": "PIDIGAN"
+    },
+    {
+      "citymunDesc": "PILAR"
+    },
+    {
+      "citymunDesc": "SALLAPADAN"
+    },
+    {
+      "citymunDesc": "SAN ISIDRO"
+    },
+    {
+      "citymunDesc": "SAN JUAN"
+    },
+    {
+      "citymunDesc": "SAN QUINTIN"
+    },
+    {
+      "citymunDesc": "TAYUM"
+    },
+    {
+      "citymunDesc": "TINEG"
+    },
+    {
+      "citymunDesc": "TUBO"
+    },
+    {
+      "citymunDesc": "VILLAVICIOSA"
+    },
+    {
+      "citymunDesc": "ATOK"
+    },
+    {
+      "citymunDesc": "BAGUIO CITY"
+    },
+    {
+      "citymunDesc": "BAKUN"
+    },
+    {
+      "citymunDesc": "BOKOD"
+    },
+    {
+      "citymunDesc": "BUGUIAS"
+    },
+    {
+      "citymunDesc": "ITOGON"
+    },
+    {
+      "citymunDesc": "KABAYAN"
+    },
+    {
+      "citymunDesc": "KAPANGAN"
+    },
+    {
+      "citymunDesc": "KIBUNGAN"
+    },
+    {
+      "citymunDesc": "LA TRINIDAD (Capital)"
+    },
+    {
+      "citymunDesc": "MANKAYAN"
+    },
+    {
+      "citymunDesc": "SABLAN"
+    },
+    {
+      "citymunDesc": "TUBA"
+    },
+    {
+      "citymunDesc": "TUBLAY"
+    },
+    {
+      "citymunDesc": "BANAUE"
+    },
+    {
+      "citymunDesc": "HUNGDUAN"
+    },
+    {
+      "citymunDesc": "KIANGAN"
+    },
+    {
+      "citymunDesc": "LAGAWE (Capital)"
+    },
+    {
+      "citymunDesc": "LAMUT"
+    },
+    {
+      "citymunDesc": "MAYOYAO"
+    },
+    {
+      "citymunDesc": "ALFONSO LISTA (POTIA)"
+    },
+    {
+      "citymunDesc": "AGUINALDO"
+    },
+    {
+      "citymunDesc": "HINGYON"
+    },
+    {
+      "citymunDesc": "TINOC"
+    },
+    {
+      "citymunDesc": "ASIPULO"
+    },
+    {
+      "citymunDesc": "BALBALAN"
+    },
+    {
+      "citymunDesc": "LUBUAGAN"
+    },
+    {
+      "citymunDesc": "PASIL"
+    },
+    {
+      "citymunDesc": "PINUKPUK"
+    },
+    {
+      "citymunDesc": "RIZAL (LIWAN)"
+    },
+    {
+      "citymunDesc": "CITY OF TABUK (Capital)"
+    },
+    {
+      "citymunDesc": "TANUDAN"
+    },
+    {
+      "citymunDesc": "TINGLAYAN"
+    },
+    {
+      "citymunDesc": "BARLIG"
+    },
+    {
+      "citymunDesc": "BAUKO"
+    },
+    {
+      "citymunDesc": "BESAO"
+    },
+    {
+      "citymunDesc": "BONTOC (Capital)"
+    },
+    {
+      "citymunDesc": "NATONIN"
+    },
+    {
+      "citymunDesc": "PARACELIS"
+    },
+    {
+      "citymunDesc": "SABANGAN"
+    },
+    {
+      "citymunDesc": "SADANGA"
+    },
+    {
+      "citymunDesc": "SAGADA"
+    },
+    {
+      "citymunDesc": "TADIAN"
+    },
+    {
+      "citymunDesc": "CALANASAN (BAYAG)"
+    },
+    {
+      "citymunDesc": "CONNER"
+    },
+    {
+      "citymunDesc": "FLORA"
+    },
+    {
+      "citymunDesc": "KABUGAO (Capital)"
+    },
+    {
+      "citymunDesc": "LUNA"
+    },
+    {
+      "citymunDesc": "PUDTOL"
+    },
+    {
+      "citymunDesc": "SANTA MARCELA"
+    },
+    {
+      "citymunDesc": "CITY OF LAMITAN"
+    },
+    {
+      "citymunDesc": "LANTAWAN"
+    },
+    {
+      "citymunDesc": "MALUSO"
+    },
+    {
+      "citymunDesc": "SUMISIP"
+    },
+    {
+      "citymunDesc": "TIPO-TIPO"
+    },
+    {
+      "citymunDesc": "TUBURAN"
+    },
+    {
+      "citymunDesc": "AKBAR"
+    },
+    {
+      "citymunDesc": "AL-BARKA"
+    },
+    {
+      "citymunDesc": "HADJI MOHAMMAD AJUL"
+    },
+    {
+      "citymunDesc": "UNGKAYA PUKAN"
+    },
+    {
+      "citymunDesc": "HADJI MUHTAMAD"
+    },
+    {
+      "citymunDesc": "TABUAN-LASA"
+    },
+    {
+      "citymunDesc": "BACOLOD-KALAWI (BACOLOD GRANDE)"
+    },
+    {
+      "citymunDesc": "BALABAGAN"
+    },
+    {
+      "citymunDesc": "BALINDONG (WATU)"
+    },
+    {
+      "citymunDesc": "BAYANG"
+    },
+    {
+      "citymunDesc": "BINIDAYAN"
+    },
+    {
+      "citymunDesc": "BUBONG"
+    },
+    {
+      "citymunDesc": "BUTIG"
+    },
+    {
+      "citymunDesc": "GANASSI"
+    },
+    {
+      "citymunDesc": "KAPAI"
+    },
+    {
+      "citymunDesc": "LUMBA-BAYABAO (MAGUING)"
+    },
+    {
+      "citymunDesc": "LUMBATAN"
+    },
+    {
+      "citymunDesc": "MADALUM"
+    },
+    {
+      "citymunDesc": "MADAMBA"
+    },
+    {
+      "citymunDesc": "MALABANG"
+    },
+    {
+      "citymunDesc": "MARANTAO"
+    },
+    {
+      "citymunDesc": "MARAWI CITY (Capital)"
+    },
+    {
+      "citymunDesc": "MASIU"
+    },
+    {
+      "citymunDesc": "MULONDO"
+    },
+    {
+      "citymunDesc": "PAGAYAWAN (TATARIKAN)"
+    },
+    {
+      "citymunDesc": "PIAGAPO"
+    },
+    {
+      "citymunDesc": "POONA BAYABAO (GATA)"
+    },
+    {
+      "citymunDesc": "PUALAS"
+    },
+    {
+      "citymunDesc": "DITSAAN-RAMAIN"
+    },
+    {
+      "citymunDesc": "SAGUIARAN"
+    },
+    {
+      "citymunDesc": "TAMPARAN"
+    },
+    {
+      "citymunDesc": "TARAKA"
+    },
+    {
+      "citymunDesc": "TUBARAN"
+    },
+    {
+      "citymunDesc": "TUGAYA"
+    },
+    {
+      "citymunDesc": "WAO"
+    },
+    {
+      "citymunDesc": "MAROGONG"
+    },
+    {
+      "citymunDesc": "CALANOGAS"
+    },
+    {
+      "citymunDesc": "BUADIPOSO-BUNTONG"
+    },
+    {
+      "citymunDesc": "MAGUING"
+    },
+    {
+      "citymunDesc": "PICONG (SULTAN GUMANDER)"
+    },
+    {
+      "citymunDesc": "LUMBAYANAGUE"
+    },
+    {
+      "citymunDesc": "BUMBARAN"
+    },
+    {
+      "citymunDesc": "TAGOLOAN II"
+    },
+    {
+      "citymunDesc": "KAPATAGAN"
+    },
+    {
+      "citymunDesc": "SULTAN DUMALONDONG"
+    },
+    {
+      "citymunDesc": "LUMBACA-UNAYAN"
+    },
+    {
+      "citymunDesc": "AMPATUAN"
+    },
+    {
+      "citymunDesc": "BULDON"
+    },
+    {
+      "citymunDesc": "BULUAN"
+    },
+    {
+      "citymunDesc": "DATU PAGLAS"
+    },
+    {
+      "citymunDesc": "DATU PIANG"
+    },
+    {
+      "citymunDesc": "DATU ODIN SINSUAT (DINAIG)"
+    },
+    {
+      "citymunDesc": "SHARIFF AGUAK (MAGANOY) (Capital)"
+    },
+    {
+      "citymunDesc": "MATANOG"
+    },
+    {
+      "citymunDesc": "PAGALUNGAN"
+    },
+    {
+      "citymunDesc": "PARANG"
+    },
+    {
+      "citymunDesc": "SULTAN KUDARAT (NULING)"
+    },
+    {
+      "citymunDesc": "SULTAN SA BARONGIS (LAMBAYONG)"
+    },
+    {
+      "citymunDesc": "KABUNTALAN (TUMBAO)"
+    },
+    {
+      "citymunDesc": "UPI"
+    },
+    {
+      "citymunDesc": "TALAYAN"
+    },
+    {
+      "citymunDesc": "SOUTH UPI"
+    },
+    {
+      "citymunDesc": "BARIRA"
+    },
+    {
+      "citymunDesc": "GEN. S. K. PENDATUN"
+    },
+    {
+      "citymunDesc": "MAMASAPANO"
+    },
+    {
+      "citymunDesc": "TALITAY"
+    },
+    {
+      "citymunDesc": "PAGAGAWAN"
+    },
+    {
+      "citymunDesc": "PAGLAT"
+    },
+    {
+      "citymunDesc": "SULTAN MASTURA"
+    },
+    {
+      "citymunDesc": "GUINDULUNGAN"
+    },
+    {
+      "citymunDesc": "DATU SAUDI-AMPATUAN"
+    },
+    {
+      "citymunDesc": "DATU UNSAY"
+    },
+    {
+      "citymunDesc": "DATU ABDULLAH SANGKI"
+    },
+    {
+      "citymunDesc": "RAJAH BUAYAN"
+    },
+    {
+      "citymunDesc": "DATU BLAH T. SINSUAT"
+    },
+    {
+      "citymunDesc": "DATU ANGGAL MIDTIMBANG"
+    },
+    {
+      "citymunDesc": "MANGUDADATU"
+    },
+    {
+      "citymunDesc": "PANDAG"
+    },
+    {
+      "citymunDesc": "NORTHERN KABUNTALAN"
+    },
+    {
+      "citymunDesc": "DATU HOFFER AMPATUAN"
+    },
+    {
+      "citymunDesc": "DATU SALIBO"
+    },
+    {
+      "citymunDesc": "SHARIFF SAYDONA MUSTAPHA"
+    },
+    {
+      "citymunDesc": "INDANAN"
+    },
+    {
+      "citymunDesc": "JOLO (Capital)"
+    },
+    {
+      "citymunDesc": "KALINGALAN CALUANG"
+    },
+    {
+      "citymunDesc": "LUUK"
+    },
+    {
+      "citymunDesc": "MAIMBUNG"
+    },
+    {
+      "citymunDesc": "HADJI PANGLIMA TAHIL (MARUNGGAS)"
+    },
+    {
+      "citymunDesc": "OLD PANAMAO"
+    },
+    {
+      "citymunDesc": "PANGUTARAN"
+    },
+    {
+      "citymunDesc": "PARANG"
+    },
+    {
+      "citymunDesc": "PATA"
+    },
+    {
+      "citymunDesc": "PATIKUL"
+    },
+    {
+      "citymunDesc": "SIASI"
+    },
+    {
+      "citymunDesc": "TALIPAO"
+    },
+    {
+      "citymunDesc": "TAPUL"
+    },
+    {
+      "citymunDesc": "TONGKIL"
+    },
+    {
+      "citymunDesc": "PANGLIMA ESTINO (NEW PANAMAO)"
+    },
+    {
+      "citymunDesc": "LUGUS"
+    },
+    {
+      "citymunDesc": "PANDAMI"
+    },
+    {
+      "citymunDesc": "OMAR"
+    },
+    {
+      "citymunDesc": "PANGLIMA SUGALA (BALIMBING)"
+    },
+    {
+      "citymunDesc": "BONGAO (Capital)"
+    },
+    {
+      "citymunDesc": "MAPUN (CAGAYAN DE TAWI-TAWI)"
+    },
+    {
+      "citymunDesc": "SIMUNUL"
+    },
+    {
+      "citymunDesc": "SITANGKAI"
+    },
+    {
+      "citymunDesc": "SOUTH UBIAN"
+    },
+    {
+      "citymunDesc": "TANDUBAS"
+    },
+    {
+      "citymunDesc": "TURTLE ISLANDS"
+    },
+    {
+      "citymunDesc": "LANGUYAN"
+    },
+    {
+      "citymunDesc": "SAPA-SAPA"
+    },
+    {
+      "citymunDesc": "SIBUTU"
+    },
+    {
+      "citymunDesc": "BUENAVISTA"
+    },
+    {
+      "citymunDesc": "BUTUAN CITY (Capital)"
+    },
+    {
+      "citymunDesc": "CITY OF CABADBARAN"
+    },
+    {
+      "citymunDesc": "CARMEN"
+    },
+    {
+      "citymunDesc": "JABONGA"
+    },
+    {
+      "citymunDesc": "KITCHARAO"
+    },
+    {
+      "citymunDesc": "LAS NIEVES"
+    },
+    {
+      "citymunDesc": "MAGALLANES"
+    },
+    {
+      "citymunDesc": "NASIPIT"
+    },
+    {
+      "citymunDesc": "SANTIAGO"
+    },
+    {
+      "citymunDesc": "TUBAY"
+    },
+    {
+      "citymunDesc": "REMEDIOS T. ROMUALDEZ"
+    },
+    {
+      "citymunDesc": "CITY OF BAYUGAN"
+    },
+    {
+      "citymunDesc": "BUNAWAN"
+    },
+    {
+      "citymunDesc": "ESPERANZA"
+    },
+    {
+      "citymunDesc": "LA PAZ"
+    },
+    {
+      "citymunDesc": "LORETO"
+    },
+    {
+      "citymunDesc": "PROSPERIDAD (Capital)"
+    },
+    {
+      "citymunDesc": "ROSARIO"
+    },
+    {
+      "citymunDesc": "SAN FRANCISCO"
+    },
+    {
+      "citymunDesc": "SAN LUIS"
+    },
+    {
+      "citymunDesc": "SANTA JOSEFA"
+    },
+    {
+      "citymunDesc": "TALACOGON"
+    },
+    {
+      "citymunDesc": "TRENTO"
+    },
+    {
+      "citymunDesc": "VERUELA"
+    },
+    {
+      "citymunDesc": "SIBAGAT"
+    },
+    {
+      "citymunDesc": "ALEGRIA"
+    },
+    {
+      "citymunDesc": "BACUAG"
+    },
+    {
+      "citymunDesc": "BURGOS"
+    },
+    {
+      "citymunDesc": "CLAVER"
+    },
+    {
+      "citymunDesc": "DAPA"
+    },
+    {
+      "citymunDesc": "DEL CARMEN"
+    },
+    {
+      "citymunDesc": "GENERAL LUNA"
+    },
+    {
+      "citymunDesc": "GIGAQUIT"
+    },
+    {
+      "citymunDesc": "MAINIT"
+    },
+    {
+      "citymunDesc": "MALIMONO"
+    },
+    {
+      "citymunDesc": "PILAR"
+    },
+    {
+      "citymunDesc": "PLACER"
+    },
+    {
+      "citymunDesc": "SAN BENITO"
+    },
+    {
+      "citymunDesc": "SAN FRANCISCO (ANAO-AON)"
+    },
+    {
+      "citymunDesc": "SAN ISIDRO"
+    },
+    {
+      "citymunDesc": "SANTA MONICA (SAPAO)"
+    },
+    {
+      "citymunDesc": "SISON"
+    },
+    {
+      "citymunDesc": "SOCORRO"
+    },
+    {
+      "citymunDesc": "SURIGAO CITY (Capital)"
+    },
+    {
+      "citymunDesc": "TAGANA-AN"
+    },
+    {
+      "citymunDesc": "TUBOD"
+    },
+    {
+      "citymunDesc": "BAROBO"
+    },
+    {
+      "citymunDesc": "BAYABAS"
+    },
+    {
+      "citymunDesc": "CITY OF BISLIG"
+    },
+    {
+      "citymunDesc": "CAGWAIT"
+    },
+    {
+      "citymunDesc": "CANTILAN"
+    },
+    {
+      "citymunDesc": "CARMEN"
+    },
+    {
+      "citymunDesc": "CARRASCAL"
+    },
+    {
+      "citymunDesc": "CORTES"
+    },
+    {
+      "citymunDesc": "HINATUAN"
+    },
+    {
+      "citymunDesc": "LANUZA"
+    },
+    {
+      "citymunDesc": "LIANGA"
+    },
+    {
+      "citymunDesc": "LINGIG"
+    },
+    {
+      "citymunDesc": "MADRID"
+    },
+    {
+      "citymunDesc": "MARIHATAG"
+    },
+    {
+      "citymunDesc": "SAN AGUSTIN"
+    },
+    {
+      "citymunDesc": "SAN MIGUEL"
+    },
+    {
+      "citymunDesc": "TAGBINA"
+    },
+    {
+      "citymunDesc": "TAGO"
+    },
+    {
+      "citymunDesc": "CITY OF TANDAG (Capital)"
+    },
+    {
+      "citymunDesc": "BASILISA (RIZAL)"
+    },
+    {
+      "citymunDesc": "CAGDIANAO"
+    },
+    {
+      "citymunDesc": "DINAGAT"
+    },
+    {
+      "citymunDesc": "LIBJO (ALBOR)"
+    },
+    {
+      "citymunDesc": "LORETO"
+    },
+    {
+      "citymunDesc": "SAN JOSE (Capital)"
+    },
+    {
+      "citymunDesc": "TUBAJON"
+    }
+  ]
+}
