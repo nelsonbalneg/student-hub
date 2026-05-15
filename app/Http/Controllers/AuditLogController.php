@@ -37,9 +37,9 @@ class AuditLogController extends Controller
 
         return Inertia::render('Reporting/AuditLogs', [
             'logs' => $this->logPage($logs->paginate($this->pageSize($request))->withQueryString()),
-            'filters' => $request->only(['search', 'user_id', 'module', 'action', 'ip_address', 'date_from', 'date_to', 'per_page']),
+            'filters' => $request->only(['search', 'user_search', 'user_id', 'module', 'action', 'ip_address', 'date_from', 'date_to', 'per_page']),
             'filterOptions' => [
-                'users' => User::query()->orderBy('name')->limit(200)->get(['id', 'name', 'email']),
+                'users' => $this->userOptions($request),
                 'modules' => AuditLog::query()->whereNotNull('module')->distinct()->orderBy('module')->pluck('module'),
                 'actions' => AuditLog::query()->whereNotNull('action')->distinct()->orderBy('action')->pluck('action'),
             ],
@@ -58,6 +58,38 @@ class AuditLogController extends Controller
         $pageSize = $request->integer('per_page', 10);
 
         return in_array($pageSize, self::PAGE_SIZES, true) ? $pageSize : 10;
+    }
+
+    private function userOptions(Request $request)
+    {
+        $selectedUserId = $request->query('user_id');
+        $search = $request->query('user_search');
+
+        $users = User::query()
+            ->select(['id', 'name', 'email'])
+            ->when($search, function ($query, string $search): void {
+                $search = addcslashes($search, '%_\\');
+
+                $query->where(function ($query) use ($search): void {
+                    $query->where('name', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%");
+                });
+            })
+            ->orderBy('name')
+            ->limit(20)
+            ->get();
+
+        if ($selectedUserId && ! $users->contains('id', (int) $selectedUserId)) {
+            $selectedUser = User::query()
+                ->select(['id', 'name', 'email'])
+                ->find($selectedUserId);
+
+            if ($selectedUser) {
+                $users->prepend($selectedUser);
+            }
+        }
+
+        return $users->take(20)->values();
     }
 
     /**

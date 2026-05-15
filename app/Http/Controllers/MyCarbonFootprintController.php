@@ -19,8 +19,7 @@ class MyCarbonFootprintController extends Controller
             ->where('user_id', $request->user()->id)
             ->when($request->query('search'), function ($query, string $search): void {
                 $query->where(function ($query) use ($search): void {
-                    $query->where('url', 'like', "%{$search}%")
-                        ->orWhere('page_title', 'like', "%{$search}%")
+                    $query->where('page_title', 'like', "%{$search}%")
                         ->orWhere('module', 'like', "%{$search}%");
                 });
             })

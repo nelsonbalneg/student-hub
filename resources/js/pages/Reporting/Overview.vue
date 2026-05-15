@@ -145,7 +145,7 @@ const navigatePage = (url: string | null) => {
         </div>
 
         <div
-            class="rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950"
+            class="report-card rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950"
         >
             <div
                 class="grid gap-2 lg:grid-cols-[1fr_180px_160px_100px_auto_auto]"
@@ -199,7 +199,7 @@ const navigatePage = (url: string | null) => {
         </div>
 
         <div
-            class="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
+            class="report-card overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
         >
             <div
                 v-if="loading"
@@ -317,18 +317,40 @@ const navigatePage = (url: string | null) => {
 @reference "tailwindcss";
 .stat-card {
     @apply rounded-xl border border-slate-200 bg-white p-4 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-slate-950;
+    background-color: #ffffff !important;
+    color: #64748b !important;
 }
 .stat-card strong {
     @apply mt-2 block text-2xl text-slate-900 dark:text-white;
+    color: #0f172a !important;
 }
 .stat-icon {
     @apply mb-3 h-5 w-5;
 }
+.report-card {
+    background-color: #ffffff !important;
+    color: #334155 !important;
+    border-color: #e2e8f0 !important;
+}
 .report-input {
     @apply h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-900 focus:border-sky-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100;
+    color-scheme: light;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #e2e8f0 !important;
+}
+.report-input::placeholder {
+    color: #94a3b8 !important;
+}
+.report-input option {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
 }
 .report-btn {
     @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200;
+    background-color: #ffffff !important;
+    color: #475569 !important;
+    border-color: #e2e8f0 !important;
 }
 .report-btn-primary {
     @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-sky-600 px-3 text-xs font-bold text-white hover:bg-sky-700;
@@ -338,8 +360,46 @@ const navigatePage = (url: string | null) => {
 }
 .report-td {
     @apply px-3 py-2 text-xs text-slate-600 dark:text-slate-300;
+    color: #334155 !important;
 }
 .page-btn {
     @apply min-w-7 rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold disabled:opacity-40 dark:border-white/10;
+    background-color: #ffffff !important;
+    color: #475569 !important;
+    border-color: #e2e8f0 !important;
+}
+.stat-card:is(.dark *) {
+    background-color: #020617 !important;
+    color: #94a3b8 !important;
+}
+.stat-card:is(.dark *) strong {
+    color: #ffffff !important;
+}
+.report-card:is(.dark *) {
+    background-color: #020617 !important;
+    color: #cbd5e1 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+.report-input:is(.dark *) {
+    color-scheme: dark;
+    background-color: #0f172a !important;
+    color: #f1f5f9 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+.report-input:is(.dark *)::placeholder {
+    color: #64748b !important;
+}
+.report-input:is(.dark *) option {
+    background-color: #0f172a !important;
+    color: #f1f5f9 !important;
+}
+.report-btn:is(.dark *),
+.page-btn:is(.dark *) {
+    background-color: #0f172a !important;
+    color: #e2e8f0 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+.report-td:is(.dark *) {
+    color: #cbd5e1 !important;
 }
 </style>

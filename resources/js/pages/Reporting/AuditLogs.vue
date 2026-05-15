@@ -59,6 +59,7 @@ defineOptions({
 });
 
 const search = ref(props.filters.search ?? '');
+const userSearch = ref(props.filters.user_search ?? '');
 const userId = ref(props.filters.user_id ?? '');
 const module = ref(props.filters.module ?? '');
 const action = ref(props.filters.action ?? '');
@@ -73,6 +74,7 @@ const activeFilters = computed(
     () =>
         [
             search.value,
+            userSearch.value,
             userId.value,
             module.value,
             action.value,
@@ -86,6 +88,7 @@ const params = () =>
     Object.fromEntries(
         Object.entries({
             search: search.value,
+            user_search: userSearch.value,
             user_id: userId.value,
             module: module.value,
             action: action.value,
@@ -108,6 +111,7 @@ const applyFilters = () => {
 
 const resetFilters = () => {
     search.value = '';
+    userSearch.value = '';
     userId.value = '';
     module.value = '';
     action.value = '';
@@ -171,28 +175,32 @@ const pretty = (value: unknown) => JSON.stringify(value ?? {}, null, 2);
         </div>
 
         <div
-            class="rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950"
+            class="report-card rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950"
         >
-            <div
-                class="grid gap-2 xl:grid-cols-[1fr_180px_160px_140px_130px_130px_120px_auto_auto]"
-            >
+            <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-12">
                 <input
                     v-model="search"
-                    class="report-input"
+                    class="report-input xl:col-span-2"
                     placeholder="Search activity"
                     @keydown.enter="applyFilters"
                 />
-                <select v-model="userId" class="report-input">
+                <input
+                    v-model="userSearch"
+                    class="report-input xl:col-span-2"
+                    placeholder="Search users"
+                    @keydown.enter="applyFilters"
+                />
+                <select v-model="userId" class="report-input xl:col-span-2">
                     <option value="">All users</option>
                     <option
                         v-for="user in filterOptions.users"
                         :key="user.id"
                         :value="user.id"
                     >
-                        {{ user.name }}
+                        {{ user.name }} - {{ user.email }}
                     </option>
                 </select>
-                <select v-model="module" class="report-input">
+                <select v-model="module" class="report-input xl:col-span-1">
                     <option value="">All modules</option>
                     <option
                         v-for="item in filterOptions.modules"
@@ -202,7 +210,7 @@ const pretty = (value: unknown) => JSON.stringify(value ?? {}, null, 2);
                         {{ item }}
                     </option>
                 </select>
-                <select v-model="action" class="report-input">
+                <select v-model="action" class="report-input xl:col-span-1">
                     <option value="">All actions</option>
                     <option
                         v-for="item in filterOptions.actions"
@@ -214,23 +222,34 @@ const pretty = (value: unknown) => JSON.stringify(value ?? {}, null, 2);
                 </select>
                 <input
                     v-model="ipAddress"
-                    class="report-input"
+                    class="report-input xl:col-span-1"
                     placeholder="IP address"
                     @keydown.enter="applyFilters"
                 />
-                <input v-model="dateFrom" type="date" class="report-input" />
-                <input v-model="dateTo" type="date" class="report-input" />
-                <button class="report-btn-primary" @click="applyFilters">
+                <input
+                    v-model="dateFrom"
+                    type="date"
+                    class="report-input xl:col-span-1"
+                />
+                <input
+                    v-model="dateTo"
+                    type="date"
+                    class="report-input xl:col-span-1"
+                />
+                <button
+                    class="report-btn-primary xl:col-span-1"
+                    @click="applyFilters"
+                >
                     <Search class="h-3.5 w-3.5" />Search
                 </button>
-                <button class="report-btn" @click="resetFilters">
+                <button class="report-btn xl:col-span-1" @click="resetFilters">
                     <RefreshCw class="h-3.5 w-3.5" />Reset
                 </button>
             </div>
         </div>
 
         <div
-            class="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
+            class="report-card overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
         >
             <div
                 v-if="loading"
@@ -329,7 +348,7 @@ const pretty = (value: unknown) => JSON.stringify(value ?? {}, null, 2);
                         :key="link.label"
                         class="page-btn"
                         :disabled="!link.url"
-                        :class="{ 'bg-sky-600 text-white': link.active }"
+                        :class="{ 'page-btn-active': link.active }"
                         @click="navigatePage(link.url)"
                         v-html="link.label"
                     />
@@ -343,7 +362,7 @@ const pretty = (value: unknown) => JSON.stringify(value ?? {}, null, 2);
             @click.self="selectedLog = null"
         >
             <aside
-                class="h-full w-full max-w-2xl overflow-y-auto bg-white p-5 shadow-xl dark:bg-slate-950"
+                class="report-card h-full w-full max-w-2xl overflow-y-auto bg-white p-5 shadow-xl dark:bg-slate-950"
             >
                 <div class="mb-4 flex items-center justify-between">
                     <h2
@@ -389,18 +408,38 @@ const pretty = (value: unknown) => JSON.stringify(value ?? {}, null, 2);
 @reference "tailwindcss";
 .stat-card {
     @apply rounded-xl border border-slate-200 bg-white p-4 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-slate-950;
+    background-color: #ffffff !important;
+    color: #64748b !important;
 }
 .stat-card strong {
     @apply mt-2 block text-2xl text-slate-900 dark:text-white;
+    color: #0f172a !important;
 }
 .stat-icon {
     @apply mb-3 h-5 w-5;
 }
+.report-card {
+    background-color: #ffffff !important;
+    color: #334155 !important;
+    border-color: #e2e8f0 !important;
+}
 .report-input {
     @apply h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-900 focus:border-sky-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color-scheme: light;
+    background-color: #ffffff;
+    color: #0f172a;
+}
+.report-input option {
+    background-color: #ffffff;
+    color: #0f172a;
 }
 .report-btn {
     @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200;
+    background-color: #ffffff;
+    color: #475569;
 }
 .report-btn-primary {
     @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-sky-600 px-3 text-xs font-bold text-white hover:bg-sky-700;
@@ -410,8 +449,52 @@ const pretty = (value: unknown) => JSON.stringify(value ?? {}, null, 2);
 }
 .report-td {
     @apply px-3 py-2 text-xs text-slate-600 dark:text-slate-300;
+    color: #334155 !important;
 }
 .page-btn {
-    @apply min-w-7 rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold disabled:opacity-40 dark:border-white/10;
+    @apply min-w-7 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 dark:border-white/10;
+    background-color: #ffffff;
+    color: #475569;
+}
+.page-btn-active {
+    @apply border-sky-600 bg-sky-600 text-white;
+    background-color: #0284c7;
+    color: #ffffff;
+}
+.dark .report-input {
+    color-scheme: dark;
+    background-color: #0f172a;
+    color: #f1f5f9;
+}
+.dark .report-input option {
+    background-color: #0f172a;
+    color: #f1f5f9;
+}
+.dark .report-btn {
+    background-color: #0f172a;
+    color: #e2e8f0;
+}
+.dark .page-btn {
+    background-color: #0f172a;
+    color: #cbd5e1;
+}
+.dark .page-btn-active {
+    background-color: #0284c7;
+    color: #ffffff;
+}
+.report-td:is(.dark *) {
+    color: #cbd5e1 !important;
+}
+.report-card:is(.dark *) {
+    background-color: #020617 !important;
+    color: #cbd5e1 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+.stat-card:is(.dark *) {
+    background-color: #020617 !important;
+    color: #94a3b8 !important;
+}
+.stat-card:is(.dark *) strong {
+    color: #ffffff !important;
 }
 </style>
