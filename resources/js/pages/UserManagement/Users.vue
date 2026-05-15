@@ -38,6 +38,14 @@ type PageMeta = {
 type Page<T> = { data: T[]; links: PageLink[]; meta: PageMeta };
 type Role = { id: number; name: string };
 type TableQuery = Record<string, string | number>;
+type FlashPageProps = {
+    flash?: {
+        toast?: {
+            type?: 'success' | 'info' | 'warning' | 'error';
+            message?: string;
+        };
+    };
+};
 type ManagedUser = {
     id: number;
     name: string;
@@ -85,7 +93,9 @@ defineOptions({
 });
 
 const search = ref(props.filters.user_search ?? '');
-const perPage = ref(Number(props.filters.per_page ?? props.users.meta.per_page));
+const perPage = ref(
+    Number(props.filters.per_page ?? props.users.meta.per_page),
+);
 const filterOpen = ref(false);
 const filters = ref({
     status: props.filters.status ?? '',
@@ -96,6 +106,7 @@ const filters = ref({
 });
 const selectedIds = ref<number[]>([]);
 const menuUser = ref<ManagedUser | null>(null);
+const forceDeleteAvailable = ref(false);
 const modal = ref<
     | null
     | { type: 'view'; user: ManagedUser }
@@ -144,11 +155,11 @@ const tableQuery = (): TableQuery =>
     ) as TableQuery;
 
 const applyFilters = () => {
-    router.get(
-        userManagementIndex.url(),
-        tableQuery(),
-        { preserveState: true, preserveScroll: true, replace: true },
-    );
+    router.get(userManagementIndex.url(), tableQuery(), {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+    });
 };
 
 let searchTimeout: ReturnType<typeof setTimeout>;
@@ -260,23 +271,44 @@ const saveAssignedOffice = () => {
     });
 };
 
-const confirmDelete = () => {
+const openDelete = (user: ManagedUser) => {
+    forceDeleteAvailable.value = false;
+    modal.value = { type: 'delete', user };
+};
+
+const confirmDelete = (force = false) => {
     if (modal.value?.type !== 'delete') {
         return;
     }
 
-    router.delete(destroyUserRoute.url(modal.value.user.id), {
-        preserveScroll: true,
-        onSuccess: () => (modal.value = null),
-    });
+    router.delete(
+        destroyUserRoute.url(
+            modal.value.user.id,
+            force ? { query: { force: 1 } } : undefined,
+        ),
+        {
+            preserveScroll: true,
+            onSuccess: (page) => {
+                const props = page.props as FlashPageProps;
+                const toastType = props.flash?.toast?.type;
+
+                if (toastType === 'success') {
+                    modal.value = null;
+                    forceDeleteAvailable.value = false;
+
+                    return;
+                }
+
+                if (toastType === 'error' && !force) {
+                    forceDeleteAvailable.value = true;
+                }
+            },
+        },
+    );
 };
 
 const toggleUserStatus = (user: ManagedUser) => {
-    router.patch(
-        toggleUserRoute.url(user.id),
-        {},
-        { preserveScroll: true },
-    );
+    router.patch(toggleUserRoute.url(user.id), {}, { preserveScroll: true });
 };
 
 const navigatePage = (url: string | null) => {
@@ -474,10 +506,7 @@ const navigatePage = (url: string | null) => {
                     class="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400"
                 >
                     Rows
-                    <select
-                        v-model.number="perPage"
-                        class="rows-select"
-                    >
+                    <select v-model.number="perPage" class="rows-select">
                         <option
                             v-for="size in pageSizeOptions"
                             :key="size"
@@ -568,8 +597,14 @@ const navigatePage = (url: string | null) => {
                             <td
                                 class="px-3 py-2 text-xs text-slate-500 dark:text-slate-400"
                             >
-                                <span v-if="user.office_details" class="font-bold text-emerald-600">
-                                    {{ user.office_details.code || user.office_details.name }}
+                                <span
+                                    v-if="user.office_details"
+                                    class="font-bold text-emerald-600"
+                                >
+                                    {{
+                                        user.office_details.code ||
+                                        user.office_details.name
+                                    }}
                                 </span>
                                 <span v-else>
                                     {{ user.office || user.department || '-' }}
@@ -651,9 +686,9 @@ const navigatePage = (url: string | null) => {
                                             v-if="can.update"
                                             class="menu-item"
                                             @click="
-                                                 openAssignOffice(user);
-                                                 menuUser = null;
-                                             "
+                                                openAssignOffice(user);
+                                                menuUser = null;
+                                            "
                                         >
                                             Tag Office
                                         </button>
@@ -675,10 +710,7 @@ const navigatePage = (url: string | null) => {
                                             v-if="can.delete"
                                             class="menu-item text-red-500"
                                             @click="
-                                                modal = {
-                                                    type: 'delete',
-                                                    user,
-                                                };
+                                                openDelete(user);
                                                 menuUser = null;
                                             "
                                         >
@@ -841,26 +873,46 @@ const navigatePage = (url: string | null) => {
                 </p>
             </div>
 
-            <div
-                v-if="modal.type === 'assign-office'"
-                class="grid gap-4"
-            >
+            <div v-if="modal.type === 'assign-office'" class="grid gap-4">
                 <p class="text-xs text-slate-500">
-                    Assign <span class="font-bold text-slate-900 dark:text-white">{{ modal.user.name }}</span> to an administrative office for clearance processing.
+                    Assign
+                    <span class="font-bold text-slate-900 dark:text-white">{{
+                        modal.user.name
+                    }}</span>
+                    to an administrative office for clearance processing.
                 </p>
                 <div class="grid gap-3">
-                    <label class="text-[10px] font-bold uppercase text-slate-400">Select Office</label>
-                    <select v-model="userForm.office_id" class="form-input bg-white">
+                    <label
+                        class="text-[10px] font-bold text-slate-400 uppercase"
+                        >Select Office</label
+                    >
+                    <select
+                        v-model="userForm.office_id"
+                        class="form-input bg-white"
+                    >
                         <option :value="null">No Office (Unset)</option>
-                        <option v-for="office in lookupOffices" :key="office.id" :value="office.id">
-                            {{ office.name }} <span v-if="office.code">({{ office.code }})</span>
+                        <option
+                            v-for="office in lookupOffices"
+                            :key="office.id"
+                            :value="office.id"
+                        >
+                            {{ office.name }}
+                            <span v-if="office.code">({{ office.code }})</span>
                         </option>
                     </select>
                     <InputError :message="userForm.errors.office_id" />
                 </div>
                 <div class="flex justify-end pt-4">
-                    <Button class="bg-emerald-600 text-white hover:bg-emerald-700" @click="saveAssignedOffice" :disabled="userForm.processing">
-                        {{ userForm.processing ? 'Saving...' : 'Save Office Assignment' }}
+                    <Button
+                        class="bg-emerald-600 text-white hover:bg-emerald-700"
+                        @click="saveAssignedOffice"
+                        :disabled="userForm.processing"
+                    >
+                        {{
+                            userForm.processing
+                                ? 'Saving...'
+                                : 'Save Office Assignment'
+                        }}
                     </Button>
                 </div>
             </div>
@@ -971,13 +1023,28 @@ const navigatePage = (url: string | null) => {
                     Delete <strong>{{ modal.user.name }}</strong
                     >? This action cannot be undone.
                 </p>
+                <p
+                    v-if="forceDeleteAvailable"
+                    class="rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
+                >
+                    This user is linked to clearance records. Force delete will
+                    permanently remove those linked clearance records too.
+                </p>
                 <div class="flex justify-end gap-2">
                     <Button variant="secondary" @click="modal = null"
                         >Cancel</Button
                     >
-                    <Button variant="destructive" @click="confirmDelete">
+                    <Button variant="destructive" @click="confirmDelete()">
                         <Trash2 class="size-4" />
                         Delete
+                    </Button>
+                    <Button
+                        v-if="forceDeleteAvailable"
+                        class="bg-red-700 text-white hover:bg-red-800"
+                        @click="confirmDelete(true)"
+                    >
+                        <Trash2 class="size-4" />
+                        Force Delete
                     </Button>
                 </div>
             </div>

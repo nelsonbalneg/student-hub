@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
 import {
-    Archive,
+    Activity,
+    BarChart3,
     BookOpen,
-    CalendarDays,
-    Download,
     FileSignature,
     ClipboardCheck,
     Wifi,
@@ -21,6 +20,7 @@ import {
     FileCheck,
     FileText,
     Building2,
+    Leaf,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
@@ -62,7 +62,10 @@ const hasRole = (role?: string | string[]): boolean => {
     );
 };
 
-const can = (permission?: string | string[], role?: string | string[]): boolean => {
+const can = (
+    permission?: string | string[],
+    role?: string | string[],
+): boolean => {
     if (!permission && !role) {
         return true;
     }
@@ -136,7 +139,7 @@ const overviewNavItems: NavItem[] = [
                 // icon: CalendarDays,
                 permission: 'view class schedule',
                 roles: ['Student', 'Super Admin'],
-            }
+            },
         ],
     },
     {
@@ -205,7 +208,10 @@ const overviewNavItems: NavItem[] = [
             {
                 title: 'Categories',
                 href: '/announcements/categories',
-                permission: ['announcement.manage-categories', 'announcements.manage-categories'],
+                permission: [
+                    'announcement.manage-categories',
+                    'announcements.manage-categories',
+                ],
             },
         ],
     },
@@ -232,9 +238,41 @@ const overviewNavItems: NavItem[] = [
             },
         ],
     },
+    {
+        title: 'My Carbon Footprint',
+        href: '/my-carbon-footprint',
+        icon: Leaf,
+        permission: 'reporting.carbon_footprint.user_view',
+    },
 ];
 
 const siteAdministrationNavItems: NavItem[] = [
+    {
+        title: 'Reporting',
+        href: '/admin/reporting/overview',
+        icon: BarChart3,
+        permission: 'reporting.view',
+        items: [
+            {
+                title: 'Overview',
+                href: '/admin/reporting/overview',
+                icon: Activity,
+                permission: 'reporting.overview.view',
+            },
+            {
+                title: 'Audit Logs',
+                href: '/admin/reporting/audit-logs',
+                icon: FileText,
+                permission: 'reporting.audit_logs.view',
+            },
+            {
+                title: 'Carbon Footprint',
+                href: '/admin/reporting/carbon-footprint',
+                icon: Leaf,
+                permission: 'reporting.carbon_footprint.view',
+            },
+        ],
+    },
     {
         title: 'Settings',
         href: '/user-management',

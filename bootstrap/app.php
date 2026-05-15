@@ -1,8 +1,11 @@
 <?php
 
+use App\Http\Middleware\AuditRequestLogger;
 use App\Http\Middleware\EnsureTermsAccepted;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\TrackCarbonFootprint;
+use App\Http\Middleware\TrackUserActivity;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -23,6 +26,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             HandleAppearance::class,
             HandleInertiaRequests::class,
+            TrackUserActivity::class,
+            AuditRequestLogger::class,
+            TrackCarbonFootprint::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);
 

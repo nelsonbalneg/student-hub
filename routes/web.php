@@ -3,7 +3,9 @@
 use App\Http\Controllers\Admin\ReferenceLookupController;
 use App\Http\Controllers\AnnouncementCategoryController;
 use App\Http\Controllers\AnnouncementController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\SsoAuthenticatedSessionController;
+use App\Http\Controllers\CarbonFootprintController;
 use App\Http\Controllers\ClassScheduleController;
 use App\Http\Controllers\ClearanceAccountabilityController;
 use App\Http\Controllers\ClearanceUpdateController;
@@ -20,6 +22,8 @@ use App\Http\Controllers\GradesController;
 use App\Http\Controllers\InternetAccountController;
 use App\Http\Controllers\LegalDocumentController;
 use App\Http\Controllers\LegalPublicController;
+use App\Http\Controllers\MyCarbonFootprintController;
+use App\Http\Controllers\ReportingOverviewController;
 use App\Http\Controllers\SiteSettings\SiteAcademicTermController;
 use App\Http\Controllers\SiteSettings\SiteCampusController;
 use App\Http\Controllers\SiteSettings\SiteGradeViewingController;
@@ -99,6 +103,27 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
     Route::delete('internet-accounts/{internetAccount}', [InternetAccountController::class, 'destroy'])
         ->middleware('can:internet-accounts.delete')
         ->name('internet-accounts.destroy');
+
+    Route::get('my-carbon-footprint', [MyCarbonFootprintController::class, 'index'])
+        ->middleware('can:reporting.carbon_footprint.user_view')
+        ->name('reporting.my-carbon-footprint');
+
+    Route::prefix('admin/reporting')
+        ->name('reporting.')
+        ->group(function () {
+            Route::get('/', fn () => redirect()->route('reporting.overview.index'))
+                ->middleware('can:reporting.view')
+                ->name('index');
+            Route::get('/overview', [ReportingOverviewController::class, 'index'])
+                ->middleware('can:reporting.overview.view')
+                ->name('overview.index');
+            Route::get('/audit-logs', [AuditLogController::class, 'index'])
+                ->middleware('can:reporting.audit_logs.view')
+                ->name('audit-logs.index');
+            Route::get('/carbon-footprint', [CarbonFootprintController::class, 'index'])
+                ->middleware('can:reporting.carbon_footprint.view')
+                ->name('carbon-footprint.index');
+        });
 
     Route::prefix('student/evaluation')
         ->name('student.evaluation.')
