@@ -166,7 +166,7 @@ const submit = () => {
     <Head title="Site Settings - Branding" />
 
     <SiteSettingsLayout>
-        <div class="space-y-6 p-6 lg:p-10">
+        <div class="space-y-6 p-4 sm:p-6 lg:p-8 2xl:p-10">
             <div
                 class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
             >
@@ -198,7 +198,7 @@ const submit = () => {
             </div>
 
             <form
-                class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]"
+                class="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_360px]"
                 @submit.prevent="submit"
             >
                 <section
@@ -230,7 +230,7 @@ const submit = () => {
 
                     <div class="divide-y divide-slate-100 dark:divide-white/10">
                         <div
-                            class="grid gap-3 px-5 py-5 lg:grid-cols-[220px_minmax(0,1fr)]"
+                            class="grid gap-3 px-5 py-5 xl:grid-cols-[220px_minmax(0,1fr)]"
                         >
                             <div>
                                 <Label
@@ -261,7 +261,7 @@ const submit = () => {
                         </div>
 
                         <div
-                            class="grid gap-3 px-5 py-5 lg:grid-cols-[220px_minmax(0,1fr)]"
+                            class="grid gap-3 px-5 py-5 xl:grid-cols-[220px_minmax(0,1fr)]"
                         >
                             <div>
                                 <Label
@@ -292,7 +292,7 @@ const submit = () => {
                         </div>
 
                         <div
-                            class="grid gap-3 px-5 py-5 lg:grid-cols-[220px_minmax(0,1fr)]"
+                            class="grid gap-3 px-5 py-5 xl:grid-cols-[220px_minmax(0,1fr)]"
                         >
                             <div>
                                 <Label
@@ -323,7 +323,7 @@ const submit = () => {
                         </div>
 
                         <div
-                            class="grid gap-3 px-5 py-5 lg:grid-cols-[220px_minmax(0,1fr)]"
+                            class="grid gap-3 px-5 py-5 xl:grid-cols-[220px_minmax(0,1fr)]"
                         >
                             <div>
                                 <Label
@@ -340,7 +340,7 @@ const submit = () => {
                                 </p>
                             </div>
                             <div
-                                class="grid gap-4 sm:grid-cols-[180px_minmax(0,1fr)]"
+                                class="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)]"
                             >
                                 <div
                                     class="flex min-h-32 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]"
@@ -403,7 +403,7 @@ const submit = () => {
                         </div>
 
                         <div
-                            class="grid gap-3 px-5 py-5 lg:grid-cols-[220px_minmax(0,1fr)]"
+                            class="grid gap-3 px-5 py-5 xl:grid-cols-[220px_minmax(0,1fr)]"
                         >
                             <div>
                                 <Label
@@ -418,7 +418,7 @@ const submit = () => {
                                 </p>
                             </div>
                             <div
-                                class="grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)]"
+                                class="grid gap-4 md:grid-cols-[120px_minmax(0,1fr)]"
                             >
                                 <div
                                     class="flex min-h-28 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]"

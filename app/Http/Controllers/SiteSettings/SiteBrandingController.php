@@ -7,8 +7,10 @@ use App\Services\SiteSettingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -58,11 +60,20 @@ class SiteBrandingController extends Controller
             $file = $request->file($key);
 
             if ($file instanceof UploadedFile && $file->isValid()) {
-                $path = $file->storeAs(
-                    $directory,
-                    Str::uuid()->toString().'.'.strtolower($file->getClientOriginalExtension() ?: 'png'),
-                    'public',
-                );
+                $tempPath = $file->getPathname();
+
+                if (! $tempPath || ! file_exists($tempPath)) {
+                    throw ValidationException::withMessages([
+                        $key => 'The uploaded file could not be processed. Please try again or choose a different file.',
+                    ]);
+                }
+
+                $targetDirectory = Storage::disk('public')->path($directory);
+                File::ensureDirectoryExists($targetDirectory);
+
+                $filename = Str::uuid()->toString().'.'.strtolower($file->getClientOriginalExtension() ?: 'png');
+                $file->move($targetDirectory, $filename);
+                $path = $directory.'/'.$filename;
 
                 $this->settings->set($key, $path, 'file', $userId);
 

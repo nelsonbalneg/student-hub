@@ -78,10 +78,10 @@ const isActive = (href: string) => {
 
 <template>
     <aside
-        class="flex w-72 flex-col border-r border-slate-200 bg-white dark:border-white/5 dark:bg-slate-950"
+        class="flex w-full shrink-0 flex-col border-b border-slate-200 bg-white dark:border-white/5 dark:bg-slate-950 lg:w-72 lg:border-r lg:border-b-0"
     >
         <div
-            class="flex h-16 items-center border-b border-slate-100 px-6 dark:border-white/5"
+            class="flex h-14 items-center border-b border-slate-100 px-4 dark:border-white/5 sm:px-6 lg:h-16"
         >
             <div class="flex items-center gap-2.5">
                 <div
@@ -97,14 +97,14 @@ const isActive = (href: string) => {
             </div>
         </div>
 
-        <nav class="flex-1 space-y-1 p-3">
+        <nav class="flex gap-2 overflow-x-auto p-3 lg:block lg:flex-1 lg:space-y-1 lg:overflow-visible">
             <Link
                 v-for="tab in tabs"
                 :key="tab.name"
                 v-show="can(tab.permission)"
                 :href="tab.href"
                 :class="[
-                    'group flex items-start gap-3 rounded-xl p-3 transition-all',
+                    'group flex min-w-[150px] items-start gap-3 rounded-xl p-3 transition-all lg:min-w-0',
                     isActive(tab.href)
                         ? 'bg-sky-500/5 text-sky-600 ring-1 ring-sky-500/10 dark:bg-sky-500/10'
                         : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-slate-100',
@@ -120,19 +120,19 @@ const isActive = (href: string) => {
                 >
                     <component :is="tab.icon" class="size-4" />
                 </div>
-                <div class="flex flex-col gap-0.5">
+                <div class="flex min-w-0 flex-col gap-0.5">
                     <span class="text-[13px] leading-none font-bold">{{
                         tab.name
                     }}</span>
                     <span
-                        class="text-[11px] leading-none font-medium text-slate-400 group-hover:text-slate-500 dark:text-slate-500"
+                        class="hidden text-[11px] leading-none font-medium text-slate-400 group-hover:text-slate-500 dark:text-slate-500 sm:block"
                         >{{ tab.description }}</span
                     >
                 </div>
             </Link>
         </nav>
 
-        <div class="border-t border-slate-100 p-4 dark:border-white/5">
+        <div class="hidden border-t border-slate-100 p-4 dark:border-white/5 lg:block">
             <div class="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
                 <p
                     class="text-[10px] font-bold tracking-wider text-slate-400 uppercase"

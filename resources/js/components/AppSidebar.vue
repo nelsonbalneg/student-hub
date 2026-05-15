@@ -110,6 +110,7 @@ const firstVisibleHref = (items: NavItem[]): NavItem['href'] | string => {
 };
 
 const overviewNavItems: NavItem[] = [
+   
     {
         title: 'Dashboard',
         href: dashboard(),
@@ -238,6 +239,34 @@ const overviewNavItems: NavItem[] = [
             },
         ],
     },
+     {
+        title: 'Societies',
+        href: '/societies',
+        icon: Users,
+        items: [
+            {
+                title: 'Browse Societies',
+                href: '/societies',
+            },
+            {
+                title: 'My Societies',
+                href: '/societies/my-societies',
+            },
+            {
+                title: 'Registration',
+                href: '/societies/registration',
+                permission: ['society.create', 'society.update'],
+            },
+            {
+                title: 'Society Events',
+                href: '/societies/events',
+            },
+            {
+                title: 'Announcements',
+                href: '/societies/announcements',
+            },
+        ],
+    },
     {
         title: 'My Carbon Footprint',
         href: '/my-carbon-footprint',
@@ -247,6 +276,32 @@ const overviewNavItems: NavItem[] = [
 ];
 
 const siteAdministrationNavItems: NavItem[] = [
+    {
+        title: 'Society Management',
+        href: '/admin/societies/dashboard',
+        icon: Building2,
+        permission: ['society.review_accreditation', 'society.view_reports'],
+        items: [
+            {
+                title: 'Dashboard',
+                href: '/admin/societies/dashboard',
+            },
+            {
+                title: 'Applications',
+                href: '/admin/societies/applications',
+                permission: 'society.review_accreditation',
+            },
+            {
+                title: 'Accredited Societies',
+                href: '/admin/societies/accredited',
+            },
+            {
+                title: 'Reports',
+                href: '/admin/societies/reports',
+                permission: 'society.view_reports',
+            },
+        ],
+    },
     {
         title: 'Reporting',
         href: '/admin/reporting/overview',

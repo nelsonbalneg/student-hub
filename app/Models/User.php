@@ -127,6 +127,16 @@ class User extends Authenticatable
         return $this->hasMany(CarbonFootprintLog::class);
     }
 
+    public function societyMemberships(): HasMany
+    {
+        return $this->hasMany(SocietyMembership::class, 'student_id');
+    }
+
+    public function societyOffices(): HasMany
+    {
+        return $this->hasMany(SocietyOfficer::class, 'student_id');
+    }
+
     /**
      * @return list<string>
      */

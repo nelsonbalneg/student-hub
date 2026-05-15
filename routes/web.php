@@ -32,6 +32,13 @@ use App\Http\Controllers\StudentProfileController;
 use App\Http\Controllers\StudentRecordsController;
 use App\Http\Controllers\StudentSemesterClearanceController;
 use App\Http\Controllers\UserManagementController;
+use App\Http\Controllers\Society\SocietyDashboardController;
+use App\Http\Controllers\Society\SocietyAccreditationController;
+use App\Http\Controllers\Society\SocietyController;
+use App\Http\Controllers\Society\SocietyMembershipController;
+use App\Http\Controllers\Society\SocietyEventController;
+use App\Http\Controllers\Society\SocietyAnnouncementController;
+use App\Http\Controllers\Society\SocietyReportController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -430,6 +437,112 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
 
             Route::get('site-settings', [SiteBrandingController::class, 'index'])->name('branding.index');
             Route::post('site-settings', [SiteBrandingController::class, 'update'])->name('branding.update');
+        });
+
+    // Society Module
+    Route::prefix('societies')
+        ->name('societies.')
+        ->group(function () {
+            // Student/Public Routes
+            Route::get('/', [SocietyController::class, 'index'])->name('index');
+            Route::get('/registration', [SocietyController::class, 'registration'])->name('registration');
+            Route::post('/registration', [SocietyController::class, 'store'])
+                ->middleware('can:society.create')
+                ->name('store');
+            Route::delete('/{society}', [SocietyController::class, 'destroy'])
+                ->middleware('can:society.delete')
+                ->name('destroy');
+            Route::get('/my-society', [SocietyController::class, 'mySociety'])
+                ->middleware('can:society.view')
+                ->name('my-society');
+            Route::get('/my-societies', [SocietyMembershipController::class, 'mySocieties'])->name('my-societies');
+            Route::get('/events', [SocietyEventController::class, 'publicIndex'])->name('events.index');
+            Route::get('/announcements', [SocietyAnnouncementController::class, 'publicIndex'])->name('announcements.index');
+            Route::get('/students/search', [SocietyController::class, 'searchStudents'])
+                ->middleware('can:society.manage_officers')
+                ->name('students.search');
+            
+            Route::get('/{society}', [SocietyController::class, 'show'])->name('show');
+            Route::post('/{society}/join', [SocietyMembershipController::class, 'join'])->name('join');
+
+            // Society Management (Officers/Advisers)
+            Route::prefix('manage/{society}')
+                ->name('manage.')
+                ->group(function () {
+                    Route::get('/dashboard', [SocietyDashboardController::class, 'societyIndex'])->name('dashboard');
+                    Route::get('/profile', [SocietyController::class, 'manageProfile'])->name('profile');
+                    Route::patch('/profile', [SocietyController::class, 'update'])
+                        ->middleware('can:society.update')
+                        ->name('profile.update');
+                    Route::get('/accreditation', [SocietyAccreditationController::class, 'index'])->name('accreditation.index');
+                    Route::post('/accreditation', [SocietyAccreditationController::class, 'store'])
+                        ->middleware('can:society.apply_accreditation')
+                        ->name('accreditation.store');
+                    Route::post('/accreditation/{accreditation}/submit', [SocietyAccreditationController::class, 'submit'])
+                        ->middleware('can:society.apply_accreditation')
+                        ->name('accreditation.submit');
+                    Route::post('/accreditation/{accreditation}/requirements', [SocietyAccreditationController::class, 'uploadRequirement'])
+                        ->middleware('can:society.submit_requirements')
+                        ->name('accreditation.requirements.store');
+                    Route::get('/officers', [SocietyController::class, 'manageOfficers'])->name('officers.index');
+                    Route::post('/officers', [SocietyController::class, 'storeOfficer'])
+                        ->middleware('can:society.manage_officers')
+                        ->name('officers.store');
+                    Route::patch('/officers/{officer}', [SocietyController::class, 'updateOfficer'])
+                        ->middleware('can:society.manage_officers')
+                        ->name('officers.update');
+                    Route::delete('/officers/{officer}', [SocietyController::class, 'destroyOfficer'])
+                        ->middleware('can:society.manage_officers')
+                        ->name('officers.destroy');
+                    Route::get('/advisers', [SocietyController::class, 'manageAdvisers'])->name('advisers.index');
+                    Route::post('/advisers', [SocietyController::class, 'storeAdviser'])
+                        ->middleware('can:society.manage_advisers')
+                        ->name('advisers.store');
+                    Route::get('/members', [SocietyMembershipController::class, 'index'])->name('members.index');
+                    Route::get('/members-roster', [SocietyController::class, 'manageMembers'])->name('members.roster');
+                    Route::post('/members-roster', [SocietyController::class, 'storeMember'])
+                        ->middleware('can:society.manage_members')
+                        ->name('members.store');
+                    Route::get('/bylaws', [SocietyController::class, 'manageBylaws'])->name('bylaws.index');
+                    Route::get('/announcements', [SocietyAnnouncementController::class, 'index'])->name('announcements.index');
+                    Route::get('/events', [SocietyEventController::class, 'index'])->name('events.index');
+                    Route::get('/attendance', [SocietyEventController::class, 'attendanceIndex'])->name('attendance.index');
+                });
+        });
+
+    Route::prefix('admin/societies')
+        ->name('admin.societies.')
+        ->middleware('role:Super Admin|OSA Admin')
+        ->group(function () {
+            Route::get('/dashboard', [SocietyDashboardController::class, 'index'])->name('dashboard');
+            Route::get('/applications', [SocietyAccreditationController::class, 'adminIndex'])->name('applications.index');
+            Route::get('/pending-review', [SocietyAccreditationController::class, 'pendingReview'])->name('pending-review.index');
+            Route::get('/returned', [SocietyAccreditationController::class, 'returned'])->name('returned.index');
+            Route::get('/approved', [SocietyAccreditationController::class, 'approved'])->name('approved.index');
+            Route::get('/rejected', [SocietyAccreditationController::class, 'rejected'])->name('rejected.index');
+            Route::get('/requirements', [SocietyAccreditationController::class, 'manageRequirements'])
+                ->middleware('can:society.manage_requirements')
+                ->name('requirements.index');
+            Route::post('/requirements', [SocietyAccreditationController::class, 'storeRequirement'])
+                ->middleware('can:society.manage_requirements')
+                ->name('requirements.store');
+            Route::get('/applications/{accreditation}/review', [SocietyAccreditationController::class, 'reviewPage'])->name('applications.review');
+            Route::patch('/applications/{accreditation}/review', [SocietyAccreditationController::class, 'review'])->name('applications.review.update');
+            Route::patch('/applications/{accreditation}/requirements/{submission}', [SocietyAccreditationController::class, 'reviewRequirement'])->name('applications.requirements.review');
+            Route::get('/applications/{accreditation}/print/{type?}', [SocietyAccreditationController::class, 'print'])->name('applications.print');
+            Route::get('/accredited', [SocietyController::class, 'adminIndex'])->name('accredited.index');
+            Route::get('/reports', [SocietyReportController::class, 'index'])->name('reports.index');
+
+            Route::prefix('{society}')->group(function () {
+                Route::get('/profile', [SocietyController::class, 'adminShow'])->name('profile');
+                Route::get('/officers', [SocietyController::class, 'adminOfficers'])->name('officers');
+                Route::get('/members', [SocietyMembershipController::class, 'adminIndex'])->name('members');
+                Route::get('/bylaws', [SocietyController::class, 'adminBylaws'])->name('bylaws');
+                Route::get('/announcements', [SocietyAnnouncementController::class, 'adminIndex'])->name('announcements');
+                Route::get('/events', [SocietyEventController::class, 'adminIndex'])->name('events');
+                Route::get('/attendance', [SocietyEventController::class, 'adminAttendance'])->name('attendance');
+                Route::patch('/reopen', [SocietyController::class, 'reopen'])->name('reopen');
+            });
         });
 });
 

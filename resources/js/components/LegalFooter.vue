@@ -15,7 +15,7 @@ const links: { type: LegalType; label: string }[] = [
 
 <template>
     <footer class="sticky bottom-0 z-20 border-t border-slate-200 bg-white/85 px-4 py-3 backdrop-blur dark:border-white/10 dark:bg-slate-950/85">
-        <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 text-xs text-slate-500 sm:flex-row dark:text-slate-400">
+        <div class="flex flex-col items-center justify-between gap-2 text-xs text-slate-500 sm:flex-row dark:text-slate-400">
             <p>© {{ new Date().getFullYear() }} Student Hub</p>
             <nav class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
                 <button
