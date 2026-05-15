@@ -154,19 +154,6 @@ const overviewNavItems: NavItem[] = [
         ],
     },
     {
-        title: 'Enrollment',
-        href: '/student-academic-registration',
-        icon: FileSignature,
-        permission: 'grades.view',
-        items: [
-            {
-                title: 'Student Academic Registration',
-                href: '/student-academic-registration',
-                permission: 'grades.view',
-            },
-        ],
-    },
-    {
         title: 'Profile',
         href: '/student-profile',
         icon: User,
