@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
 import {
-    Archive,
+    Activity,
+    BarChart3,
     BookOpen,
+    FileSignature,
     ClipboardCheck,
     Wifi,
     GraduationCap,
@@ -16,8 +18,9 @@ import {
     User,
     Users,
     FileCheck,
-    FileSignature,
+    FileText,
     Building2,
+    Leaf,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
@@ -34,6 +37,7 @@ import {
     SidebarSeparator,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { index as legalIndex } from '@/routes/legal';
 import type { NavItem } from '@/types';
 
 const page = usePage();
@@ -46,17 +50,35 @@ const roles = computed<string[]>(
     () => (page.props.auth as { roles?: string[] }).roles ?? [],
 );
 
-const can = (permission?: string | string[]): boolean => {
-    if (!permission) {
+const hasRole = (role?: string | string[]): boolean => {
+    if (!role) {
+        return false;
+    }
+
+    const requiredRoles = Array.isArray(role) ? role : [role];
+
+    return requiredRoles.some((requiredRole) =>
+        roles.value.includes(requiredRole),
+    );
+};
+
+const can = (
+    permission?: string | string[],
+    role?: string | string[],
+): boolean => {
+    if (!permission && !role) {
         return true;
     }
 
     const requiredPermissions = Array.isArray(permission)
         ? permission
-        : [permission];
+        : permission
+          ? [permission]
+          : [];
 
     return (
         roles.value.includes('Super Admin') ||
+        hasRole(role) ||
         requiredPermissions.some((requiredPermission) =>
             permissions.value.includes(requiredPermission),
         )
@@ -71,7 +93,8 @@ const visibleItems = (items: NavItem[]): NavItem[] =>
         }))
         .filter(
             (item) =>
-                can(item.permission) && (!item.items || item.items.length > 0),
+                can(item.permission, item.roles) &&
+                (!item.items || item.items.length > 0),
         );
 
 const firstVisibleHref = (items: NavItem[]): NavItem['href'] | string => {
@@ -109,6 +132,24 @@ const overviewNavItems: NavItem[] = [
                 href: '/curriculum',
                 // icon: BookOpen,
                 permission: 'curriculum.view',
+            },
+            {
+                title: 'Class Schedule',
+                href: '/academic/class-schedule',
+                // icon: CalendarDays,
+                permission: 'view class schedule',
+                roles: ['Student', 'Super Admin'],
+            },
+        ],
+    },
+    {
+        title: 'Enrollment',
+        href: '/student-academic-registration',
+        icon: FileSignature,
+        items: [
+            {
+                title: 'Student Academic Registration',
+                href: '/student-academic-registration',
             },
         ],
     },
@@ -180,7 +221,10 @@ const overviewNavItems: NavItem[] = [
             {
                 title: 'Categories',
                 href: '/announcements/categories',
-                permission: ['announcement.manage-categories', 'announcements.manage-categories'],
+                permission: [
+                    'announcement.manage-categories',
+                    'announcements.manage-categories',
+                ],
             },
         ],
     },
@@ -207,9 +251,41 @@ const overviewNavItems: NavItem[] = [
             },
         ],
     },
+    {
+        title: 'My Carbon Footprint',
+        href: '/my-carbon-footprint',
+        icon: Leaf,
+        permission: 'reporting.carbon_footprint.user_view',
+    },
 ];
 
 const siteAdministrationNavItems: NavItem[] = [
+    {
+        title: 'Reporting',
+        href: '/admin/reporting/overview',
+        icon: BarChart3,
+        permission: 'reporting.view',
+        items: [
+            {
+                title: 'Overview',
+                href: '/admin/reporting/overview',
+                icon: Activity,
+                permission: 'reporting.overview.view',
+            },
+            {
+                title: 'Audit Logs',
+                href: '/admin/reporting/audit-logs',
+                icon: FileText,
+                permission: 'reporting.audit_logs.view',
+            },
+            {
+                title: 'Carbon Footprint',
+                href: '/admin/reporting/carbon-footprint',
+                icon: Leaf,
+                permission: 'reporting.carbon_footprint.view',
+            },
+        ],
+    },
     {
         title: 'Settings',
         href: '/user-management',
@@ -238,6 +314,12 @@ const siteAdministrationNavItems: NavItem[] = [
                 href: '/admin/site-settings/campuses',
                 icon: Building2,
                 permission: 'site-settings.view',
+            },
+            {
+                title: 'Legal',
+                href: legalIndex(),
+                icon: FileText,
+                permission: 'legal.view',
             },
         ],
     },
@@ -328,7 +410,7 @@ const footerNavItems: NavItem[] = [
                 <SidebarMenuItem
                     v-for="item in footerNavItems"
                     :key="item.title"
-                    v-show="can(item.permission)"
+                    v-show="can(item.permission, item.roles)"
                 >
                     <SidebarMenuButton
                         as-child

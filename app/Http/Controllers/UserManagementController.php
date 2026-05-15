@@ -12,13 +12,23 @@ use App\Http\Requests\UserManagement\UpdateUserRequest;
 use App\Http\Resources\UserManagement\PermissionResource;
 use App\Http\Resources\UserManagement\RoleResource;
 use App\Http\Resources\UserManagement\UserResource;
+use App\Models\ClearanceAccountability;
+use App\Models\ClearanceAccountabilityUpload;
+use App\Models\ClearanceCertificate;
+use App\Models\ClearanceLog;
+use App\Models\ClearanceUpdate;
+use App\Models\ClearanceUpdateOffice;
 use App\Models\Office;
+use App\Models\StudentSemesterClearance;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -30,6 +40,8 @@ use Spatie\Permission\PermissionRegistrar;
 
 class UserManagementController extends Controller
 {
+    private const USER_PAGE_SIZES = [10, 25, 50, 100];
+
     public function index(Request $request): Response
     {
         Gate::authorize('viewAny', User::class);
@@ -37,13 +49,14 @@ class UserManagementController extends Controller
         $hasRoles = Schema::hasTable('roles');
 
         return Inertia::render('UserManagement/Users', [
-            'filters' => $request->only(['user_search', 'status', 'role', 'office', 'department', 'user_type']),
+            'filters' => $request->only(['user_search', 'status', 'role', 'office', 'department', 'user_type', 'per_page']),
             'filterOptions' => [
                 'roles' => $hasRoles ? Role::query()->orderBy('name')->pluck('name') : [],
                 'offices' => $this->userColumnOptions('office'),
                 'departments' => $this->userColumnOptions('department'),
                 'userTypes' => $this->userColumnOptions('user_type'),
             ],
+            'pageSizeOptions' => self::USER_PAGE_SIZES,
             'allRoles' => $hasRoles ? Role::query()->orderBy('name')->get(['id', 'name']) : [],
             'can' => [
                 'create' => Gate::allows('create', User::class),
@@ -134,6 +147,7 @@ class UserManagementController extends Controller
 
         return back()->with('success', 'User updated.');
     }
+
     public function assignRoles(AssignRoleRequest $request, User $user): RedirectResponse
     {
         $user->syncRoles($request->validated('roles') ?? []);
@@ -169,15 +183,79 @@ class UserManagementController extends Controller
     {
         Gate::authorize('delete', $user);
 
+        $force = $request->boolean('force');
+
+        Log::info('User delete requested', [
+            'actor_id' => $request->user()->id,
+            'target_user_id' => $user->id,
+            'target_user_type' => $user->user_type,
+            'target_is_active' => $user->is_active,
+            'force' => $force,
+        ]);
+
         if ($request->user()->is($user)) {
-            throw ValidationException::withMessages([
-                'user' => 'You cannot delete your own account from user management.',
+            Log::warning('User delete blocked because actor attempted to delete own account', [
+                'actor_id' => $request->user()->id,
+                'target_user_id' => $user->id,
             ]);
+
+            return back()->with('error', 'You cannot delete your own account from user management.');
         }
 
-        $user->delete();
+        $protectedHistoryCounts = $this->protectedUserHistoryCounts($user);
 
-        return back()->with('success', 'User deleted.');
+        if (! $force && $this->hasProtectedUserHistory($protectedHistoryCounts)) {
+            Log::warning('User delete blocked because protected history exists', [
+                'actor_id' => $request->user()->id,
+                'target_user_id' => $user->id,
+                'protected_history_counts' => $protectedHistoryCounts,
+            ]);
+
+            return back()->with('error', 'This user has clearance records and cannot be deleted. Deactivate the account instead to preserve clearance history.');
+        }
+
+        try {
+            $deletedHistoryCounts = DB::transaction(function () use ($force, $protectedHistoryCounts, $user): array {
+                $deletedHistoryCounts = [];
+
+                if ($force) {
+                    $deletedHistoryCounts = $this->forceDeleteProtectedUserHistory($user, $protectedHistoryCounts);
+                }
+
+                $user->delete();
+
+                return $deletedHistoryCounts;
+            });
+        } catch (QueryException $exception) {
+            if ($exception->getCode() !== '23000') {
+                Log::error('User delete failed with unexpected database error', [
+                    'actor_id' => $request->user()->id,
+                    'target_user_id' => $user->id,
+                    'sql_state' => $exception->getCode(),
+                    'database_error' => $exception->getPrevious()?->getMessage(),
+                ]);
+
+                throw $exception;
+            }
+
+            Log::warning('User delete blocked by database foreign key constraint', [
+                'actor_id' => $request->user()->id,
+                'target_user_id' => $user->id,
+                'sql_state' => $exception->getCode(),
+                'database_error' => $exception->getPrevious()?->getMessage(),
+            ]);
+
+            return back()->with('error', 'This user is linked to existing records and cannot be deleted. Deactivate the account instead.');
+        }
+
+        Log::info('User deleted', [
+            'actor_id' => $request->user()->id,
+            'target_user_id' => $user->id,
+            'force' => $force,
+            'deleted_history_counts' => $deletedHistoryCounts,
+        ]);
+
+        return back()->with('success', $force ? 'User and linked clearance records deleted.' : 'User deleted.');
     }
 
     public function storeRole(StoreRoleRequest $request): RedirectResponse
@@ -283,6 +361,8 @@ class UserManagementController extends Controller
     {
         $users = User::query()
             ->when($request->query('user_search'), function ($query, string $search): void {
+                $search = $this->escapedLike($search);
+
                 $query->where(function ($query) use ($search): void {
                     $query->where('name', 'like', "%{$search}%")
                         ->orWhere('email', 'like', "%{$search}%");
@@ -301,7 +381,7 @@ class UserManagementController extends Controller
 
         $users->with('office:id,name,code');
 
-        return $this->resourcePage($users->paginate(10)->withQueryString(), UserResource::class);
+        return $this->resourcePage($users->paginate($this->userPageSize($request))->withQueryString(), UserResource::class);
     }
 
     /**
@@ -393,6 +473,18 @@ class UserManagementController extends Controller
             ->all();
     }
 
+    private function userPageSize(Request $request): int
+    {
+        $pageSize = $request->integer('per_page', 10);
+
+        return in_array($pageSize, self::USER_PAGE_SIZES, true) ? $pageSize : 10;
+    }
+
+    private function escapedLike(string $value): string
+    {
+        return addcslashes($value, '%_\\');
+    }
+
     /**
      * @param  array<string, mixed>  $values
      * @param  list<string>  $columns
@@ -405,6 +497,176 @@ class UserManagementController extends Controller
             ->filter(fn (string $column): bool => array_key_exists($column, $values))
             ->mapWithKeys(fn (string $column): array => [$column => $values[$column]])
             ->all();
+    }
+
+    /**
+     * @param  array<string, int>  $counts
+     */
+    private function hasProtectedUserHistory(array $counts): bool
+    {
+        return collect($counts)->contains(fn (int $count): bool => $count > 0);
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function protectedUserHistoryCounts(User $user): array
+    {
+        return [
+            'student_clearances' => $user->studentClearances()->withTrashed()->count(),
+            'clearance_accountabilities' => $user->clearanceAccountabilities()->withTrashed()->count(),
+            'uploaded_clearance_accountabilities' => $user->uploadedClearanceAccountabilities()->withTrashed()->count(),
+            'created_clearance_updates' => $user->createdClearanceUpdates()->withTrashed()->count(),
+            'clearance_accountability_uploads' => $user->clearanceAccountabilityUploads()->count(),
+            'student_clearance_logs' => $user->studentClearanceLogs()->count(),
+            'performed_clearance_logs' => $user->performedClearanceLogs()->count(),
+        ];
+    }
+
+    /**
+     * @param  array<string, int>  $existingCounts
+     * @return array<string, int>
+     */
+    private function forceDeleteProtectedUserHistory(User $user, array $existingCounts): array
+    {
+        Log::warning('Force deleting user protected history', [
+            'target_user_id' => $user->id,
+            'protected_history_counts' => $existingCounts,
+        ]);
+
+        $clearanceUpdateIds = $user->createdClearanceUpdates()
+            ->withTrashed()
+            ->pluck('id')
+            ->all();
+
+        $studentClearanceIds = StudentSemesterClearance::withTrashed()
+            ->where(function ($query) use ($clearanceUpdateIds, $user): void {
+                $query->where('student_id', $user->id)
+                    ->when($clearanceUpdateIds !== [], fn ($query): mixed => $query->orWhereIn('clearance_update_id', $clearanceUpdateIds));
+            })
+            ->pluck('id')
+            ->all();
+
+        $accountabilityIds = ClearanceAccountability::withTrashed()
+            ->where(function ($query) use ($clearanceUpdateIds, $user): void {
+                $query->where('student_id', $user->id)
+                    ->orWhere('uploaded_by', $user->id)
+                    ->when($clearanceUpdateIds !== [], fn ($query): mixed => $query->orWhereIn('clearance_update_id', $clearanceUpdateIds));
+            })
+            ->pluck('id')
+            ->all();
+
+        $accountabilityIds = $this->accountabilityIdsWithDescendants($accountabilityIds);
+
+        $deleted = [
+            'clearance_logs' => ClearanceLog::query()
+                ->where(function ($query) use ($clearanceUpdateIds, $studentClearanceIds, $user): void {
+                    $query->where('student_id', $user->id)
+                        ->orWhere('performed_by', $user->id)
+                        ->when($clearanceUpdateIds !== [], fn ($query): mixed => $query->orWhereIn('clearance_update_id', $clearanceUpdateIds))
+                        ->when($studentClearanceIds !== [], fn ($query): mixed => $query->orWhereIn('student_semester_clearance_id', $studentClearanceIds));
+                })
+                ->delete(),
+            'clearance_certificates' => ClearanceCertificate::query()
+                ->when($studentClearanceIds === [], fn ($query): mixed => $query->whereRaw('1 = 0'))
+                ->whereIn('student_semester_clearance_id', $studentClearanceIds)
+                ->delete(),
+            'clearance_accountabilities' => $this->forceDeleteAccountabilities($accountabilityIds),
+            'clearance_accountability_uploads' => ClearanceAccountabilityUpload::query()
+                ->where(function ($query) use ($clearanceUpdateIds, $user): void {
+                    $query->where('uploaded_by', $user->id)
+                        ->when($clearanceUpdateIds !== [], fn ($query): mixed => $query->orWhereIn('clearance_update_id', $clearanceUpdateIds));
+                })
+                ->delete(),
+            'student_clearances' => $this->forceDeleteStudentClearances($studentClearanceIds),
+            'clearance_update_offices' => ClearanceUpdateOffice::query()
+                ->when($clearanceUpdateIds === [], fn ($query): mixed => $query->whereRaw('1 = 0'))
+                ->whereIn('clearance_update_id', $clearanceUpdateIds)
+                ->delete(),
+            'clearance_updates' => $this->forceDeleteClearanceUpdates($clearanceUpdateIds),
+        ];
+
+        Log::warning('Force deleted user protected history', [
+            'target_user_id' => $user->id,
+            'deleted_history_counts' => $deleted,
+        ]);
+
+        return $deleted;
+    }
+
+    /**
+     * @param  list<int>  $ids
+     * @return list<int>
+     */
+    private function accountabilityIdsWithDescendants(array $ids): array
+    {
+        $ids = collect($ids)->unique()->values()->all();
+
+        do {
+            $childIds = ClearanceAccountability::withTrashed()
+                ->whereIn('parent_id', $ids)
+                ->pluck('id')
+                ->all();
+            $newIds = array_values(array_diff($childIds, $ids));
+            $ids = array_values(array_unique([...$ids, ...$newIds]));
+        } while ($newIds !== []);
+
+        return $ids;
+    }
+
+    /**
+     * @param  list<int>  $ids
+     */
+    private function forceDeleteAccountabilities(array $ids): int
+    {
+        $deleted = 0;
+
+        ClearanceAccountability::withTrashed()
+            ->whereIn('id', $ids)
+            ->orderByDesc('id')
+            ->get()
+            ->each(function (ClearanceAccountability $accountability) use (&$deleted): void {
+                $accountability->forceDelete();
+                $deleted++;
+            });
+
+        return $deleted;
+    }
+
+    /**
+     * @param  list<int>  $ids
+     */
+    private function forceDeleteStudentClearances(array $ids): int
+    {
+        $deleted = 0;
+
+        StudentSemesterClearance::withTrashed()
+            ->whereIn('id', $ids)
+            ->get()
+            ->each(function (StudentSemesterClearance $clearance) use (&$deleted): void {
+                $clearance->forceDelete();
+                $deleted++;
+            });
+
+        return $deleted;
+    }
+
+    /**
+     * @param  list<int>  $ids
+     */
+    private function forceDeleteClearanceUpdates(array $ids): int
+    {
+        $deleted = 0;
+
+        ClearanceUpdate::withTrashed()
+            ->whereIn('id', $ids)
+            ->get()
+            ->each(function (ClearanceUpdate $update) use (&$deleted): void {
+                $update->forceDelete();
+                $deleted++;
+            });
+
+        return $deleted;
     }
 
     /**

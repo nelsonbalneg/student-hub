@@ -13,5 +13,7 @@ export type NavItem = {
     isActive?: boolean;
     badge?: string | number;
     permission?: string | string[];
+    roles?: string | string[];
+    download?: boolean;
     items?: NavItem[];
 };
