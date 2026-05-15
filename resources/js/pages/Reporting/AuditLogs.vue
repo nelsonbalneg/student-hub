@@ -72,6 +72,7 @@ const loading = ref(false);
 const userOptions = ref<UserOption[]>(props.filterOptions.users);
 const userSearch = ref('');
 const userOptionsLoading = ref(false);
+const userPickerOpen = ref(false);
 
 const activeFilters = computed(
     () =>
@@ -84,6 +85,11 @@ const activeFilters = computed(
             dateFrom.value,
             dateTo.value,
         ].filter(Boolean).length,
+);
+const selectedUser = computed(
+    () =>
+        userOptions.value.find((user) => String(user.id) === userId.value) ??
+        null,
 );
 
 const params = () =>
@@ -115,6 +121,7 @@ const resetFilters = () => {
     userId.value = '';
     userSearch.value = '';
     userOptions.value = props.filterOptions.users;
+    userPickerOpen.value = false;
     module.value = '';
     action.value = '';
     ipAddress.value = '';
@@ -128,6 +135,11 @@ const navigatePage = (url: string | null) => {
     if (url) {
         router.get(url, {}, { preserveState: true, preserveScroll: true });
     }
+};
+
+const selectUser = (id = '') => {
+    userId.value = id;
+    userPickerOpen.value = false;
 };
 
 const searchUsers = async () => {
@@ -218,33 +230,56 @@ const pretty = (value: unknown) => JSON.stringify(value ?? {}, null, 2);
                     placeholder="Search activity"
                     @keydown.enter="applyFilters"
                 />
-                <div class="grid gap-1.5">
-                    <div class="flex gap-1.5">
-                        <input
-                            v-model="userSearch"
-                            class="report-input min-w-0"
-                            placeholder="Search users"
-                            @keydown.enter="searchUsers"
-                        />
-                        <button
-                            class="report-icon-btn"
-                            type="button"
-                            :disabled="userOptionsLoading"
-                            @click="searchUsers"
-                        >
-                            <Search class="h-3.5 w-3.5" />
-                        </button>
+                <div class="relative">
+                    <button
+                        class="report-user-trigger"
+                        type="button"
+                        @click="userPickerOpen = !userPickerOpen"
+                    >
+                        <span class="truncate">
+                            {{ selectedUser?.name || 'All users' }}
+                        </span>
+                        <Search class="h-3.5 w-3.5 shrink-0" />
+                    </button>
+                    <div v-if="userPickerOpen" class="user-picker">
+                        <div class="flex gap-1.5">
+                            <input
+                                v-model="userSearch"
+                                class="report-input min-w-0"
+                                placeholder="Search users"
+                                @keydown.enter="searchUsers"
+                            />
+                            <button
+                                class="report-icon-btn"
+                                type="button"
+                                :disabled="userOptionsLoading"
+                                @click="searchUsers"
+                            >
+                                <Search class="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                        <div class="mt-2 max-h-56 overflow-y-auto">
+                            <button
+                                class="user-option"
+                                type="button"
+                                @click="selectUser()"
+                            >
+                                <span>All users</span>
+                            </button>
+                            <button
+                                v-for="user in userOptions"
+                                :key="user.id"
+                                class="user-option"
+                                type="button"
+                                @click="selectUser(String(user.id))"
+                            >
+                                <span class="truncate">{{ user.name }}</span>
+                                <small class="truncate">{{
+                                    user.email || 'No email'
+                                }}</small>
+                            </button>
+                        </div>
                     </div>
-                    <select v-model="userId" class="report-input">
-                        <option value="">All users</option>
-                        <option
-                            v-for="user in userOptions"
-                            :key="user.id"
-                            :value="String(user.id)"
-                        >
-                            {{ user.name }} - {{ user.email || 'No email' }}
-                        </option>
-                    </select>
                 </div>
                 <select v-model="module" class="report-input">
                     <option value="">All modules</option>
@@ -471,6 +506,25 @@ const pretty = (value: unknown) => JSON.stringify(value ?? {}, null, 2);
     background-color: #ffffff;
     color: #475569;
 }
+.report-user-trigger {
+    @apply flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 text-left text-xs text-slate-900 hover:bg-slate-50 focus:border-sky-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100;
+    color-scheme: light;
+    background-color: #ffffff;
+    color: #0f172a;
+}
+.user-picker {
+    @apply absolute z-30 mt-2 w-80 rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-white/10 dark:bg-slate-950;
+    background-color: #ffffff;
+    color: #0f172a;
+}
+.user-option {
+    @apply flex w-full flex-col rounded-lg px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/[0.04];
+    background-color: transparent;
+    color: #334155;
+}
+.user-option small {
+    @apply mt-0.5 text-[11px] text-slate-400;
+}
 .report-btn-primary {
     @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-sky-600 px-3 text-xs font-bold text-white hover:bg-sky-700;
 }
@@ -510,6 +564,18 @@ const pretty = (value: unknown) => JSON.stringify(value ?? {}, null, 2);
 }
 .dark .report-icon-btn {
     background-color: #0f172a;
+    color: #e2e8f0;
+}
+.dark .report-user-trigger {
+    color-scheme: dark;
+    background-color: #0f172a;
+    color: #f1f5f9;
+}
+.dark .user-picker {
+    background-color: #020617;
+    color: #f1f5f9;
+}
+.dark .user-option {
     color: #e2e8f0;
 }
 .dark .stat-card {
