@@ -87,6 +87,7 @@ class RolesAndPermissionsSeeder extends Seeder
             ['module' => 'Reporting', 'name' => 'reporting.overview.view'],
             ['module' => 'Reporting', 'name' => 'reporting.audit_logs.view'],
             ['module' => 'Reporting', 'name' => 'reporting.carbon_footprint.view'],
+            ['module' => 'Reporting', 'name' => 'reporting.my_carbon_footprint.view'],
             ['module' => 'Reporting', 'name' => 'reporting.carbon_footprint.user_view'],
             ['module' => 'Reporting', 'name' => 'reporting.export'],
             ['module' => 'Settings', 'name' => 'settings.view'],
@@ -141,6 +142,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'evaluation.evaluate',
             'evaluation.feedback',
             'evaluation.mark-done',
+            'reporting.my_carbon_footprint.view',
             'reporting.carbon_footprint.user_view',
         ]);
 
@@ -159,6 +161,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'download cor',
             'evaluation.view',
             'evaluation.submit-intent',
+            'reporting.my_carbon_footprint.view',
             'reporting.carbon_footprint.user_view',
         ]);
 

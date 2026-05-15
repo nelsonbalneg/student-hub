@@ -105,7 +105,7 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
         ->name('internet-accounts.destroy');
 
     Route::get('my-carbon-footprint', [MyCarbonFootprintController::class, 'index'])
-        ->middleware('can:reporting.carbon_footprint.user_view')
+        ->middleware('role_or_permission:reporting.my_carbon_footprint.view|reporting.carbon_footprint.user_view')
         ->name('reporting.my-carbon-footprint');
 
     Route::prefix('admin/reporting')
@@ -120,6 +120,9 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
             Route::get('/audit-logs', [AuditLogController::class, 'index'])
                 ->middleware('can:reporting.audit_logs.view')
                 ->name('audit-logs.index');
+            Route::get('/audit-logs/users', [AuditLogController::class, 'users'])
+                ->middleware('can:reporting.audit_logs.view')
+                ->name('audit-logs.users');
             Route::get('/carbon-footprint', [CarbonFootprintController::class, 'index'])
                 ->middleware('can:reporting.carbon_footprint.view')
                 ->name('carbon-footprint.index');

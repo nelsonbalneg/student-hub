@@ -4,6 +4,7 @@ import type { ApexOptions } from 'apexcharts';
 import { Leaf, Lightbulb, RefreshCw, Search, Zap } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import VueApexCharts from 'vue3-apexcharts';
+import { useAppearance } from '@/composables/useAppearance';
 
 type PageLink = { url: string | null; label: string; active: boolean };
 type PageMeta = {
@@ -54,12 +55,25 @@ const module = ref(props.filters.module ?? '');
 const dateFrom = ref(props.filters.date_from ?? '');
 const dateTo = ref(props.filters.date_to ?? '');
 const loading = ref(false);
+const { resolvedAppearance } = useAppearance();
 
 const chartOptions = computed<ApexOptions>(() => ({
-    chart: { type: 'line', toolbar: { show: false } },
+    chart: {
+        type: 'line',
+        toolbar: { show: false },
+        foreColor: resolvedAppearance.value === 'dark' ? '#cbd5e1' : '#475569',
+    },
     colors: ['#059669'],
     dataLabels: { enabled: false },
+    grid: {
+        borderColor:
+            resolvedAppearance.value === 'dark'
+                ? 'rgba(255,255,255,0.08)'
+                : '#e2e8f0',
+    },
     stroke: { curve: 'smooth', width: 2 },
+    theme: { mode: resolvedAppearance.value },
+    tooltip: { theme: resolvedAppearance.value },
     xaxis: { categories: props.chart.map((point) => point.label) },
 }));
 const chartSeries = computed(() => [
@@ -289,7 +303,7 @@ const navigatePage = (url: string | null) => {
                         :key="link.label"
                         class="page-btn"
                         :disabled="!link.url"
-                        :class="{ 'bg-sky-600 text-white': link.active }"
+                        :class="{ 'page-btn-active': link.active }"
                         @click="navigatePage(link.url)"
                         v-html="link.label"
                     />
@@ -303,18 +317,30 @@ const navigatePage = (url: string | null) => {
 @reference "tailwindcss";
 .stat-card {
     @apply rounded-xl border border-slate-200 bg-white p-4 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-slate-950;
+    background-color: #ffffff;
+    color: #64748b;
 }
 .stat-card strong {
     @apply mt-2 block text-xl text-slate-900 dark:text-white;
+    color: #0f172a;
 }
 .stat-icon {
     @apply mb-3 h-5 w-5;
 }
 .report-input {
     @apply h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-900 focus:border-sky-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100;
+    color-scheme: light;
+    background-color: #ffffff;
+    color: #0f172a;
+}
+.report-input option {
+    background-color: #ffffff;
+    color: #0f172a;
 }
 .report-btn {
     @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200;
+    background-color: #ffffff;
+    color: #475569;
 }
 .report-btn-primary {
     @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-sky-600 px-3 text-xs font-bold text-white hover:bg-sky-700;
@@ -326,6 +352,53 @@ const navigatePage = (url: string | null) => {
     @apply px-3 py-2 text-xs text-slate-600 dark:text-slate-300;
 }
 .page-btn {
-    @apply min-w-7 rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold disabled:opacity-40 dark:border-white/10;
+    @apply min-w-7 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 dark:border-white/10;
+    color-scheme: light;
+    background-color: #ffffff;
+    color: #475569;
+}
+.page-btn-active {
+    @apply border-sky-600 bg-sky-600 text-white;
+    background-color: #0284c7;
+    color: #ffffff;
+}
+.dark .report-input {
+    color-scheme: dark;
+    background-color: #0f172a;
+    color: #f1f5f9;
+}
+.dark .report-input option {
+    background-color: #0f172a;
+    color: #f1f5f9;
+}
+.dark .report-btn {
+    background-color: #0f172a;
+    color: #e2e8f0;
+}
+.dark .stat-card {
+    background-color: #020617;
+    color: #94a3b8;
+}
+.dark .stat-card strong {
+    color: #ffffff;
+}
+.dark .page-btn {
+    color-scheme: dark;
+    background-color: #0f172a;
+    color: #cbd5e1;
+}
+.dark .page-btn-active {
+    background-color: #0284c7;
+    color: #ffffff;
+}
+:deep(.apexcharts-tooltip) {
+    border-color: #e2e8f0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+}
+.dark :deep(.apexcharts-tooltip) {
+    border-color: rgba(255, 255, 255, 0.12) !important;
+    background: #0f172a !important;
+    color: #f8fafc !important;
 }
 </style>

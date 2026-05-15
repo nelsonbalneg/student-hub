@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -39,7 +41,7 @@ class AuditLogController extends Controller
             'logs' => $this->logPage($logs->paginate($this->pageSize($request))->withQueryString()),
             'filters' => $request->only(['search', 'user_id', 'module', 'action', 'ip_address', 'date_from', 'date_to', 'per_page']),
             'filterOptions' => [
-                'users' => User::query()->orderBy('name')->limit(200)->get(['id', 'name', 'email']),
+                'users' => $this->userOptions($request->query('user_id')),
                 'modules' => AuditLog::query()->whereNotNull('module')->distinct()->orderBy('module')->pluck('module'),
                 'actions' => AuditLog::query()->whereNotNull('action')->distinct()->orderBy('action')->pluck('action'),
             ],
@@ -53,11 +55,61 @@ class AuditLogController extends Controller
         ]);
     }
 
+    public function users(Request $request): JsonResponse
+    {
+        $request->user()->can('reporting.audit_logs.view') || abort(403);
+
+        return response()->json([
+            'users' => $this->userOptions($request->query('selected_user_id'), $request->query('search')),
+        ]);
+    }
+
     private function pageSize(Request $request): int
     {
         $pageSize = $request->integer('per_page', 10);
 
         return in_array($pageSize, self::PAGE_SIZES, true) ? $pageSize : 10;
+    }
+
+    /**
+     * @return Collection<int, array{id: int, name: string, email: string|null}>
+     */
+    private function userOptions(mixed $selectedUserId = null, ?string $search = null): Collection
+    {
+        $users = User::query()
+            ->select(['id', 'name', 'email'])
+            ->when($search, function ($query, string $search): void {
+                $search = addcslashes($search, '%_\\');
+
+                $query->where(function ($query) use ($search): void {
+                    $query->where('name', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%")
+                        ->orWhere('id', 'like', "%{$search}%");
+                });
+            })
+            ->orderBy('name')
+            ->limit(20)
+            ->get();
+
+        if ($selectedUserId && ! $users->contains('id', (int) $selectedUserId)) {
+            $selectedUser = User::query()
+                ->select(['id', 'name', 'email'])
+                ->find($selectedUserId);
+
+            if ($selectedUser) {
+                $users->prepend($selectedUser);
+            }
+        }
+
+        return $users
+            ->unique('id')
+            ->take(20)
+            ->map(fn (User $user): array => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+            ])
+            ->values();
     }
 
     /**

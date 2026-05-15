@@ -13,7 +13,10 @@ class MyCarbonFootprintController extends Controller
 {
     public function index(Request $request): Response
     {
-        $request->user()->can('reporting.carbon_footprint.user_view') || abort(403);
+        $request->user()->canAny([
+            'reporting.my_carbon_footprint.view',
+            'reporting.carbon_footprint.user_view',
+        ]) || abort(403);
 
         $query = CarbonFootprintLog::query()
             ->where('user_id', $request->user()->id)

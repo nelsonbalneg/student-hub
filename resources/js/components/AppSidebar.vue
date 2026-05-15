@@ -242,7 +242,10 @@ const overviewNavItems: NavItem[] = [
         title: 'My Carbon Footprint',
         href: '/my-carbon-footprint',
         icon: Leaf,
-        permission: 'reporting.carbon_footprint.user_view',
+        permission: [
+            'reporting.my_carbon_footprint.view',
+            'reporting.carbon_footprint.user_view',
+        ],
     },
 ];
 
