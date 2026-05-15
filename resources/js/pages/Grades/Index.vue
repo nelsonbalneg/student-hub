@@ -87,10 +87,6 @@ const selectedEvaluation = ref<{
     evalItem: PendingEvaluation;
     payload: Record<string, any>;
 } | null>(null);
-const selectedEvaluationGroup = ref<{
-    row: GradeRecord;
-    evalItems: PendingEvaluation[];
-} | null>(null);
 const evaluationAnswers = ref<Record<number, number | string>>({});
 const isSubmittingEvaluation = ref(false);
 const submitError = ref<string | null>(null);
@@ -377,17 +373,6 @@ const evaluate = (row: GradeRecord, evalItem: PendingEvaluation) => {
     evaluationModalOpen.value = true;
 };
 
-const openEvaluationChooser = (row: GradeRecord) => {
-    const evalItems = row.pending_evaluations ?? [];
-    if (!evalItems.length) return;
-    selectedEvaluationGroup.value = { row, evalItems };
-    selectedEvaluation.value = null;
-    evaluationAnswers.value = {};
-    submitError.value = null;
-    submitSuccess.value = null;
-    evaluationModalOpen.value = true;
-};
-
 const decodeBase64Json = (encoded?: string): any | null => {
     if (!encoded) {
         return null;
@@ -554,7 +539,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                 <div class="flex h-full min-h-0 flex-col">
                 <SheetHeader class="border-b border-slate-200 px-5 py-4 text-left dark:border-white/10">
                     <SheetTitle>
-                        Evaluate Faculty
+                        Evaluate {{ selectedEvaluation?.evalItem.type ?? 'Subject' }}
                     </SheetTitle>
                     <SheetDescription>
                         Complete the faculty subject evaluation form below.
@@ -562,44 +547,27 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                 </SheetHeader>
 
                 <div
-                    v-if="selectedEvaluationGroup"
+                    v-if="selectedEvaluation"
                     class="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 text-xs"
                 >
                     <div class="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2 dark:border-white/10 dark:bg-white/5">
                         <div>
                             <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Course</p>
                             <p class="mt-1 font-semibold text-slate-900 dark:text-white">
-                                {{ pick(selectedEvaluationGroup.row, columns[0].keys) }}
+                                {{ pick(selectedEvaluation.row, columns[0].keys) }}
                             </p>
                             <p class="mt-0.5 text-slate-600 dark:text-slate-300">
-                                {{ pick(selectedEvaluationGroup.row, columns[1].keys) }}
+                                {{ pick(selectedEvaluation.row, columns[1].keys) }}
                             </p>
                         </div>
                         <div>
                             <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Evaluation Details</p>
                             <p class="mt-1 font-semibold text-slate-900 dark:text-white">
-                                {{ selectedEvaluation?.evalItem.faculty ?? 'Select evaluation type' }}
+                                {{ selectedEvaluation.evalItem.faculty }}
                             </p>
                             <p class="mt-0.5 text-slate-600 dark:text-slate-300">
-                                Type: {{ selectedEvaluation?.evalItem.type?.toUpperCase() ?? '-' }}
+                                Type: {{ selectedEvaluation.evalItem.type.toUpperCase() }}
                             </p>
-                        </div>
-                    </div>
-                    <div
-                        v-if="!selectedEvaluation"
-                        class="rounded-md border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-900"
-                    >
-                        <p class="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-200">Choose evaluation type</p>
-                        <div class="flex flex-wrap gap-2">
-                            <button
-                                v-for="item in selectedEvaluationGroup.evalItems"
-                                :key="item.id"
-                                type="button"
-                                class="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
-                                @click="evaluate(selectedEvaluationGroup.row, item)"
-                            >
-                                Evaluate {{ item.type }}
-                            </button>
                         </div>
                     </div>
                     <div class="space-y-2 border-t border-slate-200 pt-2 dark:border-white/10">
@@ -617,7 +585,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                         </div>
 
                         <p class="font-semibold text-slate-700 dark:text-slate-200">
-                            Evaluation Questions
+                            Decoded questionnaire
                         </p>
 
                         <div
@@ -636,7 +604,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                         </div>
 
                         <div
-                            v-if="selectedEvaluation && questionnaireItems.length"
+                            v-if="questionnaireItems.length"
                             class="space-y-3"
                         >
                             <div
@@ -688,7 +656,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                             </div>
                         </div>
 
-                        <div v-else-if="selectedEvaluation" class="space-y-2">
+                        <div v-else class="space-y-2">
                             <p class="text-slate-500 dark:text-slate-400">
                                 No direct question array found. Showing decoded payloads:
                             </p>
@@ -717,7 +685,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                     </Button>
                     <Button
                         type="button"
-                        :disabled="!selectedEvaluation || !canSubmitEvaluation || isSubmittingEvaluation || !!submitSuccess"
+                        :disabled="!canSubmitEvaluation || isSubmittingEvaluation || !!submitSuccess"
                         @click="submitEvaluation"
                     >
                         {{ isSubmittingEvaluation ? 'Submitting...' : 'Submit Evaluation' }}
@@ -976,9 +944,6 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                 Grade
                                             </th>
                                             <th class="px-4 py-3 text-center">
-                                                Action
-                                            </th>
-                                            <th class="px-4 py-3 text-center">
                                                 Remarks
                                             </th>
                                         </tr>
@@ -1068,26 +1033,66 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                     }}
                                                 </template>
                                             </td>
-                                            <td class="px-4 py-3 text-center align-top">
-                                                <span class="inline-flex min-w-10 items-center justify-center rounded-md bg-slate-900 px-2 py-1 text-xs font-bold text-white dark:bg-white dark:text-slate-950">
-                                                    {{ pick(row, columns[5].keys) }}
-                                                </span>
-                                            </td>
-                                            <td class="px-4 py-3 text-center align-top">
-                                                <template v-if="row.requires_evaluation">
-                                                    <button
-                                                        type="button"
-                                                        class="inline-flex h-7 items-center justify-center gap-1.5 rounded-md bg-indigo-600 px-3 text-[10px] font-bold text-white shadow-sm shadow-indigo-200 transition hover:bg-indigo-700 dark:shadow-none"
-                                                        @click="openEvaluationChooser(row)"
+                                            <td
+                                                class="px-4 py-3 text-center align-top"
+                                            >
+                                                <template
+                                                    v-if="
+                                                        row.requires_evaluation
+                                                    "
+                                                >
+                                                    <div
+                                                        class="flex flex-col items-center gap-1.5"
                                                     >
-                                                        <MessageSquareQuote class="size-3" />
-                                                        Evaluate
-                                                    </button>
-                                                    <p class="mt-1 text-[10px] font-semibold text-slate-400">
-                                                        {{ row.pending_evaluations?.map((p) => p.type).join(' / ') }}
-                                                    </p>
+                                                        <div
+                                                            v-for="evalItem in row.pending_evaluations"
+                                                            :key="evalItem.id"
+                                                        >
+                                                            <button
+                                                                type="button"
+                                                                class="inline-flex h-7 items-center justify-center gap-1.5 rounded-md bg-indigo-600 px-3 text-[10px] font-bold text-white shadow-sm shadow-indigo-200 transition hover:bg-indigo-700 dark:shadow-none"
+                                                                @click="
+                                                                    evaluate(
+                                                                        row,
+                                                                        evalItem,
+                                                                    )
+                                                                "
+                                                            >
+                                                                <MessageSquareQuote
+                                                                    class="size-3"
+                                                                />
+                                                                Evaluate
+                                                                {{
+                                                                    evalItem.type
+                                                                }}
+                                                            </button>
+                                                        </div>
+                                                        <span
+                                                            v-if="
+                                                                row.faculty_names
+                                                                    ?.length
+                                                            "
+                                                            class="max-w-[120px] truncate text-[9px] font-bold text-slate-400"
+                                                        >
+                                                            {{
+                                                                row.faculty_names.join(
+                                                                    ', ',
+                                                                )
+                                                            }}
+                                                        </span>
+                                                    </div>
                                                 </template>
-                                                <span v-else class="text-[10px] font-semibold text-slate-400">-</span>
+                                                <span
+                                                    v-else
+                                                    class="inline-flex min-w-10 items-center justify-center rounded-md bg-slate-900 px-2 py-1 text-xs font-bold text-white dark:bg-white dark:text-slate-950"
+                                                >
+                                                    {{
+                                                        pick(
+                                                            row,
+                                                            columns[5].keys,
+                                                        )
+                                                    }}
+                                                </span>
                                             </td>
                                             <td
                                                 class="px-4 py-3 text-center align-top"

@@ -302,9 +302,8 @@ const navigatePage = (url?: string | null) => {
             </span>
         </div>
 
-        <section class="grid gap-3 md:grid-cols-2" :class="can.manage ? 'xl:grid-cols-4' : 'xl:grid-cols-3'">
+        <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <div
-                v-if="can.manage"
                 class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950"
             >
                 <div
@@ -410,7 +409,6 @@ const navigatePage = (url?: string | null) => {
                 </div>
 
                 <div
-                    v-if="can.manage"
                     class="mt-3 flex flex-col gap-2 lg:flex-row lg:items-center"
                 >
                     <div class="relative flex-1">
@@ -470,7 +468,7 @@ const navigatePage = (url?: string | null) => {
                     leave-to-class="-translate-y-2 opacity-0"
                 >
                     <div
-                        v-if="can.manage && filterOpen"
+                        v-if="filterOpen"
                         class="mt-3 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2 dark:border-white/10 dark:bg-white/5"
                     >
                         <label
@@ -531,7 +529,7 @@ const navigatePage = (url?: string | null) => {
                             <th class="px-4 py-3">Username</th>
                             <th class="px-4 py-3">Password</th>
                             <th class="px-4 py-3">Semester</th>
-                            <th v-if="can.manage" class="px-4 py-3">Term ID</th>
+                            <th class="px-4 py-3">Term ID</th>
                             <th class="px-4 py-3">Status</th>
                             <th class="px-4 py-3">Requested</th>
                             <th
@@ -626,7 +624,6 @@ const navigatePage = (url?: string | null) => {
                                 {{ request.semester }}
                             </td>
                             <td
-                                v-if="can.manage"
                                 class="px-4 py-3 text-xs font-semibold text-slate-600 dark:text-slate-300"
                             >
                                 {{ request.term_id }}

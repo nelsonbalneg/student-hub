@@ -63,13 +63,6 @@ return [
     'mikrotik' => [
         'base_url' => env('MIKROTIK_API_BASE_URL'),
         'token' => env('MIKROTIK_API_TOKEN'),
-        'host' => env('MIKROTIK_HOST'),
-        'user' => env('MIKROTIK_USER'),
-        'pass' => env('MIKROTIK_PASS'),
-        'port' => env('MIKROTIK_PORT', 8728),
-        'ssl' => env('MIKROTIK_SSL', false),
-        'hotspot_server' => env('MIKROTIK_HOTSPOT_SERVER', 'hotspot2'),
-        'hotspot_profile' => env('MIKROTIK_HOTSPOT_PROFILE', 'U-Students'),
         'timeout' => env('MIKROTIK_API_TIMEOUT', 15),
         'connect_timeout' => env('MIKROTIK_API_CONNECT_TIMEOUT', 5),
     ],
