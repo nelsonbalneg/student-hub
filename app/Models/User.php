@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
@@ -45,6 +46,11 @@ class User extends Authenticatable
         return $this->belongsTo(Office::class);
     }
 
+    public function legalAcceptances(): HasMany
+    {
+        return $this->hasMany(UserLegalAcceptance::class);
+    }
+
     /**
      * Get the attributes that should be cast.
      *
@@ -61,29 +67,64 @@ class User extends Authenticatable
         ];
     }
 
-    public function achievements(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function achievements(): HasMany
     {
         return $this->hasMany(Achievement::class);
     }
 
-    public function trainings(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function trainings(): HasMany
     {
         return $this->hasMany(Training::class);
     }
 
-    public function studentClearances(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function studentClearances(): HasMany
     {
         return $this->hasMany(StudentSemesterClearance::class, 'student_id');
     }
 
-    public function clearanceAccountabilities(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function clearanceAccountabilities(): HasMany
     {
         return $this->hasMany(ClearanceAccountability::class, 'student_id');
     }
 
-    public function performedClearanceLogs(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function uploadedClearanceAccountabilities(): HasMany
+    {
+        return $this->hasMany(ClearanceAccountability::class, 'uploaded_by');
+    }
+
+    public function createdClearanceUpdates(): HasMany
+    {
+        return $this->hasMany(ClearanceUpdate::class, 'created_by');
+    }
+
+    public function clearanceAccountabilityUploads(): HasMany
+    {
+        return $this->hasMany(ClearanceAccountabilityUpload::class, 'uploaded_by');
+    }
+
+    public function studentClearanceLogs(): HasMany
+    {
+        return $this->hasMany(ClearanceLog::class, 'student_id');
+    }
+
+    public function performedClearanceLogs(): HasMany
     {
         return $this->hasMany(ClearanceLog::class, 'performed_by');
+    }
+
+    public function activitySessions(): HasMany
+    {
+        return $this->hasMany(UserActivitySession::class);
+    }
+
+    public function auditLogs(): HasMany
+    {
+        return $this->hasMany(AuditLog::class);
+    }
+
+    public function carbonFootprintLogs(): HasMany
+    {
+        return $this->hasMany(CarbonFootprintLog::class);
     }
 
     /**

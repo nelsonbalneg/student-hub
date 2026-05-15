@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
 import AppLogo from '@/components/AppLogo.vue';
+import LegalFooter from '@/components/LegalFooter.vue';
 import { home } from '@/routes';
 
 defineProps<{
@@ -11,8 +12,9 @@ defineProps<{
 
 <template>
     <div
-        class="flex min-h-svh flex-col items-center justify-center gap-6 bg-background p-6 md:p-10"
+        class="flex min-h-svh flex-col bg-background"
     >
+        <div class="flex flex-1 items-center justify-center p-6 md:p-10">
         <div class="w-full max-w-sm">
             <div class="flex flex-col gap-8">
                 <div class="flex flex-col items-center gap-4">
@@ -39,5 +41,7 @@ defineProps<{
                 </div>
             </div>
         </div>
+        </div>
+        <LegalFooter />
     </div>
 </template>

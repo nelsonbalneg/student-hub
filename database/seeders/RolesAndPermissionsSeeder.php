@@ -27,6 +27,8 @@ class RolesAndPermissionsSeeder extends Seeder
             ['module' => 'Dashboard', 'name' => 'dashboard.view'],
             ['module' => 'Grades', 'name' => 'grades.view'],
             ['module' => 'Curriculum', 'name' => 'curriculum.view'],
+            ['module' => 'Academic', 'name' => 'view class schedule'],
+            ['module' => 'Academic', 'name' => 'download cor'],
             ['module' => 'Student Profile', 'name' => 'student-profile.view'],
             ['module' => 'Internet Accounts', 'name' => 'internet-accounts.view'],
             ['module' => 'Internet Accounts', 'name' => 'internet-accounts.create'],
@@ -81,7 +83,18 @@ class RolesAndPermissionsSeeder extends Seeder
             ['module' => 'Evaluation', 'name' => 'evaluation.feedback'],
             ['module' => 'Evaluation', 'name' => 'evaluation.mark-done'],
             ['module' => 'Reports', 'name' => 'reports.view'],
+            ['module' => 'Reporting', 'name' => 'reporting.view'],
+            ['module' => 'Reporting', 'name' => 'reporting.overview.view'],
+            ['module' => 'Reporting', 'name' => 'reporting.audit_logs.view'],
+            ['module' => 'Reporting', 'name' => 'reporting.carbon_footprint.view'],
+            ['module' => 'Reporting', 'name' => 'reporting.carbon_footprint.user_view'],
+            ['module' => 'Reporting', 'name' => 'reporting.export'],
             ['module' => 'Settings', 'name' => 'settings.view'],
+            ['module' => 'Legal', 'name' => 'legal.view'],
+            ['module' => 'Legal', 'name' => 'legal.create'],
+            ['module' => 'Legal', 'name' => 'legal.edit'],
+            ['module' => 'Legal', 'name' => 'legal.delete'],
+            ['module' => 'Legal', 'name' => 'legal.activate'],
         ];
 
         foreach ($permissions as $permission) {
@@ -128,6 +141,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'evaluation.evaluate',
             'evaluation.feedback',
             'evaluation.mark-done',
+            'reporting.carbon_footprint.user_view',
         ]);
 
         $studentRole = Role::query()->updateOrCreate(
@@ -141,8 +155,11 @@ class RolesAndPermissionsSeeder extends Seeder
         );
 
         $studentRole->givePermissionTo([
+            'view class schedule',
+            'download cor',
             'evaluation.view',
             'evaluation.submit-intent',
+            'reporting.carbon_footprint.user_view',
         ]);
 
         $admin = User::query()->firstOrCreate(

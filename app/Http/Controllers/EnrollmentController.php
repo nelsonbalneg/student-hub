@@ -2,210 +2,171 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\SiteAcademicTerm;
 use App\Services\AcademicApiService;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Throwable;
 
 class EnrollmentController extends Controller
 {
-    public function __construct(
-        protected AcademicApiService $academicApiService
-    ) {}
+    public function __construct(private readonly AcademicApiService $academicApi) {}
 
-    public function submitConfirmation(Request $request): RedirectResponse
+    public function submitConfirmation(Request $request): JsonResponse
     {
         $user = $request->user();
-        $studentNo = $this->academicApiService->studentNumberFor($user);
+        $studentNo = $this->academicApi->studentNumberFor($user);
         $campusId = $user->campus_id;
-        $tenantId = $user->tenant_id ?: $campusId;
+        $tenantId = $user->tenant_id;
         $transactionType = (string) $request->input('transactionType', 'Enrollment');
-        $active = $this->academicApiService->getActiveSemesterForUser($user);
-
-        if (blank($studentNo) || blank($campusId)) {
-            return back()->with('error', 'Missing student number or campus assignment.');
-        }
-        if (! empty($active['error']) || blank($active['termId']) || blank($active['semester'])) {
-            return back()->with('error', $active['error'] ?? 'No active semester found.');
-        }
 
         Log::info('Enrollment confirmation request received', [
-            'user_id' => $user->id,
+            'user_id' => $user?->id,
             'student_no' => $studentNo,
             'campus_id' => $campusId,
-            'tenant_id' => (string) $tenantId,
+            'tenant_id' => $tenantId,
             'transaction_type' => $transactionType,
         ]);
 
-        $tokenResult = $this->academicApiService->generateSarToken($studentNo, $campusId, $tenantId);
-        if (! ($tokenResult['ok'] ?? false) || blank($tokenResult['token'] ?? null)) {
+        if (! $studentNo || ! $campusId || ! $tenantId) {
+            Log::warning('Enrollment confirmation missing student context', [
+                'user_id' => $user?->id,
+                'student_no' => $studentNo,
+                'campus_id' => $campusId,
+                'tenant_id' => $tenantId,
+            ]);
+
+            return response()->json([
+                'response' => 'error',
+                'message' => 'Missing student context (studentNo/campusId/tenantId).',
+            ], 422);
+        }
+
+        $tokenResult = $this->academicApi->generateSarToken($studentNo, $campusId, $tenantId);
+        if (! ($tokenResult['ok'] ?? false)) {
             Log::warning('Enrollment confirmation token generation failed', [
                 'student_no' => $studentNo,
                 'campus_id' => $campusId,
-                'tenant_id' => (string) $tenantId,
+                'tenant_id' => $tenantId,
                 'token_result' => $tokenResult,
             ]);
 
-            return back()->with('error', 'Unable to generate token.');
+            return response()->json([
+                'response' => 'error',
+                'message' => $tokenResult['error'] ?? 'Unable to generate token.',
+            ], 422);
         }
 
-        $jwt = base64_decode((string) $tokenResult['token'], true);
-        if ($jwt === false || blank($jwt)) {
-            return back()->with('error', 'Unable to decode base64 token.');
-        }
-        $jwt = trim($jwt);
+        $rawToken = (string) ($tokenResult['token'] ?? '');
+        $normalizedToken = trim($rawToken);
 
-        $secret = (string) config('services.academic_jwt.secret');
-        if (blank($secret)) {
-            $secret = '3a7f92e4b05944c3e2b879ac7d6f8a1f0aef6d94241d70e3cfb8922b1569e8d7';
-            Log::warning('Enrollment confirmation JWT secret fallback applied because config value was empty', [
+        // Some APIs return a JSON-encoded string token ("..."), unwrap it.
+        $jsonToken = json_decode($normalizedToken, true);
+        if (is_string($jsonToken) && $jsonToken !== '') {
+            $normalizedToken = $jsonToken;
+        }
+
+        // Remove wrapping quotes if present.
+        $normalizedToken = trim($normalizedToken, "\"' \t\n\r\0\x0B");
+
+        $jwt = base64_decode($normalizedToken, true);
+        if (! $jwt) {
+            Log::warning('Enrollment confirmation invalid base64 token', [
                 'student_no' => $studentNo,
+                'campus_id' => $campusId,
+                'tenant_id' => $tenantId,
+                'raw_token_sample' => substr($rawToken, 0, 120),
             ]);
+
+            return response()->json([
+                'response' => 'error',
+                'message' => 'Invalid base64 token response.',
+            ], 422);
         }
+
+        $secretKey = (string) config('services.academic_jwt.secret');
         $algorithm = (string) config('services.academic_jwt.algorithm', 'HS256');
 
+        if ($secretKey === '') {
+            Log::warning('Enrollment confirmation missing ACADEMIC_JWT_SECRET');
+            return response()->json([
+                'response' => 'error',
+                'message' => 'Missing JWT secret configuration.',
+            ], 500);
+        }
+
         try {
+            // Allow small clock skew between this server and token issuer.
             JWT::$leeway = 60;
-            $decoded = JWT::decode($jwt, new Key($secret, $algorithm));
-        } catch (Throwable $exception) {
+            $decodedObj = JWT::decode($jwt, new Key($secretKey, $algorithm));
+            $decoded = json_decode(json_encode($decodedObj, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable $e) {
             Log::warning('Enrollment confirmation JWT verify/decode failed', [
                 'student_no' => $studentNo,
-                'message' => $exception->getMessage(),
+                'message' => $e->getMessage(),
                 'algorithm' => $algorithm,
-                'secret_length' => strlen($secret),
+                'secret_length' => strlen($secretKey),
                 'jwt_sample' => substr($jwt, 0, 120),
             ]);
 
-            return back()->with('error', 'Unable to verify/decode JWT token.');
+            return response()->json([
+                'response' => 'error',
+                'message' => 'Unable to verify/decode JWT token.',
+            ], 422);
         }
 
+        $activeSemester = $this->academicApi->getActiveSemesterForUser($user);
+        $termId = $activeSemester['termId'] ?? ($decoded['termId'] ?? null);
+        $termLabel = $activeSemester['semester'] ?? '';
+
         $payload = [
-            'studentNo' => (string) ($decoded->studentNo ?? $studentNo),
-            'studentName' => (string) ($decoded->studentName ?? $user->name),
-            'campusId' => (int) ($decoded->campusId ?? $campusId),
-            // Match old flow: always submit against active term/semester.
-            'termId' => (int) $active['termId'],
-            'term' => (string) $active['semester'],
-            'programId' => (int) ($decoded->programId ?? 0),
-            'majorId' => (int) ($decoded->majorDiscId ?? 0),
+            'studentNo' => $decoded['studentNo'] ?? $studentNo,
+            'studentName' => $decoded['studentName'] ?? $user->name,
+            'campusId' => $decoded['campusId'] ?? (string) $campusId,
+            'termId' => $termId,
+            'term' => $termLabel,
+            'programId' => $decoded['programId'] ?? '',
+            'majorId' => $decoded['majorDiscId'] ?? 0,
             'status' => 'Submitted',
-            'submitted' => true,
+            'Submitted' => true,
             'transactionType' => $transactionType,
         ];
 
-        $submit = $this->academicApiService->submitSarConfirmation(
-            payload: $payload,
-            username: (string) $payload['studentNo'],
-            tenantId: $tenantId
+        Log::info('Enrollment confirmation submitting to SAR API', [
+            'student_no' => $decoded['studentNo'] ?? $studentNo,
+            'payload' => $payload,
+        ]);
+
+        // Legacy behavior uses campusId in tenantId query parameter.
+        $submit = $this->academicApi->submitSarConfirmation(
+            $payload,
+            (string) ($decoded['studentNo'] ?? $studentNo),
+            (string) ($decoded['campusId'] ?? $campusId),
         );
 
         if (! ($submit['ok'] ?? false)) {
-            Log::warning('Enrollment confirmation submit failed', [
-                'student_no' => $studentNo,
-                'campus_id' => $campusId,
-                'tenant_id' => (string) $tenantId,
-                'submit' => $submit,
+            Log::warning('Enrollment confirmation SAR submit failed', [
+                'student_no' => $decoded['studentNo'] ?? $studentNo,
+                'submit_result' => $submit,
+                'payload' => $payload,
             ]);
-
-            return back()->with('error', 'Unable to submit confirmation.');
+        } else {
+            Log::info('Enrollment confirmation SAR submit success', [
+                'student_no' => $decoded['studentNo'] ?? $studentNo,
+                'submit_result' => $submit,
+            ]);
         }
 
-        $body = (string) ($submit['message'] ?? '');
-        $decodedResponse = json_decode($body, true);
-        $message = is_array($decodedResponse) ? ($decodedResponse['message'] ?? '') : '';
-
-        if ($message === 'added') {
-            return back()->with('success', 'Enrollment confirmation submitted successfully.');
-        }
-
-        if ($message === 'exists') {
-            return back()->with('success', 'Enrollment confirmation already submitted.');
-        }
-
-        return back()->with('success', 'Enrollment confirmation processed.');
-    }
-
-    public function status(Request $request): JsonResponse
-    {
-        $user = $request->user();
-        $studentNo = $this->academicApiService->studentNumberFor($user);
-        $campusId = $user->campus_id;
-        $tenantId = $user->tenant_id ?: $campusId;
-
-        if (blank($studentNo) || blank($campusId)) {
-            return response()->json([
-                'response' => 'error',
-                'message' => 'Missing student number or campus assignment.',
-            ], 422);
-        }
-
-        $active = $this->academicApiService->getActiveSemesterForUser($user);
-        if (! empty($active['error']) || blank($active['termId'])) {
-            return response()->json([
-                'response' => 'error',
-                'message' => $active['error'] ?? 'No active term found.',
-            ], 422);
-        }
-
-        $statusResult = $this->academicApiService->sarStatusByStudent(
-            studentNo: $studentNo,
-            termId: (string) $active['termId'],
-            tenantId: $tenantId
-        );
-
-        // Fallback: if no record for active term, probe other campus terms (latest first) and pick first match.
-        if (($statusResult['ok'] ?? false) && empty($statusResult['data'])) {
-            $termIds = SiteAcademicTerm::query()
-                ->whereHas('campus', fn ($query) => $query->where('real_campus_id', (int) $campusId))
-                ->orderByDesc('term_id')
-                ->limit(12)
-                ->pluck('term_id')
-                ->map(fn ($termId) => (string) $termId)
-                ->filter()
-                ->unique()
-                ->values();
-
-            foreach ($termIds as $termId) {
-                if ($termId === (string) $active['termId']) {
-                    continue;
-                }
-
-                $probe = $this->academicApiService->sarStatusByStudent(
-                    studentNo: $studentNo,
-                    termId: $termId,
-                    tenantId: $tenantId
-                );
-
-                if (($probe['ok'] ?? false) && ! empty($probe['data'])) {
-                    $statusResult = $probe;
-                    break;
-                }
-            }
-        }
-
-        if (! ($statusResult['ok'] ?? false)) {
-            return response()->json([
-                'response' => 'error',
-                'message' => 'Unable to load enrollment status.',
-            ], 422);
-        }
-
-        $record = is_array($statusResult['data']) ? $statusResult['data'] : null;
-        $status = $record ? (string) ($record['status'] ?? '') : '';
-        $term = $record ? (string) ($record['term'] ?? ($active['semester'] ?? '')) : (string) ($active['semester'] ?? '');
+        $rawMessage = (string) ($submit['message'] ?? '');
+        $parsed = json_decode($rawMessage, true);
+        $message = is_array($parsed) && isset($parsed['message'])
+            ? (string) $parsed['message']
+            : ($rawMessage !== '' ? $rawMessage : (($submit['ok'] ?? false) ? 'added' : 'error'));
 
         return response()->json([
-            'response' => 'success',
-            'status' => $status,
-            'term' => $term,
-            'submitted' => in_array(strtolower($status), ['submitted', 'pending'], true),
-            'record' => $record,
-        ]);
+            'response' => ($submit['ok'] ?? false) ? 'success' : 'error',
+            'message' => $message,
+        ], ($submit['ok'] ?? false) ? 200 : 422);
     }
-
 }

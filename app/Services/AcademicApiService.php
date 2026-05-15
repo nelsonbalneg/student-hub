@@ -2,9 +2,10 @@
 
 namespace App\Services;
 
-use App\Models\User;
 use App\Models\SiteAcademicTerm;
+use App\Models\User;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Pool;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -351,6 +352,262 @@ class AcademicApiService
         }
     }
 
+    public function classScheduleForStudent(?string $studentNo, int|string|null $termId, int|string|null $tenantId = 1): array
+    {
+        if (blank($studentNo)) {
+            return [
+                'data' => [],
+                'error' => 'No student number is linked to your SSO account.',
+            ];
+        }
+
+        if (blank($termId)) {
+            return [
+                'data' => [],
+                'error' => 'No active academic term is available right now.',
+            ];
+        }
+
+        $tenantId = blank($tenantId) ? 1 : $tenantId;
+        $registrationEndpoint = 'Registrations/schedules/'.rawurlencode($studentNo).'/'.rawurlencode((string) $termId);
+
+        try {
+            $response = $this->client()->get($registrationEndpoint, [
+                'tenantId' => $tenantId,
+            ]);
+
+            if ($response->status() === 404) {
+                return [
+                    'data' => [],
+                    'error' => null,
+                ];
+            }
+
+            $response->throw();
+            $registrations = $this->listFromPayload($response->json());
+        } catch (Throwable $exception) {
+            Log::warning('Unable to load student class schedule registrations', [
+                'student_no' => $studentNo,
+                'term_id' => $termId,
+                'tenant_id' => $tenantId,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+                'url' => $this->urlFor($registrationEndpoint),
+            ]);
+
+            return [
+                'data' => [],
+                'error' => 'Unable to load your class schedule right now.',
+            ];
+        }
+
+        if ($registrations === []) {
+            return [
+                'data' => [],
+                'error' => null,
+            ];
+        }
+
+        $registrationsWithSubjects = collect($registrations)
+            ->filter(fn (array $registration): bool => filled($this->valueFrom($registration, [
+                'subjectId',
+                'subject_id',
+                'courseId',
+                'course_id',
+            ])))
+            ->values();
+
+        if ($registrationsWithSubjects->isEmpty()) {
+            Log::warning('Class schedule registrations did not include subject IDs', [
+                'student_no' => $studentNo,
+                'term_id' => $termId,
+                'tenant_id' => $tenantId,
+                'registration_count' => count($registrations),
+            ]);
+
+            return [
+                'data' => [],
+                'error' => 'Your enrolled subjects could not be matched to class schedules right now.',
+            ];
+        }
+
+        try {
+            $responses = Http::pool(function (Pool $pool) use ($registrationsWithSubjects, $termId, $tenantId) {
+                return $registrationsWithSubjects
+                    ->map(function (array $registration, int $index) use ($pool, $termId, $tenantId) {
+                        $subjectId = $this->valueFrom($registration, [
+                            'subjectId',
+                            'subject_id',
+                            'courseId',
+                            'course_id',
+                        ]);
+
+                        return $pool
+                            ->as((string) $index)
+                            ->accept('*/*')
+                            ->connectTimeout($this->connectTimeout)
+                            ->timeout($this->timeout)
+                            ->get($this->urlFor('ClassSchedules/get-schedule-by-subject/term/'.rawurlencode((string) $termId).'/subject/'.rawurlencode((string) $subjectId)), [
+                                'tenantId' => $tenantId,
+                            ]);
+                    })
+                    ->all();
+            });
+        } catch (Throwable $exception) {
+            Log::warning('Unable to load class schedule details', [
+                'student_no' => $studentNo,
+                'term_id' => $termId,
+                'tenant_id' => $tenantId,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return [
+                'data' => [],
+                'error' => 'Unable to load your class schedule right now.',
+            ];
+        }
+
+        $records = [];
+        $hasScheduleFailure = false;
+
+        foreach ($registrationsWithSubjects as $index => $registration) {
+            $subjectId = (string) $this->valueFrom($registration, [
+                'subjectId',
+                'subject_id',
+                'courseId',
+                'course_id',
+            ]);
+            $registrationScheduleId = $this->valueFrom($registration, [
+                'scheduleId',
+                'schedule_id',
+                'schedId',
+                'sched_id',
+            ]);
+            $subjectEndpoint = 'ClassSchedules/get-schedule-by-subject/term/'.rawurlencode((string) $termId).'/subject/'.rawurlencode($subjectId);
+            $subjectResponse = $responses[(string) $index] ?? null;
+
+            if (! $subjectResponse?->successful()) {
+                $hasScheduleFailure = true;
+
+                Log::warning('Unable to load class schedules for enrolled subject', [
+                    'student_no' => $studentNo,
+                    'term_id' => $termId,
+                    'tenant_id' => $tenantId,
+                    'subject_id' => $subjectId,
+                    'schedule_id' => $registrationScheduleId,
+                    'status' => $subjectResponse?->status(),
+                    'body' => $subjectResponse?->body(),
+                    'url' => $this->urlFor($subjectEndpoint),
+                ]);
+
+                continue;
+            }
+
+            $schedules = $this->listFromPayload($subjectResponse->json());
+            $matchedSchedule = collect($schedules)->first(function (array $schedule) use ($registrationScheduleId): bool {
+                $classScheduleId = $this->valueFrom($schedule, [
+                    'scheduleId',
+                    'schedule_id',
+                    'schedId',
+                    'sched_id',
+                    'id',
+                ]);
+
+                return filled($registrationScheduleId)
+                    && filled($classScheduleId)
+                    && (string) $registrationScheduleId === (string) $classScheduleId;
+            });
+
+            if (! $matchedSchedule) {
+                Log::info('No matching class schedule section found for registration', [
+                    'student_no' => $studentNo,
+                    'term_id' => $termId,
+                    'tenant_id' => $tenantId,
+                    'subject_id' => $subjectId,
+                    'registration_schedule_id' => $registrationScheduleId,
+                    'schedule_count' => count($schedules),
+                ]);
+
+                continue;
+            }
+
+            $records[] = $this->normalizeClassSchedule($registration, $matchedSchedule, $subjectId, $registrationScheduleId);
+        }
+
+        return [
+            'data' => $records,
+            'error' => $hasScheduleFailure
+                ? 'Some class schedules could not be loaded. Please refresh the page or try again later.'
+                : null,
+        ];
+    }
+
+    public function registrationForStudentTerm(?string $studentNo, int|string|null $termId, int|string|null $tenantId = 1): array
+    {
+        if (blank($studentNo)) {
+            return [
+                'data' => null,
+                'error' => 'No student number is linked to your SSO account.',
+            ];
+        }
+
+        if (blank($termId)) {
+            return [
+                'data' => null,
+                'error' => 'No active academic term is available right now.',
+            ];
+        }
+
+        $tenantId = blank($tenantId) ? 1 : $tenantId;
+        $endpoint = 'Registrations/bystudent/'.rawurlencode($studentNo).'/term/'.rawurlencode((string) $termId);
+
+        try {
+            Log::info('Loading student registration for COR download', [
+                'student_no' => $studentNo,
+                'term_id' => $termId,
+                'tenant_id' => $tenantId,
+                'url' => $this->urlFor($endpoint),
+            ]);
+
+            $response = $this->client()
+                ->retry(2, 200)
+                ->get($endpoint, [
+                    'tenantId' => $tenantId,
+                ]);
+
+            if ($response->status() === 404) {
+                return [
+                    'data' => null,
+                    'error' => null,
+                ];
+            }
+
+            $response->throw();
+
+            $registration = collect($this->listFromPayload($response->json()))->first();
+
+            return [
+                'data' => $registration ?: null,
+                'error' => null,
+            ];
+        } catch (Throwable $exception) {
+            Log::warning('Unable to load student registration for COR download', [
+                'student_no' => $studentNo,
+                'term_id' => $termId,
+                'tenant_id' => $tenantId,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+                'url' => $this->urlFor($endpoint),
+            ]);
+
+            return [
+                'data' => null,
+                'error' => 'Unable to load your registration record right now.',
+            ];
+        }
+    }
+
     public function facultyEvaluations(?int $campusId, ?int $termId, ?string $studentNo): array
     {
         $activeTerm = null;
@@ -467,7 +724,7 @@ class AcademicApiService
                 ->timeout($this->timeout)
                 ->post('sar/SarTrialPrograms?tenantId='.rawurlencode((string) $tenantId), $payload);
 
-            if (!in_array($response->status(), [200, 201], true)) {
+            if (! in_array($response->status(), [200, 201], true)) {
                 return ['ok' => false, 'message' => $response->body(), 'status' => $response->status()];
             }
 
@@ -477,99 +734,129 @@ class AcademicApiService
         }
     }
 
-    public function sarStatusByStudent(string $studentNo, int|string $termId, int|string $tenantId): array
-    {
-        try {
-            $endpoint = 'sar/SarTrialPrograms/by-student/'.rawurlencode($studentNo).'/'.rawurlencode((string) $termId);
-            $response = $this->client()->get($endpoint, [
-                'tenantId' => $tenantId,
-            ]);
-
-            if ($response->status() === 404) {
-                return ['ok' => true, 'data' => null, 'status' => 404];
-            }
-
-            if (! $response->successful()) {
-                Log::warning('SAR status request failed', [
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                    'student_no' => $studentNo,
-                    'term_id' => (string) $termId,
-                    'tenant_query' => (string) $tenantId,
-                ]);
-
-                return ['ok' => false, 'data' => null, 'status' => $response->status()];
-            }
-
-            return ['ok' => true, 'data' => $response->json(), 'status' => $response->status()];
-        } catch (Throwable $exception) {
-            Log::warning('SAR status request exception', [
-                'student_no' => $studentNo,
-                'term_id' => (string) $termId,
-                'tenant_query' => (string) $tenantId,
-                'message' => $exception->getMessage(),
-            ]);
-
-            return ['ok' => false, 'data' => null, 'status' => 500];
-        }
-    }
-
-    public function updateProfileForStudent(string $studentNo, int|string $campusId, int|string $tenantId, array $changes): array
-    {
-        $current = $this->profileForStudent($studentNo, (string) $tenantId);
-
-        if (!empty($current['error']) || empty($current['data'])) {
-            return ['ok' => false, 'error' => 'Unable to load current profile before update.'];
-        }
-
-        $currentData = (array) $current['data'];
-        $payload = array_merge($currentData, $changes);
-
-        try {
-            $response = $this->client()->withHeaders([
-                'accept' => '*/*',
-                'Content-Type' => 'application/json-patch+json',
-                'x-api-version' => '2.0',
-            ])->put('Students/'.rawurlencode($studentNo).'?campusId='.rawurlencode((string) $campusId).'&tenantId='.rawurlencode((string) $tenantId), $payload);
-
-            if (! $response->successful()) {
-                $changed = [];
-                foreach ($changes as $k => $v) {
-                    $old = $currentData[$k] ?? null;
-                    if ($old !== $v) {
-                        $changed[$k] = [
-                            'old' => $old,
-                            'new' => $v,
-                            'new_type' => gettype($v),
-                        ];
-                    }
-                }
-                Log::warning('Student profile update failed', [
-                    'student_no' => $studentNo,
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                    'changed_fields' => $changed,
-                ]);
-
-                return ['ok' => false, 'error' => 'Profile update failed: HTTP '.$response->status().' '.$response->body()];
-            }
-
-            return ['ok' => true];
-        } catch (Throwable $exception) {
-            Log::warning('Student profile update exception', [
-                'student_no' => $studentNo,
-                'message' => $exception->getMessage(),
-            ]);
-
-            return ['ok' => false, 'error' => 'Profile update failed: '.$exception->getMessage()];
-        }
-    }
     private function client(): PendingRequest
     {
         return Http::baseUrl($this->baseUrl)
             ->accept('*/*')
             ->connectTimeout($this->connectTimeout)
             ->timeout($this->timeout);
+    }
+
+    private function listFromPayload(mixed $payload): array
+    {
+        if (is_array($payload) && array_is_list($payload)) {
+            return array_values(array_filter($payload, 'is_array'));
+        }
+
+        if (is_array($payload)) {
+            foreach (['data', 'items', 'records', 'schedules', 'classSchedules', 'registrations', 'subjects'] as $key) {
+                if (isset($payload[$key]) && is_array($payload[$key])) {
+                    return $this->listFromPayload($payload[$key]);
+                }
+            }
+
+            return [$payload];
+        }
+
+        return [];
+    }
+
+    private function normalizeClassSchedule(array $registration, array $schedule, string $subjectId, mixed $registrationScheduleId): array
+    {
+        $sessions = [];
+
+        for ($index = 1; $index <= 5; $index++) {
+            $scheduleText = $this->valueFrom($schedule, ["sched{$index}", "schedule{$index}"]);
+            $roomText = $this->valueFrom($schedule, ["room{$index}", "roomName{$index}", "room_name{$index}"]);
+
+            if (blank($scheduleText) && blank($roomText)) {
+                continue;
+            }
+
+            $sessions[] = [
+                'schedule' => filled($scheduleText) ? (string) $scheduleText : null,
+                'room' => filled($roomText) ? (string) $roomText : null,
+            ];
+        }
+
+        return [
+            'subject_id' => $subjectId,
+            'schedule_id' => filled($registrationScheduleId) ? (string) $registrationScheduleId : null,
+            'subject_code' => (string) ($this->valueFrom($registration, [
+                'subjectCode',
+                'subject_code',
+                'courseCode',
+                'course_code',
+                'code',
+            ]) ?? $this->valueFrom($schedule, [
+                'subjectCode',
+                'subject_code',
+                'courseCode',
+                'course_code',
+                'code',
+            ]) ?? 'Subject'),
+            'subject_title' => (string) ($this->valueFrom($registration, [
+                'subjectTitle',
+                'subject_title',
+                'subjectDesc',
+                'subject_description',
+                'courseTitle',
+                'course_title',
+                'description',
+                'title',
+            ]) ?? $this->valueFrom($schedule, [
+                'subjectTitle',
+                'subject_title',
+                'subjectDesc',
+                'subject_description',
+                'courseTitle',
+                'course_title',
+                'description',
+                'title',
+            ]) ?? '-'),
+            'section' => (string) ($this->valueFrom($schedule, [
+                'section',
+                'sectionName',
+                'section_name',
+                'sectionCode',
+                'section_code',
+            ]) ?? $this->valueFrom($registration, [
+                'section',
+                'sectionName',
+                'section_name',
+                'sectionCode',
+                'section_code',
+            ]) ?? '-'),
+            'faculty_name' => (string) ($this->valueFrom($schedule, [
+                'facultyName',
+                'faculty_name',
+                'instructor',
+                'instructorName',
+                'teacherName',
+            ]) ?? 'TBA'),
+            'class_size' => $this->valueFrom($schedule, [
+                'classSize',
+                'class_size',
+                'maxClassSize',
+                'capacity',
+                'slot',
+                'slots',
+            ]),
+            'sessions' => $sessions,
+        ];
+    }
+
+    private function valueFrom(array $row, array $keys): mixed
+    {
+        foreach ($keys as $key) {
+            $value = Arr::get($row, $key);
+
+            if (filled($value)) {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     private function urlFor(string $endpoint): string

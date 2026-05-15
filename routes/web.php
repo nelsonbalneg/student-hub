@@ -1,27 +1,38 @@
 <?php
 
+use App\Http\Controllers\Admin\ReferenceLookupController;
+use App\Http\Controllers\AnnouncementCategoryController;
+use App\Http\Controllers\AnnouncementController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\SsoAuthenticatedSessionController;
+use App\Http\Controllers\CarbonFootprintController;
+use App\Http\Controllers\ClassScheduleController;
+use App\Http\Controllers\ClearanceAccountabilityController;
+use App\Http\Controllers\ClearanceUpdateController;
 use App\Http\Controllers\CurriculumController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EnrollmentController;
+use App\Http\Controllers\EvaluationController;
+use App\Http\Controllers\Faq\FaqAnalyticsController;
+use App\Http\Controllers\Faq\FaqCategoryController;
+use App\Http\Controllers\Faq\FaqController;
+use App\Http\Controllers\Faq\FaqFeedbackController;
+use App\Http\Controllers\Faq\FaqPublicController;
 use App\Http\Controllers\GradesController;
 use App\Http\Controllers\InternetAccountController;
+use App\Http\Controllers\LegalDocumentController;
+use App\Http\Controllers\LegalPublicController;
+use App\Http\Controllers\MyCarbonFootprintController;
+use App\Http\Controllers\ReportingOverviewController;
+use App\Http\Controllers\SiteSettings\SiteAcademicTermController;
+use App\Http\Controllers\SiteSettings\SiteCampusController;
+use App\Http\Controllers\SiteSettings\SiteGradeViewingController;
 use App\Http\Controllers\StudentProfileController;
 use App\Http\Controllers\StudentRecordsController;
-use App\Http\Controllers\AnnouncementController;
-use App\Http\Controllers\AnnouncementCategoryController;
-use App\Http\Controllers\EvaluationController;
-use App\Http\Controllers\UserManagementController;
-use App\Http\Controllers\ClearanceUpdateController;
 use App\Http\Controllers\StudentSemesterClearanceController;
-use App\Http\Controllers\ClearanceAccountabilityController;
-use App\Http\Controllers\Admin\ReferenceLookupController;
-use App\Http\Controllers\SiteSettings\SiteCampusController;
-use App\Http\Controllers\SiteSettings\SiteAcademicTermController;
-use App\Http\Controllers\SiteSettings\SiteGradeViewingController;
+use App\Http\Controllers\UserManagementController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-use Laravel\Fortify\Features;
 
 Route::get('/', function () {
     if (auth()->check()) {
@@ -30,6 +41,10 @@ Route::get('/', function () {
 
     return redirect()->route('auth.sso.redirect');
 })->name('home');
+
+Route::get('legal/{type}', [LegalPublicController::class, 'show'])
+    ->whereIn('type', ['terms', 'cookie_policy', 'privacy_policy'])
+    ->name('legal.public.show');
 
 Route::middleware('guest')->group(function () {
     Route::get('auth/sso/redirect', [SsoAuthenticatedSessionController::class, 'redirect'])
@@ -43,6 +58,11 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::post('legal/accept-terms', [LegalPublicController::class, 'acceptTerms'])
+        ->name('legal.accept-terms');
+});
+
+Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
     Route::get('dashboard', DashboardController::class)
         ->middleware('can:dashboard.view')
         ->name('dashboard');
@@ -55,11 +75,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('curriculum', CurriculumController::class)
         ->middleware('can:curriculum.view')
         ->name('curriculum.index');
-    Route::get('student-academic-registration', fn() => Inertia::render('Enrollment/StudentAcademicRegistration'))
+    Route::get('academic/class-schedule', ClassScheduleController::class)
+        ->middleware('role_or_permission:Student|Super Admin|view class schedule')
+        ->name('academic.class-schedule.index');
+    Route::get('academic/cor/download', [ClassScheduleController::class, 'downloadCOR'])
+        ->middleware('role_or_permission:Student|Super Admin|download cor')
+        ->name('academic.cor.download');
+    Route::get('student-academic-registration', fn () => Inertia::render('Enrollment/StudentAcademicRegistration'))
         ->name('enrollment.student-academic-registration');
-    Route::get('student-academic-registration/status', [EnrollmentController::class, 'status'])
-        ->name('enrollment.student-academic-registration.status');
-    Route::get('student-academic-registration/confirm', fn() => redirect()->route('enrollment.student-academic-registration'));
+    Route::get('student-academic-registration/confirm', fn () => redirect()->route('enrollment.student-academic-registration'));
     Route::post('student-academic-registration/confirm', [EnrollmentController::class, 'submitConfirmation'])
         ->name('enrollment.student-academic-registration.confirm');
     Route::get('student-profile', StudentProfileController::class)
@@ -82,6 +106,27 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('internet-accounts/{internetAccount}', [InternetAccountController::class, 'destroy'])
         ->middleware('can:internet-accounts.delete')
         ->name('internet-accounts.destroy');
+
+    Route::get('my-carbon-footprint', [MyCarbonFootprintController::class, 'index'])
+        ->middleware('can:reporting.carbon_footprint.user_view')
+        ->name('reporting.my-carbon-footprint');
+
+    Route::prefix('admin/reporting')
+        ->name('reporting.')
+        ->group(function () {
+            Route::get('/', fn () => redirect()->route('reporting.overview.index'))
+                ->middleware('can:reporting.view')
+                ->name('index');
+            Route::get('/overview', [ReportingOverviewController::class, 'index'])
+                ->middleware('can:reporting.overview.view')
+                ->name('overview.index');
+            Route::get('/audit-logs', [AuditLogController::class, 'index'])
+                ->middleware('can:reporting.audit_logs.view')
+                ->name('audit-logs.index');
+            Route::get('/carbon-footprint', [CarbonFootprintController::class, 'index'])
+                ->middleware('can:reporting.carbon_footprint.view')
+                ->name('carbon-footprint.index');
+        });
 
     Route::prefix('student/evaluation')
         ->name('student.evaluation.')
@@ -197,6 +242,39 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 ->name('permissions.destroy');
         });
 
+    Route::prefix('settings/legal')
+        ->name('legal.')
+        ->controller(LegalDocumentController::class)
+        ->group(function () {
+            Route::get('/', 'index')
+                ->middleware('can:legal.view')
+                ->name('index');
+            Route::get('/create', 'create')
+                ->middleware('can:legal.create')
+                ->name('create');
+            Route::post('/', 'store')
+                ->middleware('can:legal.create')
+                ->name('store');
+            Route::get('/{legalDocument}', 'show')
+                ->middleware('can:legal.view')
+                ->name('show');
+            Route::get('/{legalDocument}/edit', 'edit')
+                ->middleware('can:legal.edit')
+                ->name('edit');
+            Route::put('/{legalDocument}', 'update')
+                ->middleware('can:legal.edit')
+                ->name('update');
+            Route::delete('/{legalDocument}', 'destroy')
+                ->middleware('can:legal.delete')
+                ->name('destroy');
+            Route::patch('/{legalDocument}/activate', 'activate')
+                ->middleware('can:legal.activate')
+                ->name('activate');
+            Route::patch('/{legalDocument}/deactivate', 'deactivate')
+                ->middleware('can:legal.activate')
+                ->name('deactivate');
+        });
+
     // Reference Lookups
     Route::prefix('admin/reference-lookups')
         ->name('admin.reference-lookups.')
@@ -204,17 +282,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('role:Super Admin') // Or specific permission
         ->group(function () {
             Route::get('/', 'index')->name('index');
-            
+
             // Offices
             Route::post('/offices', 'storeOffice')->name('offices.store');
             Route::patch('/offices/{office}', 'updateOffice')->name('offices.update');
             Route::delete('/offices/{office}', 'destroyOffice')->name('offices.destroy');
-            
+
             // Clearance Types
             Route::post('/types', 'storeType')->name('types.store');
             Route::patch('/types/{type}', 'updateType')->name('types.update');
             Route::delete('/types/{type}', 'destroyType')->name('types.destroy');
-            
+
             // Semesters
             Route::post('/semesters', 'storeSemester')->name('semesters.store');
             Route::patch('/semesters/{semester}', 'updateSemester')->name('semesters.update');
@@ -315,14 +393,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // FAQ Module
     Route::prefix('faqs')->name('faqs.')->group(function () {
-        Route::get('/', [App\Http\Controllers\Faq\FaqPublicController::class, 'index'])->name('index');
-        Route::get('/view/{faq}', [App\Http\Controllers\Faq\FaqPublicController::class, 'show'])->name('show');
-        Route::post('/{faq}/feedback', [App\Http\Controllers\Faq\FaqFeedbackController::class, 'store'])->name('feedback');
+        Route::get('/', [FaqPublicController::class, 'index'])->name('index');
+        Route::get('/view/{faq}', [FaqPublicController::class, 'show'])->name('show');
+        Route::post('/{faq}/feedback', [FaqFeedbackController::class, 'store'])->name('feedback');
 
         Route::prefix('manage')->name('manage.')->group(function () {
-            Route::resource('categories', App\Http\Controllers\Faq\FaqCategoryController::class);
-            Route::get('/analytics', [App\Http\Controllers\Faq\FaqAnalyticsController::class, 'index'])->name('analytics');
-            Route::resource('faqs', App\Http\Controllers\Faq\FaqController::class);
+            Route::resource('categories', FaqCategoryController::class);
+            Route::get('/analytics', [FaqAnalyticsController::class, 'index'])->name('analytics');
+            Route::resource('faqs', FaqController::class);
         });
     });
 
@@ -341,16 +419,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 });
 
             // Placeholder routes for new tabs
-            Route::get('evaluation', fn() => Inertia::render('SiteSettings/Placeholder', ['title' => 'Evaluation']))->name('evaluation');
-            Route::get('ccd-cares', fn() => Inertia::render('SiteSettings/Placeholder', ['title' => 'CCD Cares']))->name('ccd-cares');
-            
+            Route::get('evaluation', fn () => Inertia::render('SiteSettings/Placeholder', ['title' => 'Evaluation']))->name('evaluation');
+            Route::get('ccd-cares', fn () => Inertia::render('SiteSettings/Placeholder', ['title' => 'CCD Cares']))->name('ccd-cares');
+
             Route::get('grade-viewing', [SiteGradeViewingController::class, 'index'])->name('grade-viewing.index');
             Route::post('grade-viewing', [SiteGradeViewingController::class, 'store'])->name('grade-viewing.store');
             Route::patch('grade-viewing/{rule}', [SiteGradeViewingController::class, 'update'])->name('grade-viewing.update');
             Route::delete('grade-viewing/{rule}', [SiteGradeViewingController::class, 'destroy'])->name('grade-viewing.destroy');
             Route::patch('grade-viewing/{rule}/toggle', [SiteGradeViewingController::class, 'toggle'])->name('grade-viewing.toggle');
-            
-            Route::get('sar', fn() => Inertia::render('SiteSettings/Placeholder', ['title' => 'SAR']))->name('sar');
+
+            Route::get('sar', fn () => Inertia::render('SiteSettings/Placeholder', ['title' => 'SAR']))->name('sar');
         });
 });
 
