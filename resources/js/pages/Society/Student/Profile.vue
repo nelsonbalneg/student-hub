@@ -9,8 +9,8 @@ import {
     ClipboardList,
     FilePlus2,
     Pencil,
-    RotateCcw,
     Search,
+    Send,
     Trash2,
 } from 'lucide-vue-next';
 
@@ -91,6 +91,12 @@ const displayStatus = (item: any) => {
     return item.status ?? 'draft';
 };
 
+const isSocietyPublished = (item: any) => {
+    const normalized = String(item.status ?? '').toLowerCase();
+
+    return normalized !== 'draft';
+};
+
 const statusClass = (status: string) => {
     const normalized = String(status ?? '').toLowerCase();
 
@@ -137,6 +143,12 @@ const submit = () => {
 
 const canDeleteSociety = (item: any) =>
     !item.accreditation_requests?.some((request: any) => request.status !== 'draft');
+
+const publishSociety = (item: any) => {
+    router.patch(`/societies/manage/${item.id}/publish`, {}, {
+        preserveScroll: true,
+    });
+};
 
 const destroySociety = (item: any) => {
     const name = item.full_name ?? item.name ?? 'this society';
@@ -211,7 +223,7 @@ const confirmDeleteSociety = () => {
                     v-if="registrationBlocked"
                     class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300"
                 >
-                    You already registered a society. Use Renew on the existing society for the active semester instead of registering it again.
+                    You already registered a society. Open Accreditation on the existing society for the active semester instead of registering it again.
                 </div>
 
                 <section class="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950">
@@ -315,21 +327,25 @@ const confirmDeleteSociety = () => {
                                                 <Pencil class="size-3.5" />
                                                 Edit
                                             </Link>
+                                            <button
+                                                v-if="!isSocietyPublished(item)"
+                                                type="button"
+                                                class="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-3 text-[11px] font-bold text-white transition hover:bg-emerald-700"
+                                                title="Publish registration before accreditation"
+                                                @click="publishSociety(item)"
+                                            >
+                                                <Send class="size-3.5" />
+                                                Publish
+                                            </button>
                                             <Link
-                                                v-if="activeTerm && !activeTermAccreditation(item)"
+                                                v-else
                                                 :href="`/societies/manage/${item.id}/accreditation`"
                                                 class="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-slate-900 px-3 text-[11px] font-bold text-white transition hover:bg-indigo-700 dark:bg-white dark:text-slate-950"
+                                                title="Open accreditation application"
                                             >
-                                                <RotateCcw class="size-3.5" />
-                                                Renew
+                                                <ClipboardList class="size-3.5" />
+                                                {{ activeTermAccreditation(item) ? 'View Accreditation' : 'Accreditation' }}
                                             </Link>
-                                            <span
-                                                v-else
-                                                class="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-slate-100 px-3 text-[11px] font-bold text-slate-400 dark:bg-white/5 dark:text-slate-500"
-                                            >
-                                                <RotateCcw class="size-3.5" />
-                                                {{ activeTerm ? 'Applied' : 'No Term' }}
-                                            </span>
                                             <button
                                                 type="button"
                                                 :disabled="!canDeleteSociety(item)"
@@ -465,7 +481,7 @@ const confirmDeleteSociety = () => {
 
                     <div class="sticky bottom-0 flex items-center justify-between gap-3 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-white/10 dark:bg-slate-950/95">
                         <p class="hidden text-[11px] font-medium text-slate-500 dark:text-slate-400 sm:block">
-                            After saving, open Renew to submit semester accreditation.
+                            After saving and publishing, open Accreditation to submit the semester application.
                         </p>
                         <div class="ml-auto flex gap-2">
                             <button
@@ -495,10 +511,10 @@ const confirmDeleteSociety = () => {
                         </div>
                         <div>
                             <h3 class="text-sm font-bold text-slate-900 dark:text-white">
-                                Semester Renewal
+                                Semester Accreditation
                             </h3>
                             <p class="text-[11px] text-slate-500 dark:text-slate-400">
-                                Renew uses the active term configured for your campus.
+                                Accreditation uses the active term configured for your campus.
                             </p>
                         </div>
                     </div>
@@ -524,9 +540,9 @@ const confirmDeleteSociety = () => {
                             <p class="mt-1 text-2xl font-black text-slate-900 dark:text-white">{{ societies.length }}</p>
                         </div>
                         <div class="rounded-md bg-slate-50 p-3 dark:bg-white/5">
-                            <p class="text-[10px] font-bold uppercase text-slate-500">For Renewal</p>
+                            <p class="text-[10px] font-bold uppercase text-slate-500">Needs Accreditation</p>
                             <p class="mt-1 text-2xl font-black text-slate-900 dark:text-white">
-                                {{ activeTerm ? societies.filter((item) => !activeTermAccreditation(item)).length : 0 }}
+                                {{ activeTerm ? societies.filter((item) => isSocietyPublished(item) && !activeTermAccreditation(item)).length : 0 }}
                             </p>
                         </div>
                     </div>

@@ -146,6 +146,19 @@ class SocietyController extends Controller
         return back()->with('success', 'Society profile updated.');
     }
 
+    public function publish(Request $request, Society $society)
+    {
+        abort_unless((int) $society->created_by === (int) $request->user()->id || $request->user()->can('society.update'), 403);
+
+        if ($society->status !== 'draft') {
+            return back()->with('info', 'Society registration is already published.');
+        }
+
+        $society->update(['status' => 'published']);
+
+        return back()->with('success', 'Society registration published. You may now create an accreditation application.');
+    }
+
     public function destroy(Request $request, Society $society)
     {
         abort_unless((int) $society->created_by === (int) $request->user()->id, 403);
@@ -372,6 +385,44 @@ class SocietyController extends Controller
         ]);
 
         return back()->with('success', 'Adviser commitment saved.');
+    }
+
+    public function updateAdviser(Request $request, Society $society, SocietyAdviser $adviser)
+    {
+        abort_unless((int) $adviser->society_id === (int) $society->id, 404);
+
+        $validated = $request->validate([
+            'accreditation_request_id' => ['nullable', 'exists:society_accreditation_requests,id'],
+            'full_name' => ['required', 'string', 'max:255'],
+            'college_unit' => ['nullable', 'string', 'max:255'],
+            'usm_email' => ['nullable', 'email', 'max:255'],
+            'signature' => ['nullable', 'string', 'max:255'],
+            'commitment_form_accepted' => ['accepted'],
+            'school_year' => ['required', 'string', 'max:20'],
+            'semester' => ['required', 'string', 'max:80'],
+        ]);
+
+        $adviser->update($validated + [
+            'commitment_date' => $adviser->commitment_date ?? now()->toDateString(),
+            'commitment_acknowledgements' => $adviser->commitment_acknowledgements ?: [
+                'supervise_organization',
+                'attend_important_meetings_activities',
+                'prohibit_hazing',
+                'observe_membership_limitations',
+                'accept_welfare_responsibility',
+            ],
+        ]);
+
+        return back()->with('success', 'Adviser commitment updated.');
+    }
+
+    public function destroyAdviser(Society $society, SocietyAdviser $adviser)
+    {
+        abort_unless((int) $adviser->society_id === (int) $society->id, 404);
+
+        $adviser->delete();
+
+        return back()->with('success', 'Adviser record deleted.');
     }
 
     public function storeMember(Request $request, Society $society)

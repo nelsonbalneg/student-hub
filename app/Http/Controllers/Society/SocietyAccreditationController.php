@@ -33,6 +33,12 @@ class SocietyAccreditationController extends Controller
     {
         $validated = $request->validated();
 
+        if ($society->status === 'draft') {
+            throw ValidationException::withMessages([
+                'society' => 'Publish the society registration before creating an accreditation application.',
+            ]);
+        }
+
         $existing = $society->accreditationRequests()
             ->where('semester', $validated['semester'])
             ->where('school_year', $validated['school_year'])
@@ -70,28 +76,28 @@ class SocietyAccreditationController extends Controller
         return back()->with('success', 'Accreditation application draft created.');
     }
 
-    public function submit(Society $society, SocietyAccreditationRequest $accreditation)
+    public function submit(Society $society, SocietyAccreditationRequest $accreditationRequest)
     {
-        abort_unless($accreditation->society_id === $society->id, 404);
-        abort_if($accreditation->isLocked(), 403);
+        abort_unless($accreditationRequest->society_id === $society->id, 404);
+        abort_if($accreditationRequest->isLocked(), 403);
 
-        $accreditation->update([
+        $accreditationRequest->update([
             'status' => 'submitted',
             'submitted_at' => now(),
         ]);
 
-        $this->log($accreditation, 'submitted', 'Application submitted to OSA.');
+        $this->log($accreditationRequest, 'submitted', 'Application submitted to OSA.');
 
         return back()->with('success', 'Application submitted to OSA.');
     }
 
-    public function uploadRequirement(StoreRequirementSubmissionRequest $request, Society $society, SocietyAccreditationRequest $accreditation)
+    public function uploadRequirement(StoreRequirementSubmissionRequest $request, Society $society, SocietyAccreditationRequest $accreditationRequest)
     {
-        abort_unless($accreditation->society_id === $society->id, 404);
-        abort_if($accreditation->isLocked(), 403);
+        abort_unless($accreditationRequest->society_id === $society->id, 404);
+        abort_if($accreditationRequest->isLocked(), 403);
 
         $validated = $request->validated();
-        $submission = $accreditation->submissions()->firstOrCreate([
+        $submission = $accreditationRequest->submissions()->firstOrCreate([
             'requirement_id' => $validated['requirement_id'],
         ]);
 
@@ -170,9 +176,9 @@ class SocietyAccreditationController extends Controller
         return $this->adminStatusPage('rejected', 'Rejected Applications');
     }
 
-    public function reviewPage(SocietyAccreditationRequest $accreditation)
+    public function reviewPage(SocietyAccreditationRequest $accreditationRequest)
     {
-        $accreditation->load([
+        $accreditationRequest->load([
             'society',
             'officers',
             'advisers',
@@ -184,39 +190,39 @@ class SocietyAccreditationController extends Controller
         ]);
 
         return Inertia::render('Society/Admin/Review', [
-            'application' => $this->applicationSummary($accreditation),
+            'application' => $this->applicationSummary($accreditationRequest),
             'requirements' => SocietyAccreditationRequirement::query()->orderBy('sort_order')->get(),
-            'stats' => $this->applicationStats($accreditation),
+            'stats' => $this->applicationStats($accreditationRequest),
         ]);
     }
 
-    public function reviewRequirement(UpdateRequirementReviewRequest $request, SocietyAccreditationRequest $accreditation, SocietyRequirementSubmission $submission)
+    public function reviewRequirement(UpdateRequirementReviewRequest $request, SocietyAccreditationRequest $accreditationRequest, SocietyRequirementSubmission $submission)
     {
-        abort_unless($submission->accreditation_request_id === $accreditation->id, 404);
+        abort_unless($submission->accreditation_request_id === $accreditationRequest->id, 404);
 
         $submission->update($request->validated() + [
             'checked_by' => $request->user()->id,
             'checked_at' => now(),
         ]);
 
-        $this->log($accreditation, 'requirement_reviewed', 'Requirement marked '.$request->validated('status').'.', [
+        $this->log($accreditationRequest, 'requirement_reviewed', 'Requirement marked '.$request->validated('status').'.', [
             'submission_id' => $submission->id,
         ]);
 
         return back()->with('success', 'Requirement review saved.');
     }
 
-    public function review(ReviewAccreditationRequest $request, SocietyAccreditationRequest $accreditation)
+    public function review(ReviewAccreditationRequest $request, SocietyAccreditationRequest $accreditationRequest)
     {
         $validated = $request->validated();
-        $number = $accreditation->accreditation_request_no ?: $this->nextRequestNumber();
+        $number = $accreditationRequest->accreditation_request_no ?: $this->nextRequestNumber();
 
         $updates = [
             'status' => $validated['status'],
             'remarks' => $validated['remarks'] ?? null,
             'accreditation_request_no' => $number,
-            'date_received' => $accreditation->date_received ?: now()->toDateString(),
-            'received_checked_by' => $accreditation->received_checked_by ?: $request->user()->id,
+            'date_received' => $accreditationRequest->date_received ?: now()->toDateString(),
+            'received_checked_by' => $accreditationRequest->received_checked_by ?: $request->user()->id,
         ];
 
         if ($validated['status'] === 'approved') {
@@ -263,12 +269,12 @@ class SocietyAccreditationController extends Controller
         return back()->with('success', 'Requirement added.');
     }
 
-    public function print(SocietyAccreditationRequest $accreditation, string $type = 'summary')
+    public function print(SocietyAccreditationRequest $accreditationRequest, string $type = 'summary')
     {
-        $accreditation->load(['society', 'officers', 'advisers', 'members', 'submissions.requirement', 'logs.user']);
+        $accreditationRequest->load(['society', 'officers', 'advisers', 'members', 'submissions.requirement', 'logs.user']);
 
         return Inertia::render('Society/Print/Accreditation', [
-            'application' => $this->applicationSummary($accreditation),
+            'application' => $this->applicationSummary($accreditationRequest),
             'type' => $type,
             'generatedAt' => now()->format('F d, Y h:i A'),
         ]);

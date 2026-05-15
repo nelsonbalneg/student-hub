@@ -15,7 +15,7 @@ class StoreRequirementSubmissionRequest extends FormRequest
     {
         return [
             'requirement_id' => ['required', 'exists:society_accreditation_requirements,id'],
-            'file' => ['nullable', 'file', 'mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png,zip', 'max:20480'],
+            'file' => ['nullable', 'file', 'mimes:pdf', 'max:20480'],
             'remarks' => ['nullable', 'string'],
         ];
     }

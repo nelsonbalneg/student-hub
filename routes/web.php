@@ -474,14 +474,17 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                     Route::patch('/profile', [SocietyController::class, 'update'])
                         ->middleware('can:society.update')
                         ->name('profile.update');
+                    Route::patch('/publish', [SocietyController::class, 'publish'])
+                        ->middleware('can:society.update')
+                        ->name('publish');
                     Route::get('/accreditation', [SocietyAccreditationController::class, 'index'])->name('accreditation.index');
                     Route::post('/accreditation', [SocietyAccreditationController::class, 'store'])
                         ->middleware('can:society.apply_accreditation')
                         ->name('accreditation.store');
-                    Route::post('/accreditation/{accreditation}/submit', [SocietyAccreditationController::class, 'submit'])
+                    Route::post('/accreditation/{accreditation_request}/submit', [SocietyAccreditationController::class, 'submit'])
                         ->middleware('can:society.apply_accreditation')
                         ->name('accreditation.submit');
-                    Route::post('/accreditation/{accreditation}/requirements', [SocietyAccreditationController::class, 'uploadRequirement'])
+                    Route::post('/accreditation/{accreditation_request}/requirements', [SocietyAccreditationController::class, 'uploadRequirement'])
                         ->middleware('can:society.submit_requirements')
                         ->name('accreditation.requirements.store');
                     Route::get('/officers', [SocietyController::class, 'manageOfficers'])->name('officers.index');
@@ -498,6 +501,12 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                     Route::post('/advisers', [SocietyController::class, 'storeAdviser'])
                         ->middleware('can:society.manage_advisers')
                         ->name('advisers.store');
+                    Route::patch('/advisers/{adviser}', [SocietyController::class, 'updateAdviser'])
+                        ->middleware('can:society.manage_advisers')
+                        ->name('advisers.update');
+                    Route::delete('/advisers/{adviser}', [SocietyController::class, 'destroyAdviser'])
+                        ->middleware('can:society.manage_advisers')
+                        ->name('advisers.destroy');
                     Route::get('/members', [SocietyMembershipController::class, 'index'])->name('members.index');
                     Route::get('/members-roster', [SocietyController::class, 'manageMembers'])->name('members.roster');
                     Route::post('/members-roster', [SocietyController::class, 'storeMember'])

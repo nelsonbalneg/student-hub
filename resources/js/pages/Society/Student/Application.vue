@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { computed } from 'vue';
-import { CheckCircle2, Clock, FileUp, RotateCcw } from 'lucide-vue-next';
+import { CheckCircle2, Clock, FileUp } from 'lucide-vue-next';
 
 const props = defineProps<{
     society: any;
@@ -37,7 +37,8 @@ const requirementForm = useForm({
 const completion = computed(() => props.currentApplication?.completion_percentage ?? 0);
 const canEdit = computed(() => !props.currentApplication || props.currentApplication.status !== 'approved');
 const missingOfficerPositions = computed(() => props.officerReadiness?.missing_positions ?? []);
-const canCreateApplication = computed(() => missingOfficerPositions.value.length === 0);
+const isSocietyPublished = computed(() => String(props.society?.status ?? '').toLowerCase() !== 'draft');
+const canCreateApplication = computed(() => isSocietyPublished.value && missingOfficerPositions.value.length === 0);
 const activeTermLabel = computed(() => {
     if (!props.activeTerm) {
         return 'Select semester';
@@ -64,9 +65,10 @@ const uploadRequirement = () => {
 <template>
     <Head title="Accreditation Application" />
 
-    <div class="min-h-screen bg-slate-50/50 px-6 py-6 dark:bg-slate-950 lg:px-8">
-        <div class="mx-auto max-w-7xl space-y-6">
-            <div class="flex flex-col justify-between gap-4 border-b border-slate-200 pb-5 dark:border-slate-800 md:flex-row md:items-end">
+    <div class="flex min-h-screen flex-col bg-slate-50/70 p-4 dark:bg-slate-950 lg:p-5">
+        <div class="flex min-h-0 flex-1 flex-col gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950">
+                <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                 <div>
                     <p class="text-[10px] font-black uppercase tracking-[0.24em] text-sky-600 dark:text-sky-400">Registration / Accreditation</p>
                     <h1 class="text-xl font-black text-slate-950 dark:text-white">{{ society.full_name ?? society.name }}</h1>
@@ -78,19 +80,27 @@ const uploadRequirement = () => {
                     </div>
                     <span class="text-sm font-black text-slate-700 dark:text-slate-200">{{ completion }}%</span>
                 </div>
+                </div>
             </div>
 
-            <div class="grid gap-6 xl:grid-cols-[360px_1fr]">
-                <aside class="space-y-4">
+            <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[420px_1fr]">
+                <aside class="space-y-4 overflow-y-auto pr-0 xl:pr-1">
                     <form class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900" @submit.prevent="createApplication">
                         <h2 class="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">New Accreditation</h2>
                         <p v-if="activeTerm" class="mt-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] font-semibold text-sky-800 dark:border-sky-400/30 dark:bg-sky-500/10 dark:text-sky-300">
                             Active term: {{ activeTermLabel }}
                         </p>
+                        <div v-if="!isSocietyPublished" class="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-800 dark:border-red-400/30 dark:bg-red-500/10 dark:text-red-300">
+                            Publish the society registration before creating an accreditation application.
+                            <Link :href="`/societies/manage/${society.id}/profile`" class="ml-1 underline">Open profile</Link>
+                        </div>
                         <div v-if="missingOfficerPositions.length" class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300">
                             Add active officers for {{ officerReadiness?.school_year ?? applicationForm.school_year }} before creating an application. Missing: {{ missingOfficerPositions.join(', ') }}.
                             <Link :href="`/societies/manage/${society.id}/officers`" class="ml-1 underline">Manage officers</Link>
                         </div>
+                        <p v-if="applicationForm.errors.society" class="mt-3 text-xs font-semibold text-red-600">
+                            {{ applicationForm.errors.society }}
+                        </p>
                         <div class="mt-4 space-y-3">
                             <select v-model="applicationForm.semester" class="h-10 w-full rounded-md border-slate-200 bg-slate-50 px-3 text-sm font-medium dark:border-slate-700 dark:bg-slate-950 dark:text-white">
                                 <option v-if="activeTerm" :value="activeTerm.semester">
@@ -125,7 +135,7 @@ const uploadRequirement = () => {
                     </div>
                 </aside>
 
-                <main class="space-y-4">
+                <main class="min-h-0 space-y-4 overflow-y-auto">
                     <div class="grid gap-3 md:grid-cols-4">
                         <div class="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
                             <Clock class="size-5 text-amber-600" />
@@ -153,7 +163,7 @@ const uploadRequirement = () => {
                                 <option value="">Select requirement</option>
                                 <option v-for="requirement in requirements" :key="requirement.id" :value="requirement.id">{{ requirement.name }}</option>
                             </select>
-                            <input type="file" class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" @input="requirementForm.file = ($event.target as HTMLInputElement).files?.[0] ?? null" />
+                            <input type="file" accept=".pdf" class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" @input="requirementForm.file = ($event.target as HTMLInputElement).files?.[0] ?? null" />
                             <button class="rounded-md bg-sky-600 px-4 py-2 text-sm font-black text-white"><FileUp class="inline size-4" /> Upload</button>
                         </div>
                         <textarea v-model="requirementForm.remarks" rows="2" placeholder="Submission remarks" class="mt-3 w-full rounded-md border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium dark:border-slate-700 dark:bg-slate-950 dark:text-white" />

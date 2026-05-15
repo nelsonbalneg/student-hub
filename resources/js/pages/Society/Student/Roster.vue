@@ -26,6 +26,8 @@ const title = computed(() => props.section.charAt(0).toUpperCase() + props.secti
 const rows = computed(() => props.society?.[props.section] ?? []);
 const endpoint = computed(() => `/societies/manage/${props.society.id}/${props.section === 'members' ? 'members-roster' : props.section}`);
 const canSearchStudents = computed(() => props.section !== 'advisers');
+const canManageRows = computed(() => props.section === 'officers' || props.section === 'advisers');
+const recordLabel = computed(() => props.section.slice(0, -1));
 
 const form = useForm({
     accreditation_request_id: props.currentApplication?.id ?? '',
@@ -49,11 +51,11 @@ const studentResults = ref<any[]>([]);
 const selectedStudent = ref<any | null>(null);
 const isSearchingStudents = ref(false);
 const studentSearchError = ref('');
-const editingOfficer = ref<any | null>(null);
+const editingRecord = ref<any | null>(null);
 const deleteDialog = ref({
     show: false,
     loading: false,
-    officer: null as any | null,
+    record: null as any | null,
 });
 let studentSearchTimeout: ReturnType<typeof setTimeout> | undefined;
 let studentSearchAbort: AbortController | null = null;
@@ -132,47 +134,51 @@ const clearSelectedStudent = () => {
 };
 
 const resetOfficerForm = () => {
-    editingOfficer.value = null;
-    form.reset('position', 'student_identifier', 'student_id', 'full_name', 'year_course_section', 'permanent_address', 'college_unit', 'usm_email', 'contact_no');
+    editingRecord.value = null;
+    form.reset('position', 'student_identifier', 'student_id', 'full_name', 'year_course_section', 'permanent_address', 'college_unit', 'usm_email', 'contact_no', 'commitment_form_accepted');
     form.clearErrors();
     clearSelectedStudent();
 };
 
-const editOfficer = (officer: any) => {
-    editingOfficer.value = officer;
+const editRecord = (record: any) => {
+    editingRecord.value = record;
     studentResults.value = [];
-    selectedStudent.value = officer.student ?? null;
-    studentSearch.value = officer.student
-        ? `${officer.student.name} (${officer.student.student_no ?? officer.student_identifier ?? 'No ID'})`
-        : officer.full_name ?? '';
+    selectedStudent.value = record.student ?? null;
+    studentSearch.value = record.student
+        ? `${record.student.name} (${record.student.student_no ?? record.student_identifier ?? 'No ID'})`
+        : record.full_name ?? '';
 
-    form.accreditation_request_id = officer.accreditation_request_id ?? props.currentApplication?.id ?? '';
-    form.position = officer.position ?? '';
-    form.student_id = officer.student_id ?? '';
-    form.student_identifier = officer.student_identifier ?? officer.student?.student_no ?? '';
-    form.full_name = officer.full_name ?? officer.student?.name ?? '';
-    form.year_course_section = officer.year_course_section ?? '';
-    form.permanent_address = officer.permanent_address ?? '';
-    form.usm_email = officer.usm_email ?? officer.student?.email ?? '';
-    form.contact_no = officer.contact_no ?? '';
-    form.school_year = officer.school_year ?? props.currentApplication?.school_year ?? props.activeTerm?.school_year ?? form.school_year;
-    form.semester = officer.semester ?? props.currentApplication?.semester ?? props.activeTerm?.semester ?? form.semester;
+    form.accreditation_request_id = record.accreditation_request_id ?? props.currentApplication?.id ?? '';
+    form.position = record.position ?? '';
+    form.student_id = record.student_id ?? '';
+    form.student_identifier = record.student_identifier ?? record.student?.student_no ?? '';
+    form.full_name = record.full_name ?? record.student?.name ?? '';
+    form.year_course_section = record.year_course_section ?? '';
+    form.permanent_address = record.permanent_address ?? '';
+    form.college_unit = record.college_unit ?? '';
+    form.usm_email = record.usm_email ?? record.student?.email ?? '';
+    form.contact_no = record.contact_no ?? '';
+    form.commitment_form_accepted = Boolean(record.commitment_form_accepted);
+    form.school_year = record.school_year ?? props.currentApplication?.school_year ?? props.activeTerm?.school_year ?? form.school_year;
+    form.semester = record.semester ?? props.currentApplication?.semester ?? props.activeTerm?.semester ?? form.semester;
 };
 
-const openDeleteOfficer = (officer: any) => {
+const openDeleteRecord = (record: any) => {
     deleteDialog.value = {
         show: true,
         loading: false,
-        officer,
+        record,
     };
 };
 
-const confirmDeleteOfficer = () => {
-    if (!deleteDialog.value.officer) {
+const confirmDeleteRecord = () => {
+    if (!deleteDialog.value.record || !canManageRows.value) {
         return;
     }
 
-    router.delete(`/societies/manage/${props.society.id}/officers/${deleteDialog.value.officer.id}`, {
+    const deletingRecordId = deleteDialog.value.record.id;
+
+    router.delete(`/societies/manage/${props.society.id}/${props.section}/${deletingRecordId}`, {
         preserveScroll: true,
         onStart: () => {
             deleteDialog.value.loading = true;
@@ -180,10 +186,10 @@ const confirmDeleteOfficer = () => {
         onFinish: () => {
             deleteDialog.value.loading = false;
             deleteDialog.value.show = false;
-            deleteDialog.value.officer = null;
+            deleteDialog.value.record = null;
         },
         onSuccess: () => {
-            if (editingOfficer.value?.id === deleteDialog.value.officer?.id) {
+            if (editingRecord.value?.id === deletingRecordId) {
                 resetOfficerForm();
             }
         },
@@ -191,8 +197,8 @@ const confirmDeleteOfficer = () => {
 };
 
 const submit = () => {
-    if (props.section === 'officers' && editingOfficer.value) {
-        form.patch(`/societies/manage/${props.society.id}/officers/${editingOfficer.value.id}`, {
+    if (canManageRows.value && editingRecord.value) {
+        form.patch(`/societies/manage/${props.society.id}/${props.section}/${editingRecord.value.id}`, {
             preserveScroll: true,
             onSuccess: resetOfficerForm,
         });
@@ -239,14 +245,14 @@ const submit = () => {
                         <div class="flex items-start justify-between gap-3">
                             <div>
                                 <h2 class="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                                    {{ editingOfficer ? 'Edit Officer' : `Add ${section.slice(0, -1)}` }}
+                                    {{ editingRecord ? `Edit ${recordLabel}` : `Add ${recordLabel}` }}
                                 </h2>
                                 <p class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                                    Search student records server-side, then complete the required role details.
+                                    {{ canSearchStudents ? 'Search student records server-side, then complete the required role details.' : 'Complete the adviser details and digital commitment acknowledgement.' }}
                                 </p>
                             </div>
                             <button
-                                v-if="editingOfficer"
+                                v-if="editingRecord"
                                 type="button"
                                 class="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 px-3 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
                                 @click="resetOfficerForm"
@@ -336,7 +342,7 @@ const submit = () => {
                             <span>I commit to supervise the organization, attend important meetings and activities, prohibit hazing, observe membership limitations, and accept responsibility for the welfare of members and applicants.</span>
                         </label>
                         <button class="mt-1 inline-flex h-10 items-center justify-center rounded-md bg-slate-950 px-4 text-xs font-black uppercase tracking-wider text-white transition hover:bg-sky-700 disabled:opacity-60 dark:bg-sky-600" :disabled="form.processing">
-                            {{ form.processing ? 'Saving...' : editingOfficer ? 'Update Record' : 'Save Record' }}
+                            {{ form.processing ? 'Saving...' : editingRecord ? 'Update Record' : 'Save Record' }}
                         </button>
                     </div>
                 </form>
@@ -353,7 +359,7 @@ const submit = () => {
                                     <th class="px-4 py-3 text-left">Role / Course</th>
                                     <th class="px-4 py-3 text-left">Term</th>
                                     <th class="px-4 py-3 text-left">Email</th>
-                                    <th v-if="section === 'officers'" class="px-4 py-3 text-right">Action</th>
+                                    <th v-if="canManageRows" class="px-4 py-3 text-right">Action</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
@@ -362,12 +368,12 @@ const submit = () => {
                                     <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ row.position ?? row.year_course_section ?? row.college_unit }}</td>
                                     <td class="px-4 py-3 text-slate-500">{{ row.semester }} {{ row.school_year }}</td>
                                     <td class="px-4 py-3 text-slate-500">{{ row.usm_email }}</td>
-                                    <td v-if="section === 'officers'" class="px-4 py-3">
+                                    <td v-if="canManageRows" class="px-4 py-3">
                                         <div class="flex justify-end gap-2">
                                             <button
                                                 type="button"
                                                 class="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-white/5"
-                                                @click="editOfficer(row)"
+                                                @click="editRecord(row)"
                                             >
                                                 <Pencil class="size-3.5" />
                                                 Edit
@@ -375,7 +381,7 @@ const submit = () => {
                                             <button
                                                 type="button"
                                                 class="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 text-[11px] font-bold text-red-700 transition hover:bg-red-100 dark:border-red-400/30 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
-                                                @click="openDeleteOfficer(row)"
+                                                @click="openDeleteRecord(row)"
                                             >
                                                 <Trash2 class="size-3.5" />
                                                 Delete
@@ -384,7 +390,7 @@ const submit = () => {
                                     </td>
                                 </tr>
                                 <tr v-if="rows.length === 0">
-                                    <td :colspan="section === 'officers' ? 5 : 4" class="px-4 py-10 text-center font-semibold text-slate-500">
+                                    <td :colspan="canManageRows ? 5 : 4" class="px-4 py-10 text-center font-semibold text-slate-500">
                                         No records yet.
                                     </td>
                                 </tr>
@@ -397,15 +403,15 @@ const submit = () => {
 
         <ConfirmationModal
             :show="deleteDialog.show"
-            title="Delete Officer Record"
-            :description="`Delete ${deleteDialog.officer?.full_name ?? deleteDialog.officer?.student?.name ?? 'this officer'} from the officers list? This action cannot be undone.`"
-            :confirm-text="deleteDialog.loading ? 'Deleting...' : 'Delete Officer'"
-            cancel-text="Keep Officer"
+            :title="`Delete ${recordLabel.charAt(0).toUpperCase() + recordLabel.slice(1)} Record`"
+            :description="`Delete ${deleteDialog.record?.full_name ?? deleteDialog.record?.student?.name ?? `this ${recordLabel}`} from the ${section} list? This action cannot be undone.`"
+            :confirm-text="deleteDialog.loading ? 'Deleting...' : `Delete ${recordLabel.charAt(0).toUpperCase() + recordLabel.slice(1)}`"
+            :cancel-text="`Keep ${recordLabel.charAt(0).toUpperCase() + recordLabel.slice(1)}`"
             variant="destructive"
             :loading="deleteDialog.loading"
             compact
             @close="deleteDialog.show = false"
-            @confirm="confirmDeleteOfficer"
+            @confirm="confirmDeleteRecord"
         >
             <template #confirm-icon>
                 <Trash2 class="size-3.5" />
