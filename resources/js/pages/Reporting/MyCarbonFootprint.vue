@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
 import type { ApexOptions } from 'apexcharts';
-import { Leaf, Lightbulb, RefreshCw, Search, Zap } from 'lucide-vue-next';
+import {
+    ChevronDown,
+    Database,
+    Info,
+    Leaf,
+    Lightbulb,
+    RefreshCw,
+    Search,
+    Zap,
+} from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import VueApexCharts from 'vue3-apexcharts';
 
@@ -34,6 +43,7 @@ const props = defineProps<{
         page_views: number;
         sessions: number;
         estimated_energy_kwh: number;
+        estimated_data_kb: number;
     };
     chart: ChartPoint[];
     modules: { module: string; co2e: number; views: number }[];
@@ -53,6 +63,7 @@ const module = ref(props.filters.module ?? '');
 const dateFrom = ref(props.filters.date_from ?? '');
 const dateTo = ref(props.filters.date_to ?? '');
 const loading = ref(false);
+const learnMoreOpen = ref(false);
 
 const chartOptions = computed<ApexOptions>(() => ({
     chart: { type: 'line', toolbar: { show: false } },
@@ -110,7 +121,133 @@ const navigatePage = (url: string | null) => {
             </p>
         </div>
 
-        <div class="grid gap-3 md:grid-cols-4">
+        <section
+            class="sustainability-card overflow-hidden rounded-xl border border-emerald-200 bg-white p-4 shadow-sm dark:border-emerald-500/20 dark:bg-slate-950"
+        >
+            <div class="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+                <div class="flex gap-3">
+                    <div class="sustainability-icon">
+                        <Leaf class="h-5 w-5" />
+                    </div>
+                    <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h2
+                                class="text-sm font-bold text-slate-950 dark:text-white"
+                            >
+                                My Carbon Footprint
+                            </h2>
+                            <span class="sustainability-badge"
+                                >Estimated CO2e insights</span
+                            >
+                        </div>
+                        <p
+                            class="mt-2 max-w-4xl text-xs leading-5 text-slate-600 dark:text-slate-300"
+                        >
+                            Greenhouse gas emissions in equivalent carbon
+                            dioxide (CO2e, carbon) are estimated based on your
+                            usage and interaction within the platform. These
+                            estimated emissions are associated with digital
+                            activities such as page visits, sessions, data
+                            transfers, and feature usage across the system.
+                        </p>
+                        <p
+                            class="mt-2 max-w-4xl text-xs leading-5 text-slate-600 dark:text-slate-300"
+                        >
+                            All emissions displayed in this dashboard are
+                            estimated values intended to provide awareness and
+                            visibility into the environmental impact of digital
+                            platform usage. The calculations are based on
+                            estimated energy consumption, data transfer
+                            activity, and industry-standard carbon conversion
+                            methodologies.
+                        </p>
+                        <div class="sustainability-note mt-3">
+                            <Info class="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            <span
+                                >These metrics are intended for awareness and
+                                sustainability insights only and should not be
+                                interpreted as official audited environmental
+                                reporting.</span
+                            >
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                    <div class="sustainability-metric">
+                        <Leaf class="h-4 w-4 text-emerald-600" />
+                        <span>Total CO2e</span>
+                        <strong>{{ stats.total_co2e_grams }}g</strong>
+                    </div>
+                    <div class="sustainability-metric">
+                        <Lightbulb class="h-4 w-4 text-amber-600" />
+                        <span>Sessions</span>
+                        <strong>{{ stats.sessions }}</strong>
+                    </div>
+                    <div class="sustainability-metric">
+                        <Zap class="h-4 w-4 text-yellow-600" />
+                        <span>Estimated energy usage</span>
+                        <strong>{{ stats.estimated_energy_kwh }} kWh</strong>
+                    </div>
+                    <div class="sustainability-metric">
+                        <Database class="h-4 w-4 text-sky-600" />
+                        <span>Estimated data transfer</span>
+                        <strong>{{ stats.estimated_data_kb }} KB</strong>
+                    </div>
+                </div>
+            </div>
+
+            <button
+                class="learn-more-trigger"
+                type="button"
+                @click="learnMoreOpen = !learnMoreOpen"
+            >
+                <span>Learn more about these estimates</span>
+                <ChevronDown
+                    class="h-4 w-4 transition-transform"
+                    :class="{ 'rotate-180': learnMoreOpen }"
+                />
+            </button>
+
+            <div v-if="learnMoreOpen" class="learn-more-panel">
+                <div>
+                    <h3>What is CO2e?</h3>
+                    <p>
+                        CO2e expresses the climate impact of different
+                        greenhouse gases as an equivalent amount of carbon
+                        dioxide, making environmental estimates easier to
+                        compare.
+                    </p>
+                </div>
+                <div>
+                    <h3>How digital activity contributes</h3>
+                    <p>
+                        Page visits, sessions, network transfers, and feature
+                        usage consume computing and network resources, which can
+                        be associated with electricity use and related
+                        emissions.
+                    </p>
+                </div>
+                <div>
+                    <h3>How estimates are computed</h3>
+                    <p>
+                        Values are derived from estimated data transfer,
+                        estimated energy consumption, and configured carbon
+                        conversion factors used by the platform.
+                    </p>
+                </div>
+                <div>
+                    <h3>Why values may change</h3>
+                    <p>
+                        Carbon estimation methods evolve as infrastructure, grid
+                        factors, usage patterns, and computation models improve
+                        over time.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- <div class="grid gap-3 md:grid-cols-4">
             <div class="stat-card">
                 <Leaf class="stat-icon text-emerald-600" /><span>My CO2e</span
                 ><strong>{{ stats.total_co2e_grams }}g</strong>
@@ -128,7 +265,7 @@ const navigatePage = (url: string | null) => {
                     >Sessions</span
                 ><strong>{{ stats.sessions }}</strong>
             </div>
-        </div>
+        </div> -->
 
         <div
             class="report-card rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950"
@@ -308,6 +445,42 @@ const navigatePage = (url: string | null) => {
 .stat-icon {
     @apply mb-3 h-5 w-5;
 }
+.sustainability-card {
+    background: linear-gradient(
+        135deg,
+        rgba(236, 253, 245, 0.86),
+        rgba(255, 255, 255, 0.98) 42%,
+        rgba(240, 253, 250, 0.72)
+    ) !important;
+    color: #334155 !important;
+}
+.sustainability-icon {
+    @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700;
+}
+.sustainability-badge {
+    @apply rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 uppercase;
+}
+.sustainability-note {
+    @apply flex gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-800;
+}
+.sustainability-metric {
+    @apply grid grid-cols-[auto_1fr] items-center gap-x-2 rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-xs text-slate-500;
+}
+.sustainability-metric strong {
+    @apply col-start-2 text-sm text-slate-950;
+}
+.learn-more-trigger {
+    @apply mt-4 inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-white/70 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-50;
+}
+.learn-more-panel {
+    @apply mt-3 grid gap-3 rounded-xl border border-emerald-200 bg-white/70 p-3 md:grid-cols-2;
+}
+.learn-more-panel h3 {
+    @apply text-xs font-bold text-slate-900;
+}
+.learn-more-panel p {
+    @apply mt-1 text-xs leading-5 text-slate-600;
+}
 .report-card {
     background-color: #ffffff !important;
     color: #334155 !important;
@@ -364,6 +537,44 @@ const navigatePage = (url: string | null) => {
 }
 .stat-card:is(.dark *) strong {
     color: #ffffff !important;
+}
+.sustainability-card:is(.dark *) {
+    background: linear-gradient(
+        135deg,
+        rgba(6, 78, 59, 0.24),
+        rgba(2, 6, 23, 0.98) 45%,
+        rgba(15, 23, 42, 0.94)
+    ) !important;
+    color: #cbd5e1 !important;
+}
+.sustainability-icon:is(.dark *) {
+    border-color: rgba(16, 185, 129, 0.24) !important;
+    background-color: rgba(16, 185, 129, 0.1) !important;
+    color: #6ee7b7 !important;
+}
+.sustainability-badge:is(.dark *),
+.sustainability-note:is(.dark *) {
+    border-color: rgba(16, 185, 129, 0.22) !important;
+    background-color: rgba(16, 185, 129, 0.1) !important;
+    color: #a7f3d0 !important;
+}
+.sustainability-metric:is(.dark *) {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    background-color: rgba(15, 23, 42, 0.72) !important;
+    color: #94a3b8 !important;
+}
+.sustainability-metric:is(.dark *) strong,
+.learn-more-panel:is(.dark *) h3 {
+    color: #f8fafc !important;
+}
+.learn-more-trigger:is(.dark *),
+.learn-more-panel:is(.dark *) {
+    border-color: rgba(16, 185, 129, 0.22) !important;
+    background-color: rgba(15, 23, 42, 0.72) !important;
+    color: #a7f3d0 !important;
+}
+.learn-more-panel:is(.dark *) p {
+    color: #cbd5e1 !important;
 }
 .report-card:is(.dark *) {
     background-color: #020617 !important;

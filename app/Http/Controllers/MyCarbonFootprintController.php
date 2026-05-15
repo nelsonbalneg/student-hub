@@ -35,6 +35,7 @@ class MyCarbonFootprintController extends Controller
                 'page_views' => (clone $query)->count(),
                 'sessions' => (clone $query)->whereNotNull('session_id')->distinct('session_id')->count('session_id'),
                 'estimated_energy_kwh' => round((float) (clone $query)->sum('estimated_energy_kwh'), 8),
+                'estimated_data_kb' => round((float) (clone $query)->sum('estimated_data_kb'), 2),
             ],
             'chart' => $this->chart((clone $query)),
             'modules' => $this->modules((clone $query)),
