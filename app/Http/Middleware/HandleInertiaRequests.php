@@ -3,13 +3,17 @@
 namespace App\Http\Middleware;
 
 use App\Services\LegalDocumentService;
+use App\Services\SiteSettingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
 {
-    public function __construct(private readonly LegalDocumentService $legalDocuments) {}
+    public function __construct(
+        private readonly LegalDocumentService $legalDocuments,
+        private readonly SiteSettingService $siteSettings,
+    ) {}
 
     /**
      * The root template that's loaded on the first page visit.
@@ -41,7 +45,8 @@ class HandleInertiaRequests extends Middleware
     {
         return [
             ...parent::share($request),
-            'name' => config('app.name'),
+            'name' => $this->siteSettings->branding()['site_name'] ?? config('app.name'),
+            'siteSettings' => fn () => $this->siteSettings->branding(),
             'auth' => [
                 'user' => $request->user(),
                 'permissions' => $this->permissionsFor($request),

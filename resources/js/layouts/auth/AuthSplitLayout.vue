@@ -1,10 +1,26 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import { home } from '@/routes';
 
 const page = usePage();
 const name = page.props.name;
+const siteSettings = computed(
+    () =>
+        page.props.siteSettings as
+            | {
+                  site_tagline?: string;
+                  site_logo_url?: string | null;
+              }
+            | undefined,
+);
+const siteLogo = computed(() => siteSettings.value?.site_logo_url);
+const tagline = computed(
+    () =>
+        siteSettings.value?.site_tagline ||
+        'Connecting You to the Digital USM Experience.',
+);
 
 defineProps<{
     title?: string;
@@ -24,9 +40,23 @@ defineProps<{
                 :href="home()"
                 class="relative z-20 flex items-center text-lg font-medium"
             >
-                <AppLogoIcon class="mr-2 size-8 fill-current text-white" />
+                <img
+                    v-if="siteLogo"
+                    :src="siteLogo"
+                    :alt="String(name)"
+                    class="mr-2 size-8 object-contain"
+                />
+                <AppLogoIcon
+                    v-else
+                    class="mr-2 size-8 fill-current text-white"
+                />
                 {{ name }}
             </Link>
+            <p
+                class="relative z-20 mt-auto max-w-md text-sm leading-6 text-white/70"
+            >
+                {{ tagline }}
+            </p>
         </div>
         <div class="lg:p-8">
             <div

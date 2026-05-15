@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}"  @class(['dark' => ($appearance ?? 'system') == 'dark'])>
     <head>
+        @php($siteBranding = app(\App\Services\SiteSettingService::class)->branding())
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="app-name" content="{{ $siteBranding['site_name'] ?? config('app.name', 'StudentHub') }}">
 
         {{-- Inline script to detect system dark mode preference and apply it immediately --}}
         <script>
@@ -21,8 +23,8 @@
             })();
         </script>
 
-        <link rel="icon" type="image/png" href="/favicon.png">
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+        <link rel="icon" href="{{ $siteBranding['site_favicon_url'] ?? '/favicon.png' }}">
+        <link rel="apple-touch-icon" href="{{ $siteBranding['site_favicon_url'] ?? '/apple-touch-icon.png' }}">
 
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -30,7 +32,7 @@
 
         @vite(['resources/css/app.css', 'resources/js/app.ts', "resources/js/pages/{$page['component']}.vue"])
         <x-inertia::head>
-            <title>{{ config('app.name', 'StudenHub') }}</title>
+            <title>{{ $siteBranding['site_name'] ?? config('app.name', 'StudentHub') }}</title>
         </x-inertia::head>
     </head>
     <body class="font-sans antialiased">

@@ -90,6 +90,7 @@ class RolesAndPermissionsSeeder extends Seeder
             ['module' => 'Reporting', 'name' => 'reporting.carbon_footprint.user_view'],
             ['module' => 'Reporting', 'name' => 'reporting.export'],
             ['module' => 'Settings', 'name' => 'settings.view'],
+            ['module' => 'Site Settings', 'name' => 'site_settings.manage'],
             ['module' => 'Legal', 'name' => 'legal.view'],
             ['module' => 'Legal', 'name' => 'legal.create'],
             ['module' => 'Legal', 'name' => 'legal.edit'],

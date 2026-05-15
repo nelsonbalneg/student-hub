@@ -2,8 +2,9 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 
 class SiteSettingsPermissionSeeder extends Seeder
 {
@@ -19,13 +20,14 @@ class SiteSettingsPermissionSeeder extends Seeder
             'site-settings.delete',
             'site-settings.manage-terms',
             'site-settings.activate-term',
+            'site_settings.manage',
         ];
 
         foreach ($permissions as $permission) {
-            \Spatie\Permission\Models\Permission::firstOrCreate(['name' => $permission]);
+            Permission::firstOrCreate(['name' => $permission]);
         }
 
-        $superAdmin = \Spatie\Permission\Models\Role::where('name', 'Super Admin')->first();
+        $superAdmin = Role::where('name', 'Super Admin')->first();
         if ($superAdmin) {
             $superAdmin->givePermissionTo($permissions);
         }

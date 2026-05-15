@@ -25,6 +25,7 @@ use App\Http\Controllers\LegalPublicController;
 use App\Http\Controllers\MyCarbonFootprintController;
 use App\Http\Controllers\ReportingOverviewController;
 use App\Http\Controllers\SiteSettings\SiteAcademicTermController;
+use App\Http\Controllers\SiteSettings\SiteBrandingController;
 use App\Http\Controllers\SiteSettings\SiteCampusController;
 use App\Http\Controllers\SiteSettings\SiteGradeViewingController;
 use App\Http\Controllers\StudentProfileController;
@@ -426,6 +427,9 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
             Route::patch('grade-viewing/{rule}/toggle', [SiteGradeViewingController::class, 'toggle'])->name('grade-viewing.toggle');
 
             Route::get('sar', fn () => Inertia::render('SiteSettings/Placeholder', ['title' => 'SAR']))->name('sar');
+
+            Route::get('site-settings', [SiteBrandingController::class, 'index'])->name('branding.index');
+            Route::post('site-settings', [SiteBrandingController::class, 'update'])->name('branding.update');
         });
 });
 
