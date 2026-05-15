@@ -7,11 +7,52 @@ use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class EnrollmentController extends Controller
 {
     public function __construct(private readonly AcademicApiService $academicApi) {}
+
+    public function status(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $studentNo = $this->academicApi->studentNumberFor($user);
+        $campusId = $user->campus_id;
+        $activeSemester = $this->academicApi->getActiveSemesterForUser($user);
+        $termId = $activeSemester['termId'] ?? null;
+        $tenantId = $campusId; // keep old behavior
+
+        if (! $studentNo || ! $termId || ! $tenantId) {
+            return response()->json([
+                'response' => 'error',
+                'message' => 'Missing student/term context.',
+                'data' => null,
+            ], 422);
+        }
+
+        $sar = $this->academicApi->sarTrialProgramByStudentTerm((string) $studentNo, (string) $termId, (string) $tenantId);
+        $record = $sar['data'] ?? null;
+
+        return response()->json([
+            'response' => 'success',
+            'data' => [
+                'studentNo' => $studentNo,
+                'studentName' => $user->name,
+                'termId' => $termId,
+                'term' => $record['term'] ?? null,
+                'status' => $record['status'] ?? null,
+                'submitted' => (bool) ($record['submitted'] ?? false),
+                'transactionType' => $record['transactionType'] ?? null,
+                'programName' => $record['programName'] ?? null,
+                'curriculum' => $record['curriculum'] ?? null,
+                'dateCreated' => $record['dateCreated'] ?? null,
+                'campusName' => $record['campusName'] ?? null,
+                'sarId' => $record['id'] ?? null,
+                'updatedAt' => Carbon::now()->toDateTimeString(),
+            ],
+        ]);
+    }
 
     public function submitConfirmation(Request $request): JsonResponse
     {

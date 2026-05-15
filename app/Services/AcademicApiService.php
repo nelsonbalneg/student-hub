@@ -734,6 +734,34 @@ class AcademicApiService
         }
     }
 
+    public function sarTrialProgramByStudentTerm(string $studentNo, int|string $termId, int|string $tenantId): array
+    {
+        try {
+            $endpoint = 'sar/SarTrialPrograms/by-student/'.rawurlencode($studentNo).'/'.rawurlencode((string) $termId);
+
+            $response = Http::baseUrl($this->baseUrl)
+                ->withHeaders([
+                    'accept' => '*/*',
+                    'Username' => $studentNo,
+                ])
+                ->connectTimeout($this->connectTimeout)
+                ->timeout($this->timeout)
+                ->get($endpoint.'?tenantId='.rawurlencode((string) $tenantId));
+
+            if ($response->status() === 404) {
+                return ['ok' => true, 'data' => null, 'status' => 404, 'message' => 'No SAR record found'];
+            }
+
+            if (! $response->successful()) {
+                return ['ok' => false, 'data' => null, 'status' => $response->status(), 'message' => $response->body()];
+            }
+
+            return ['ok' => true, 'data' => $response->json(), 'status' => $response->status(), 'message' => null];
+        } catch (Throwable $exception) {
+            return ['ok' => false, 'data' => null, 'status' => 500, 'message' => $exception->getMessage()];
+        }
+    }
+
     private function client(): PendingRequest
     {
         return Http::baseUrl($this->baseUrl)
@@ -864,4 +892,3 @@ class AcademicApiService
         return $this->baseUrl.'/'.ltrim($endpoint, '/');
     }
 }
-

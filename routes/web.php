@@ -86,6 +86,8 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
     Route::get('student-academic-registration/confirm', fn () => redirect()->route('enrollment.student-academic-registration'));
     Route::post('student-academic-registration/confirm', [EnrollmentController::class, 'submitConfirmation'])
         ->name('enrollment.student-academic-registration.confirm');
+    Route::get('student-academic-registration/status', [EnrollmentController::class, 'status'])
+        ->name('enrollment.student-academic-registration.status');
     Route::get('student-profile', StudentProfileController::class)
         ->middleware('can:student-profile.view')
         ->name('student-profile.index');
