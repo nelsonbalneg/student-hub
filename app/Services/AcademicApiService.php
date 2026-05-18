@@ -269,6 +269,29 @@ class AcademicApiService
         }
     }
 
+    public function profileLookups(): array
+    {
+        $fetch = function (string $endpoint): array {
+            try {
+                $response = $this->client()->get($endpoint);
+                if (! $response->successful()) {
+                    return [];
+                }
+                $data = $response->json();
+                return is_array($data) ? $data : [];
+            } catch (Throwable) {
+                return [];
+            }
+        };
+
+        return [
+            'tribes' => $fetch('Tribes/list'),
+            'civilStatuses' => $fetch('CivilStatus/list'),
+            'religions' => $fetch('Religions/list'),
+            'nationalities' => $fetch('Nationalities/list'),
+        ];
+    }
+
     public function gradeReportForStudent(?string $studentNo, ?string $tenantId): array
     {
         if (blank($studentNo)) {
@@ -708,6 +731,34 @@ class AcademicApiService
             return ['ok' => true, 'message' => $response->body(), 'status' => $response->status()];
         } catch (Throwable $exception) {
             return ['ok' => false, 'message' => $exception->getMessage(), 'status' => 500];
+        }
+    }
+
+    public function sarTrialProgramByStudentTerm(string $studentNo, int|string $termId, int|string $tenantId): array
+    {
+        try {
+            $endpoint = 'sar/SarTrialPrograms/by-student/'.rawurlencode($studentNo).'/'.rawurlencode((string) $termId);
+
+            $response = Http::baseUrl($this->baseUrl)
+                ->withHeaders([
+                    'accept' => '*/*',
+                    'Username' => $studentNo,
+                ])
+                ->connectTimeout($this->connectTimeout)
+                ->timeout($this->timeout)
+                ->get($endpoint.'?tenantId='.rawurlencode((string) $tenantId));
+
+            if ($response->status() === 404) {
+                return ['ok' => true, 'data' => null, 'status' => 404, 'message' => 'No SAR record found'];
+            }
+
+            if (! $response->successful()) {
+                return ['ok' => false, 'data' => null, 'status' => $response->status(), 'message' => $response->body()];
+            }
+
+            return ['ok' => true, 'data' => $response->json(), 'status' => $response->status(), 'message' => null];
+        } catch (Throwable $exception) {
+            return ['ok' => false, 'data' => null, 'status' => 500, 'message' => $exception->getMessage()];
         }
     }
 

@@ -15,6 +15,8 @@ class DashboardController extends Controller
     public function __invoke(Request $request): Response
     {
         $user = $request->user();
+        $studentNo = $this->academicApi->studentNumberFor($user);
+        $profile = $this->academicApi->profileForStudent($studentNo, (string) $user->tenant_id);
 
         $announcements = Announcement::published()
             ->with(['category', 'creator'])
@@ -51,6 +53,12 @@ class DashboardController extends Controller
             ],
             'activeSemesters' => $this->academicApi->activeSemestersForCampus($user->campus_id),
             'announcements' => $announcements,
+            'studentProfile' => [
+                'studentPicture' => data_get($profile, 'data.studentPicture'),
+                'firstName' => data_get($profile, 'data.firstName'),
+                'middlename' => data_get($profile, 'data.middlename'),
+                'lastName' => data_get($profile, 'data.lastName'),
+            ],
         ]);
     }
 }

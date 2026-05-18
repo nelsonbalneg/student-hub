@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
 import {
-    Activity,
     AlertTriangle,
     Building2,
     CalendarDays,
@@ -32,6 +31,12 @@ const props = defineProps<{
         error: string | null;
     };
     announcements: any[];
+    studentProfile?: {
+        studentPicture?: string | null;
+        firstName?: string | null;
+        middlename?: string | null;
+        lastName?: string | null;
+    };
 }>();
 
 const labelFor = (semester: ActiveSemester): string => {
@@ -83,6 +88,26 @@ const integrationState = computed(() => {
 });
 
 const page = usePage();
+const currentUser = computed(() => (page.props.auth as { user?: { name?: string; avatar?: string | null } }).user ?? {});
+const profileFullName = computed(() => {
+    const parts = [
+        props.studentProfile?.firstName,
+        props.studentProfile?.middlename,
+        props.studentProfile?.lastName,
+    ]
+        .map((v) => String(v ?? '').trim())
+        .filter((v) => v.length > 0);
+    return parts.join(' ').trim();
+});
+const currentUserName = computed(() => profileFullName.value || currentUser.value?.name || 'Student');
+const currentUserAvatar = computed(() => {
+    const fromProfile = String(props.studentProfile?.studentPicture ?? '').trim();
+    const raw = fromProfile;
+    if (!raw) return null;
+    if (raw.startsWith('data:image')) return raw;
+    if (/^https?:\/\//i.test(raw)) return raw;
+    return `data:image/jpeg;base64,${raw}`;
+});
 
 const permissions = computed<string[]>(
     () => (page.props.auth as { permissions?: string[] }).permissions ?? [],
@@ -168,18 +193,32 @@ defineOptions({
             class="flex flex-col gap-3 border-b border-slate-200 pb-4 lg:flex-row lg:items-center lg:justify-between dark:border-white/10"
         >
             <div>
-                <div class="flex items-center gap-2">
-                    <span
-                        class="inline-flex size-8 items-center justify-center rounded-lg bg-sky-50 text-sky-600 ring-1 ring-sky-100 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/20"
+                <div class="flex items-center gap-3">
+                    <div
+                        class="inline-flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-900"
                     >
-                        <Activity class="size-4" />
-                    </span>
+                        <img
+                            v-if="currentUserAvatar"
+                            :src="currentUserAvatar"
+                            :alt="currentUserName"
+                            class="size-full object-cover"
+                        />
+                        <span
+                            v-else
+                            class="text-xs font-bold text-slate-600 dark:text-slate-300"
+                        >
+                            {{ currentUserName.charAt(0).toUpperCase() }}
+                        </span>
+                    </div>
                     <div>
                         <h1
                             class="text-lg font-bold tracking-tight text-slate-950 dark:text-white"
                         >
                             Dashboard
                         </h1>
+                        <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                            {{ currentUserName }}
+                        </p>
                         <p class="text-xs text-slate-500 dark:text-slate-400">
                             Academic operations and SSO context overview.
                         </p>
