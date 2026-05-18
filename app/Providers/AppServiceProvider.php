@@ -2,15 +2,25 @@
 
 namespace App\Providers;
 
-use App\Models\User;
 use App\Models\Announcement;
+use App\Models\AuditLog;
 use App\Models\DossierDocument;
 use App\Models\EvaluationPeriod;
 use App\Models\EvaluationRequest;
+use App\Models\User;
+use App\Policies\AnnouncementPolicy;
+use App\Policies\EvaluationPeriodPolicy;
+use App\Policies\EvaluationRequestPolicy;
+use App\Policies\PermissionPolicy;
+use App\Policies\RolePolicy;
+use App\Policies\UserPolicy;
 use App\Models\StudentDossier;
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
@@ -37,6 +47,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureAuthorization();
         $this->configureDefaults();
+        $this->configureAuditEvents();
     }
 
     protected function configureAuthorization(): void
@@ -61,14 +72,14 @@ class AppServiceProvider extends ServiceProvider
             return null;
         });
 
-        Gate::policy(\App\Models\User::class, \App\Policies\UserPolicy::class);
-        Gate::policy(Announcement::class, \App\Policies\AnnouncementPolicy::class);
-        Gate::policy(EvaluationPeriod::class, \App\Policies\EvaluationPeriodPolicy::class);
-        Gate::policy(EvaluationRequest::class, \App\Policies\EvaluationRequestPolicy::class);
+        Gate::policy(User::class, UserPolicy::class);
+        Gate::policy(Announcement::class, AnnouncementPolicy::class);
+        Gate::policy(EvaluationPeriod::class, EvaluationPeriodPolicy::class);
+        Gate::policy(EvaluationRequest::class, EvaluationRequestPolicy::class);
         Gate::policy(StudentDossier::class, \App\Policies\StudentDossierPolicy::class);
         Gate::policy(DossierDocument::class, \App\Policies\DossierDocumentPolicy::class);
-        Gate::policy(Role::class, \App\Policies\RolePolicy::class);
-        Gate::policy(Permission::class, \App\Policies\PermissionPolicy::class);
+        Gate::policy(Role::class, RolePolicy::class);
+        Gate::policy(Permission::class, PermissionPolicy::class);
     }
 
     private function isUserManagementAbility(string $ability): bool
@@ -138,5 +149,43 @@ class AppServiceProvider extends ServiceProvider
                 ->uncompromised()
             : null,
         );
+    }
+
+    private function configureAuditEvents(): void
+    {
+        Event::listen(Login::class, function (Login $event): void {
+            $this->writeAuthAuditLog($event->user, 'login');
+        });
+
+        Event::listen(Logout::class, function (Logout $event): void {
+            if ($event->user instanceof User) {
+                $this->writeAuthAuditLog($event->user, 'logout');
+            }
+        });
+    }
+
+    private function writeAuthAuditLog(User $user, string $action): void
+    {
+        try {
+            if (! Schema::hasTable('audit_logs')) {
+                return;
+            }
+
+            AuditLog::query()->create([
+                'user_id' => $user->id,
+                'actor_name' => $user->name,
+                'actor_email' => $user->email,
+                'module' => 'Authentication',
+                'action' => $action,
+                'description' => "{$user->name} performed {$action}.",
+                'ip_address' => request()?->ip(),
+                'user_agent' => request()?->userAgent(),
+                'route_name' => request()?->route()?->getName(),
+                'url' => request()?->fullUrl(),
+                'method' => request()?->method(),
+            ]);
+        } catch (Throwable) {
+            //
+        }
     }
 }

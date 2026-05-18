@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
 import {
-    Archive,
+    Activity,
+    BarChart3,
     BookOpen,
-    CalendarDays,
-    Download,
     FileSignature,
     ClipboardCheck,
     Wifi,
@@ -21,6 +20,7 @@ import {
     FileCheck,
     FileText,
     Building2,
+    Leaf,
     FolderOpen,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
@@ -63,7 +63,10 @@ const hasRole = (role?: string | string[]): boolean => {
     );
 };
 
-const can = (permission?: string | string[], role?: string | string[]): boolean => {
+const can = (
+    permission?: string | string[],
+    role?: string | string[],
+): boolean => {
     if (!permission && !role) {
         return true;
     }
@@ -108,6 +111,7 @@ const firstVisibleHref = (items: NavItem[]): NavItem['href'] | string => {
 };
 
 const overviewNavItems: NavItem[] = [
+   
     {
         title: 'Dashboard',
         href: dashboard(),
@@ -137,7 +141,7 @@ const overviewNavItems: NavItem[] = [
                 // icon: CalendarDays,
                 permission: 'view class schedule',
                 roles: ['Student', 'Super Admin'],
-            }
+            },
         ],
     },
     {
@@ -206,7 +210,10 @@ const overviewNavItems: NavItem[] = [
             {
                 title: 'Categories',
                 href: '/announcements/categories',
-                permission: ['announcement.manage-categories', 'announcements.manage-categories'],
+                permission: [
+                    'announcement.manage-categories',
+                    'announcements.manage-categories',
+                ],
             },
         ],
     },
@@ -246,9 +253,95 @@ const overviewNavItems: NavItem[] = [
             },
         ],
     },
+     {
+        title: 'Societies',
+        href: '/societies',
+        icon: Users,
+        items: [
+            {
+                title: 'Browse Societies',
+                href: '/societies',
+            },
+            {
+                title: 'My Societies',
+                href: '/societies/my-societies',
+            },
+            {
+                title: 'Registration',
+                href: '/societies/registration',
+                permission: ['society.create', 'society.update'],
+            },
+            {
+                title: 'Society Events',
+                href: '/societies/events',
+            },
+            {
+                title: 'Announcements',
+                href: '/societies/announcements',
+            },
+        ],
+    },
+    {
+        title: 'My Carbon Footprint',
+        href: '/my-carbon-footprint',
+        icon: Leaf,
+        permission: 'reporting.carbon_footprint.user_view',
+    },
 ];
 
 const siteAdministrationNavItems: NavItem[] = [
+    {
+        title: 'Society Management',
+        href: '/admin/societies/dashboard',
+        icon: Building2,
+        permission: ['society.review_accreditation', 'society.view_reports'],
+        items: [
+            {
+                title: 'Dashboard',
+                href: '/admin/societies/dashboard',
+            },
+            {
+                title: 'Applications',
+                href: '/admin/societies/applications',
+                permission: 'society.review_accreditation',
+            },
+            {
+                title: 'Accredited Societies',
+                href: '/admin/societies/accredited',
+            },
+            {
+                title: 'Reports',
+                href: '/admin/societies/reports',
+                permission: 'society.view_reports',
+            },
+        ],
+    },
+    {
+        title: 'Reporting',
+        href: '/admin/reporting/overview',
+        icon: BarChart3,
+        permission: 'reporting.view',
+        items: [
+            {
+                title: 'Overview',
+                href: '/admin/reporting/overview',
+                icon: Activity,
+                permission: 'reporting.overview.view',
+            },
+            {
+                title: 'Audit Logs',
+                href: '/admin/reporting/audit-logs',
+                icon: FileText,
+                permission: 'reporting.audit_logs.view',
+            },
+            {
+                title: 'Carbon Footprint',
+                href: '/admin/reporting/carbon-footprint',
+                icon: Leaf,
+                permission: 'reporting.carbon_footprint.view',
+            },
+        ],
+    },
     {
         title: 'Settings',
         href: '/user-management',

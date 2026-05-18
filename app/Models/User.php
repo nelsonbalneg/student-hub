@@ -87,9 +87,54 @@ class User extends Authenticatable
         return $this->hasMany(ClearanceAccountability::class, 'student_id');
     }
 
+    public function uploadedClearanceAccountabilities(): HasMany
+    {
+        return $this->hasMany(ClearanceAccountability::class, 'uploaded_by');
+    }
+
+    public function createdClearanceUpdates(): HasMany
+    {
+        return $this->hasMany(ClearanceUpdate::class, 'created_by');
+    }
+
+    public function clearanceAccountabilityUploads(): HasMany
+    {
+        return $this->hasMany(ClearanceAccountabilityUpload::class, 'uploaded_by');
+    }
+
+    public function studentClearanceLogs(): HasMany
+    {
+        return $this->hasMany(ClearanceLog::class, 'student_id');
+    }
+
     public function performedClearanceLogs(): HasMany
     {
         return $this->hasMany(ClearanceLog::class, 'performed_by');
+    }
+
+    public function activitySessions(): HasMany
+    {
+        return $this->hasMany(UserActivitySession::class);
+    }
+
+    public function auditLogs(): HasMany
+    {
+        return $this->hasMany(AuditLog::class);
+    }
+
+    public function carbonFootprintLogs(): HasMany
+    {
+        return $this->hasMany(CarbonFootprintLog::class);
+    }
+
+    public function societyMemberships(): HasMany
+    {
+        return $this->hasMany(SocietyMembership::class, 'student_id');
+    }
+
+    public function societyOffices(): HasMany
+    {
+        return $this->hasMany(SocietyOfficer::class, 'student_id');
     }
 
     /**

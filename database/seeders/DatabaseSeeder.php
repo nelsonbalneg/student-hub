@@ -29,6 +29,9 @@ class DatabaseSeeder extends Seeder
             LegalDocumentsSeeder::class,
             ClearancePermissionsSeeder::class,
             ClearanceInitialDataSeeder::class,
+            SocietyPermissionSeeder::class,
+            SocietyOfficerPositionSeeder::class,
+            SocietyAccreditationRequirementSeeder::class,
         ]);
 
         $testUser->assignRole('Super Admin');

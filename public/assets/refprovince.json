@@ -1,0 +1,268 @@
+{
+  "RECORDS": [
+    {
+      "provDesc": "ILOCOS NORTE"
+    },
+    {
+      "provDesc": "ILOCOS SUR"
+    },
+    {
+      "provDesc": "LA UNION"
+    },
+    {
+      "provDesc": "PANGASINAN"
+    },
+    {
+      "provDesc": "BATANES"
+    },
+    {
+      "provDesc": "CAGAYAN"
+    },
+    {
+      "provDesc": "ISABELA"
+    },
+    {
+      "provDesc": "NUEVA VIZCAYA"
+    },
+    {
+      "provDesc": "QUIRINO"
+    },
+    {
+      "provDesc": "BATAAN"
+    },
+    {
+      "provDesc": "BULACAN"
+    },
+    {
+      "provDesc": "NUEVA ECIJA"
+    },
+    {
+      "provDesc": "PAMPANGA"
+    },
+    {
+      "provDesc": "TARLAC"
+    },
+    {
+      "provDesc": "ZAMBALES"
+    },
+    {
+      "provDesc": "AURORA"
+    },
+    {
+      "provDesc": "BATANGAS"
+    },
+    {
+      "provDesc": "CAVITE"
+    },
+    {
+      "provDesc": "LAGUNA"
+    },
+    {
+      "provDesc": "QUEZON"
+    },
+    {
+      "provDesc": "RIZAL"
+    },
+    {
+      "provDesc": "MARINDUQUE"
+    },
+    {
+      "provDesc": "OCCIDENTAL MINDORO"
+    },
+    {
+      "provDesc": "ORIENTAL MINDORO"
+    },
+    {
+      "provDesc": "PALAWAN"
+    },
+    {
+      "provDesc": "ROMBLON"
+    },
+    {
+      "provDesc": "ALBAY"
+    },
+    {
+      "provDesc": "CAMARINES NORTE"
+    },
+    {
+      "provDesc": "CAMARINES SUR"
+    },
+    {
+      "provDesc": "CATANDUANES"
+    },
+    {
+      "provDesc": "MASBATE"
+    },
+    {
+      "provDesc": "SORSOGON"
+    },
+    {
+      "provDesc": "AKLAN"
+    },
+    {
+      "provDesc": "ANTIQUE"
+    },
+    {
+      "provDesc": "CAPIZ"
+    },
+    {
+      "provDesc": "ILOILO"
+    },
+    {
+      "provDesc": "NEGROS OCCIDENTAL"
+    },
+    {
+      "provDesc": "GUIMARAS"
+    },
+    {
+      "provDesc": "BOHOL"
+    },
+    {
+      "provDesc": "CEBU"
+    },
+    {
+      "provDesc": "NEGROS ORIENTAL"
+    },
+    {
+      "provDesc": "SIQUIJOR"
+    },
+    {
+      "provDesc": "EASTERN SAMAR"
+    },
+    {
+      "provDesc": "LEYTE"
+    },
+    {
+      "provDesc": "NORTHERN SAMAR"
+    },
+    {
+      "provDesc": "SAMAR (WESTERN SAMAR)"
+    },
+    {
+      "provDesc": "SOUTHERN LEYTE"
+    },
+    {
+      "provDesc": "BILIRAN"
+    },
+    {
+      "provDesc": "ZAMBOANGA DEL NORTE"
+    },
+    {
+      "provDesc": "ZAMBOANGA DEL SUR"
+    },
+    {
+      "provDesc": "ZAMBOANGA SIBUGAY"
+    },
+    {
+      "provDesc": "CITY OF ISABELA"
+    },
+    {
+      "provDesc": "BUKIDNON"
+    },
+    {
+      "provDesc": "CAMIGUIN"
+    },
+    {
+      "provDesc": "LANAO DEL NORTE"
+    },
+    {
+      "provDesc": "MISAMIS OCCIDENTAL"
+    },
+    {
+      "provDesc": "MISAMIS ORIENTAL"
+    },
+    {
+      "provDesc": "DAVAO DEL NORTE"
+    },
+    {
+      "provDesc": "DAVAO DEL SUR"
+    },
+    {
+      "provDesc": "DAVAO ORIENTAL"
+    },
+    {
+      "provDesc": "COMPOSTELA VALLEY"
+    },
+    {
+      "provDesc": "DAVAO OCCIDENTAL"
+    },
+    {
+      "provDesc": "NORTH COTABATO"
+    },
+    {
+      "provDesc": "SOUTH COTABATO"
+    },
+    {
+      "provDesc": "SULTAN KUDARAT"
+    },
+    {
+      "provDesc": "SARANGANI"
+    },
+    {
+      "provDesc": "COTABATO CITY"
+    },
+    {
+      "provDesc": "NCR, CITY OF MANILA, FIRST DISTRICT"
+    },
+    {
+      "provDesc": "CITY OF MANILA"
+    },
+    {
+      "provDesc": "NCR, SECOND DISTRICT"
+    },
+    {
+      "provDesc": "NCR, THIRD DISTRICT"
+    },
+    {
+      "provDesc": "NCR, FOURTH DISTRICT"
+    },
+    {
+      "provDesc": "ABRA"
+    },
+    {
+      "provDesc": "BENGUET"
+    },
+    {
+      "provDesc": "IFUGAO"
+    },
+    {
+      "provDesc": "KALINGA"
+    },
+    {
+      "provDesc": "MOUNTAIN PROVINCE"
+    },
+    {
+      "provDesc": "APAYAO"
+    },
+    {
+      "provDesc": "BASILAN"
+    },
+    {
+      "provDesc": "LANAO DEL SUR"
+    },
+    {
+      "provDesc": "MAGUINDANAO"
+    },
+    {
+      "provDesc": "SULU"
+    },
+    {
+      "provDesc": "TAWI-TAWI"
+    },
+    {
+      "provDesc": "AGUSAN DEL NORTE"
+    },
+    {
+      "provDesc": "AGUSAN DEL SUR"
+    },
+    {
+      "provDesc": "SURIGAO DEL NORTE"
+    },
+    {
+      "provDesc": "SURIGAO DEL SUR"
+    },
+    {
+      "provDesc": "DINAGAT ISLANDS"
+    }
+  ]
+}

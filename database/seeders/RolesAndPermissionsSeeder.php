@@ -96,7 +96,14 @@ class RolesAndPermissionsSeeder extends Seeder
             ['module' => 'Dossiers', 'name' => 'dossiers.documents.verify'],
             ['module' => 'Dossiers', 'name' => 'dossiers.audit.view'],
             ['module' => 'Reports', 'name' => 'reports.view'],
+            ['module' => 'Reporting', 'name' => 'reporting.view'],
+            ['module' => 'Reporting', 'name' => 'reporting.overview.view'],
+            ['module' => 'Reporting', 'name' => 'reporting.audit_logs.view'],
+            ['module' => 'Reporting', 'name' => 'reporting.carbon_footprint.view'],
+            ['module' => 'Reporting', 'name' => 'reporting.carbon_footprint.user_view'],
+            ['module' => 'Reporting', 'name' => 'reporting.export'],
             ['module' => 'Settings', 'name' => 'settings.view'],
+            ['module' => 'Site Settings', 'name' => 'site_settings.manage'],
             ['module' => 'Legal', 'name' => 'legal.view'],
             ['module' => 'Legal', 'name' => 'legal.create'],
             ['module' => 'Legal', 'name' => 'legal.edit'],
@@ -148,6 +155,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'evaluation.evaluate',
             'evaluation.feedback',
             'evaluation.mark-done',
+            'reporting.carbon_footprint.user_view',
         ]);
 
         $studentRole = Role::query()->updateOrCreate(
@@ -165,6 +173,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'download cor',
             'evaluation.view',
             'evaluation.submit-intent',
+            'reporting.carbon_footprint.user_view',
         ]);
 
         $admin = User::query()->firstOrCreate(

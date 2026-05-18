@@ -10,23 +10,27 @@ import type { BreadcrumbItem } from '@/types';
 
 type Props = {
     breadcrumbs?: BreadcrumbItem[];
+    hideHeader?: boolean;
+    hideFooter?: boolean;
 };
 
 withDefaults(defineProps<Props>(), {
     breadcrumbs: () => [],
+    hideHeader: false,
+    hideFooter: false,
 });
 </script>
 
 <template>
     <AppShell variant="sidebar">
         <AppSidebar />
-        <AppContent variant="sidebar" class="overflow-x-hidden">
-            <AppSidebarHeader :breadcrumbs="breadcrumbs" />
-            <div class="flex min-h-[calc(100svh-4rem)] flex-col">
-                <div class="flex-1">
+        <AppContent variant="sidebar" class="w-full overflow-x-hidden">
+            <AppSidebarHeader v-if="!hideHeader" :breadcrumbs="breadcrumbs" />
+            <div class="flex w-full min-h-[calc(100svh-4rem)] flex-col">
+                <div class="flex-1 w-full">
                     <slot />
                 </div>
-                <LegalFooter />
+                <LegalFooter v-if="!hideFooter" />
             </div>
         </AppContent>
         <Toaster />
