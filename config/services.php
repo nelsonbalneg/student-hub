@@ -50,7 +50,7 @@ return [
     ],
 
     'evaluation_api' => [
-        'base_url' => env('EVALUATION_API_BASE_URL', 'http://172.16.0.60:44311/api/app'),
+        'base_url' => env('EVALUATION_API_BASE_URL', 'https://localapps.usm.edu.ph/api/app'),
         'timeout' => env('EVALUATION_API_TIMEOUT', 15),
         'connect_timeout' => env('EVALUATION_API_CONNECT_TIMEOUT', 5),
     ],
