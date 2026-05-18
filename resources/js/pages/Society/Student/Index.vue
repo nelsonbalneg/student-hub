@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import { Search, X, ArrowRight } from 'lucide-vue-next';
 import societies, { index as societiesIndex } from '@/routes/societies';
 import { dashboard } from '@/routes';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 interface Props {
     societies: {
