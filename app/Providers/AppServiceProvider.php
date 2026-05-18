@@ -51,6 +51,10 @@ class AppServiceProvider extends ServiceProvider
     protected function configureAuthorization(): void
     {
         Gate::before(function ($user, string $ability): ?bool {
+            if ($ability === 'dashboard.view') {
+                return true;
+            }
+
             if ($this->isUserManagementAbility($ability) && $this->hasBootstrapAccess($user)) {
                 return true;
             }
