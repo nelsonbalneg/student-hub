@@ -243,14 +243,17 @@ const overviewNavItems: NavItem[] = [
         title: 'Societies',
         href: '/societies',
         icon: Users,
+        permission: 'society.view',
         items: [
             {
                 title: 'Browse Societies',
                 href: '/societies',
+                permission: 'society.view',
             },
             {
                 title: 'My Societies',
                 href: '/societies/my-societies',
+                permission: 'society.view',
             },
             {
                 title: 'Registration',
@@ -260,10 +263,12 @@ const overviewNavItems: NavItem[] = [
             {
                 title: 'Society Events',
                 href: '/societies/events',
+                permission: 'society.view',
             },
             {
                 title: 'Announcements',
                 href: '/societies/announcements',
+                permission: 'society.view',
             },
         ],
     },

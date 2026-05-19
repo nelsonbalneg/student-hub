@@ -1,7 +1,25 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { computed } from 'vue';
-import { CheckCircle2, Clock, FileUp } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
+import { store as storeAccreditation, submit as submitAccreditation } from '@/routes/societies/manage/accreditation';
+import { destroy as destroyRequirement, store as storeRequirement } from '@/routes/societies/manage/accreditation/requirements';
+import { 
+    CheckCircle2, 
+    Clock, 
+    FileUp, 
+    AlertCircle, 
+    Sparkles, 
+    FileText, 
+    Trash2, 
+    Users, 
+    UserCheck, 
+    Info, 
+    ChevronRight,
+    ArrowRight,
+    HelpCircle,
+    Pencil,
+    X
+} from 'lucide-vue-next';
 
 const props = defineProps<{
     society: any;
@@ -34,11 +52,73 @@ const requirementForm = useForm({
     remarks: '',
 });
 
+const fileInput = ref<HTMLInputElement | null>(null);
+const uploadSection = ref<HTMLElement | null>(null);
+const editingSubmission = ref<any | null>(null);
+const deletingSubmission = ref<any | null>(null);
+const selectedFileName = ref<string>('');
+const selectedFileSize = ref<string>('');
+const isDragActive = ref<boolean>(false);
+
+const handleFileChange = (e: Event) => {
+    const file = (e.target as HTMLInputElement).files?.[0] ?? null;
+    setFile(file);
+};
+
+const setFile = (file: File | null) => {
+    requirementForm.file = file;
+    if (file) {
+        selectedFileName.value = file.name;
+        selectedFileSize.value = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+    } else {
+        selectedFileName.value = '';
+        selectedFileSize.value = '';
+    }
+};
+
+const triggerFileInput = () => {
+    fileInput.value?.click();
+};
+
+const removeFile = () => {
+    requirementForm.file = null;
+    selectedFileName.value = '';
+    selectedFileSize.value = '';
+    if (fileInput.value) {
+        fileInput.value.value = '';
+    }
+};
+
+const handleDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    isDragActive.value = true;
+};
+
+const handleDragLeave = () => {
+    isDragActive.value = false;
+};
+
+const handleDrop = (e: DragEvent) => {
+    e.preventDefault();
+    isDragActive.value = false;
+    const file = e.dataTransfer?.files?.[0] ?? null;
+    if (file && file.type === 'application/pdf') {
+        setFile(file);
+    }
+};
+
 const completion = computed(() => props.currentApplication?.completion_percentage ?? 0);
 const canEdit = computed(() => !props.currentApplication || props.currentApplication.status !== 'approved');
 const missingOfficerPositions = computed(() => props.officerReadiness?.missing_positions ?? []);
 const isSocietyPublished = computed(() => String(props.society?.status ?? '').toLowerCase() !== 'draft');
 const canCreateApplication = computed(() => isSocietyPublished.value && missingOfficerPositions.value.length === 0);
+const canSubmitRequirement = computed(() => {
+    if (!requirementForm.requirement_id) {
+        return false;
+    }
+
+    return Boolean(requirementForm.file || editingSubmission.value?.file_path || requirementForm.remarks);
+});
 const activeTermLabel = computed(() => {
     if (!props.activeTerm) {
         return 'Select semester';
@@ -51,143 +131,541 @@ const activeTermLabel = computed(() => {
     ].filter(Boolean).join(' · ');
 });
 
-const createApplication = () => applicationForm.post(`/societies/manage/${props.society.id}/accreditation`);
-const submitApplication = () => router.post(`/societies/manage/${props.society.id}/accreditation/${props.currentApplication.id}/submit`);
+const currentApplicationRouteParams = () => ({
+    society: props.society.id,
+    accreditationRequest: props.currentApplication.id,
+});
+
+const createApplication = () => applicationForm.post(storeAccreditation.url(props.society));
+const submitApplication = () => {
+    if (!props.currentApplication) return;
+
+    router.post(submitAccreditation.url(currentApplicationRouteParams()));
+};
 const uploadRequirement = () => {
     if (!props.currentApplication) return;
-    requirementForm.post(`/societies/manage/${props.society.id}/accreditation/${props.currentApplication.id}/requirements`, {
+    requirementForm.post(storeRequirement.url(currentApplicationRouteParams()), {
         forceFormData: true,
-        onSuccess: () => requirementForm.reset('requirement_id', 'file', 'remarks'),
+        onSuccess: () => {
+            editingSubmission.value = null;
+            requirementForm.reset('requirement_id', 'file', 'remarks');
+            removeFile();
+        },
     });
+};
+
+const editSubmission = (submission: any) => {
+    editingSubmission.value = submission;
+    requirementForm.clearErrors();
+    requirementForm.requirement_id = String(submission.requirement_id);
+    requirementForm.remarks = submission.remarks ?? '';
+    removeFile();
+    uploadSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
+const cancelEditSubmission = () => {
+    editingSubmission.value = null;
+    requirementForm.reset('requirement_id', 'file', 'remarks');
+    removeFile();
+};
+
+const deleteSubmission = (submission: any) => {
+    deletingSubmission.value = submission;
+};
+
+const cancelDeleteSubmission = () => {
+    deletingSubmission.value = null;
+};
+
+const confirmDeleteSubmission = () => {
+    if (!props.currentApplication || !deletingSubmission.value) {
+        return;
+    }
+
+    router.delete(destroyRequirement.url({
+        ...currentApplicationRouteParams(),
+        submission: deletingSubmission.value.id,
+    }), {
+        onFinish: () => {
+            deletingSubmission.value = null;
+        },
+    });
+};
+
+const statusColors = (status: string) => {
+    return {
+        approved: 'bg-emerald-50 text-emerald-700 border-emerald-200/50 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20',
+        rejected: 'bg-rose-50 text-rose-700 border-rose-200/50 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20',
+        returned: 'bg-amber-50 text-amber-700 border-amber-200/50 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20',
+        submitted: 'bg-indigo-50 text-indigo-700 border-indigo-200/50 dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-500/20',
+        under_review: 'bg-violet-50 text-violet-700 border-violet-200/50 dark:bg-violet-500/10 dark:text-violet-300 dark:border-violet-500/20',
+        draft: 'bg-slate-50 text-slate-700 border-slate-200/50 dark:bg-slate-800/50 dark:text-slate-300 dark:border-slate-700/50',
+        pending: 'bg-slate-50 text-slate-500 border-slate-200/50 dark:bg-slate-800/40 dark:text-slate-400 dark:border-slate-700/30',
+        complete: 'bg-emerald-50 text-emerald-700 border-emerald-200/50 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20'
+    }[status.toLowerCase()] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
 };
 </script>
 
 <template>
     <Head title="Accreditation Application" />
 
-    <div class="flex min-h-screen flex-col bg-slate-50/70 p-4 dark:bg-slate-950 lg:p-5">
-        <div class="flex min-h-0 flex-1 flex-col gap-4">
-            <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950">
-                <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-                <div>
-                    <p class="text-[10px] font-black uppercase tracking-[0.24em] text-sky-600 dark:text-sky-400">Registration / Accreditation</p>
-                    <h1 class="text-xl font-black text-slate-950 dark:text-white">{{ society.full_name ?? society.name }}</h1>
-                    <p class="text-sm font-semibold text-slate-500">Yearly and semestral OSA application history</p>
-                </div>
-                <div v-if="currentApplication" class="flex items-center gap-3">
-                    <div class="h-2 w-44 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                        <div class="h-full rounded-full bg-emerald-500" :style="{ width: `${completion}%` }" />
+    <div class="flex min-h-screen flex-col bg-slate-50/50 p-4 dark:bg-slate-950 lg:p-6">
+        <div class="flex min-h-0 flex-1 flex-col gap-5">
+            <!-- Header Card -->
+            <div class="relative overflow-hidden rounded-xl border border-slate-200/60 bg-white p-5 shadow-sm dark:border-slate-800/60 dark:bg-slate-900/60 backdrop-blur-xl">
+                <div class="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-emerald-500/10 blur-2xl dark:bg-emerald-500/5"></div>
+                <div class="absolute -left-10 -bottom-10 h-28 w-28 rounded-full bg-sky-500/10 blur-2xl dark:bg-sky-500/5"></div>
+                
+                <div class="relative flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-sky-700 dark:bg-sky-950/50 dark:text-sky-400">Portal</span>
+                            <span class="text-slate-300 dark:text-slate-700">·</span>
+                            <p class="text-[10px] font-black uppercase tracking-[0.24em] text-sky-600 dark:text-sky-400">Society Accreditation</p>
+                        </div>
+                        <h1 class="mt-1 text-2xl font-black tracking-tight text-slate-950 dark:text-white">{{ society.full_name ?? society.name }}</h1>
+                        <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Yearly and semestral OSA accreditation checklist & requirement tracker</p>
                     </div>
-                    <span class="text-sm font-black text-slate-700 dark:text-slate-200">{{ completion }}%</span>
-                </div>
+                    
+                    <div v-if="currentApplication" class="flex items-center gap-4 rounded-xl border border-slate-100 bg-slate-50/50 px-4 py-2.5 dark:border-slate-800/40 dark:bg-slate-900/40">
+                        <div class="text-right">
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Checklist Progress</p>
+                            <p class="text-xs font-black text-slate-700 dark:text-slate-200">{{ completion }}% Complete</p>
+                        </div>
+                        <div class="relative flex items-center justify-center">
+                            <!-- Circular progress representation -->
+                            <svg class="h-10 w-10 transform -rotate-90">
+                                <circle cx="20" cy="20" r="16" stroke="currentColor" class="text-slate-200 dark:text-slate-800" stroke-width="3" fill="transparent" />
+                                <circle cx="20" cy="20" r="16" stroke="currentColor" class="text-emerald-500" stroke-width="3.5" fill="transparent"
+                                    :stroke-dasharray="2 * Math.PI * 16"
+                                    :stroke-dashoffset="2 * Math.PI * 16 * (1 - completion / 100)" />
+                            </svg>
+                            <span class="absolute text-[10px] font-black text-slate-800 dark:text-white">{{ completion }}%</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[420px_1fr]">
-                <aside class="space-y-4 overflow-y-auto pr-0 xl:pr-1">
-                    <form class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900" @submit.prevent="createApplication">
-                        <h2 class="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">New Accreditation</h2>
-                        <p v-if="activeTerm" class="mt-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] font-semibold text-sky-800 dark:border-sky-400/30 dark:bg-sky-500/10 dark:text-sky-300">
-                            Active term: {{ activeTermLabel }}
-                        </p>
-                        <div v-if="!isSocietyPublished" class="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-800 dark:border-red-400/30 dark:bg-red-500/10 dark:text-red-300">
-                            Publish the society registration before creating an accreditation application.
-                            <Link :href="`/societies/manage/${society.id}/profile`" class="ml-1 underline">Open profile</Link>
+            <!-- Main Split Layout -->
+            <div class="grid min-h-0 flex-1 gap-5 xl:grid-cols-[380px_1fr]">
+                <!-- Sidebar forms -->
+                <aside class="space-y-5">
+                    <!-- New Request Card -->
+                    <div class="relative overflow-hidden rounded-xl border border-slate-200/60 bg-white p-5 shadow-sm dark:border-slate-800/60 dark:bg-slate-900/60">
+                        <div class="flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-slate-800/60">
+                            <Sparkles class="size-4 text-sky-500" />
+                            <h2 class="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">Initialize Application</h2>
                         </div>
-                        <div v-if="missingOfficerPositions.length" class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300">
-                            Add active officers for {{ officerReadiness?.school_year ?? applicationForm.school_year }} before creating an application. Missing: {{ missingOfficerPositions.join(', ') }}.
-                            <Link :href="`/societies/manage/${society.id}/officers`" class="ml-1 underline">Manage officers</Link>
+
+                        <!-- Warnings & Requirements block -->
+                        <div v-if="activeTerm" class="mt-4 flex gap-2 rounded-lg border border-sky-100 bg-sky-50/50 p-3 text-[11px] text-sky-800 dark:border-sky-500/20 dark:bg-sky-500/5 dark:text-sky-300">
+                            <Info class="size-4 shrink-0 mt-0.5" />
+                            <div>
+                                <p class="font-bold">Active Academic Term</p>
+                                <p class="mt-0.5 text-sky-700/95 dark:text-sky-300/80 font-medium">{{ activeTermLabel }}</p>
+                            </div>
                         </div>
-                        <p v-if="applicationForm.errors.society" class="mt-3 text-xs font-semibold text-red-600">
+
+                        <div v-if="!isSocietyPublished" class="mt-3 flex gap-2 rounded-lg border border-rose-100 bg-rose-50/50 p-3 text-[11px] text-rose-800 dark:border-rose-500/20 dark:bg-rose-500/5 dark:text-rose-300">
+                            <AlertCircle class="size-4 shrink-0 mt-0.5" />
+                            <div>
+                                <p class="font-bold">Society Profile Draft</p>
+                                <p class="mt-0.5 font-medium">Please publish your society profile before seeking official accreditation.</p>
+                                <Link :href="`/societies/manage/${society.id}/profile`" class="mt-1.5 inline-flex items-center gap-1 font-bold underline hover:text-rose-900 dark:hover:text-rose-200">
+                                    Publish Profile <ChevronRight class="size-3" />
+                                </Link>
+                            </div>
+                        </div>
+
+                        <div v-if="missingOfficerPositions.length" class="mt-3 flex gap-2 rounded-lg border border-amber-100 bg-amber-50/50 p-3 text-[11px] text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/5 dark:text-amber-300">
+                            <AlertCircle class="size-4 shrink-0 mt-0.5" />
+                            <div>
+                                <p class="font-bold">Setup Required Officers</p>
+                                <p class="mt-0.5 font-medium leading-relaxed">Add active officers for <span class="font-bold">{{ officerReadiness?.school_year ?? applicationForm.school_year }}</span>. Missing: <span class="font-bold">{{ missingOfficerPositions.join(', ') }}</span>.</p>
+                                <Link :href="`/societies/manage/${society.id}/officers`" class="mt-1.5 inline-flex items-center gap-1 font-bold underline hover:text-amber-900 dark:hover:text-amber-200">
+                                    Manage Officers <ChevronRight class="size-3" />
+                                </Link>
+                            </div>
+                        </div>
+
+                        <p v-if="applicationForm.errors.society" class="mt-3 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 dark:border-rose-500/20 dark:bg-rose-500/5">
                             {{ applicationForm.errors.society }}
                         </p>
-                        <div class="mt-4 space-y-3">
-                            <select v-model="applicationForm.semester" class="h-10 w-full rounded-md border-slate-200 bg-slate-50 px-3 text-sm font-medium dark:border-slate-700 dark:bg-slate-950 dark:text-white">
-                                <option v-if="activeTerm" :value="activeTerm.semester">
-                                    {{ activeTermLabel }}
-                                </option>
-                                <template v-else>
-                                    <option value="">Select semester</option>
-                                    <option>1st Semester</option>
-                                    <option>2nd Semester</option>
-                                    <option>Midyear</option>
-                                </template>
-                            </select>
-                            <input v-model="applicationForm.school_year" :readonly="Boolean(activeTerm)" placeholder="School year" class="h-10 w-full rounded-md border-slate-200 bg-slate-50 px-3 text-sm font-medium dark:border-slate-700 dark:bg-slate-950 dark:text-white" />
-                            <select v-model="applicationForm.mode_of_submission" class="h-10 w-full rounded-md border-slate-200 bg-slate-50 px-3 text-sm font-medium dark:border-slate-700 dark:bg-slate-950 dark:text-white">
-                                <option value="online">Online</option>
-                                <option value="onsite">Onsite</option>
-                            </select>
-                            <input v-model="applicationForm.submitted_by_name" placeholder="Submitted by" class="h-10 w-full rounded-md border-slate-200 bg-slate-50 px-3 text-sm font-medium dark:border-slate-700 dark:bg-slate-950 dark:text-white" />
-                            <input v-model="applicationForm.submitted_by_position" placeholder="Position" class="h-10 w-full rounded-md border-slate-200 bg-slate-50 px-3 text-sm font-medium dark:border-slate-700 dark:bg-slate-950 dark:text-white" />
-                            <button :disabled="applicationForm.processing || !canCreateApplication" class="w-full rounded-md bg-slate-950 px-4 py-3 text-sm font-black uppercase tracking-wider text-white disabled:cursor-not-allowed disabled:opacity-60 dark:bg-sky-600">Create Draft</button>
-                        </div>
-                    </form>
 
-                    <div v-if="currentApplication" class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                        <h2 class="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">Current Request</h2>
-                        <dl class="mt-4 space-y-2 text-sm">
-                            <div class="flex justify-between gap-3"><dt class="text-slate-500">No.</dt><dd class="font-bold text-slate-900 dark:text-white">{{ currentApplication.accreditation_request_no ?? 'Pending OSA' }}</dd></div>
-                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Term</dt><dd class="font-bold text-slate-900 dark:text-white">{{ currentApplication.semester }} {{ currentApplication.school_year }}</dd></div>
-                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Status</dt><dd class="font-black uppercase text-sky-600">{{ currentApplication.status }}</dd></div>
+                        <!-- Form inputs -->
+                        <form class="mt-4 space-y-3" @submit.prevent="createApplication">
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Academic Semester</label>
+                                <select v-model="applicationForm.semester" class="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium dark:border-slate-800 dark:bg-slate-950 dark:text-white focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-sky-500">
+                                    <option v-if="activeTerm" :value="activeTerm.semester">
+                                        {{ activeTerm.semester }}
+                                    </option>
+                                    <template v-else>
+                                        <option value="">Select Semester</option>
+                                        <option>1st Semester</option>
+                                        <option>2nd Semester</option>
+                                        <option>Midyear</option>
+                                    </template>
+                                </select>
+                            </div>
+
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">School Year</label>
+                                <input v-model="applicationForm.school_year" :readonly="Boolean(activeTerm)" placeholder="e.g. 2026-2027" class="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium dark:border-slate-800 dark:bg-slate-950 dark:text-white focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-sky-500" />
+                            </div>
+
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Submission Mode</label>
+                                <select v-model="applicationForm.mode_of_submission" class="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium dark:border-slate-800 dark:bg-slate-950 dark:text-white focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-sky-500">
+                                    <option value="online">Online Submission</option>
+                                    <option value="onsite">Onsite Document Submission</option>
+                                </select>
+                            </div>
+
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Authorized Submitter Name</label>
+                                <input v-model="applicationForm.submitted_by_name" placeholder="Full name of representative" class="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium dark:border-slate-800 dark:bg-slate-950 dark:text-white focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-sky-500" />
+                            </div>
+
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Representative Position</label>
+                                <input v-model="applicationForm.submitted_by_position" placeholder="Position in society" class="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium dark:border-slate-800 dark:bg-slate-950 dark:text-white focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-sky-500" />
+                            </div>
+
+                            <button :disabled="applicationForm.processing || !canCreateApplication" class="mt-2 w-full flex items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-sm transition-all hover:bg-sky-500 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-sky-600 dark:hover:bg-sky-500">
+                                Create Draft Application
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Current Request Details -->
+                    <div v-if="currentApplication" class="relative overflow-hidden rounded-xl border border-slate-200/60 bg-white p-5 shadow-sm dark:border-slate-800/60 dark:bg-slate-900/60">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800/60">
+                            <h2 class="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">Current Application</h2>
+                            <span class="inline-flex rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider" :class="statusColors(currentApplication.status)">
+                                {{ currentApplication.status }}
+                            </span>
+                        </div>
+                        
+                        <dl class="mt-4 space-y-3 text-xs">
+                            <div class="flex items-center justify-between gap-3 py-1.5 border-b border-slate-50 dark:border-slate-800/20">
+                                <dt class="font-medium text-slate-400">Request No.</dt>
+                                <dd class="font-bold font-mono text-slate-700 dark:text-slate-200">{{ currentApplication.accreditation_request_no ?? 'Awaiting OSA Review' }}</dd>
+                            </div>
+                            <div class="flex items-center justify-between gap-3 py-1.5 border-b border-slate-50 dark:border-slate-800/20">
+                                <dt class="font-medium text-slate-400">Active Term</dt>
+                                <dd class="font-bold text-slate-700 dark:text-slate-200">{{ currentApplication.semester }} · {{ currentApplication.school_year }}</dd>
+                            </div>
+                            <div class="flex items-center justify-between gap-3 py-1.5 border-b border-slate-50 dark:border-slate-800/20">
+                                <dt class="font-medium text-slate-400">Mode</dt>
+                                <dd class="font-bold uppercase text-slate-700 dark:text-slate-200">{{ currentApplication.mode_of_submission }}</dd>
+                            </div>
+                            <div class="flex items-center justify-between gap-3 py-1.5">
+                                <dt class="font-medium text-slate-400">Submitter</dt>
+                                <dd class="font-bold text-slate-700 dark:text-slate-200 text-right">
+                                    <p>{{ currentApplication.submitted_by_name }}</p>
+                                    <p class="text-[10px] text-slate-400 font-semibold">{{ currentApplication.submitted_by_position }}</p>
+                                </dd>
+                            </div>
                         </dl>
-                        <button v-if="canEdit" class="mt-4 w-full rounded-md border border-slate-200 px-4 py-3 text-sm font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800" @click="submitApplication">Submit to OSA</button>
+                        
+                        <!-- Submit application button -->
+                        <button v-if="canEdit" :disabled="completion < 100" class="mt-4 w-full flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-slate-700 transition-all hover:bg-slate-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-850" @click="submitApplication">
+                            Submit Request to OSA
+                            <ArrowRight class="size-3.5" />
+                        </button>
+                        <p v-if="canEdit && completion < 100" class="mt-2 text-center text-[10px] font-bold text-slate-400 flex items-center justify-center gap-1">
+                            <Info class="size-3 text-sky-500" /> Upload all checklist items to enable submission.
+                        </p>
                     </div>
                 </aside>
 
-                <main class="min-h-0 space-y-4 overflow-y-auto">
-                    <div class="grid gap-3 md:grid-cols-4">
-                        <div class="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                            <Clock class="size-5 text-amber-600" />
-                            <p class="mt-3 text-xs font-bold uppercase text-slate-500">Requirements</p>
-                            <p class="text-2xl font-black text-slate-950 dark:text-white">{{ stats?.total_requirements ?? requirements.length }}</p>
+                <!-- Main Content Area -->
+                <main class="min-h-0 space-y-5">
+                    <!-- Quick Stats Dashboard -->
+                    <div class="grid gap-3 grid-cols-2 md:grid-cols-4">
+                        <div class="group relative overflow-hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm transition-all hover:scale-[1.01] hover:shadow-md dark:border-slate-800/60 dark:bg-slate-900/60">
+                            <div class="flex items-center justify-between">
+                                <Clock class="size-5 text-sky-500" />
+                                <span class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Total Items</span>
+                            </div>
+                            <p class="mt-3 text-2xl font-black tracking-tight text-slate-950 dark:text-white">{{ stats?.total_requirements ?? requirements.length }}</p>
+                            <p class="text-[10px] font-bold text-slate-400 mt-0.5">Checklist requirements</p>
                         </div>
-                        <div class="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                            <CheckCircle2 class="size-5 text-emerald-600" />
-                            <p class="mt-3 text-xs font-bold uppercase text-slate-500">Complete</p>
-                            <p class="text-2xl font-black text-slate-950 dark:text-white">{{ stats?.complete_requirements ?? 0 }}</p>
+
+                        <div class="group relative overflow-hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm transition-all hover:scale-[1.01] hover:shadow-md dark:border-slate-800/60 dark:bg-slate-900/60">
+                            <div class="flex items-center justify-between">
+                                <CheckCircle2 class="size-5 text-emerald-500" />
+                                <span class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Approved</span>
+                            </div>
+                            <p class="mt-3 text-2xl font-black tracking-tight text-slate-950 dark:text-white">{{ stats?.complete_requirements ?? 0 }}</p>
+                            <p class="text-[10px] font-bold text-slate-400 mt-0.5">Approved by OSA</p>
                         </div>
-                        <Link :href="`/societies/manage/${society.id}/officers`" class="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                            <p class="text-xs font-bold uppercase text-slate-500">Officers</p>
-                            <p class="mt-4 text-2xl font-black text-slate-950 dark:text-white">{{ stats?.officers ?? 0 }}</p>
+
+                        <Link :href="`/societies/manage/${society.id}/officers`" class="group relative overflow-hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm transition-all hover:scale-[1.01] hover:shadow-md dark:border-slate-800/60 dark:bg-slate-900/60">
+                            <div class="flex items-center justify-between">
+                                <Users class="size-5 text-indigo-500" />
+                                <span class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Officers</span>
+                            </div>
+                            <p class="mt-3 text-2xl font-black tracking-tight text-slate-950 dark:text-white">{{ stats?.officers ?? 0 }}</p>
+                            <p class="text-[10px] font-bold text-slate-400 mt-0.5">Assigned roster</p>
                         </Link>
-                        <Link :href="`/societies/manage/${society.id}/advisers`" class="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                            <p class="text-xs font-bold uppercase text-slate-500">Advisers</p>
-                            <p class="mt-4 text-2xl font-black text-slate-950 dark:text-white">{{ stats?.advisers ?? 0 }}</p>
+
+                        <Link :href="`/societies/manage/${society.id}/advisers`" class="group relative overflow-hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm transition-all hover:scale-[1.01] hover:shadow-md dark:border-slate-800/60 dark:bg-slate-900/60">
+                            <div class="flex items-center justify-between">
+                                <UserCheck class="size-5 text-violet-500" />
+                                <span class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Advisers</span>
+                            </div>
+                            <p class="mt-3 text-2xl font-black tracking-tight text-slate-950 dark:text-white">{{ stats?.advisers ?? 0 }}</p>
+                            <p class="text-[10px] font-bold text-slate-400 mt-0.5">Appointed advisers</p>
                         </Link>
                     </div>
 
-                    <form v-if="currentApplication && canEdit" class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900" @submit.prevent="uploadRequirement">
-                        <div class="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-                            <select v-model="requirementForm.requirement_id" class="h-10 rounded-md border-slate-200 bg-slate-50 px-3 text-sm font-medium dark:border-slate-700 dark:bg-slate-950 dark:text-white">
-                                <option value="">Select requirement</option>
-                                <option v-for="requirement in requirements" :key="requirement.id" :value="requirement.id">{{ requirement.name }}</option>
-                            </select>
-                            <input type="file" accept=".pdf" class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" @input="requirementForm.file = ($event.target as HTMLInputElement).files?.[0] ?? null" />
-                            <button class="rounded-md bg-sky-600 px-4 py-2 text-sm font-black text-white"><FileUp class="inline size-4" /> Upload</button>
-                        </div>
-                        <textarea v-model="requirementForm.remarks" rows="2" placeholder="Submission remarks" class="mt-3 w-full rounded-md border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium dark:border-slate-700 dark:bg-slate-950 dark:text-white" />
-                    </form>
-
-                    <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                        <div class="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-                            <h2 class="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">Requirements Checklist</h2>
-                        </div>
-                        <div class="divide-y divide-slate-100 dark:divide-slate-800">
-                            <div v-for="submission in currentApplication?.submissions ?? []" :key="submission.id" class="grid gap-3 px-5 py-4 md:grid-cols-[1fr_140px_160px] md:items-center">
-                                <div>
-                                    <p class="text-sm font-bold text-slate-950 dark:text-white">{{ submission.requirement?.name }}</p>
-                                    <p class="text-xs text-slate-500">{{ submission.original_file_name ?? 'No file uploaded yet' }}</p>
-                                </div>
-                                <span class="rounded-md px-2 py-1 text-center text-xs font-black uppercase" :class="submission.status === 'complete' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'">{{ submission.status }}</span>
-                                <p class="text-xs text-slate-500">{{ submission.checked_at ? 'Checked' : 'Awaiting review' }}</p>
+                    <!-- Upload Form Dropzone Section -->
+                    <div v-if="currentApplication && canEdit" ref="uploadSection" class="relative overflow-hidden rounded-xl border border-slate-200/60 bg-white p-5 shadow-sm dark:border-slate-800/60 dark:bg-slate-900/60">
+                        <div class="mb-4 flex items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800/60">
+                            <div class="flex items-center gap-2">
+                                <FileUp class="size-4 text-sky-500" />
+                                <h2 class="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                                    {{ editingSubmission ? 'Edit Requirement Document' : 'Upload Requirement Document' }}
+                                </h2>
                             </div>
-                            <div v-if="!currentApplication" class="p-10 text-center text-sm font-semibold text-slate-500">
-                                Create an accreditation draft to generate the OSA checklist.
+                            <button
+                                v-if="editingSubmission"
+                                type="button"
+                                class="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-850 dark:hover:text-slate-100"
+                                title="Cancel edit"
+                                @click="cancelEditSubmission"
+                            >
+                                <X class="size-4" />
+                            </button>
+                        </div>
+
+                        <form class="space-y-4" @submit.prevent="uploadRequirement">
+                            <div class="grid gap-4 md:grid-cols-2">
+                                <div class="space-y-1">
+                                    <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Select Checklist Item</label>
+                                    <select v-model="requirementForm.requirement_id" class="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium dark:border-slate-800 dark:bg-slate-950 dark:text-white focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-sky-500">
+                                        <option value="">Choose requirement...</option>
+                                        <option v-for="requirement in requirements" :key="requirement.id" :value="requirement.id">
+                                            {{ requirement.name }}
+                                        </option>
+                                    </select>
+                                    <p v-if="requirementForm.errors.requirement_id" class="text-[10px] font-bold text-rose-500 mt-0.5">{{ requirementForm.errors.requirement_id }}</p>
+                                </div>
+
+                                <div class="space-y-1">
+                                    <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Submission Remarks (Optional)</label>
+                                    <input v-model="requirementForm.remarks" placeholder="Add comments or resubmission notes..." class="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium dark:border-slate-800 dark:bg-slate-950 dark:text-white focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-sky-500" />
+                                </div>
+                            </div>
+
+                            <!-- Beautiful Dropzone Area -->
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Upload PDF File</label>
+                                
+                                <div 
+                                    class="relative border-2 border-dashed rounded-xl p-6 transition-all flex flex-col items-center justify-center gap-3 cursor-pointer group"
+                                    :class="[
+                                        isDragActive ? 'border-sky-500 bg-sky-500/5' : 'border-slate-200 hover:border-slate-300 bg-slate-50/30 hover:bg-slate-50/70 dark:border-slate-850 dark:bg-slate-900/20 dark:hover:bg-slate-900/40',
+                                        requirementForm.file ? 'border-emerald-500/40 bg-emerald-500/[0.02]' : ''
+                                    ]"
+                                    @click="triggerFileInput"
+                                    @dragover="handleDragOver"
+                                    @dragleave="handleDragLeave"
+                                    @drop="handleDrop"
+                                >
+                                    <input 
+                                        type="file" 
+                                        ref="fileInput" 
+                                        accept=".pdf" 
+                                        class="hidden" 
+                                        @change="handleFileChange" 
+                                    />
+
+                                    <!-- Inner Display (No File Selected) -->
+                                    <template v-if="!requirementForm.file">
+                                        <div class="rounded-full bg-slate-100 p-3 dark:bg-slate-850 group-hover:scale-110 transition-all duration-300">
+                                            <FileUp class="size-6 text-slate-400 group-hover:text-sky-500 transition-colors" />
+                                        </div>
+                                        <div class="text-center">
+                                            <p class="text-xs font-bold text-slate-700 dark:text-slate-200">
+                                                Click to upload or drag & drop file
+                                            </p>
+                                            <p class="text-[10px] font-semibold text-slate-400 mt-0.5">
+                                                Only PDF documents are accepted (Max 20MB)
+                                            </p>
+                                        </div>
+                                    </template>
+
+                                    <!-- Inner Display (File Selected) -->
+                                    <template v-else>
+                                        <div class="flex w-full items-center justify-between gap-4 px-2">
+                                            <div class="flex items-center gap-3 min-w-0">
+                                                <div class="rounded-lg bg-emerald-500/10 p-2.5 dark:bg-emerald-500/20 shrink-0">
+                                                    <FileText class="size-6 text-emerald-600 dark:text-emerald-400" />
+                                                </div>
+                                                <div class="min-w-0">
+                                                    <p class="text-xs font-bold text-slate-700 dark:text-slate-200 truncate pr-4">
+                                                        {{ selectedFileName }}
+                                                    </p>
+                                                    <p class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                                        {{ selectedFileSize }} · Ready to Upload
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <button 
+                                                type="button" 
+                                                class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-rose-600 dark:hover:bg-slate-850 transition-all active:scale-95 shrink-0"
+                                                @click.stop="removeFile"
+                                            >
+                                                <Trash2 class="size-4" />
+                                            </button>
+                                        </div>
+                                    </template>
+                                </div>
+                                <p v-if="requirementForm.errors.file" class="text-[10px] font-bold text-rose-500 mt-0.5">{{ requirementForm.errors.file }}</p>
+                            </div>
+
+                            <div class="flex justify-end pt-2">
+                                <button :disabled="requirementForm.processing || !canSubmitRequirement" class="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-5 py-2 text-xs font-black uppercase text-white shadow-sm transition-all hover:bg-sky-500 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40">
+                                    <FileUp class="size-3.5" />
+                                    {{ requirementForm.processing ? 'Saving Document...' : editingSubmission ? 'Save Changes' : 'Submit to Checklist' }}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Checklist Section -->
+                    <section class="overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-sm dark:border-slate-800/60 dark:bg-slate-900/60">
+                        <div class="border-b border-slate-100 px-5 py-4 dark:border-slate-800/60 flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <FileText class="size-4 text-sky-500" />
+                                <h2 class="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">Accreditation Checklist</h2>
+                            </div>
+                            <span v-if="currentApplication" class="text-[10px] font-bold text-slate-400">
+                                {{ currentApplication.submissions?.length ?? 0 }} Requirements
+                            </span>
+                        </div>
+
+                        <div class="divide-y divide-slate-100 dark:divide-slate-850">
+                            <!-- Checklist Item -->
+                            <div 
+                                v-for="submission in currentApplication?.submissions ?? []" 
+                                :key="submission.id" 
+                                class="flex flex-col gap-3 p-5 transition-colors hover:bg-slate-50/30 dark:hover:bg-slate-900/30 md:flex-row md:items-center md:justify-between"
+                            >
+                                <div class="space-y-1 min-w-0 flex-1 pr-4">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <p class="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                            {{ submission.requirement?.name }}
+                                        </p>
+                                        <span v-if="submission.requirement?.is_required" class="inline-flex items-center rounded-full bg-rose-50 px-1.5 py-0.5 text-[8px] font-black uppercase text-rose-700 dark:bg-rose-950/40 dark:text-rose-400">Required</span>
+                                    </div>
+                                    <div class="flex items-center gap-2 text-[10px] text-slate-400 font-semibold min-w-0">
+                                        <FileText class="size-3.5 shrink-0" />
+                                        <span class="truncate">{{ submission.original_file_name ?? 'No file submitted yet' }}</span>
+                                        <template v-if="submission.file_path">
+                                            <span class="text-slate-300 dark:text-slate-700">·</span>
+                                            <a :href="`/storage/${submission.file_path}`" target="_blank" class="text-sky-600 font-bold hover:underline">View PDF</a>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                <div class="flex flex-wrap items-center gap-3 shrink-0">
+                                    <!-- Status badge -->
+                                    <span class="inline-flex rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider" :class="statusColors(submission.status)">
+                                        {{ submission.status }}
+                                    </span>
+                                    
+                                    <!-- Reviewer / Date info -->
+                                    <div class="w-36 text-right md:text-right hidden sm:block">
+                                        <p class="text-[9px] font-bold text-slate-400 uppercase">Review Status</p>
+                                        <p class="text-[10px] font-bold text-slate-600 dark:text-slate-300 mt-0.5">
+                                            {{ submission.checked_at ? 'Verified by OSA' : 'Awaiting Review' }}
+                                        </p>
+                                    </div>
+
+                                    <div v-if="canEdit" class="flex items-center gap-1">
+                                        <button
+                                            type="button"
+                                            class="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 dark:border-slate-800 dark:text-slate-400 dark:hover:border-sky-500/30 dark:hover:bg-sky-500/10 dark:hover:text-sky-300"
+                                            title="Edit requirement submission"
+                                            @click="editSubmission(submission)"
+                                        >
+                                            <Pencil class="size-3.5" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            :disabled="!submission.file_path && !submission.remarks"
+                                            class="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-800 dark:text-slate-400 dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-300"
+                                            title="Delete requirement attachment"
+                                            @click="deleteSubmission(submission)"
+                                        >
+                                            <Trash2 class="size-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Remarks display if returned -->
+                                <div v-if="submission.status === 'returned' && submission.remarks" class="w-full mt-1 border-t border-rose-100/50 pt-2 text-[10px] text-rose-600 dark:border-rose-500/10 dark:text-rose-400 flex items-start gap-1">
+                                    <AlertCircle class="size-3.5 shrink-0 mt-0.5" />
+                                    <div>
+                                        <span class="font-bold">OSA Correction Note: </span>
+                                        <span class="font-semibold">{{ submission.remarks }}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Empty Checklist State -->
+                            <div v-if="!currentApplication" class="flex flex-col items-center justify-center p-12 text-center">
+                                <div class="rounded-full bg-slate-50 p-4 dark:bg-slate-900/50">
+                                    <HelpCircle class="size-8 text-slate-300 dark:text-slate-700" />
+                                </div>
+                                <h3 class="mt-4 text-xs font-bold text-slate-700 dark:text-slate-300">No Checklist Generated</h3>
+                                <p class="mt-1 text-[11px] font-semibold text-slate-400 max-w-sm leading-relaxed">
+                                    Please choose active terms and representative details in the sidebar to initialize an accreditation draft. This will automatically populate the official OSA checklist.
+                                </p>
                             </div>
                         </div>
                     </section>
                 </main>
+            </div>
+        </div>
+
+        <div v-if="deletingSubmission" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
+            <div class="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-800 dark:bg-slate-900">
+                <div class="flex items-start gap-3">
+                    <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300">
+                        <Trash2 class="size-5" />
+                    </div>
+                    <div class="min-w-0">
+                        <h2 class="text-sm font-black uppercase tracking-wider text-slate-950 dark:text-white">Delete Attachment</h2>
+                        <p class="mt-1 text-xs font-semibold leading-relaxed text-slate-500 dark:text-slate-400">
+                            This will remove the uploaded file and reset
+                            <span class="font-black text-slate-700 dark:text-slate-200">{{ deletingSubmission.requirement?.name ?? 'this requirement' }}</span>
+                            back to pending.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="mt-5 flex justify-end gap-2">
+                    <button
+                        type="button"
+                        class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-600 transition hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-850"
+                        @click="cancelDeleteSubmission"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="button"
+                        class="rounded-lg bg-rose-600 px-4 py-2 text-xs font-black uppercase tracking-wider text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        @click="confirmDeleteSubmission"
+                    >
+                        Delete
+                    </button>
+                </div>
             </div>
         </div>
     </div>

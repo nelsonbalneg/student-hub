@@ -29,6 +29,10 @@ type Role = {
     users_count?: number;
     permissions: RolePermission[];
 };
+type PermissionModuleGroup = {
+    label: string;
+    permissions: Permission[];
+};
 
 const props = defineProps<{
     roles: Role[];
@@ -90,14 +94,33 @@ watch(activeRole, (role) => {
     );
 });
 
-const moduleMap = computed(() =>
-    props.permissions.reduce<Record<string, Permission[]>>(
-        (groups, permission) => {
-            const module =
-                permission.module || permission.name.split('.')[0] || 'General';
+const moduleName = (permission: Permission): string =>
+    permission.module || permission.name.split('.')[0] || 'General';
 
-            groups[module] ??= [];
-            groups[module].push(permission);
+const moduleKey = (module: string): string =>
+    module
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim() || 'general';
+
+const moduleLabel = (module: string): string =>
+    moduleKey(module)
+        .split(' ')
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+
+const moduleMap = computed(() =>
+    props.permissions.reduce<Record<string, PermissionModuleGroup>>(
+        (groups, permission) => {
+            const module = moduleName(permission);
+            const key = moduleKey(module);
+
+            groups[key] ??= {
+                label: moduleLabel(module),
+                permissions: [],
+            };
+            groups[key].permissions.push(permission);
 
             return groups;
         },
@@ -112,17 +135,21 @@ const filteredModuleMap = computed(() => {
 
     const query = permissionSearch.value.toLowerCase();
 
-    return Object.entries(moduleMap.value).reduce<Record<string, Permission[]>>(
-        (groups, [module, permissions]) => {
-            const filteredPermissions = permissions.filter(
+    return Object.entries(moduleMap.value).reduce<Record<string, PermissionModuleGroup>>(
+        (groups, [key, group]) => {
+            const filteredPermissions = group.permissions.filter(
                 (permission) =>
                     permission.name.toLowerCase().includes(query) ||
                     permission.label.toLowerCase().includes(query) ||
-                    module.toLowerCase().includes(query),
+                    moduleName(permission).toLowerCase().includes(query) ||
+                    group.label.toLowerCase().includes(query),
             );
 
             if (filteredPermissions.length > 0) {
-                groups[module] = filteredPermissions;
+                groups[key] = {
+                    ...group,
+                    permissions: filteredPermissions,
+                };
             }
 
             return groups;
@@ -162,26 +189,26 @@ const toggleModule = (module: string) => {
 };
 
 const moduleChecked = (module: string) =>
-    moduleMap.value[module].every((permission) =>
+    moduleMap.value[module].permissions.every((permission) =>
         checkedIds.value.has(permission.id),
     );
 
 const moduleIndeterminate = (module: string) => {
-    const checkedCount = moduleMap.value[module].filter((permission) =>
+    const checkedCount = moduleMap.value[module].permissions.filter((permission) =>
         checkedIds.value.has(permission.id),
     ).length;
 
-    return checkedCount > 0 && checkedCount < moduleMap.value[module].length;
+    return checkedCount > 0 && checkedCount < moduleMap.value[module].permissions.length;
 };
 
 const toggleModuleAll = (module: string) => {
     updateCheckedIds((ids) => {
         if (moduleChecked(module)) {
-            moduleMap.value[module].forEach((permission) =>
+            moduleMap.value[module].permissions.forEach((permission) =>
                 ids.delete(permission.id),
             );
         } else {
-            moduleMap.value[module].forEach((permission) =>
+            moduleMap.value[module].permissions.forEach((permission) =>
                 ids.add(permission.id),
             );
         }
@@ -457,7 +484,7 @@ const deletePermission = () => {
 
             <div class="flex-1 overflow-y-auto">
                 <div
-                    v-for="(modulePermissions, module) in filteredModuleMap"
+                    v-for="(moduleGroup, module) in filteredModuleMap"
                     :key="module"
                     class="border-b border-slate-50 dark:border-white/5"
                 >
@@ -484,14 +511,14 @@ const deletePermission = () => {
                         <span
                             class="text-[11px] font-bold tracking-wide text-slate-600 uppercase dark:text-slate-300"
                         >
-                            {{ module }}
+                            {{ moduleGroup.label }}
                         </span>
                         <span class="ml-auto text-[10px] text-slate-400">
                             {{
-                                modulePermissions.filter((permission) =>
+                                moduleGroup.permissions.filter((permission) =>
                                     checkedIds.has(permission.id),
                                 ).length
-                            }}/{{ modulePermissions.length }}
+                            }}/{{ moduleGroup.permissions.length }}
                         </span>
                     </div>
 
@@ -500,7 +527,7 @@ const deletePermission = () => {
                         class="divide-y divide-slate-50 dark:divide-white/5"
                     >
                         <div
-                            v-for="permission in modulePermissions"
+                            v-for="permission in moduleGroup.permissions"
                             :key="permission.id"
                             class="group flex items-center gap-3 px-6 py-1.5 transition-colors hover:bg-emerald-50/40 dark:hover:bg-emerald-500/5"
                         >

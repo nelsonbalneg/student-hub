@@ -14,6 +14,7 @@ import {
     X,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
+import { toast } from 'vue-sonner';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { index as userManagementIndex } from '@/routes/user-management';
@@ -301,6 +302,7 @@ const confirmDelete = (force = false) => {
 
                 if (toastType === 'error' && !force) {
                     forceDeleteAvailable.value = true;
+                    toast.warning('Force delete is available for this user.');
                 }
             },
         },
@@ -1027,8 +1029,9 @@ const navigatePage = (url: string | null) => {
                     v-if="forceDeleteAvailable"
                     class="rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
                 >
-                    This user is linked to clearance records. Force delete will
-                    permanently remove those linked clearance records too.
+                    This user is linked to existing records. Force delete will
+                    permanently remove or unlink records that block deleting
+                    this account.
                 </p>
                 <div class="flex justify-end gap-2">
                     <Button variant="secondary" @click="modal = null"

@@ -76,9 +76,10 @@ class SocietyAccreditationController extends Controller
         return back()->with('success', 'Accreditation application draft created.');
     }
 
-    public function submit(Society $society, SocietyAccreditationRequest $accreditationRequest)
+    public function submit(Society $society, int|string $accreditationRequest)
     {
-        abort_unless($accreditationRequest->society_id === $society->id, 404);
+        $accreditationRequest = $this->resolveSocietyAccreditationRequest($society, $accreditationRequest);
+
         abort_if($accreditationRequest->isLocked(), 403);
 
         $accreditationRequest->update([
@@ -91,9 +92,10 @@ class SocietyAccreditationController extends Controller
         return back()->with('success', 'Application submitted to OSA.');
     }
 
-    public function uploadRequirement(StoreRequirementSubmissionRequest $request, Society $society, SocietyAccreditationRequest $accreditationRequest)
+    public function uploadRequirement(StoreRequirementSubmissionRequest $request, Society $society, int|string $accreditationRequest)
     {
-        abort_unless($accreditationRequest->society_id === $society->id, 404);
+        $accreditationRequest = $this->resolveSocietyAccreditationRequest($society, $accreditationRequest);
+
         abort_if($accreditationRequest->isLocked(), 403);
 
         $validated = $request->validated();
@@ -116,7 +118,40 @@ class SocietyAccreditationController extends Controller
         $originalName = $submission->original_file_name;
         if ($request->hasFile('file')) {
             $file = $request->file('file');
-            $path = $file->store("societies/{$society->id}/accreditations/{$accreditation->id}", 'public');
+            $temporaryPath = $file->getPathname();
+
+            if (! $file->isValid() || ! $temporaryPath || ! is_file($temporaryPath)) {
+                throw ValidationException::withMessages([
+                    'file' => 'The uploaded file could not be read. Please choose the PDF again and retry.',
+                ]);
+            }
+
+            $directory = "societies/{$society->id}/accreditations/{$accreditationRequest->id}";
+            $fileName = Str::uuid()->toString().'.'.$file->getClientOriginalExtension();
+            $path = "{$directory}/{$fileName}";
+
+            $stream = fopen($temporaryPath, 'r');
+
+            if ($stream === false) {
+                throw ValidationException::withMessages([
+                    'file' => 'The uploaded file could not be read. Please choose the PDF again and retry.',
+                ]);
+            }
+
+            try {
+                $stored = Storage::disk('public')->put($path, $stream);
+            } finally {
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+            }
+
+            if (! $stored) {
+                throw ValidationException::withMessages([
+                    'file' => 'The uploaded file could not be saved. Please try again.',
+                ]);
+            }
+
             $originalName = $file->getClientOriginalName();
         }
 
@@ -131,11 +166,43 @@ class SocietyAccreditationController extends Controller
             'resubmission_history' => $history,
         ]);
 
-        $this->log($accreditation, 'requirement_submitted', 'Requirement submitted.', [
+        $this->log($accreditationRequest, 'requirement_submitted', 'Requirement submitted.', [
             'requirement_id' => $validated['requirement_id'],
         ]);
 
         return back()->with('success', 'Requirement submission saved.');
+    }
+
+    public function destroyRequirement(Society $society, int|string $accreditationRequest, int|string $submission)
+    {
+        $accreditationRequest = $this->resolveSocietyAccreditationRequest($society, $accreditationRequest);
+        $submission = $accreditationRequest->submissions()
+            ->whereKey($submission)
+            ->firstOrFail();
+
+        abort_if($accreditationRequest->isLocked(), 403);
+
+        if ($submission->file_path) {
+            Storage::disk('public')->delete($submission->file_path);
+        }
+
+        $submission->update([
+            'file_path' => null,
+            'original_file_name' => null,
+            'remarks' => null,
+            'status' => 'pending',
+            'submitted_by' => null,
+            'submitted_at' => null,
+            'checked_by' => null,
+            'checked_at' => null,
+        ]);
+
+        $this->log($accreditationRequest, 'requirement_deleted', 'Requirement attachment deleted.', [
+            'submission_id' => $submission->id,
+            'requirement_id' => $submission->requirement_id,
+        ]);
+
+        return back()->with('success', 'Requirement attachment deleted.');
     }
 
     public function adminIndex(Request $request)
@@ -234,13 +301,13 @@ class SocietyAccreditationController extends Controller
             $updates['returned_at'] = now();
         }
 
-        $accreditation->update($updates);
+        $accreditationRequest->update($updates);
 
         if ($validated['status'] === 'approved') {
-            $accreditation->society()->update(['status' => 'accredited']);
+            $accreditationRequest->society()->update(['status' => 'accredited']);
         }
 
-        $this->log($accreditation, $validated['status'], $validated['remarks'] ?? null);
+        $this->log($accreditationRequest, $validated['status'], $validated['remarks'] ?? null);
 
         return back()->with('success', 'Accreditation application updated.');
     }
@@ -370,6 +437,13 @@ class SocietyAccreditationController extends Controller
             'approved' => SocietyAccreditationRequest::where('status', 'approved')->count(),
             'rejected' => SocietyAccreditationRequest::where('status', 'rejected')->count(),
         ];
+    }
+
+    private function resolveSocietyAccreditationRequest(Society $society, int|string $accreditationRequest): SocietyAccreditationRequest
+    {
+        return $society->accreditationRequests()
+            ->whereKey($accreditationRequest)
+            ->firstOrFail();
     }
 
     private function nextRequestNumber(): string

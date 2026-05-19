@@ -442,6 +442,7 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
     // Society Module
     Route::prefix('societies')
         ->name('societies.')
+        ->middleware('can:society.view')
         ->group(function () {
             // Student/Public Routes
             Route::get('/', [SocietyController::class, 'index'])->name('index');
@@ -468,6 +469,7 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
             // Society Management (Officers/Advisers)
             Route::prefix('manage/{society}')
                 ->name('manage.')
+                ->scopeBindings()
                 ->group(function () {
                     Route::get('/dashboard', [SocietyDashboardController::class, 'societyIndex'])->name('dashboard');
                     Route::get('/profile', [SocietyController::class, 'manageProfile'])->name('profile');
@@ -481,12 +483,15 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                     Route::post('/accreditation', [SocietyAccreditationController::class, 'store'])
                         ->middleware('can:society.apply_accreditation')
                         ->name('accreditation.store');
-                    Route::post('/accreditation/{accreditation_request}/submit', [SocietyAccreditationController::class, 'submit'])
+                    Route::post('/accreditation/{accreditationRequest}/submit', [SocietyAccreditationController::class, 'submit'])
                         ->middleware('can:society.apply_accreditation')
                         ->name('accreditation.submit');
-                    Route::post('/accreditation/{accreditation_request}/requirements', [SocietyAccreditationController::class, 'uploadRequirement'])
+                    Route::post('/accreditation/{accreditationRequest}/requirements', [SocietyAccreditationController::class, 'uploadRequirement'])
                         ->middleware('can:society.submit_requirements')
                         ->name('accreditation.requirements.store');
+                    Route::delete('/accreditation/{accreditationRequest}/requirements/{submission}', [SocietyAccreditationController::class, 'destroyRequirement'])
+                        ->middleware('can:society.submit_requirements')
+                        ->name('accreditation.requirements.destroy');
                     Route::get('/officers', [SocietyController::class, 'manageOfficers'])->name('officers.index');
                     Route::post('/officers', [SocietyController::class, 'storeOfficer'])
                         ->middleware('can:society.manage_officers')
@@ -535,10 +540,10 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
             Route::post('/requirements', [SocietyAccreditationController::class, 'storeRequirement'])
                 ->middleware('can:society.manage_requirements')
                 ->name('requirements.store');
-            Route::get('/applications/{accreditation}/review', [SocietyAccreditationController::class, 'reviewPage'])->name('applications.review');
-            Route::patch('/applications/{accreditation}/review', [SocietyAccreditationController::class, 'review'])->name('applications.review.update');
-            Route::patch('/applications/{accreditation}/requirements/{submission}', [SocietyAccreditationController::class, 'reviewRequirement'])->name('applications.requirements.review');
-            Route::get('/applications/{accreditation}/print/{type?}', [SocietyAccreditationController::class, 'print'])->name('applications.print');
+            Route::get('/applications/{accreditationRequest}/review', [SocietyAccreditationController::class, 'reviewPage'])->name('applications.review');
+            Route::patch('/applications/{accreditationRequest}/review', [SocietyAccreditationController::class, 'review'])->name('applications.review.update');
+            Route::patch('/applications/{accreditationRequest}/requirements/{submission}', [SocietyAccreditationController::class, 'reviewRequirement'])->name('applications.requirements.review');
+            Route::get('/applications/{accreditationRequest}/print/{type?}', [SocietyAccreditationController::class, 'print'])->name('applications.print');
             Route::get('/accredited', [SocietyController::class, 'adminIndex'])->name('accredited.index');
             Route::get('/reports', [SocietyReportController::class, 'index'])->name('reports.index');
 

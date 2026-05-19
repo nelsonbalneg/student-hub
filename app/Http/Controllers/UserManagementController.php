@@ -215,11 +215,12 @@ class UserManagementController extends Controller
         }
 
         try {
-            $deletedHistoryCounts = DB::transaction(function () use ($force, $protectedHistoryCounts, $user): array {
+            $deletedHistoryCounts = DB::transaction(function () use ($force, $protectedHistoryCounts, $request, $user): array {
                 $deletedHistoryCounts = [];
 
                 if ($force) {
                     $deletedHistoryCounts = $this->forceDeleteProtectedUserHistory($user, $protectedHistoryCounts);
+                    $deletedHistoryCounts['user_references'] = $this->forceDeleteUserReferences($user, $request->user()->id);
                 }
 
                 $user->delete();
@@ -255,7 +256,7 @@ class UserManagementController extends Controller
             'deleted_history_counts' => $deletedHistoryCounts,
         ]);
 
-        return back()->with('success', $force ? 'User and linked clearance records deleted.' : 'User deleted.');
+        return back()->with('success', $force ? 'User and linked records deleted.' : 'User deleted.');
     }
 
     public function storeRole(StoreRoleRequest $request): RedirectResponse
@@ -667,6 +668,95 @@ class UserManagementController extends Controller
             });
 
         return $deleted;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function forceDeleteUserReferences(User $user, int $actorId): array
+    {
+        Log::warning('Force deleting user references', [
+            'actor_id' => $actorId,
+            'target_user_id' => $user->id,
+        ]);
+
+        $deleted = [
+            'society_memberships' => $this->deleteUserReferenceRows('society_memberships', 'student_id', $user),
+            'society_event_registrations' => $this->deleteUserReferenceRows('society_event_registrations', 'student_id', $user),
+            'society_event_attendances' => $this->deleteUserReferenceRows('society_event_attendances', 'student_id', $user),
+        ];
+
+        $unlinked = [
+            'faq_feedback' => $this->nullUserReference('faq_feedback', 'user_id', $user),
+            'faq_search_logs' => $this->nullUserReference('faq_search_logs', 'user_id', $user),
+            'faqs_updated_by' => $this->nullUserReference('faqs', 'updated_by', $user),
+            'society_officers' => $this->nullUserReference('society_officers', 'student_id', $user),
+            'society_members' => $this->nullUserReference('society_members', 'user_id', $user),
+            'society_accreditation_logs' => $this->nullUserReference('society_accreditation_logs', 'user_id', $user),
+            'society_accreditation_requests_received' => $this->nullUserReference('society_accreditation_requests', 'received_checked_by', $user),
+            'society_accreditation_requests_approved' => $this->nullUserReference('society_accreditation_requests', 'approved_by', $user),
+            'society_requirement_submissions_submitted' => $this->nullUserReference('society_requirement_submissions', 'submitted_by', $user),
+            'society_requirement_submissions_checked' => $this->nullUserReference('society_requirement_submissions', 'checked_by', $user),
+            'societies' => $this->nullUserReference('societies', 'created_by', $user),
+        ];
+
+        $reassigned = [
+            'faq_categories' => $this->reassignUserReference('faq_categories', 'created_by', $user, $actorId),
+            'faqs_created_by' => $this->reassignUserReference('faqs', 'created_by', $user, $actorId),
+        ];
+
+        $counts = [
+            ...collect($deleted)
+                ->mapWithKeys(fn (int $count, string $table): array => ["{$table}_deleted" => $count])
+                ->all(),
+            ...collect($unlinked)
+                ->mapWithKeys(fn (int $count, string $table): array => ["{$table}_unlinked" => $count])
+                ->all(),
+            ...collect($reassigned)
+                ->mapWithKeys(fn (int $count, string $table): array => ["{$table}_reassigned" => $count])
+                ->all(),
+        ];
+
+        Log::warning('Force deleted user references', [
+            'actor_id' => $actorId,
+            'target_user_id' => $user->id,
+            'reference_counts' => $counts,
+        ]);
+
+        return $counts;
+    }
+
+    private function deleteUserReferenceRows(string $table, string $column, User $user): int
+    {
+        if (! Schema::hasTable($table) || ! Schema::hasColumn($table, $column)) {
+            return 0;
+        }
+
+        return DB::table($table)
+            ->where($column, $user->id)
+            ->delete();
+    }
+
+    private function nullUserReference(string $table, string $column, User $user): int
+    {
+        if (! Schema::hasTable($table) || ! Schema::hasColumn($table, $column)) {
+            return 0;
+        }
+
+        return DB::table($table)
+            ->where($column, $user->id)
+            ->update([$column => null]);
+    }
+
+    private function reassignUserReference(string $table, string $column, User $user, int $actorId): int
+    {
+        if (! Schema::hasTable($table) || ! Schema::hasColumn($table, $column)) {
+            return 0;
+        }
+
+        return DB::table($table)
+            ->where($column, $user->id)
+            ->update([$column => $actorId]);
     }
 
     /**
