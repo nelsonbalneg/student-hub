@@ -285,6 +285,10 @@ php artisan route:list --path=legal
 php artisan route:list --path=settings/legal
 ```
 
+## Ubuntu + Nginx Deployment
+
+See [DEPLOYMENT-UBUNTU-NGINX.md](DEPLOYMENT-UBUNTU-NGINX.md) for a production deployment guide on Ubuntu with Nginx and PHP-FPM.
+
 ## Development Notes
 
 - Regenerate Wayfinder after route changes:
