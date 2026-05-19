@@ -33,6 +33,7 @@ class RolesAndPermissionsSeeder extends Seeder
             ['module' => 'Internet Accounts', 'name' => 'internet-accounts.view'],
             ['module' => 'Internet Accounts', 'name' => 'internet-accounts.create'],
             ['module' => 'Internet Accounts', 'name' => 'internet-accounts.manage'],
+            ['module' => 'Internet Accounts', 'name' => 'internet-accounts.view-term-id'],
             ['module' => 'Internet Accounts', 'name' => 'internet-accounts.approve'],
             ['module' => 'Internet Accounts', 'name' => 'internet-accounts.cancel'],
             ['module' => 'Internet Accounts', 'name' => 'internet-accounts.delete'],

@@ -133,45 +133,45 @@ const pick = (row: GradeRecord, keys: string[]): string => {
 
 const groupedGrades = computed<TermGroup[]>(() => {
     const rawData = asArray(props.gradeReport.data);
-    
-    const groups = rawData.map((term) => {
-            const termName = pick(term, [
-                'termName',
-                'semesterName',
-                'semester_name',
-                'semester',
-                'term',
-            ]);
-            const academicYear = pick(term, [
-                'academicYear',
-                'academic_year',
-                'schoolYear',
-                'school_year',
-            ]);
 
-            return {
-                termId: pick(term, [
-                    'termId',
-                    'term_id',
-                    'semesterId',
-                    'semester_id',
-                    'id',
-                ]),
-                term:
-                    [academicYear, termName]
-                        .filter((value) => value !== '-')
-                        .join(' - ') || 'Grade Report',
-                section: pick(term, ['sectionName', 'section_name', 'section']),
-                creditUnits: pick(term, [
-                    'totalCreditUnits',
-                    'total_credit_units',
-                    'totalUnits',
-                    'total_units',
-                ]),
-                gpa: pick(term, ['gpa', 'GPA']),
-                rows: asArray(term.grades),
-            };
-        })
+    const groups = rawData.map((term) => {
+        const termName = pick(term, [
+            'termName',
+            'semesterName',
+            'semester_name',
+            'semester',
+            'term',
+        ]);
+        const academicYear = pick(term, [
+            'academicYear',
+            'academic_year',
+            'schoolYear',
+            'school_year',
+        ]);
+
+        return {
+            termId: pick(term, [
+                'termId',
+                'term_id',
+                'semesterId',
+                'semester_id',
+                'id',
+            ]),
+            term:
+                [academicYear, termName]
+                    .filter((value) => value !== '-')
+                    .join(' - ') || 'Grade Report',
+            section: pick(term, ['sectionName', 'section_name', 'section']),
+            creditUnits: pick(term, [
+                'totalCreditUnits',
+                'total_credit_units',
+                'totalUnits',
+                'total_units',
+            ]),
+            gpa: pick(term, ['gpa', 'GPA']),
+            rows: asArray(term.grades),
+        };
+    })
         .filter((group) => group.rows.length);
 
     const finalGroups = [...groups].reverse();
@@ -546,288 +546,243 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
 </script>
 
 <template>
+
     <Head title="My Grades" />
 
     <div class="flex h-full flex-1 flex-col gap-4 p-4 lg:p-5">
         <Sheet v-model:open="evaluationModalOpen">
             <SheetContent side="right" class="w-full p-0 sm:max-w-3xl">
                 <div class="flex h-full min-h-0 flex-col">
-                <SheetHeader class="border-b border-slate-200 px-5 py-4 text-left dark:border-white/10">
-                    <SheetTitle>
-                        Evaluate Faculty
-                    </SheetTitle>
-                    <SheetDescription>
-                        Complete the faculty subject evaluation form below.
-                    </SheetDescription>
-                </SheetHeader>
+                    <SheetHeader class="border-b border-slate-200 px-5 py-4 text-left dark:border-white/10">
+                        <SheetTitle>
+                            Evaluate Faculty
+                        </SheetTitle>
+                        <SheetDescription>
+                            Complete the faculty subject evaluation form below.
+                        </SheetDescription>
+                    </SheetHeader>
 
-                <div
-                    v-if="selectedEvaluationGroup"
-                    class="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 text-xs"
-                >
-                    <div class="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2 dark:border-white/10 dark:bg-white/5">
-                        <div>
-                            <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Course</p>
-                            <p class="mt-1 font-semibold text-slate-900 dark:text-white">
-                                {{ pick(selectedEvaluationGroup.row, columns[0].keys) }}
-                            </p>
-                            <p class="mt-0.5 text-slate-600 dark:text-slate-300">
-                                {{ pick(selectedEvaluationGroup.row, columns[1].keys) }}
-                            </p>
-                        </div>
-                        <div>
-                            <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Evaluation Details</p>
-                            <p class="mt-1 font-semibold text-slate-900 dark:text-white">
-                                {{ selectedEvaluation?.evalItem.faculty ?? 'Select evaluation type' }}
-                            </p>
-                            <p class="mt-0.5 text-slate-600 dark:text-slate-300">
-                                Type: {{ selectedEvaluation?.evalItem.type?.toUpperCase() ?? '-' }}
-                            </p>
-                        </div>
-                    </div>
-                    <div
-                        v-if="!selectedEvaluation"
-                        class="rounded-md border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-900"
-                    >
-                        <p class="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-200">Choose evaluation type</p>
-                        <div class="flex flex-wrap gap-2">
-                            <button
-                                v-for="item in selectedEvaluationGroup.evalItems"
-                                :key="item.id"
-                                type="button"
-                                class="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
-                                @click="evaluate(selectedEvaluationGroup.row, item)"
-                            >
-                                Evaluate {{ item.type }}
-                            </button>
-                        </div>
-                    </div>
-                    <div class="space-y-2 border-t border-slate-200 pt-2 dark:border-white/10">
+                    <div v-if="selectedEvaluationGroup" class="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 text-xs">
                         <div
-                            v-if="submitError"
-                            class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-medium text-red-700 dark:border-red-400/30 dark:bg-red-500/10 dark:text-red-300"
-                        >
-                            {{ submitError }}
-                        </div>
-                        <div
-                            v-if="submitSuccess"
-                            class="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-medium text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-300"
-                        >
-                            {{ submitSuccess }}
-                        </div>
-
-                        <p class="font-semibold text-slate-700 dark:text-slate-200">
-                            Evaluation Questions
-                        </p>
-
-                        <div
-                            v-if="decodedSurveyTemplate"
-                            class="rounded-md border border-slate-200 bg-white p-2 text-[11px] dark:border-white/10 dark:bg-slate-900"
-                        >
-                            <p class="font-semibold text-slate-800 dark:text-slate-100">
-                                {{ decodedSurveyTemplate.name ?? 'Untitled Template' }}
-                            </p>
-                            <p class="text-slate-500 dark:text-slate-400">
-                                Code: {{ decodedSurveyTemplate.code ?? '-' }}
-                            </p>
-                            <p class="text-slate-500 dark:text-slate-400">
-                                Description: {{ decodedSurveyTemplate.description ?? '-' }}
-                            </p>
-                        </div>
-
-                        <div
-                            v-if="selectedEvaluation && questionnaireItems.length"
-                            class="space-y-3"
-                        >
-                            <div
-                                v-for="(item, idx) in questionnaireItems"
-                                :key="idx"
-                                class="rounded-md border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-900"
-                            >
-                                <p class="font-semibold text-slate-800 dark:text-slate-100">
-                                    Q{{ idx + 1 }}:
-                                    {{
-                                        item.questionStatement ||
-                                        item.question ||
-                                        item.text ||
-                                        item.title ||
-                                        item.label ||
-                                        'Untitled question'
-                                    }}
-                                </p>
+                            class="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2 dark:border-white/10 dark:bg-white/5">
+                            <div>
                                 <p
-                                    v-if="Array.isArray(item.options) && item.options.length"
-                                    class="text-[11px] text-slate-500 dark:text-slate-400"
-                                >
-                                    Options: {{ item.options.map((opt: any) => opt.label ?? opt.text ?? String(opt)).join(', ') }}
+                                    class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                    Course</p>
+                                <p class="mt-1 font-semibold text-slate-900 dark:text-white">
+                                    {{ pick(selectedEvaluationGroup.row, columns[0].keys) }}
                                 </p>
-
-                                <div v-if="Number(item.questionType) === 3" class="mt-2 flex flex-wrap gap-1.5">
-                                    <button
-                                        v-for="n in Number(item.starCount || 5)"
-                                        :key="n"
-                                        type="button"
-                                        class="inline-flex size-8 items-center justify-center rounded-md border transition"
-                                        :class="Number(evaluationAnswers[item.id] || 0) >= n
-                                            ? 'border-amber-300 bg-amber-50 text-amber-600 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300'
-                                            : 'border-slate-200 bg-white text-slate-400 hover:border-amber-300 hover:text-amber-600 dark:border-white/10 dark:bg-slate-900 dark:text-slate-500'"
-                                        @click="setRatingAnswer(item.id, n)"
-                                    >
-                                        <Star class="size-4" />
-                                    </button>
-                                </div>
-
-                                <div v-else-if="Number(item.questionType) === 99" class="mt-2">
-                                    <textarea
-                                        class="min-h-[90px] w-full rounded-md border border-slate-200 bg-white p-2 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-sky-400 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
-                                        placeholder="Write your suggestion here..."
-                                        :value="String(evaluationAnswers[item.id] ?? '')"
-                                        @input="setTextAnswer(item.id, ($event.target as HTMLTextAreaElement).value)"
-                                    />
-                                </div>
+                                <p class="mt-0.5 text-slate-600 dark:text-slate-300">
+                                    {{ pick(selectedEvaluationGroup.row, columns[1].keys) }}
+                                </p>
+                            </div>
+                            <div>
+                                <p
+                                    class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                    Evaluation Details</p>
+                                <p class="mt-1 font-semibold text-slate-900 dark:text-white">
+                                    {{ selectedEvaluation?.evalItem.faculty ?? 'Select evaluation type' }}
+                                </p>
+                                <p class="mt-0.5 text-slate-600 dark:text-slate-300">
+                                    Type: {{ selectedEvaluation?.evalItem.type?.toUpperCase() ?? '-' }}
+                                </p>
                             </div>
                         </div>
+                        <div v-if="!selectedEvaluation"
+                            class="rounded-md border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-900">
+                            <p class="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-200">Choose evaluation
+                                type</p>
+                            <div class="flex flex-wrap gap-2">
+                                <button v-for="item in selectedEvaluationGroup.evalItems" :key="item.id" type="button"
+                                    class="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                                    @click="evaluate(selectedEvaluationGroup.row, item)">
+                                    Evaluate {{ item.type }}
+                                </button>
+                            </div>
+                        </div>
+                        <div class="space-y-2 border-t border-slate-200 pt-2 dark:border-white/10">
+                            <div v-if="submitError"
+                                class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-medium text-red-700 dark:border-red-400/30 dark:bg-red-500/10 dark:text-red-300">
+                                {{ submitError }}
+                            </div>
+                            <div v-if="submitSuccess"
+                                class="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-medium text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+                                {{ submitSuccess }}
+                            </div>
 
-                        <div v-else-if="selectedEvaluation" class="space-y-2">
-                            <p class="text-slate-500 dark:text-slate-400">
-                                No direct question array found. Showing decoded payloads:
+                            <p class="font-semibold text-slate-700 dark:text-slate-200">
+                                Evaluation Questions
                             </p>
-                            <pre class="max-h-52 overflow-auto rounded-md border border-slate-200 bg-white p-2 text-[11px] text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200">{{ JSON.stringify(decodedSurveyTemplate, null, 2) }}</pre>
-                            <pre class="max-h-40 overflow-auto rounded-md border border-slate-200 bg-white p-2 text-[11px] text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200">{{ JSON.stringify(decodedJsonString, null, 2) }}</pre>
+
+                            <div v-if="decodedSurveyTemplate"
+                                class="rounded-md border border-slate-200 bg-white p-2 text-[11px] dark:border-white/10 dark:bg-slate-900">
+                                <p class="font-semibold text-slate-800 dark:text-slate-100">
+                                    {{ decodedSurveyTemplate.name ?? 'Untitled Template' }}
+                                </p>
+                                <p class="text-slate-500 dark:text-slate-400">
+                                    Code: {{ decodedSurveyTemplate.code ?? '-' }}
+                                </p>
+                                <p class="text-slate-500 dark:text-slate-400">
+                                    Description: {{ decodedSurveyTemplate.description ?? '-' }}
+                                </p>
+                            </div>
+
+                            <div v-if="selectedEvaluation && questionnaireItems.length" class="space-y-3">
+                                <div v-for="(item, idx) in questionnaireItems" :key="idx"
+                                    class="rounded-md border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-900">
+                                    <p class="font-semibold text-slate-800 dark:text-slate-100">
+                                        Q{{ idx + 1 }}:
+                                        {{
+                                            item.questionStatement ||
+                                            item.question ||
+                                            item.text ||
+                                            item.title ||
+                                            item.label ||
+                                            'Untitled question'
+                                        }}
+                                    </p>
+                                    <p v-if="Array.isArray(item.options) && item.options.length"
+                                        class="text-[11px] text-slate-500 dark:text-slate-400">
+                                        Options: {{item.options.map((opt: any) => opt.label ?? opt.text ??
+                                        String(opt)).join(', ') }}
+                                    </p>
+
+                                    <div v-if="Number(item.questionType) === 3" class="mt-2 flex flex-wrap gap-1.5">
+                                        <button v-for="n in Number(item.starCount || 5)" :key="n" type="button"
+                                            class="inline-flex size-8 items-center justify-center rounded-md border transition"
+                                            :class="Number(evaluationAnswers[item.id] || 0) >= n
+                                                ? 'border-amber-300 bg-amber-50 text-amber-600 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300'
+                                                : 'border-slate-200 bg-white text-slate-400 hover:border-amber-300 hover:text-amber-600 dark:border-white/10 dark:bg-slate-900 dark:text-slate-500'"
+                                            @click="setRatingAnswer(item.id, n)">
+                                            <Star class="size-4" />
+                                        </button>
+                                    </div>
+
+                                    <div v-else-if="Number(item.questionType) === 99" class="mt-2">
+                                        <textarea
+                                            class="min-h-[90px] w-full rounded-md border border-slate-200 bg-white p-2 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-sky-400 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
+                                            placeholder="Write your suggestion here..."
+                                            :value="String(evaluationAnswers[item.id] ?? '')"
+                                            @input="setTextAnswer(item.id, ($event.target as HTMLTextAreaElement).value)" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div v-else-if="selectedEvaluation" class="space-y-2">
+                                <p class="text-slate-500 dark:text-slate-400">
+                                    No direct question array found. Showing decoded payloads:
+                                </p>
+                                <pre
+                                    class="max-h-52 overflow-auto rounded-md border border-slate-200 bg-white p-2 text-[11px] text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200">{{ JSON.stringify(decodedSurveyTemplate, null, 2) }}</pre>
+                                <pre
+                                    class="max-h-40 overflow-auto rounded-md border border-slate-200 bg-white p-2 text-[11px] text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200">{{ JSON.stringify(decodedJsonString, null, 2) }}</pre>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <SheetFooter class="border-t border-slate-200 px-5 py-3 dark:border-white/10">
-                    <div class="mr-auto inline-flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-                        <CheckCircle2 class="size-4 text-emerald-500" />
-                        Lecture and lab forms use their own question set automatically.
-                    </div>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        @click="
+                    <SheetFooter class="border-t border-slate-200 px-5 py-3 dark:border-white/10">
+                        <div
+                            class="mr-auto inline-flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                            <CheckCircle2 class="size-4 text-emerald-500" />
+                            Lecture and lab forms use their own question set automatically.
+                        </div>
+                        <Button type="button" variant="outline" @click="
                             evaluationModalOpen = false;
-                            if (submitSuccess) {
-                                router.reload({ only: ['gradeReport', 'evaluation_error'] });
-                            }
-                        "
-                    >
-                        Close
-                    </Button>
-                    <Button
-                        type="button"
-                        :disabled="!selectedEvaluation || !canSubmitEvaluation || isSubmittingEvaluation || !!submitSuccess"
-                        @click="submitEvaluation"
-                    >
-                        {{ isSubmittingEvaluation ? 'Submitting...' : 'Submit Evaluation' }}
-                    </Button>
-                </SheetFooter>
+                        if (submitSuccess) {
+                            router.reload({ only: ['gradeReport', 'evaluation_error'] });
+                        }
+                        ">
+                            Close
+                        </Button>
+                        <Button type="button"
+                            :disabled="!selectedEvaluation || !canSubmitEvaluation || isSubmittingEvaluation || !!submitSuccess"
+                            @click="submitEvaluation">
+                            {{ isSubmittingEvaluation ? 'Submitting...' : 'Submit Evaluation' }}
+                        </Button>
+                    </SheetFooter>
                 </div>
             </SheetContent>
         </Sheet>
 
         <!-- Evaluation Warning Banner -->
-        <div v-if="evaluation_error" class="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200">
+        <div v-if="evaluation_error"
+            class="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200">
             <AlertCircle class="size-5 shrink-0 text-amber-600" />
             <p class="font-medium">{{ evaluation_error }}</p>
         </div>
 
         <section
-            class="rounded-lg border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-sky-50/60 shadow-sm dark:border-white/10 dark:from-slate-950 dark:via-slate-950 dark:to-sky-950/20"
-        >
+            class="rounded-lg border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-sky-50/60 shadow-sm dark:border-white/10 dark:from-slate-950 dark:via-slate-950 dark:to-sky-950/20">
             <div
-                class="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 md:flex-row md:items-center md:justify-between dark:border-white/10"
-            >
+                class="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 md:flex-row md:items-center md:justify-between dark:border-white/10">
                 <div class="flex min-w-0 items-center gap-3">
                     <div
-                        class="flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
-                    >
+                        class="flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
                         <GraduationCap class="size-5" />
                     </div>
                     <div class="min-w-0">
-                        <h1
-                            class="truncate text-lg font-bold text-slate-950 dark:text-white"
-                        >
+                        <h1 class="truncate text-lg font-bold text-slate-950 dark:text-white">
                             Grade Report
                         </h1>
-                        <p
-                            class="truncate text-xs font-medium text-slate-500 dark:text-slate-400"
-                        >
+                        <p class="truncate text-xs font-medium text-slate-500 dark:text-slate-400">
                             Academic performance, terms, grades, and official
                             course outcomes.
                         </p>
                     </div>
                 </div>
 
-                <button
+                <!-- <button
                     type="button"
                     class="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
                     @click="printCOR"
                 >
                     <Printer class="size-4" />
                     Print
-                </button>
+                </button> -->
             </div>
 
             <div class="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
                 <div
-                    class="rounded-lg border border-slate-200 bg-gradient-to-br from-white to-sky-50/70 p-3 dark:border-white/10 dark:from-white/5 dark:to-sky-500/10"
-                >
+                    class="rounded-lg border border-slate-200 bg-gradient-to-br from-white to-sky-50/70 p-3 dark:border-white/10 dark:from-white/5 dark:to-sky-500/10">
                     <div
-                        class="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400"
-                    >
+                        class="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400">
                         <BookOpenCheck class="size-4 text-sky-600" />
                         Courses
                     </div>
-                    <div
-                        class="mt-2 text-2xl font-bold text-slate-950 dark:text-white"
-                    >
+                    <div class="mt-2 text-2xl font-bold text-slate-950 dark:text-white">
                         {{ totalCourses }}
                     </div>
                 </div>
                 <div
-                    class="rounded-lg border border-slate-200 bg-gradient-to-br from-white to-emerald-50/70 p-3 dark:border-white/10 dark:from-white/5 dark:to-emerald-500/10"
-                >
+                    class="rounded-lg border border-slate-200 bg-gradient-to-br from-white to-emerald-50/70 p-3 dark:border-white/10 dark:from-white/5 dark:to-emerald-500/10">
                     <div
-                        class="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400"
-                    >
+                        class="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400">
                         <TrendingUp class="size-4 text-emerald-600" />
                         Average GWA
                     </div>
-                    <div
-                        class="mt-2 text-2xl font-bold text-slate-950 dark:text-white"
-                    >
+                    <div class="mt-2 text-2xl font-bold text-slate-950 dark:text-white">
                         {{ averageGrade }}
                     </div>
                 </div>
                 <div
-                    class="rounded-lg border border-slate-200 bg-gradient-to-br from-white to-amber-50/70 p-3 dark:border-white/10 dark:from-white/5 dark:to-amber-500/10"
-                >
+                    class="rounded-lg border border-slate-200 bg-gradient-to-br from-white to-amber-50/70 p-3 dark:border-white/10 dark:from-white/5 dark:to-amber-500/10">
                     <div
-                        class="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400"
-                    >
+                        class="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400">
                         <CalendarDays class="size-4 text-amber-600" />
                         Terms
                     </div>
-                    <div
-                        class="mt-2 text-2xl font-bold text-slate-950 dark:text-white"
-                    >
+                    <div class="mt-2 text-2xl font-bold text-slate-950 dark:text-white">
                         {{ groupedGrades.length }}
                     </div>
                 </div>
                 <div
-                    class="rounded-lg border border-slate-200 bg-gradient-to-br from-white to-violet-50/70 p-3 dark:border-white/10 dark:from-white/5 dark:to-violet-500/10"
-                >
+                    class="rounded-lg border border-slate-200 bg-gradient-to-br from-white to-violet-50/70 p-3 dark:border-white/10 dark:from-white/5 dark:to-violet-500/10">
                     <div
-                        class="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400"
-                    >
+                        class="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400">
                         <FileText class="size-4 text-violet-600" />
                         Units
                     </div>
-                    <div
-                        class="mt-2 text-2xl font-bold text-slate-950 dark:text-white"
-                    >
+                    <div class="mt-2 text-2xl font-bold text-slate-950 dark:text-white">
                         {{ totalUnits }}
                     </div>
                 </div>
@@ -836,103 +791,66 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
 
         <div class="grid gap-4 xl:grid-cols-[1fr_340px]">
             <section
-                class="min-w-0 rounded-lg border border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 shadow-sm dark:border-white/10 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900"
-            >
+                class="min-w-0 rounded-lg border border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 shadow-sm dark:border-white/10 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
                 <div
-                    class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-white/10"
-                >
+                    class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-white/10">
                     <div>
-                        <h2
-                            class="text-sm font-bold text-slate-950 dark:text-white"
-                        >
+                        <h2 class="text-sm font-bold text-slate-950 dark:text-white">
                             Term Records
                         </h2>
-                        <p
-                            class="text-xs font-medium text-slate-500 dark:text-slate-400"
-                        >
+                        <p class="text-xs font-medium text-slate-500 dark:text-slate-400">
                             {{ latestTerm }}
                         </p>
                     </div>
                     <span
-                        class="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:border-white/10 dark:text-slate-300"
-                    >
+                        class="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:border-white/10 dark:text-slate-300">
                         {{ records.length }} rows
                     </span>
                 </div>
 
-                <div
-                    v-if="gradeReport.error"
-                    class="m-4 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-400/30 dark:bg-red-500/10 dark:text-red-200"
-                >
+                <div v-if="gradeReport.error"
+                    class="m-4 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-400/30 dark:bg-red-500/10 dark:text-red-200">
                     <AlertCircle class="mt-0.5 size-4 shrink-0" />
                     <span>{{ gradeReport.error }}</span>
                 </div>
 
-                <div
-                    v-else-if="!records.length"
-                    class="flex min-h-[320px] flex-col items-center justify-center gap-2 p-6 text-center"
-                >
-                    <GraduationCap
-                        class="size-10 text-slate-300 dark:text-slate-700"
-                    />
-                    <h3
-                        class="text-sm font-bold text-slate-900 dark:text-white"
-                    >
+                <div v-else-if="!records.length"
+                    class="flex min-h-[320px] flex-col items-center justify-center gap-2 p-6 text-center">
+                    <GraduationCap class="size-10 text-slate-300 dark:text-slate-700" />
+                    <h3 class="text-sm font-bold text-slate-900 dark:text-white">
                         No grades available
                     </h3>
-                    <p
-                        class="max-w-md text-xs font-medium text-slate-500 dark:text-slate-400"
-                    >
+                    <p class="max-w-md text-xs font-medium text-slate-500 dark:text-slate-400">
                         No grade records are currently linked to this SSO
                         account.
                     </p>
                 </div>
 
-                <div
-                    v-else
-                    class="divide-y divide-slate-200 dark:divide-white/10"
-                >
-                    <Collapsible
-                        v-for="group in groupedGrades"
-                        :key="group.term"
-                        v-model:open="expandedTerms[group.term]"
-                    >
+                <div v-else class="divide-y divide-slate-200 dark:divide-white/10">
+                    <Collapsible v-for="group in groupedGrades" :key="group.term"
+                        v-model:open="expandedTerms[group.term]">
                         <CollapsibleTrigger as-child>
-                            <button
-                                type="button"
-                                class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50 dark:hover:bg-white/5"
-                            >
+                            <button type="button"
+                                class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50 dark:hover:bg-white/5">
                                 <div class="min-w-0">
-                                    <div
-                                        class="flex flex-wrap items-center gap-2"
-                                    >
-                                        <h3
-                                            class="truncate text-sm font-bold text-slate-950 dark:text-white"
-                                        >
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <h3 class="truncate text-sm font-bold text-slate-950 dark:text-white">
                                             {{ group.term }}
                                         </h3>
-                                        <span
-                                            v-if="group.section !== '-'"
-                                            class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300"
-                                        >
+                                        <span v-if="group.section !== '-'"
+                                            class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
                                             Section {{ group.section }}
                                         </span>
                                     </div>
-                                    <p
-                                        class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400"
-                                    >
+                                    <p class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
                                         {{ group.rows.length }} courses /
                                         {{ termUnits(group) }} units /
-                                        <template
-                                            v-if="
-                                                groupHasPendingEvaluations(
-                                                    group,
-                                                )
-                                            "
-                                        >
-                                            <span
-                                                class="font-bold text-amber-600 dark:text-amber-400"
-                                            >
+                                        <template v-if="
+                                            groupHasPendingEvaluations(
+                                                group,
+                                            )
+                                        ">
+                                            <span class="font-bold text-amber-600 dark:text-amber-400">
                                                 GPA Hidden (Evaluation Required)
                                             </span>
                                         </template>
@@ -942,25 +860,18 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                         </template>
                                     </p>
                                 </div>
-                                <ChevronDown
-                                    class="size-4 shrink-0 text-slate-400 transition"
-                                    :class="
-                                        expandedTerms[group.term]
-                                            ? 'rotate-180'
-                                            : ''
-                                    "
-                                />
+                                <ChevronDown class="size-4 shrink-0 text-slate-400 transition" :class="expandedTerms[group.term]
+                                        ? 'rotate-180'
+                                        : ''
+                                    " />
                             </button>
                         </CollapsibleTrigger>
 
                         <CollapsibleContent>
-                            <div
-                                class="overflow-x-auto border-t border-slate-200 dark:border-white/10"
-                            >
+                            <div class="overflow-x-auto border-t border-slate-200 dark:border-white/10">
                                 <table class="w-full min-w-[900px] text-sm">
                                     <thead
-                                        class="bg-slate-50 text-left text-[11px] font-bold text-slate-500 uppercase dark:bg-white/5 dark:text-slate-400"
-                                    >
+                                        class="bg-slate-50 text-left text-[11px] font-bold text-slate-500 uppercase dark:bg-white/5 dark:text-slate-400">
                                         <tr>
                                             <th class="px-4 py-3">Course</th>
                                             <th class="px-4 py-3 text-center">
@@ -983,23 +894,14 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                             </th>
                                         </tr>
                                     </thead>
-                                    <tbody
-                                        class="divide-y divide-slate-100 dark:divide-white/10"
-                                    >
-                                        <tr
-                                            v-for="(
-                                                row, rowIndex
-                                            ) in group.rows"
-                                            :key="rowIndex"
-                                            class="hover:bg-slate-50/80 dark:hover:bg-white/5"
-                                        >
+                                    <tbody class="divide-y divide-slate-100 dark:divide-white/10">
+                                        <tr v-for="(
+row, rowIndex
+                                            ) in group.rows" :key="rowIndex"
+                                            class="hover:bg-slate-50/80 dark:hover:bg-white/5">
                                             <td class="px-4 py-3">
-                                                <div
-                                                    class="flex flex-col gap-0.5"
-                                                >
-                                                    <span
-                                                        class="font-bold text-slate-900 dark:text-white"
-                                                    >
+                                                <div class="flex flex-col gap-0.5">
+                                                    <span class="font-bold text-slate-900 dark:text-white">
                                                         {{
                                                             pick(
                                                                 row,
@@ -1008,8 +910,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                         }}
                                                     </span>
                                                     <span
-                                                        class="max-w-[400px] truncate text-xs text-slate-500 dark:text-slate-400"
-                                                    >
+                                                        class="max-w-[400px] truncate text-xs text-slate-500 dark:text-slate-400">
                                                         {{
                                                             pick(
                                                                 row,
@@ -1020,22 +921,16 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                 </div>
                                             </td>
                                             <td
-                                                class="px-4 py-3 text-center align-top text-xs font-bold text-slate-700 dark:text-slate-200"
-                                            >
+                                                class="px-4 py-3 text-center align-top text-xs font-bold text-slate-700 dark:text-slate-200">
                                                 {{ pick(row, columns[2].keys) }}
                                             </td>
                                             <td
-                                                class="px-4 py-3 text-center align-top text-xs font-medium text-slate-500 dark:text-slate-400"
-                                            >
-                                                <template
-                                                    v-if="
-                                                        row.requires_evaluation
-                                                    "
-                                                >
+                                                class="px-4 py-3 text-center align-top text-xs font-medium text-slate-500 dark:text-slate-400">
+                                                <template v-if="
+                                                    row.requires_evaluation
+                                                ">
                                                     <span
-                                                        class="text-[10px] font-bold text-slate-300 dark:text-slate-600"
-                                                        >LOCKED</span
-                                                    >
+                                                        class="text-[10px] font-bold text-slate-300 dark:text-slate-600">LOCKED</span>
                                                 </template>
                                                 <template v-else>
                                                     {{
@@ -1047,17 +942,12 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                 </template>
                                             </td>
                                             <td
-                                                class="px-4 py-3 text-center align-top text-xs font-medium text-slate-500 dark:text-slate-400"
-                                            >
-                                                <template
-                                                    v-if="
-                                                        row.requires_evaluation
-                                                    "
-                                                >
+                                                class="px-4 py-3 text-center align-top text-xs font-medium text-slate-500 dark:text-slate-400">
+                                                <template v-if="
+                                                    row.requires_evaluation
+                                                ">
                                                     <span
-                                                        class="text-[10px] font-bold text-slate-300 dark:text-slate-600"
-                                                        >LOCKED</span
-                                                    >
+                                                        class="text-[10px] font-bold text-slate-300 dark:text-slate-600">LOCKED</span>
                                                 </template>
                                                 <template v-else>
                                                     {{
@@ -1069,52 +959,43 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                 </template>
                                             </td>
                                             <td class="px-4 py-3 text-center align-top">
-                                                <span class="inline-flex min-w-10 items-center justify-center rounded-md bg-slate-900 px-2 py-1 text-xs font-bold text-white dark:bg-white dark:text-slate-950">
+                                                <span
+                                                    class="inline-flex min-w-10 items-center justify-center rounded-md bg-slate-900 px-2 py-1 text-xs font-bold text-white dark:bg-white dark:text-slate-950">
                                                     {{ pick(row, columns[5].keys) }}
                                                 </span>
                                             </td>
                                             <td class="px-4 py-3 text-center align-top">
                                                 <template v-if="row.requires_evaluation">
-                                                    <button
-                                                        type="button"
+                                                    <button type="button"
                                                         class="inline-flex h-7 items-center justify-center gap-1.5 rounded-md bg-indigo-600 px-3 text-[10px] font-bold text-white shadow-sm shadow-indigo-200 transition hover:bg-indigo-700 dark:shadow-none"
-                                                        @click="openEvaluationChooser(row)"
-                                                    >
+                                                        @click="openEvaluationChooser(row)">
                                                         <MessageSquareQuote class="size-3" />
                                                         Evaluate
                                                     </button>
                                                     <p class="mt-1 text-[10px] font-semibold text-slate-400">
-                                                        {{ row.pending_evaluations?.map((p) => p.type).join(' / ') }}
+                                                        {{row.pending_evaluations?.map((p) => p.type).join(' / ')}}
                                                     </p>
                                                 </template>
                                                 <span v-else class="text-[10px] font-semibold text-slate-400">-</span>
                                             </td>
-                                            <td
-                                                class="px-4 py-3 text-center align-top"
-                                            >
-                                                <template
-                                                    v-if="
-                                                        row.requires_evaluation
-                                                    "
-                                                >
+                                            <td class="px-4 py-3 text-center align-top">
+                                                <template v-if="
+                                                    row.requires_evaluation
+                                                ">
                                                     <span
-                                                        class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300"
-                                                    >
+                                                        class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300">
                                                         Evaluation Required
                                                     </span>
                                                 </template>
-                                                <span
-                                                    v-else
+                                                <span v-else
                                                     class="inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase"
-                                                    :class="
-                                                        remarkClass(
-                                                            pick(
-                                                                row,
-                                                                columns[6].keys,
-                                                            ),
-                                                        )
-                                                    "
-                                                >
+                                                    :class="remarkClass(
+                                                        pick(
+                                                            row,
+                                                            columns[6].keys,
+                                                        ),
+                                                    )
+                                                        ">
                                                     {{
                                                         pick(
                                                             row,
@@ -1134,52 +1015,36 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
 
             <aside class="space-y-4">
                 <section
-                    class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950"
-                >
+                    class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950">
                     <div class="flex items-center gap-3">
                         <div
-                            class="flex size-10 items-center justify-center rounded-lg bg-slate-50 text-slate-700 dark:bg-white/5 dark:text-slate-200"
-                        >
+                            class="flex size-10 items-center justify-center rounded-lg bg-slate-50 text-slate-700 dark:bg-white/5 dark:text-slate-200">
                             <User class="size-5" />
                         </div>
                         <div class="min-w-0">
-                            <p
-                                class="truncate text-xs font-medium text-slate-500 dark:text-slate-400"
-                            >
+                            <p class="truncate text-xs font-medium text-slate-500 dark:text-slate-400">
                                 Student Information
                             </p>
-                            <h3
-                                class="truncate text-sm font-bold text-slate-900 dark:text-white"
-                            >
+                            <h3 class="truncate text-sm font-bold text-slate-900 dark:text-white">
                                 {{ student.name }}
                             </h3>
                         </div>
                     </div>
 
-                    <div
-                        class="mt-4 space-y-3 border-t border-slate-100 pt-4 dark:border-white/5"
-                    >
+                    <div class="mt-4 space-y-3 border-t border-slate-100 pt-4 dark:border-white/5">
                         <div class="flex items-center justify-between gap-3">
-                            <span
-                                class="text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400"
-                            >
+                            <span class="text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400">
                                 Student ID
                             </span>
-                            <span
-                                class="font-mono text-xs font-bold text-slate-900 dark:text-white"
-                            >
+                            <span class="font-mono text-xs font-bold text-slate-900 dark:text-white">
                                 {{ student.student_no }}
                             </span>
                         </div>
                         <div class="flex items-center justify-between gap-3">
-                            <span
-                                class="text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400"
-                            >
+                            <span class="text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400">
                                 Campus
                             </span>
-                            <span
-                                class="text-xs font-bold text-slate-900 dark:text-white"
-                            >
+                            <span class="text-xs font-bold text-slate-900 dark:text-white">
                                 {{ student.campus_name }}
                             </span>
                         </div>
@@ -1187,14 +1052,11 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                 </section>
 
                 <section
-                    class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950"
-                >
+                    class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950">
                     <h3 class="text-xs font-bold text-slate-900 dark:text-white">
                         About Grade Report
                     </h3>
-                    <p
-                        class="mt-2 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400"
-                    >
+                    <p class="mt-2 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
                         Your grade report displays official academic records per
                         term. Grades for subjects requiring faculty evaluation
                         are hidden until the evaluation process is completed.
@@ -1202,17 +1064,13 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                     <div class="mt-4 flex flex-col gap-2">
                         <div class="flex items-center gap-2">
                             <div class="size-2 rounded-full bg-indigo-600"></div>
-                            <span
-                                class="text-[10px] font-bold text-slate-700 dark:text-slate-300"
-                            >
+                            <span class="text-[10px] font-bold text-slate-700 dark:text-slate-300">
                                 Requires Evaluation
                             </span>
                         </div>
                         <div class="flex items-center gap-2">
                             <div class="size-2 rounded-full bg-slate-900 dark:bg-white"></div>
-                            <span
-                                class="text-[10px] font-bold text-slate-700 dark:text-slate-300"
-                            >
+                            <span class="text-[10px] font-bold text-slate-700 dark:text-slate-300">
                                 Official Grade Posted
                             </span>
                         </div>

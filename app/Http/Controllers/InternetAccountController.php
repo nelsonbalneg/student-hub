@@ -26,6 +26,7 @@ class InternetAccountController extends Controller
     {
         $user = $request->user();
         $canManage = $this->canManageInternetAccounts($user);
+        $canViewTermId = $user->can('internet-accounts.view-term-id');
 
         abort_unless($user->can('internet-accounts.view') || $canManage, 403);
 
@@ -37,6 +38,9 @@ class InternetAccountController extends Controller
 
         if ($canManage) {
             $filters['status'] = $request->query('status');
+        }
+
+        if ($canManage && $canViewTermId) {
             $filters['term_id'] = $request->query('term_id');
         }
 
@@ -62,6 +66,7 @@ class InternetAccountController extends Controller
             ],
             'can' => [
                 'manage' => $canManage,
+                'viewTermId' => $canViewTermId,
                 'approve' => $user->can('internet-accounts.approve'),
                 'cancel' => $user->can('internet-accounts.cancel'),
                 'delete' => $user->can('internet-accounts.delete'),
@@ -254,7 +259,7 @@ class InternetAccountController extends Controller
                 });
             })
             ->when($canManage && $request->query('status'), fn ($query, string $status) => $query->where('status', $status))
-            ->when($canManage && $request->query('term_id'), fn ($query, string $termId) => $query->where('term_id', $termId))
+            ->when($canManage && $request->user()->can('internet-accounts.view-term-id') && $request->query('term_id'), fn ($query, string $termId) => $query->where('term_id', $termId))
             ->latest();
 
         return $this->requestPage($requests->paginate(10)->withQueryString());
