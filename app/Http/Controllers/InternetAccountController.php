@@ -31,6 +31,15 @@ class InternetAccountController extends Controller
 
         $activeSemester = $this->academicApiService->getActiveSemesterForUser($user);
 
+        $filters = [
+            'request_search' => $request->query('request_search'),
+        ];
+
+        if ($canManage) {
+            $filters['status'] = $request->query('status');
+            $filters['term_id'] = $request->query('term_id');
+        }
+
         return Inertia::render('InternetAccounts/Index', [
             'activeSemester' => $activeSemester,
             'student' => [
@@ -41,7 +50,7 @@ class InternetAccountController extends Controller
             ],
             'currentTermRequest' => $this->currentTermRequest($user, $activeSemester),
             'requests' => $this->paginatedRequests($request, $canManage),
-            'filters' => $request->only(['request_search', 'status', 'term_id']),
+            'filters' => $filters,
             'filterOptions' => [
                 'statuses' => [
                     InternetAccountRequest::STATUS_PENDING,
@@ -108,6 +117,14 @@ class InternetAccountController extends Controller
                 'status' => InternetAccountRequest::STATUS_PENDING,
             ]);
 
+            CreateMikroTikAccount::dispatch(
+                internetAccountRequest: $account,
+                semester: $account->semester,
+                termId: $account->term_id,
+                username: $account->username,
+                password: $account->password,
+            )->afterCommit();
+
             Log::info('Internet account request submitted', [
                 'internet_account_request_id' => $account->id,
                 'user_id' => $user->id,
@@ -128,7 +145,7 @@ class InternetAccountController extends Controller
             return back()->with('error', 'Unable to submit your internet account request right now.');
         }
 
-        return back()->with('success', 'Internet account request submitted for approval.');
+        return back()->with('success', 'Internet account request submitted and queued for provisioning.');
     }
 
     public function approve(InternetAccountRequest $internetAccount): RedirectResponse
@@ -236,8 +253,8 @@ class InternetAccountController extends Controller
                         });
                 });
             })
-            ->when($request->query('status'), fn ($query, string $status) => $query->where('status', $status))
-            ->when($request->query('term_id'), fn ($query, string $termId) => $query->where('term_id', $termId))
+            ->when($canManage && $request->query('status'), fn ($query, string $status) => $query->where('status', $status))
+            ->when($canManage && $request->query('term_id'), fn ($query, string $termId) => $query->where('term_id', $termId))
             ->latest();
 
         return $this->requestPage($requests->paginate(10)->withQueryString());
