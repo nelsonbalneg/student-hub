@@ -333,15 +333,33 @@
 </head>
 <body>
     @php
+<<<<<<< HEAD
         $appName = 'Student Portal';
         $retryHeader = isset($exception) && is_object($exception) && method_exists($exception, 'getHeaders')
             ? ($exception->getHeaders()['Retry-After'] ?? null)
             : null;
+=======
+        $retryAfterSeconds = $retryAfter
+            ?? (isset($exception) && $exception instanceof \Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException
+                ? $exception->getRetryAfter()
+                : null);
+    @endphp
+
+    <div class="container">
+        <div class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+        </div>
+>>>>>>> 280c054ca6d228cebd6b2225097343e9de0e82c7
 
         $retryAfter = is_numeric($retryHeader)
             ? max((int) $retryHeader, 0)
             : max(((int) strtotime((string) $retryHeader)) - now()->timestamp, 0);
 
+<<<<<<< HEAD
         $returnTime = $retryAfter > 0
             ? now()->addSeconds($retryAfter)->format('g:i A')
             : null;
@@ -356,6 +374,17 @@
                     <p class="brand-label">Service notice</p>
                 </div>
             </div>
+=======
+        <p>
+            {{ $retryAfterSeconds
+                ? 'We\'re making some improvements. Please check back in a few minutes.'
+                : 'We\'re performing scheduled maintenance to make things even better. This shouldn\'t take long.' }}
+        </p>
+
+        @if ($retryAfterSeconds)
+            <p>Expected to be back by <strong>{{ now()->addSeconds((int) $retryAfterSeconds)->format('g:i A') }}</strong>.</p>
+        @endif
+>>>>>>> 280c054ca6d228cebd6b2225097343e9de0e82c7
 
             <div class="status">
                 <span class="status-dot" aria-hidden="true"></span>
