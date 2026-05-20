@@ -116,6 +116,10 @@
     </style>
 </head>
 <body>
+    @php
+        $retryAfterSeconds = $retryAfter ?? (isset($exception) ? $exception->retryAfter : null);
+    @endphp
+
     <div class="container">
         <div class="icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -128,13 +132,13 @@
         <h1>We'll be back soon!</h1>
 
         <p>
-            {{ $exception?->retryAfter
+            {{ $retryAfterSeconds
                 ? 'We\'re making some improvements. Please check back in a few minutes.'
                 : 'We\'re performing scheduled maintenance to make things even better. This shouldn\'t take long.' }}
         </p>
 
-        @if ($exception?->retryAfter)
-            <p>Expected to be back by <strong>{{ now()->addSeconds($exception->retryAfter)->format('g:i A') }}</strong>.</p>
+        @if ($retryAfterSeconds)
+            <p>Expected to be back by <strong>{{ now()->addSeconds((int) $retryAfterSeconds)->format('g:i A') }}</strong>.</p>
         @endif
 
         <div class="status-badge">
