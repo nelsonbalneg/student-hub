@@ -117,7 +117,10 @@
 </head>
 <body>
     @php
-        $retryAfterSeconds = $retryAfter ?? (isset($exception) ? $exception->retryAfter : null);
+        $retryAfterSeconds = $retryAfter
+            ?? (isset($exception) && $exception instanceof \Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException
+                ? $exception->getRetryAfter()
+                : null);
     @endphp
 
     <div class="container">
