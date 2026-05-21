@@ -127,6 +127,10 @@ class GradesController extends Controller
                         ]);
                     }
 
+                    if ($grade['requires_evaluation']) {
+                        $grade = $this->maskEvaluationLockedGradeFields($grade);
+                    }
+
                     return $grade;
                 }, $term['grades']);
 
@@ -244,5 +248,26 @@ class GradesController extends Controller
         ]);
 
         return back()->with('success', 'Evaluation submitted successfully.');
+    }
+
+    private function maskEvaluationLockedGradeFields(array $grade): array
+    {
+        foreach ([
+            'midTerm',
+            'midterm',
+            'mid_term',
+            'final',
+            'final_exam',
+            'finalGrade',
+            'final_grade',
+            'grade',
+            'rating',
+        ] as $key) {
+            if (array_key_exists($key, $grade)) {
+                $grade[$key] = 'LOCKED';
+            }
+        }
+
+        return $grade;
     }
 }

@@ -10,7 +10,9 @@ use Throwable;
 class StudentEvaluationApiService
 {
     private string $baseUrl;
+
     private int $timeout;
+
     private int $connectTimeout;
 
     public function __construct()
@@ -34,7 +36,7 @@ class StudentEvaluationApiService
                 ->throw();
 
             $data = $response->json();
-            
+
             return $data['items'][0]['id'] ?? null;
         } catch (Throwable $exception) {
             Log::warning('Unable to find student evaluation ID', [
@@ -86,26 +88,26 @@ class StudentEvaluationApiService
         foreach ($evaluationPeriods as $period) {
             $termId = $period['termId'] ?? null;
             $periodStudentId = $period['studentId'] ?? $studentId;
-            
+
             // API Spelling: subjectsForEvalution
             $subjects = $period['subjectsForEvalution'] ?? [];
 
             foreach ($subjects as $subject) {
                 $subjectId = $subject['subjectId'] ?? null;
-                
+
                 if ($termId && $subjectId) {
                     $key = "{$termId}-{$subjectId}";
-                    
+
                     // A subject requires evaluation if its overall status is 'Not Evaluated'
                     // or if any of its evaluations (lecture/lab) are 'Not Evaluated'.
-                    $isNotEvaluated = ($subject['status'] ?? '') === 'Not Evaluated';
-                    
+                    $isNotEvaluated = $this->isNotEvaluatedStatus($subject['status'] ?? null);
+
                     $evaluations = $subject['evaluations'] ?? [];
                     $hasPendingEvaluations = false;
                     $pendingItems = [];
 
                     foreach ($evaluations as $eval) {
-                        if (($eval['status'] ?? '') === 'Not Evaluated') {
+                        if ($this->isNotEvaluatedStatus($eval['status'] ?? null)) {
                             $surveyTemplate = $eval['surveyTemplate'] ?? null;
                             $jsonString = [
                                 'studentId' => $periodStudentId,
@@ -131,7 +133,7 @@ class StudentEvaluationApiService
                                 'id' => $eval['id'] ?? '',
                                 'surveyTemplateId' => $eval['surveyTemplateId'] ?? '',
                                 'surveyTemplateDescription' => $surveyTemplate['description'] ?? '',
-                                'encodedSurveyTemplate' => base64_encode((string) json_encode($surveyTemplate ?? new \stdClass())),
+                                'encodedSurveyTemplate' => base64_encode((string) json_encode($surveyTemplate ?? new \stdClass)),
                                 'encodedJsonString' => base64_encode((string) json_encode($jsonString)),
                             ];
                         }
@@ -152,7 +154,7 @@ class StudentEvaluationApiService
                             'subjectForEvaluationId' => $subject['id'] ?? '',
                             'subjectId' => $subjectId,
                             'termId' => $termId,
-                        ]
+                        ],
                     ];
                 }
             }
@@ -174,6 +176,7 @@ class StudentEvaluationApiService
                     'body' => $body,
                     'payload' => $payload,
                 ]);
+
                 return [
                     'ok' => false,
                     'message' => "Evaluation API rejected request (HTTP {$response->status()}): {$body}",
@@ -204,5 +207,10 @@ class StudentEvaluationApiService
             ])
             ->connectTimeout($this->connectTimeout)
             ->timeout($this->timeout);
+    }
+
+    private function isNotEvaluatedStatus(mixed $status): bool
+    {
+        return strtolower(trim((string) $status)) === 'not evaluated';
     }
 }
