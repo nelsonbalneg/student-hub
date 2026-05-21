@@ -21,10 +21,11 @@ class SsoAuthenticatedSessionController extends Controller
         $state = Str::random(40);
         $request->session()->put('sso_state', $state);
         $request->session()->save();
+        $sso = $this->ssoConfig();
 
-        return redirect()->away(config('services.sso.base_url').'/oauth/authorize?'.http_build_query([
-            'client_id' => config('services.sso.client_id'),
-            'redirect_uri' => config('services.sso.redirect_uri'),
+        return redirect()->away($sso['base_url'].'/oauth/authorize?'.http_build_query([
+            'client_id' => $sso['client_id'],
+            'redirect_uri' => $sso['redirect_uri'],
             'response_type' => 'code',
             'scope' => '',
             'state' => $state,
@@ -115,18 +116,30 @@ class SsoAuthenticatedSessionController extends Controller
 
     private function requestToken(string $code): array
     {
+        $sso = $this->ssoConfig();
+
         $response = Http::asForm()
             ->acceptJson()
-            ->post(config('services.sso.base_url').'/oauth/token', [
+            ->post($sso['base_url'].'/oauth/token', [
                 'grant_type' => 'authorization_code',
-                'client_id' => config('services.sso.client_id'),
-                'client_secret' => config('services.sso.client_secret'),
-                'redirect_uri' => config('services.sso.redirect_uri'),
+                'client_id' => $sso['client_id'],
+                'client_secret' => $sso['client_secret'],
+                'redirect_uri' => $sso['redirect_uri'],
                 'code' => $code,
             ])
             ->throw();
 
         return $response->json();
+    }
+
+    private function ssoConfig(): array
+    {
+        return [
+            'base_url' => rtrim(trim((string) config('services.sso.base_url')), '/'),
+            'client_id' => trim((string) config('services.sso.client_id')),
+            'client_secret' => trim((string) config('services.sso.client_secret')),
+            'redirect_uri' => trim((string) config('services.sso.redirect_uri')),
+        ];
     }
 
     private function requestProfile(string $accessToken): array
@@ -154,12 +167,17 @@ class SsoAuthenticatedSessionController extends Controller
     {
         $response = $exception instanceof RequestException ? $exception->response : null;
 
-        Log::warning('SSO sign in failed', [
+        $sso = $this->ssoConfig();
+
+        Log::error('SSO sign in failed', [
             'stage' => $stage,
             'exception' => $exception::class,
             'message' => $exception->getMessage(),
             'response_status' => $response?->status(),
             'response_body' => $response?->body(),
+            'sso_base_url' => $sso['base_url'],
+            'sso_client_id' => $sso['client_id'],
+            'sso_redirect_uri' => $sso['redirect_uri'],
         ]);
     }
 }
