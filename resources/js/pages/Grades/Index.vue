@@ -389,6 +389,13 @@ const openEvaluationChooser = (row: GradeRecord) => {
     evaluationModalOpen.value = true;
 };
 
+const isEvaluationClosed = (row: GradeRecord) => {
+    return (
+        row.evaluation_status === 'Verification Unavailable' ||
+        !(row.pending_evaluations ?? []).length
+    );
+};
+
 const decodeBase64Json = (encoded?: string): any | null => {
     if (!encoded) {
         return null;
@@ -1277,7 +1284,19 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                 >
                                                     <button
                                                         type="button"
-                                                        class="inline-flex h-7 items-center justify-center gap-1.5 rounded-md bg-indigo-600 px-3 text-[10px] font-bold text-white shadow-sm shadow-indigo-200 transition hover:bg-indigo-700 dark:shadow-none"
+                                                        class="inline-flex h-7 items-center justify-center gap-1.5 rounded-md px-3 text-[10px] font-bold text-white shadow-sm transition dark:shadow-none"
+                                                        :class="
+                                                            isEvaluationClosed(
+                                                                row,
+                                                            )
+                                                                ? 'cursor-not-allowed bg-slate-400 shadow-none dark:bg-slate-700 dark:text-slate-300'
+                                                                : 'bg-indigo-600 shadow-indigo-200 hover:bg-indigo-700'
+                                                        "
+                                                        :disabled="
+                                                            isEvaluationClosed(
+                                                                row,
+                                                            )
+                                                        "
                                                         @click="
                                                             openEvaluationChooser(
                                                                 row,
@@ -1287,7 +1306,13 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                         <MessageSquareQuote
                                                             class="size-3"
                                                         />
-                                                        Evaluate
+                                                        {{
+                                                            isEvaluationClosed(
+                                                                row,
+                                                            )
+                                                                ? 'Evaluation is closed'
+                                                                : 'Evaluate'
+                                                        }}
                                                     </button>
                                                     <p
                                                         class="mt-1 text-[10px] font-semibold text-slate-400"
