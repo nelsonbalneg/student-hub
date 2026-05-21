@@ -175,6 +175,19 @@ return new class extends Migration
         Schema::dropIfExists('society_accreditation_requirements');
         Schema::dropIfExists('society_members');
         Schema::dropIfExists('society_advisers');
+
+        if (Schema::hasTable('society_officers') && Schema::hasColumn('society_officers', 'accreditation_request_id')) {
+            Schema::table('society_officers', function (Blueprint $table): void {
+                $table->dropConstrainedForeignId('accreditation_request_id');
+            });
+        }
+
         Schema::dropIfExists('society_accreditation_requests');
+
+        if (Schema::hasTable('societies') && Schema::hasColumn('societies', 'created_by')) {
+            Schema::table('societies', function (Blueprint $table): void {
+                $table->dropConstrainedForeignId('created_by');
+            });
+        }
     }
 };

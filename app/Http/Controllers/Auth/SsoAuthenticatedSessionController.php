@@ -98,14 +98,12 @@ class SsoAuthenticatedSessionController extends Controller
             ]
         );
 
-        // Assign default roles if the user has none
+        // Assign default roles if the user has none.
         if ($user->roles()->count() === 0) {
-            $accountType = strtolower($profile['account_type'] ?? 'student');
-            
-            if ($accountType === 'admin' || $accountType === 'employee') {
-                $user->assignRole('Super Admin');
-            } else {
-                $user->assignRole('Student');
+            $defaultRole = $this->defaultRoleForAccountType($profile['account_type'] ?? null);
+
+            if ($defaultRole !== null) {
+                $user->assignRole($defaultRole);
             }
         }
 
@@ -141,6 +139,15 @@ class SsoAuthenticatedSessionController extends Controller
             ->throw();
 
         return $response->json();
+    }
+
+    private function defaultRoleForAccountType(?string $accountType): ?string
+    {
+        return match (Str::of($accountType ?? 'student')->lower()->replace(['_', '-'], ' ')->squish()->toString()) {
+            'admin', 'super admin' => 'Super Admin',
+            'employee', 'student' => 'Student',
+            default => null,
+        };
     }
 
     private function logSsoFailure(string $stage, Throwable $exception): void
