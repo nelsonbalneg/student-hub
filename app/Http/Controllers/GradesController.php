@@ -2,16 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\GradeViewingRule;
+use App\Models\SiteCampus;
 use App\Services\AcademicApiService;
-use App\Services\StudentEvaluationApiService;
 use App\Services\GetActiveAcademicTermService;
-use Illuminate\Http\Request;
+use App\Services\StudentEvaluationApiService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Support\Facades\Log;
 
 class GradesController extends Controller
 {
@@ -30,13 +32,23 @@ class GradesController extends Controller
         $activeSemester = $this->academicApi->getActiveSemesterForUser($user);
         $campusId = $activeSemester['campusId'] ?: 1;
         $evaluationId = null;
-        
+
         // Check for grade viewing bypass rule with safe fallback.
         // If table/campus data is not ready yet, do not block grade/evaluation flow.
         $bypassEvaluation = false;
-        if (!blank($user->campus_id)) {
+        if (! blank($user->campus_id)) {
             try {
-                $bypassEvaluation = \App\Models\GradeViewingRule::where('site_campus_id', $user->campus_id)
+                $realCampusExists = SiteCampus::where('real_campus_id', (string) $user->campus_id)->exists();
+
+                $bypassEvaluation = GradeViewingRule::whereHas('campus', function ($query) use ($realCampusExists, $user) {
+                    if ($realCampusExists) {
+                        $query->where('real_campus_id', (string) $user->campus_id);
+
+                        return;
+                    }
+
+                    $query->where('id', $user->campus_id);
+                })
                     ->where('is_active', true)
                     ->where('bypass_evaluation', true)
                     ->exists();
@@ -49,16 +61,16 @@ class GradesController extends Controller
         }
 
         $gradeReport = $this->academicApi->gradeReportForStudent($studentNo, $tenantId);
-        
+
         $evaluationError = null;
         $evaluationLookup = [];
         $activeTerm = $this->activeTermService->execute($user->campus_id);
         $activeTermId = $activeTerm?->term_id;
 
-        if (!$bypassEvaluation && $studentNo) {
+        if (! $bypassEvaluation && $studentNo) {
             try {
                 $evaluationId = $this->evaluationApi->findStudentByStudentNo($studentNo);
-                
+
                 if ($evaluationId) {
                     $details = $this->evaluationApi->getStudentEvaluationDetails($evaluationId);
                     $evaluationLookup = $this->evaluationApi->buildEvaluationLookup($details);
@@ -66,16 +78,16 @@ class GradesController extends Controller
             } catch (\Exception $e) {
                 Log::error('Evaluation API error in GradesController', [
                     'student_no' => $studentNo,
-                    'message' => $e->getMessage()
+                    'message' => $e->getMessage(),
                 ]);
                 $evaluationError = 'Faculty evaluation status could not be verified. Please try again later.';
             }
         }
 
         // Enrich grade data with evaluation status
-        if (!empty($gradeReport['data']) && is_array($gradeReport['data'])) {
+        if (! empty($gradeReport['data']) && is_array($gradeReport['data'])) {
             $gradeReport['data'] = array_map(function ($term) use ($evaluationLookup, $evaluationId, $activeTermId) {
-                if (!isset($term['grades']) || !is_array($term['grades'])) {
+                if (! isset($term['grades']) || ! is_array($term['grades'])) {
                     return $term;
                 }
 
@@ -85,21 +97,22 @@ class GradesController extends Controller
                     // Match the termId and subjectId/courseId
                     // Use the termId from the parent term if not in the grade record
                     $rowTermId = $grade['termId'] ?? $grade['term_id'] ?? $termId;
-                    
+
                     // ONLY trap if the term matches the ACTIVE TERM in site settings
                     if ($activeTermId && (string) $rowTermId !== (string) $activeTermId) {
                         $grade['requires_evaluation'] = false;
+
                         return $grade;
                     }
 
                     $courseId = $grade['courseId'] ?? $grade['course_id'] ?? $grade['subjectId'] ?? $grade['subject_id'] ?? null;
-                    
+
                     $key = "{$rowTermId}-{$courseId}";
                     $eval = $evaluationLookup[$key] ?? null;
-                    
+
                     $grade['requires_evaluation'] = $eval ? $eval['requires_evaluation'] : false;
                     $grade['evaluation_status'] = $eval['status'] ?? 'Not Found';
-                    
+
                     if ($eval) {
                         $grade['evaluation_period_id'] = $eval['evaluation_period_id'];
                         $grade['subject_for_evaluation_id'] = $eval['subject_for_evaluation_id'];
@@ -107,7 +120,7 @@ class GradesController extends Controller
                         $grade['subject_title'] = $eval['subject_title'];
                         $grade['pending_evaluations'] = $eval['pending_evaluations'];
                         $grade['faculty_names'] = $eval['faculty_names'];
-                        
+
                         // Build the evaluation payload for the frontend
                         $grade['evaluation_payload'] = array_merge($eval['evaluation_payload'], [
                             'studentId' => $evaluationId,
@@ -213,7 +226,7 @@ class GradesController extends Controller
             'result' => $result,
         ]);
 
-        if (!($result['ok'] ?? false)) {
+        if (! ($result['ok'] ?? false)) {
             Log::warning('Grades evaluation submit failed', [
                 'message' => $result['message'] ?? null,
                 'payload' => $payload,

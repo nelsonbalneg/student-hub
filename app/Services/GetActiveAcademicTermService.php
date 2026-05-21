@@ -12,17 +12,34 @@ class GetActiveAcademicTermService
      */
     public function execute(int|string|null $campusId = null, ?string $realCampusId = null): ?SiteAcademicTerm
     {
-        return SiteAcademicTerm::query()
+        $query = fn (): Builder => SiteAcademicTerm::query()
             ->where('status', 'Active')
-            ->when($campusId, function (Builder $query) use ($campusId) {
-                $query->where('site_campus_id', $campusId);
-            })
-            ->when($realCampusId, function (Builder $query) use ($realCampusId) {
-                $query->whereHas('campus', function (Builder $q) use ($realCampusId) {
-                    $q->where('real_campus_id', $realCampusId);
-                });
-            })
-            ->with('campus')
-            ->first();
+            ->with('campus');
+
+        if ($realCampusId) {
+            return $query()
+                ->whereHas('campus', function (Builder $query) use ($realCampusId) {
+                    $query->where('real_campus_id', $realCampusId);
+                })
+                ->first();
+        }
+
+        if ($campusId) {
+            $activeTerm = $query()
+                ->whereHas('campus', function (Builder $query) use ($campusId) {
+                    $query->where('real_campus_id', (string) $campusId);
+                })
+                ->first();
+
+            if ($activeTerm) {
+                return $activeTerm;
+            }
+
+            return $query()
+                ->where('site_campus_id', $campusId)
+                ->first();
+        }
+
+        return $query()->first();
     }
 }
