@@ -19,6 +19,7 @@ import {
     Star,
     Search,
     Trash2,
+    Edit2,
 } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -92,11 +93,17 @@ const removeKeyword = (keyword: string) => {
 };
 
 const submit = () => {
-    form.patch(faqRoutes.update.url(props.faq.data.id));
+    form.patch(faqRoutes.update.url(props.faq.data.id), {
+        preserveScroll: true,
+        preserveState: true,
+    });
 };
 
 const deleteArticle = () => {
-    router.delete(faqRoutes.destroy.url(props.faq.data.id));
+    router.delete(faqRoutes.destroy.url(props.faq.data.id), {
+        preserveScroll: true,
+        preserveState: true,
+    });
 };
 </script>
 

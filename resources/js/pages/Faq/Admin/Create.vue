@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
     ChevronLeft,
     HelpCircle,
@@ -17,6 +17,8 @@ import {
     Settings2,
     Plus,
     Layout,
+    Search,
+    Star,
 } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -74,7 +76,10 @@ const removeKeyword = (keyword: string) => {
 };
 
 const submit = () => {
-    form.post(faqRoutes.store.url());
+    form.post(faqRoutes.store.url(), {
+        preserveScroll: true,
+        preserveState: true,
+    });
 };
 </script>
 

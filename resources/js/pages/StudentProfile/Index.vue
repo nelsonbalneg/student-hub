@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { Head, useForm, usePage } from '@inertiajs/vue3';
+import { Head, useForm } from '@inertiajs/vue3';
 import { toast } from 'vue-sonner';
 import {
     AlertCircle,
@@ -269,6 +269,8 @@ const submitAchievement = () => {
         achievementForm.patch(
             achievementsRoutes.update.url(editingAchievement.value.id),
             {
+                preserveScroll: true,
+                preserveState: true,
                 onSuccess: () => {
                     achievementModalOpen.value = false;
                     achievementForm.reset();
@@ -277,6 +279,8 @@ const submitAchievement = () => {
         );
     } else {
         achievementForm.post(achievementsRoutes.store.url(), {
+            preserveScroll: true,
+            preserveState: true,
             onSuccess: () => {
                 achievementModalOpen.value = false;
                 achievementForm.reset();
@@ -314,6 +318,8 @@ const submitTraining = () => {
         trainingForm.patch(
             trainingsRoutes.update.url(editingTraining.value.id),
             {
+                preserveScroll: true,
+                preserveState: true,
                 onSuccess: () => {
                     trainingModalOpen.value = false;
                     trainingForm.reset();
@@ -322,6 +328,8 @@ const submitTraining = () => {
         );
     } else {
         trainingForm.post(trainingsRoutes.store.url(), {
+            preserveScroll: true,
+            preserveState: true,
             onSuccess: () => {
                 trainingModalOpen.value = false;
                 trainingForm.reset();
@@ -353,6 +361,8 @@ const executeDelete = () => {
         achievementForm.delete(
             achievementsRoutes.deleteMethod.url(itemToDelete.value.id),
             {
+                preserveScroll: true,
+                preserveState: true,
                 onSuccess: () => {
                     deleteConfirmOpen.value = false;
                     itemToDelete.value = null;
@@ -363,6 +373,8 @@ const executeDelete = () => {
         trainingForm.delete(
             trainingsRoutes.deleteMethod.url(itemToDelete.value.id),
             {
+                preserveScroll: true,
+                preserveState: true,
                 onSuccess: () => {
                     deleteConfirmOpen.value = false;
                     itemToDelete.value = null;
@@ -372,8 +384,6 @@ const executeDelete = () => {
     }
 };
 
-
-const page = usePage();
 const editMode = ref(false);
 const wizardSteps = ['basic', 'address', 'guardian', 'emergency', 'family', 'education', 'ched'] as const;
 const currentStep = ref(0);
@@ -508,6 +518,12 @@ const profileForm = useForm({
     soloParent: props.profile.data?.soloParent ?? false,
     soloParentId: props.profile.data?.soloParentId ?? '',
     raisedBySoloParent: props.profile.data?.raisedBySoloParent ?? '',
+    isAdm: props.profile.data?.isAdm ?? '',
+    admSchool: props.profile.data?.admSchool ?? '',
+    admSchoolYear: props.profile.data?.admSchoolYear ?? '',
+    isAls: props.profile.data?.isAls ?? '',
+    alsSchool: props.profile.data?.alsSchool ?? '',
+    alsSchoolYear: props.profile.data?.alsSchoolYear ?? '',
 });
 
 // --- Auto-save Draft Logic ---
@@ -585,7 +601,7 @@ const loadRefs = async () => {
     });
 };
 
-const formatMobile = (field: 'mobileNo' | 'telNo' | 'guardianTelNo' | 'emergencyMobileNo' | 'fatherTelNo' | 'motherTelNo') => {
+const formatMobile = (field: 'mobileNo' | 'telNo' | 'guardianTelNo' | 'emergencyMobileNo' | 'emergencyTelNo' | 'fatherTelNo' | 'motherTelNo') => {
     let val = profileForm[field].replace(/\D/g, '');
     if (val.length > 11) val = val.substring(0, 11);
     
@@ -623,14 +639,14 @@ const saveProfile = () => {
     profileForm.gender = String(profileForm.gender ?? '').trim().toUpperCase();
     profileForm.patch('/student-profile', {
         preserveScroll: true,
+        preserveState: true,
         onSuccess: () => {
             editMode.value = false;
             clearDraft();
             lastSavedAt.value = new Date().toLocaleString();
-            toast.success(((page.props.flash as any)?.success) ?? 'Your profile has been successfully updated.');
         },
         onError: (errors) => {
-            toast.error((errors as any)?.gender ?? ((page.props.flash as any)?.error) ?? 'Unable to save profile.');
+            toast.error((errors as any)?.gender ?? 'Unable to save profile.');
         },
     });
 };

@@ -78,7 +78,7 @@ const form = useForm({
     icon: 'HelpCircle',
     color: '#10b981',
     sort_order: 0,
-    visibility: 'public' as const,
+    visibility: 'public' as Category['visibility'],
     is_active: true,
 });
 
@@ -105,6 +105,7 @@ const submit = () => {
         form.patch(categoryRoutes.update.url(modal.value.category!.id), {
             onSuccess: () => (modal.value = null),
             preserveScroll: true,
+            preserveState: true,
         });
     } else {
         form.post(categoryRoutes.store.url(), {
@@ -113,6 +114,7 @@ const submit = () => {
                 form.reset();
             },
             preserveScroll: true,
+            preserveState: true,
         });
     }
 };
@@ -126,6 +128,7 @@ const deleteCategory = () => {
         router.delete(categoryRoutes.destroy.url(modal.value.category.id), {
             onSuccess: () => (modal.value = null),
             preserveScroll: true,
+            preserveState: true,
         });
     }
 };
@@ -137,14 +140,14 @@ watch(search, (value) => {
         router.get(
             categoryRoutes.index.url(),
             { search: value, per_page: props.filters.per_page },
-            { preserveState: true, replace: true }
+            { preserveState: true, preserveScroll: true, replace: true }
         );
     }, 400);
 });
 
 const navigatePage = (url: string | null) => {
     if (url) {
-        router.get(url, { search: search.value }, { preserveState: true, replace: true });
+        router.get(url, { search: search.value }, { preserveState: true, preserveScroll: true, replace: true });
     }
 };
 

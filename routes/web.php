@@ -113,6 +113,9 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
     Route::patch('internet-accounts/{internetAccount}/cancel', [InternetAccountController::class, 'cancel'])
         ->middleware('can:internet-accounts.cancel')
         ->name('internet-accounts.cancel');
+    Route::patch('internet-accounts/{internetAccount}', [InternetAccountController::class, 'update'])
+        ->middleware('can:internet-accounts.manage')
+        ->name('internet-accounts.update');
     Route::delete('internet-accounts/{internetAccount}', [InternetAccountController::class, 'destroy'])
         ->middleware('can:internet-accounts.delete')
         ->name('internet-accounts.destroy');

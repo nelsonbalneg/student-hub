@@ -237,7 +237,7 @@ const savePermissions = () => {
     router.patch(
         `/user-management/roles/${activeRole.value.id}/permissions`,
         { permissions: [...checkedIds.value] },
-        { preserveScroll: true },
+        { preserveScroll: true, preserveState: true },
     );
 };
 
@@ -263,6 +263,7 @@ const submitRole = () => {
     if (editingRole.value) {
         roleForm.patch(`/user-management/roles/${editingRole.value.id}`, {
             preserveScroll: true,
+            preserveState: true,
             onSuccess: () => (showRoleDrawer.value = false),
         });
 
@@ -271,6 +272,7 @@ const submitRole = () => {
 
     roleForm.post('/user-management/roles', {
         preserveScroll: true,
+        preserveState: true,
         onSuccess: () => (showRoleDrawer.value = false),
     });
 };
@@ -282,6 +284,7 @@ const deleteRole = () => {
 
     router.delete(`/user-management/roles/${deletingRole.value.id}`, {
         preserveScroll: true,
+        preserveState: true,
         onSuccess: () => (deletingRole.value = null),
     });
 };
@@ -307,6 +310,7 @@ const submitPermission = () => {
             `/user-management/permissions/${editingPermission.value.id}`,
             {
                 preserveScroll: true,
+                preserveState: true,
                 onSuccess: () => (showPermissionDrawer.value = false),
             },
         );
@@ -316,6 +320,7 @@ const submitPermission = () => {
 
     permissionForm.post('/user-management/permissions', {
         preserveScroll: true,
+        preserveState: true,
         onSuccess: () => (showPermissionDrawer.value = false),
     });
 };
@@ -329,6 +334,7 @@ const deletePermission = () => {
         `/user-management/permissions/${deletingPermission.value.id}`,
         {
             preserveScroll: true,
+            preserveState: true,
             onSuccess: () => (deletingPermission.value = null),
         },
     );

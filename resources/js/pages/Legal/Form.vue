@@ -33,12 +33,17 @@ const form = useForm({
 });
 
 const submit = () => {
+    const options = {
+        preserveScroll: true,
+        preserveState: true,
+    };
+
     if (props.mode === 'edit' && props.document) {
-        form.put(update.url(props.document.id));
+        form.put(update.url(props.document.id), options);
         return;
     }
 
-    form.post(store.url());
+    form.post(store.url(), options);
 };
 </script>
 

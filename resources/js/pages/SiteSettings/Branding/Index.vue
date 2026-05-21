@@ -142,19 +142,22 @@ const submit = () => {
     form.post(updateBranding.url(), {
         forceFormData: true,
         preserveScroll: true,
+        preserveState: true,
         onSuccess: () => {
             form.site_logo = null;
             form.site_favicon = null;
             form.remove_logo = false;
             form.remove_favicon = false;
 
-            if (faviconPreview.value) {
+            const faviconHref = faviconPreview.value;
+
+            if (faviconHref) {
                 document
                     .querySelectorAll<HTMLLinkElement>(
                         'link[rel~="icon"], link[rel="apple-touch-icon"]',
                     )
                     .forEach((link) => {
-                        link.href = `${faviconPreview.value}${faviconPreview.value.includes('?') ? '&' : '?'}v=${Date.now()}`;
+                        link.href = `${faviconHref}${faviconHref.includes('?') ? '&' : '?'}v=${Date.now()}`;
                     });
             }
         },

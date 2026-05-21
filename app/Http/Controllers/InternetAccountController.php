@@ -212,6 +212,47 @@ class InternetAccountController extends Controller
         return back()->with('success', 'Internet account request cancelled.');
     }
 
+    public function update(Request $request, InternetAccountRequest $internetAccount): RedirectResponse
+    {
+        if ($internetAccount->status === InternetAccountRequest::STATUS_PROCESSING) {
+            return back()->with('error', 'Processing internet account requests cannot be edited.');
+        }
+
+        $validated = $request->validate([
+            'username' => ['required', 'string', 'max:255'],
+            'password' => ['nullable', 'string', 'min:8', 'max:255'],
+            'status' => [
+                'required',
+                'string',
+                'in:'.implode(',', [
+                    InternetAccountRequest::STATUS_PENDING,
+                    InternetAccountRequest::STATUS_CANCELLED,
+                    InternetAccountRequest::STATUS_ACTIVE,
+                    InternetAccountRequest::STATUS_FAILED,
+                ]),
+            ],
+            'failure_reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        if ($validated['status'] !== InternetAccountRequest::STATUS_FAILED) {
+            $validated['failure_reason'] = null;
+        }
+
+        if (blank($validated['password'])) {
+            unset($validated['password']);
+        }
+
+        $internetAccount->update($validated);
+
+        Log::info('Internet account request updated', [
+            'internet_account_request_id' => $internetAccount->id,
+            'updated_by' => $request->user()->id,
+            'status' => $internetAccount->status,
+        ]);
+
+        return back()->with('success', 'Internet account request updated.');
+    }
+
     public function destroy(InternetAccountRequest $internetAccount): RedirectResponse
     {
         if ($internetAccount->status === InternetAccountRequest::STATUS_PROCESSING) {

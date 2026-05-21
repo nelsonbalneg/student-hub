@@ -19,6 +19,7 @@ import {
     KeyRound,
     Loader2,
     MapPin,
+    Pencil,
     RefreshCcw,
     Search,
     ShieldCheck,
@@ -28,6 +29,8 @@ import {
     XCircle,
     X,
 } from 'lucide-vue-next';
+import ConfirmationModal from '@/components/ConfirmationModal.vue';
+import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import * as internetAccountRoutes from '@/routes/internet-accounts';
 
@@ -89,9 +92,21 @@ const props = defineProps<{
 }>();
 
 const form = useForm({});
+const editForm = useForm({
+    username: '',
+    password: '',
+    status: 'pending' as InternetAccountRequest['status'],
+    failure_reason: '',
+});
 const visiblePasswordIds = ref<number[]>([]);
 const search = ref(props.filters.request_search ?? '');
 const filterOpen = ref(false);
+const editModalOpen = ref(false);
+const selectedRequest = ref<InternetAccountRequest | null>(null);
+const pendingAction = ref<null | {
+    type: 'cancel' | 'delete' | 'edit';
+    request: InternetAccountRequest;
+}>(null);
 const filters = ref({
     status: props.filters.status ?? '',
     term_id: props.filters.term_id ?? '',
@@ -151,27 +166,83 @@ const formatDate = (value: string | null) => {
     }).format(new Date(value));
 };
 
+const editableStatuses = computed(() =>
+    props.filterOptions.statuses.filter((status) => status !== 'processing'),
+);
+
 const submit = () => {
     form.post(internetAccountRoutes.store.url(), {
         preserveScroll: true,
+        preserveState: true,
     });
 };
 
 const approve = (request: InternetAccountRequest) => {
     form.patch(internetAccountRoutes.approve.url(request.id), {
         preserveScroll: true,
+        preserveState: true,
     });
 };
 
-const cancel = (request: InternetAccountRequest) => {
+const openEdit = (request: InternetAccountRequest) => {
+    selectedRequest.value = request;
+    editForm.clearErrors();
+    editForm.username = request.username;
+    editForm.password = '';
+    editForm.status = request.status;
+    editForm.failure_reason = request.failure_reason || '';
+    editModalOpen.value = true;
+};
+
+const askEditConfirmation = () => {
+    if (!selectedRequest.value) return;
+
+    pendingAction.value = {
+        type: 'edit',
+        request: selectedRequest.value,
+    };
+};
+
+const updateRequest = () => {
+    if (!selectedRequest.value) return;
+
+    editForm.patch(internetAccountRoutes.update.url(selectedRequest.value.id), {
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => {
+            editModalOpen.value = false;
+            pendingAction.value = null;
+            selectedRequest.value = null;
+            editForm.reset();
+        },
+    });
+};
+
+const askCancelConfirmation = (request: InternetAccountRequest) => {
+    pendingAction.value = { type: 'cancel', request };
+};
+
+const cancelRequest = (request: InternetAccountRequest) => {
     form.patch(internetAccountRoutes.cancel.url(request.id), {
         preserveScroll: true,
+        preserveState: true,
+        onFinish: () => {
+            pendingAction.value = null;
+        },
     });
 };
 
-const destroy = (request: InternetAccountRequest) => {
+const askDeleteConfirmation = (request: InternetAccountRequest) => {
+    pendingAction.value = { type: 'delete', request };
+};
+
+const destroyRequest = (request: InternetAccountRequest) => {
     form.delete(internetAccountRoutes.destroy.url(request.id), {
         preserveScroll: true,
+        preserveState: true,
+        onFinish: () => {
+            pendingAction.value = null;
+        },
     });
 };
 
@@ -201,6 +272,51 @@ const canCancelRequest = (request: InternetAccountRequest) =>
 
 const canDeleteRequest = (request: InternetAccountRequest) =>
     props.can.delete && request.status !== 'processing';
+
+const canEditRequest = (request: InternetAccountRequest) =>
+    props.can.manage && request.status !== 'processing';
+
+const confirmationTitle = computed(() => {
+    if (pendingAction.value?.type === 'edit') return 'Save Changes';
+    if (pendingAction.value?.type === 'cancel') return 'Cancel Request';
+    if (pendingAction.value?.type === 'delete') return 'Delete Request';
+
+    return '';
+});
+
+const confirmationDescription = computed(() => {
+    const request = pendingAction.value?.request;
+
+    if (!request) return '';
+
+    if (pendingAction.value?.type === 'edit') {
+        return `Save changes to ${request.username}? This will update the internet account request and keep you on this page.`;
+    }
+
+    if (pendingAction.value?.type === 'cancel') {
+        return `Cancel ${request.username}? The request will be marked as cancelled and can no longer be approved unless edited later.`;
+    }
+
+    return `Delete ${request.username}? This action cannot be undone.`;
+});
+
+const runPendingAction = () => {
+    const action = pendingAction.value;
+
+    if (!action) return;
+
+    if (action.type === 'edit') {
+        updateRequest();
+        return;
+    }
+
+    if (action.type === 'cancel') {
+        cancelRequest(action.request);
+        return;
+    }
+
+    destroyRequest(action.request);
+};
 
 const applyFilters = () => {
     router.get(
@@ -444,7 +560,7 @@ const navigatePage = (url?: string | null) => {
                             <th v-if="can.viewTermId" class="px-4 py-3">Term ID</th>
                             <th class="px-4 py-3">Status</th>
                             <th class="px-4 py-3">Requested</th>
-                            <th v-if="can.approve || can.cancel || can.delete" class="px-4 py-3 text-right">
+                            <th v-if="can.manage || can.approve || can.cancel || can.delete" class="px-4 py-3 text-right">
                                 Actions
                             </th>
                         </tr>
@@ -521,8 +637,13 @@ const navigatePage = (url?: string | null) => {
                             <td class="px-4 py-3 text-xs font-semibold text-slate-600 dark:text-slate-300">
                                 {{ formatDate(request.created_at) }}
                             </td>
-                            <td v-if="can.approve || can.cancel || can.delete" class="px-4 py-3">
+                            <td v-if="can.manage || can.approve || can.cancel || can.delete" class="px-4 py-3">
                                 <div class="flex justify-end gap-1">
+                                    <button v-if="canEditRequest(request)" type="button"
+                                        class="inline-flex size-8 items-center justify-center rounded-md text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+                                        title="Edit request" :disabled="form.processing || editForm.processing" @click="openEdit(request)">
+                                        <Pencil class="size-4" />
+                                    </button>
                                     <button v-if="canApproveRequest(request)" type="button"
                                         class="inline-flex size-8 items-center justify-center rounded-md text-emerald-600 transition hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
                                         title="Approve request" :disabled="form.processing" @click="approve(request)">
@@ -530,12 +651,12 @@ const navigatePage = (url?: string | null) => {
                                     </button>
                                     <button v-if="canCancelRequest(request)" type="button"
                                         class="inline-flex size-8 items-center justify-center rounded-md text-amber-600 transition hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-500/10"
-                                        title="Cancel request" :disabled="form.processing" @click="cancel(request)">
+                                        title="Cancel request" :disabled="form.processing" @click="askCancelConfirmation(request)">
                                         <Ban class="size-4" />
                                     </button>
                                     <button v-if="canDeleteRequest(request)" type="button"
                                         class="inline-flex size-8 items-center justify-center rounded-md text-red-600 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-500/10"
-                                        title="Delete request" :disabled="form.processing" @click="destroy(request)">
+                                        title="Delete request" :disabled="form.processing" @click="askDeleteConfirmation(request)">
                                         <Trash2 class="size-4" />
                                     </button>
                                 </div>
@@ -601,5 +722,78 @@ const navigatePage = (url?: string | null) => {
                 </div>
             </div>
         </section>
+
+        <div v-if="editModalOpen && selectedRequest"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+            @click.self="editModalOpen = false">
+            <div class="w-full max-w-md rounded-lg border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-950">
+                <div class="border-b border-slate-200 px-5 py-4 dark:border-white/10">
+                    <h2 class="text-sm font-bold text-slate-950 dark:text-white">
+                        Edit Internet Account
+                    </h2>
+                    <p class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                        Update request details for {{ selectedRequest.student_name || selectedRequest.student_no }}.
+                    </p>
+                </div>
+
+                <form class="grid gap-4 p-5" @submit.prevent="askEditConfirmation">
+                    <label class="grid gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
+                        Username
+                        <input v-model="editForm.username" type="text"
+                            class="h-9 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-900 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100" />
+                        <InputError :message="editForm.errors.username" />
+                    </label>
+
+                    <label class="grid gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
+                        Password
+                        <input v-model="editForm.password" type="text"
+                            placeholder="Leave blank to keep current password"
+                            class="h-9 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-900 outline-none placeholder:text-slate-400 focus:border-sky-400 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100" />
+                        <InputError :message="editForm.errors.password" />
+                    </label>
+
+                    <label class="grid gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
+                        Status
+                        <select v-model="editForm.status"
+                            class="h-9 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-900 outline-none focus:border-sky-400 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
+                            <option v-for="status in editableStatuses" :key="status" :value="status">
+                                {{ status }}
+                            </option>
+                        </select>
+                        <InputError :message="editForm.errors.status" />
+                    </label>
+
+                    <label class="grid gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
+                        Failure Reason
+                        <textarea v-model="editForm.failure_reason" rows="3"
+                            :disabled="editForm.status !== 'failed'"
+                            class="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 outline-none placeholder:text-slate-400 focus:border-sky-400 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
+                            placeholder="Required context for failed requests"></textarea>
+                        <InputError :message="editForm.errors.failure_reason" />
+                    </label>
+
+                    <div class="flex justify-end gap-2 border-t border-slate-100 pt-4 dark:border-white/10">
+                        <Button type="button" variant="outline" :disabled="editForm.processing" @click="editModalOpen = false">
+                            Close
+                        </Button>
+                        <Button type="submit" class="bg-sky-600 text-white hover:bg-sky-700" :disabled="editForm.processing">
+                            <Loader2 v-if="editForm.processing" class="size-4 animate-spin" />
+                            Save Changes
+                        </Button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <ConfirmationModal
+            :show="!!pendingAction"
+            :title="confirmationTitle"
+            :description="confirmationDescription"
+            :confirm-text="pendingAction?.type === 'edit' ? 'Save Changes' : pendingAction?.type === 'cancel' ? 'Cancel Request' : 'Delete Request'"
+            :variant="pendingAction?.type === 'delete' ? 'destructive' : 'default'"
+            :loading="form.processing || editForm.processing"
+            @confirm="runPendingAction"
+            @close="pendingAction = null"
+        />
     </div>
 </template>

@@ -232,6 +232,7 @@ const saveUser = () => {
     if (modal.value?.type === 'edit') {
         userForm.patch(updateUserRoute.url(modal.value.user.id), {
             preserveScroll: true,
+            preserveState: true,
             onSuccess: () => (modal.value = null),
         });
 
@@ -240,6 +241,7 @@ const saveUser = () => {
 
     userForm.post(storeUserRoute.url(), {
         preserveScroll: true,
+        preserveState: true,
         onSuccess: () => (modal.value = null),
     });
 };
@@ -251,6 +253,7 @@ const saveAssignedRoles = () => {
 
     userForm.patch(updateUserRolesRoute.url(modal.value.user.id), {
         preserveScroll: true,
+        preserveState: true,
         onSuccess: () => (modal.value = null),
     });
 };
@@ -268,6 +271,7 @@ const saveAssignedOffice = () => {
 
     userForm.patch(tagOfficeUserRoute.url(modal.value.user.id), {
         preserveScroll: true,
+        preserveState: true,
         onSuccess: () => (modal.value = null),
     });
 };
@@ -289,6 +293,7 @@ const confirmDelete = (force = false) => {
         ),
         {
             preserveScroll: true,
+            preserveState: true,
             onSuccess: (page) => {
                 const props = page.props as FlashPageProps;
                 const toastType = props.flash?.toast?.type;
@@ -310,7 +315,10 @@ const confirmDelete = (force = false) => {
 };
 
 const toggleUserStatus = (user: ManagedUser) => {
-    router.patch(toggleUserRoute.url(user.id), {}, { preserveScroll: true });
+    router.patch(toggleUserRoute.url(user.id), {}, {
+        preserveScroll: true,
+        preserveState: true,
+    });
 };
 
 const navigatePage = (url: string | null) => {

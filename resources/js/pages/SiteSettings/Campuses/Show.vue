@@ -63,6 +63,8 @@ interface Campus {
     campus_logo_path: string;
     real_campus_id: string;
     status: 'Active' | 'Inactive';
+    created_at?: string | null;
+    updated_at?: string | null;
     academic_terms: AcademicTerm[];
 }
 
@@ -104,7 +106,13 @@ const openEditModal = () => {
 };
 
 const updateCampus = () => {
-    form.post(campusRoutes.update.url(props.campus.id), {
+    form.transform((data) => ({
+        ...data,
+        _method: 'PATCH',
+    })).post(campusRoutes.update.url(props.campus.id), {
+        forceFormData: true,
+        preserveScroll: true,
+        preserveState: true,
         onSuccess: () => {
             showEditModal.value = false;
         },
@@ -139,10 +147,14 @@ const openEditTerm = (term: AcademicTerm) => {
 const saveTerm = () => {
     if (selectedTerm.value) {
         termForm.patch(termRoutes.update.url({ campus: props.campus.id, term: selectedTerm.value.id }), {
+            preserveScroll: true,
+            preserveState: true,
             onSuccess: () => showTermModal.value = false,
         });
     } else {
         termForm.post(termRoutes.store.url(props.campus.id), {
+            preserveScroll: true,
+            preserveState: true,
             onSuccess: () => showTermModal.value = false,
         });
     }
@@ -150,6 +162,8 @@ const saveTerm = () => {
 
 const activateTerm = (term: AcademicTerm) => {
     termForm.patch(termRoutes.activate.url({ campus: props.campus.id, term: term.id }), {
+        preserveScroll: true,
+        preserveState: true,
         onSuccess: () => {},
     });
 };
@@ -162,6 +176,8 @@ const confirmDeleteTerm = (term: AcademicTerm) => {
 const deleteTerm = () => {
     if (!selectedTerm.value) return;
     termForm.delete(termRoutes.destroy.url({ campus: props.campus.id, term: selectedTerm.value.id }), {
+        preserveScroll: true,
+        preserveState: true,
         onSuccess: () => showDeleteTermModal.value = false,
     });
 };
@@ -583,8 +599,9 @@ const getStatusBadgeClass = (status: string) => {
             v-if="selectedTerm"
             :show="showDeleteTermModal"
             title="Delete Academic Term"
-            :message="`Are you sure you want to delete ${selectedTerm.school_year} ${selectedTerm.semester}? This action cannot be undone.`"
-            confirm-button-text="Delete Term"
+            :description="`Are you sure you want to delete ${selectedTerm.school_year} ${selectedTerm.semester}? This action cannot be undone.`"
+            confirm-text="Delete Term"
+            variant="destructive"
             @confirm="deleteTerm"
             @close="showDeleteTermModal = false"
         />

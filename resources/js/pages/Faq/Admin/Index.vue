@@ -142,6 +142,7 @@ const deleteFaq = () => {
         router.delete(faqRoutes.destroy.url(deleteId.value), {
             onSuccess: () => (deleteId.value = null),
             preserveScroll: true,
+            preserveState: true,
         });
     }
 };

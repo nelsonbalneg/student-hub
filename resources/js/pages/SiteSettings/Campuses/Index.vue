@@ -79,6 +79,8 @@ const form = useForm({
 
 const createCampus = () => {
     form.post(campusRoutes.store.url(), {
+        preserveScroll: true,
+        preserveState: true,
         onSuccess: () => {
             showCreateModal.value = false;
             form.reset();
@@ -103,6 +105,8 @@ const updateCampus = () => {
         ...data,
         _method: 'PATCH',
     })).post(campusRoutes.update.url(selectedCampus.value.id), {
+        preserveScroll: true,
+        preserveState: true,
         onSuccess: () => {
             showEditModal.value = false;
             form.reset();
@@ -118,6 +122,8 @@ const confirmDelete = (campus: Campus) => {
 const deleteCampus = () => {
     if (!selectedCampus.value) return;
     form.delete(campusRoutes.destroy.url(selectedCampus.value.id), {
+        preserveScroll: true,
+        preserveState: true,
         onSuccess: () => (showDeleteModal.value = false),
     });
 };
@@ -317,8 +323,9 @@ const handleSearch = () => {
             v-if="selectedCampus"
             :show="showDeleteModal"
             title="Delete Campus"
-            :message="`Are you sure you want to delete ${selectedCampus.campus_name}? This action cannot be undone.`"
-            confirm-button-text="Delete Campus"
+            :description="`Are you sure you want to delete ${selectedCampus.campus_name}? This action cannot be undone.`"
+            confirm-text="Delete Campus"
+            variant="destructive"
             @confirm="deleteCampus"
             @close="showDeleteModal = false"
         />

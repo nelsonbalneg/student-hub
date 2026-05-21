@@ -99,6 +99,7 @@ const runPendingAction = () => {
     if (pendingAction.value.type === 'delete') {
         router.delete(destroy.url(pendingAction.value.document.id), {
             preserveScroll: true,
+            preserveState: true,
             onSuccess: () => (pendingAction.value = null),
         });
         return;
@@ -110,6 +111,7 @@ const runPendingAction = () => {
 
     router.patch(actionUrl, {}, {
         preserveScroll: true,
+        preserveState: true,
         onSuccess: () => (pendingAction.value = null),
     });
 };

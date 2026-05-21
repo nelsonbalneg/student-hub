@@ -40,13 +40,17 @@ const typeLabel = (type: string) =>
 
 const runAction = () => {
     if (confirmAction.value === 'delete') {
-        router.delete(destroy.url(props.document.id));
+        router.delete(destroy.url(props.document.id), {
+            preserveScroll: true,
+            preserveState: true,
+        });
         return;
     }
 
     if (confirmAction.value === 'activate') {
         router.patch(activate.url(props.document.id), {}, {
             preserveScroll: true,
+            preserveState: true,
             onSuccess: () => (confirmAction.value = null),
         });
     }
@@ -54,6 +58,7 @@ const runAction = () => {
     if (confirmAction.value === 'deactivate') {
         router.patch(deactivate.url(props.document.id), {}, {
             preserveScroll: true,
+            preserveState: true,
             onSuccess: () => (confirmAction.value = null),
         });
     }
