@@ -54,6 +54,8 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    'asset_url' => env('ASSET_URL'),
+
     'force_https' => (bool) env('APP_FORCE_HTTPS', env('APP_ENV', 'production') === 'production'),
 
     'trusted_proxies' => env('TRUSTED_PROXIES', '*'),

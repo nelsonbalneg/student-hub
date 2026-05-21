@@ -4,6 +4,7 @@ use App\Http\Middleware\AuditRequestLogger;
 use App\Http\Middleware\EnsureTermsAccepted;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\TrackCarbonFootprint;
 use App\Http\Middleware\TrackUserActivity;
 use Illuminate\Foundation\Application;
@@ -39,6 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
             TrackUserActivity::class,
             AuditRequestLogger::class,
             TrackCarbonFootprint::class,
+            SecurityHeaders::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);
 

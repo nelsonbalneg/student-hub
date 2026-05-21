@@ -16,6 +16,7 @@ use App\Policies\UserPolicy;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -138,6 +139,16 @@ class AppServiceProvider extends ServiceProvider
         Date::use(CarbonImmutable::class);
 
         if (config('app.force_https')) {
+            $secureUrl = Str::replaceStart('http://', 'https://', (string) config('app.url'));
+            $assetUrl = config('app.asset_url');
+
+            Config::set('app.url', $secureUrl);
+
+            if (is_string($assetUrl) && Str::startsWith($assetUrl, 'http://')) {
+                Config::set('app.asset_url', Str::replaceStart('http://', 'https://', $assetUrl));
+            }
+
+            URL::forceRootUrl($secureUrl);
             URL::forceScheme('https');
         }
 
