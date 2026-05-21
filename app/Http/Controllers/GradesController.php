@@ -64,6 +64,7 @@ class GradesController extends Controller
 
         $evaluationError = null;
         $evaluationLookup = [];
+        $lockGradesDueToEvaluationVerificationFailure = false;
         $activeTerm = $this->activeTermService->execute($user->campus_id);
         $activeTermId = $activeTerm?->term_id;
 
@@ -74,26 +75,38 @@ class GradesController extends Controller
                 if ($evaluationId) {
                     $details = $this->evaluationApi->getStudentEvaluationDetails($evaluationId);
                     $evaluationLookup = $this->evaluationApi->buildEvaluationLookup($details);
+                } else {
+                    $lockGradesDueToEvaluationVerificationFailure = true;
+                    $evaluationError = 'Faculty evaluation status could not be verified. Grades are locked until verification is available.';
+                }
+
+                if ($evaluationId && empty($evaluationLookup)) {
+                    $lockGradesDueToEvaluationVerificationFailure = true;
+                    $evaluationError = 'Faculty evaluation status could not be verified. Grades are locked until verification is available.';
                 }
             } catch (\Exception $e) {
                 Log::error('Evaluation API error in GradesController', [
                     'student_no' => $studentNo,
                     'message' => $e->getMessage(),
                 ]);
-                $evaluationError = 'Faculty evaluation status could not be verified. Please try again later.';
+                $lockGradesDueToEvaluationVerificationFailure = true;
+                $evaluationError = 'Faculty evaluation status could not be verified. Grades are locked until verification is available.';
             }
+        } elseif (! $bypassEvaluation) {
+            $lockGradesDueToEvaluationVerificationFailure = true;
+            $evaluationError = 'Faculty evaluation status could not be verified. Grades are locked until verification is available.';
         }
 
         // Enrich grade data with evaluation status
         if (! empty($gradeReport['data']) && is_array($gradeReport['data'])) {
-            $gradeReport['data'] = array_map(function ($term) use ($evaluationLookup, $evaluationId, $activeTermId) {
+            $gradeReport['data'] = array_map(function ($term) use ($evaluationLookup, $evaluationId, $activeTermId, $lockGradesDueToEvaluationVerificationFailure) {
                 if (! isset($term['grades']) || ! is_array($term['grades'])) {
                     return $term;
                 }
 
                 $termId = $term['termId'] ?? $term['term_id'] ?? null;
 
-                $term['grades'] = array_map(function ($grade) use ($evaluationLookup, $evaluationId, $termId, $activeTermId) {
+                $term['grades'] = array_map(function ($grade) use ($evaluationLookup, $evaluationId, $termId, $activeTermId, $lockGradesDueToEvaluationVerificationFailure) {
                     // Match the termId and subjectId/courseId
                     // Use the termId from the parent term if not in the grade record
                     $rowTermId = $grade['termId'] ?? $grade['term_id'] ?? $termId;
@@ -103,6 +116,13 @@ class GradesController extends Controller
                         $grade['requires_evaluation'] = false;
 
                         return $grade;
+                    }
+
+                    if ($lockGradesDueToEvaluationVerificationFailure) {
+                        $grade['requires_evaluation'] = true;
+                        $grade['evaluation_status'] = 'Verification Unavailable';
+
+                        return $this->maskEvaluationLockedGradeFields($grade);
                     }
 
                     $courseId = $grade['courseId'] ?? $grade['course_id'] ?? $grade['subjectId'] ?? $grade['subject_id'] ?? null;
