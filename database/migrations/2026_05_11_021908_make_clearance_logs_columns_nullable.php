@@ -22,9 +22,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('clearance_logs', function (Blueprint $table) {
-            $table->foreignId('student_semester_clearance_id')->nullable(false)->change();
-            $table->foreignId('student_id')->nullable(false)->change();
-        });
+        // Keep existing nullable data intact during rollback. A refresh will drop
+        // the clearance_logs table in the previous clearance module migration.
     }
 };
