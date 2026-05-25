@@ -6,6 +6,7 @@ use App\Models\GradeViewingRule;
 use App\Models\SiteCampus;
 use App\Services\AcademicApiService;
 use App\Services\GetActiveAcademicTermService;
+use App\Services\GradeComputationService;
 use App\Services\StudentEvaluationApiService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,7 +21,8 @@ class GradesController extends Controller
     public function __construct(
         private readonly AcademicApiService $academicApi,
         private readonly StudentEvaluationApiService $evaluationApi,
-        private readonly GetActiveAcademicTermService $activeTermService
+        private readonly GetActiveAcademicTermService $activeTermService,
+        private readonly GradeComputationService $gradeComputation
     ) {}
 
     public function __invoke(Request $request): Response
@@ -139,6 +141,7 @@ class GradesController extends Controller
                         $grade['subject_id'] = $eval['subject_id'];
                         $grade['subject_title'] = $eval['subject_title'];
                         $grade['pending_evaluations'] = $eval['pending_evaluations'];
+                        $grade['evaluated_evaluations'] = $eval['evaluated_evaluations'];
                         $grade['faculty_names'] = $eval['faculty_names'];
 
                         // Build the evaluation payload for the frontend
@@ -156,6 +159,12 @@ class GradesController extends Controller
 
                 return $term;
             }, $gradeReport['data']);
+        }
+
+        if (! empty($gradeReport['data']) && is_array($gradeReport['data'])) {
+            $computedGrades = $this->gradeComputation->computeForTerms($gradeReport['data']);
+            $gradeReport['data'] = $computedGrades['terms'];
+            $gradeReport['computed_summary'] = $computedGrades['overall'];
         }
 
         return Inertia::render('Grades/Index', [

@@ -41,13 +41,22 @@ type Student = {
 
 type PendingEvaluation = {
     faculty: string;
-    facultyEmployeeId: string;
     type: 'lecture' | 'lab' | 'unknown';
     id: string;
+    status?: string;
+    isEvaluated?: boolean;
     surveyTemplateId: string;
     surveyTemplateDescription?: string;
     encodedSurveyTemplate?: string;
     encodedJsonString?: string;
+    encodedSurveyAnswers?: string;
+};
+
+type EvaluatedEvaluation = PendingEvaluation & {
+    status: string;
+    isEvaluated: true;
+    evaluationDate?: string | null;
+    surveyTemplateName?: string;
 };
 
 type GradeRecord = {
@@ -58,6 +67,7 @@ type GradeRecord = {
     subject_id?: string;
     subject_title?: string;
     pending_evaluations?: PendingEvaluation[];
+    evaluated_evaluations?: EvaluatedEvaluation[];
     faculty_names?: string[];
     evaluation_payload?: Record<string, any>;
 } & Record<string, any>;
@@ -68,6 +78,10 @@ type TermGroup = {
     section: string;
     creditUnits: string;
     gpa: string;
+    computedGpa: string;
+    countedUnits: string;
+    includedSubjectCount: number;
+    excludedSubjectCount: number;
     rows: GradeRecord[];
 };
 
@@ -76,6 +90,15 @@ const props = defineProps<{
     gradeReport: {
         data: GradeRecord[] | Record<string, any>;
         error: string | null;
+        computed_summary?: {
+            average_gwa?: number;
+            average_gwa_display?: string;
+            counted_units?: number;
+            counted_units_display?: string;
+            included_subject_count?: number;
+            excluded_keywords?: string[];
+            note?: string;
+        };
     };
     evaluation_error: string | null;
 }>();
@@ -96,6 +119,7 @@ const isSubmittingEvaluation = ref(false);
 const submitError = ref<string | null>(null);
 const submitSuccess = ref<string | null>(null);
 const completedEvaluationIds = ref<Set<string>>(new Set());
+const calculationDetailsOpen = ref(false);
 
 const asArray = (value: any): GradeRecord[] => {
     if (Array.isArray(value)) {
@@ -168,8 +192,17 @@ const groupedGrades = computed<TermGroup[]>(() => {
                     'total_credit_units',
                     'totalUnits',
                     'total_units',
+                    'computed_counted_units_display',
                 ]),
                 gpa: pick(term, ['gpa', 'GPA']),
+                computedGpa: pick(term, ['computed_gpa_display']),
+                countedUnits: pick(term, ['computed_counted_units_display']),
+                includedSubjectCount: Number(
+                    term.computed_included_subject_count ?? 0,
+                ),
+                excludedSubjectCount: Number(
+                    term.computed_excluded_subject_count ?? 0,
+                ),
                 rows: asArray(term.grades),
             };
         })
@@ -195,13 +228,9 @@ const totalCourses = computed(() => records.value.length);
 
 const latestTerm = computed(() => groupedGrades.value[0]?.term ?? '-');
 
-const totalUnits = computed(() => {
-    const units = groupedGrades.value
-        .map((group) => Number(group.creditUnits))
-        .filter((unit) => Number.isFinite(unit));
-
-    return units.length ? units.reduce((sum, unit) => sum + unit, 0) : '-';
-});
+const totalUnits = computed(
+    () => props.gradeReport.computed_summary?.counted_units_display ?? '0.0000',
+);
 
 const columns = [
     {
@@ -249,73 +278,34 @@ const columns = [
     },
 ];
 
-const numericValue = (row: GradeRecord, keys: string[]) => {
-    const raw = pick(row, keys);
-    const value = Number(raw);
-
-    return Number.isFinite(value) ? value : null;
-};
-
 const printCOR = () => {
     window.print();
 };
 
 const termUnits = (group: TermGroup) => {
-    const value = Number(group.creditUnits);
-
-    if (Number.isFinite(value)) {
-        return value;
-    }
-
-    return group.rows.reduce((sum, row) => {
-        const units = Number(pick(row, columns[2].keys));
-
-        return sum + (Number.isFinite(units) ? units : 0);
-    }, 0);
+    return group.countedUnits !== '-' ? group.countedUnits : '0.0000';
 };
 
-const calculatedGpa = (rows: GradeRecord[]) => {
-    // If any row requires evaluation, we hide the GPA
-    if (rows.some((row) => row.requires_evaluation)) {
-        return 'Evaluation Required';
-    }
+const averageGrade = computed(
+    () => props.gradeReport.computed_summary?.average_gwa_display ?? '0.0000',
+);
 
-    const gradedRows = rows
-        .map((row) => ({
-            grade: numericValue(row, columns[5].keys),
-            units: numericValue(row, columns[2].keys),
-        }))
-        .filter((row): row is { grade: number; units: number | null } => {
-            return row.grade !== null;
-        });
+const excludedKeywords = computed(
+    () =>
+        props.gradeReport.computed_summary?.excluded_keywords ?? [
+            'NSTP',
+            'THESIS',
+            'CAPSTONE',
+            'OJT',
+            'PRACTICUM',
+        ],
+);
 
-    if (!gradedRows.length) {
-        return '-';
-    }
+const countedUnitsDisplay = computed(() => {
+    const value = Number(props.gradeReport.computed_summary?.counted_units ?? 0);
 
-    const rowsWithUnits = gradedRows.filter(
-        (row) => row.units !== null && row.units > 0,
-    );
-
-    if (rowsWithUnits.length) {
-        const totalWeighted = rowsWithUnits.reduce(
-            (sum, row) => sum + row.grade * row.units,
-            0,
-        );
-        const totalUnits = rowsWithUnits.reduce(
-            (sum, row) => sum + row.units,
-            0,
-        );
-
-        return (totalWeighted / totalUnits).toFixed(2);
-    }
-
-    return (
-        gradedRows.reduce((sum, row) => sum + row.grade, 0) / gradedRows.length
-    ).toFixed(2);
-};
-
-const averageGrade = computed(() => calculatedGpa(records.value));
+    return Number.isFinite(value) ? String(value).replace(/\.0$/, '') : '0';
+});
 
 const remarkClass = (remark: string) => {
     const normalized = remark.toLowerCase();
@@ -359,13 +349,15 @@ const can = (permission?: string | string[]): boolean => {
 };
 
 const evaluate = (row: GradeRecord, evalItem: PendingEvaluation) => {
-    if (completedEvaluationIds.value.has(String(evalItem.id))) {
+    if (
+        evalItem.isEvaluated ||
+        completedEvaluationIds.value.has(String(evalItem.id))
+    ) {
         return;
     }
 
     const payload = {
         ...(row.evaluation_payload || {}),
-        facultyEmployeeId: evalItem.facultyEmployeeId,
         evaluationId: evalItem.id,
         surveyTemplateId: evalItem.surveyTemplateId,
         type: evalItem.type,
@@ -379,7 +371,10 @@ const evaluate = (row: GradeRecord, evalItem: PendingEvaluation) => {
 };
 
 const openEvaluationChooser = (row: GradeRecord) => {
-    const evalItems = row.pending_evaluations ?? [];
+    const evalItems = [
+        ...(row.pending_evaluations ?? []),
+        ...(row.evaluated_evaluations ?? []),
+    ];
     if (!evalItems.length) return;
     selectedEvaluationGroup.value = { row, evalItems };
     selectedEvaluation.value = null;
@@ -392,8 +387,36 @@ const openEvaluationChooser = (row: GradeRecord) => {
 const isEvaluationClosed = (row: GradeRecord) => {
     return (
         row.evaluation_status === 'Verification Unavailable' ||
-        !(row.pending_evaluations ?? []).length
+        ![
+            ...(row.pending_evaluations ?? []),
+            ...(row.evaluated_evaluations ?? []),
+        ].length
     );
+};
+
+const hasEvaluationItems = (row: GradeRecord) => {
+    return [
+        ...(row.pending_evaluations ?? []),
+        ...(row.evaluated_evaluations ?? []),
+    ].length > 0;
+};
+
+const evaluatedSummary = (row: GradeRecord) => {
+    return (row.evaluated_evaluations ?? []).filter(
+        (item) => item.faculty && item.faculty !== 'Unknown Faculty',
+    );
+};
+
+const formatEvaluationType = (type: EvaluatedEvaluation['type']) => {
+    if (type === 'lecture') {
+        return 'Lecture';
+    }
+
+    if (type === 'lab') {
+        return 'Laboratory';
+    }
+
+    return 'Evaluation';
 };
 
 const decodeBase64Json = (encoded?: string): any | null => {
@@ -414,6 +437,18 @@ const decodedSurveyTemplate = computed(() =>
 
 const decodedJsonString = computed(() =>
     decodeBase64Json(selectedEvaluation.value?.evalItem.encodedJsonString),
+);
+
+const decodedSurveyAnswers = computed<any[]>(() => {
+    const answers = decodeBase64Json(
+        selectedEvaluation.value?.evalItem.encodedSurveyAnswers,
+    );
+
+    return Array.isArray(answers) ? answers : [];
+});
+
+const selectedEvaluationIsReadOnly = computed(
+    () => selectedEvaluation.value?.evalItem.isEvaluated === true,
 );
 
 const questionnaireItems = computed<any[]>(() => {
@@ -445,6 +480,49 @@ const questionTypeLabel = (
         return 'Open-ended';
     }
     return 'Unknown';
+};
+
+const submittedAnswerForQuestion = (question: Record<string, any>) => {
+    const questionId = question.id ?? question.templateQuestionId;
+    const answers = decodedSurveyAnswers.value.flatMap((answer) => {
+        if (Array.isArray(answer?.surveyAnswers)) {
+            return answer.surveyAnswers;
+        }
+
+        if (Array.isArray(answer?.answers)) {
+            return answer.answers;
+        }
+
+        return [answer];
+    });
+
+    return answers.find((answer) => {
+        const answerQuestionId =
+            answer?.templateQuestionId ??
+            answer?.questionId ??
+            answer?.templateSurveyQuestionId ??
+            answer?.id;
+
+        return String(answerQuestionId) === String(questionId);
+    });
+};
+
+const submittedRatingForQuestion = (question: Record<string, any>) => {
+    const answer = submittedAnswerForQuestion(question);
+
+    return Number(answer?.starRating ?? answer?.rating ?? answer?.value ?? 0);
+};
+
+const submittedTextForQuestion = (question: Record<string, any>) => {
+    const answer = submittedAnswerForQuestion(question);
+
+    return String(
+        answer?.shortAnswer ??
+            answer?.longAnswer ??
+            answer?.answer ??
+            answer?.value ??
+            '',
+    ).trim();
 };
 
 const setRatingAnswer = (questionId: number, value: number) => {
@@ -479,6 +557,7 @@ const canSubmitEvaluation = computed(() => {
 const submitEvaluation = () => {
     if (
         !selectedEvaluation.value ||
+        selectedEvaluationIsReadOnly.value ||
         !decodedSurveyTemplate.value ||
         !decodedJsonString.value ||
         !canSubmitEvaluation.value
@@ -650,6 +729,13 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                         '-'
                                     }}
                                 </p>
+                                <p
+                                    v-if="selectedEvaluation?.evalItem.status"
+                                    class="mt-0.5 text-slate-600 dark:text-slate-300"
+                                >
+                                    Status:
+                                    {{ selectedEvaluation.evalItem.status }}
+                                </p>
                             </div>
                         </div>
                         <div
@@ -666,7 +752,13 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                     v-for="item in selectedEvaluationGroup.evalItems"
                                     :key="item.id"
                                     type="button"
-                                    class="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                                    class="inline-flex items-center rounded-md border px-3 py-1.5 text-xs font-bold transition"
+                                    :class="
+                                        item.isEvaluated
+                                            ? 'cursor-not-allowed border-emerald-200 bg-emerald-50 text-emerald-700 opacity-75 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                            : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-200'
+                                    "
+                                    :disabled="item.isEvaluated"
                                     @click="
                                         evaluate(
                                             selectedEvaluationGroup.row,
@@ -675,6 +767,12 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                     "
                                 >
                                     Evaluate {{ item.type }}
+                                    <span
+                                        v-if="item.isEvaluated"
+                                        class="ml-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
+                                    >
+                                        Evaluated
+                                    </span>
                                 </button>
                             </div>
                         </div>
@@ -697,7 +795,11 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                             <p
                                 class="font-semibold text-slate-700 dark:text-slate-200"
                             >
-                                Evaluation Questions
+                                {{
+                                    selectedEvaluationIsReadOnly
+                                        ? 'Evaluation Summary'
+                                        : 'Evaluation Questions'
+                                }}
                             </p>
 
                             <div
@@ -722,6 +824,17 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                         decodedSurveyTemplate.description ?? '-'
                                     }}
                                 </p>
+                            </div>
+
+                            <div
+                                v-if="
+                                    selectedEvaluationIsReadOnly &&
+                                    !decodedSurveyAnswers.length
+                                "
+                                class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-medium text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300"
+                            >
+                                This evaluation is marked as evaluated, but the
+                                API did not return submitted answer values.
                             </div>
 
                             <div
@@ -781,18 +894,39 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                             type="button"
                                             class="inline-flex size-8 items-center justify-center rounded-md border transition"
                                             :class="
-                                                Number(
-                                                    evaluationAnswers[
-                                                        item.id
-                                                    ] || 0,
-                                                ) >= n
+                                                (selectedEvaluationIsReadOnly
+                                                    ? submittedRatingForQuestion(
+                                                          item,
+                                                      )
+                                                    : Number(
+                                                          evaluationAnswers[
+                                                              item.id
+                                                          ] || 0,
+                                                      )) >= n
                                                     ? 'border-amber-300 bg-amber-50 text-amber-600 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300'
                                                     : 'border-slate-200 bg-white text-slate-400 hover:border-amber-300 hover:text-amber-600 dark:border-white/10 dark:bg-slate-900 dark:text-slate-500'
                                             "
-                                            @click="setRatingAnswer(item.id, n)"
+                                            :disabled="
+                                                selectedEvaluationIsReadOnly
+                                            "
+                                            @click="
+                                                !selectedEvaluationIsReadOnly &&
+                                                    setRatingAnswer(item.id, n)
+                                            "
                                         >
                                             <Star class="size-4" />
                                         </button>
+                                        <span
+                                            v-if="
+                                                selectedEvaluationIsReadOnly &&
+                                                !submittedRatingForQuestion(
+                                                    item,
+                                                )
+                                            "
+                                            class="ml-1 self-center text-[11px] font-medium text-slate-500 dark:text-slate-400"
+                                        >
+                                            No rating returned.
+                                        </span>
                                     </div>
 
                                     <div
@@ -801,7 +935,18 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                         "
                                         class="mt-2"
                                     >
+                                        <div
+                                            v-if="selectedEvaluationIsReadOnly"
+                                            class="min-h-[70px] rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                                        >
+                                            {{
+                                                submittedTextForQuestion(
+                                                    item,
+                                                ) || 'No answer returned.'
+                                            }}
+                                        </div>
                                         <textarea
+                                            v-else
                                             class="min-h-[90px] w-full rounded-md border border-slate-200 bg-white p-2 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-sky-400 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
                                             placeholder="Write your suggestion here..."
                                             :value="
@@ -829,8 +974,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                 class="space-y-2"
                             >
                                 <p class="text-slate-500 dark:text-slate-400">
-                                    No direct question array found. Showing
-                                    decoded payloads:
+                                    No direct question array found.
                                 </p>
                                 <pre
                                     class="max-h-52 overflow-auto rounded-md border border-slate-200 bg-white p-2 text-[11px] text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
@@ -887,6 +1031,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                             type="button"
                             :disabled="
                                 !selectedEvaluation ||
+                                selectedEvaluationIsReadOnly ||
                                 !canSubmitEvaluation ||
                                 isSubmittingEvaluation ||
                                 !!submitSuccess
@@ -898,6 +1043,126 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                     ? 'Submitting...'
                                     : 'Submit Evaluation'
                             }}
+                        </Button>
+                    </SheetFooter>
+                </div>
+            </SheetContent>
+        </Sheet>
+
+        <Sheet v-model:open="calculationDetailsOpen">
+            <SheetContent side="right" class="w-full p-0 sm:max-w-xl">
+                <div class="flex h-full min-h-0 flex-col">
+                    <SheetHeader
+                        class="border-b border-slate-200 px-5 py-4 text-left dark:border-white/10"
+                    >
+                        <SheetTitle class="text-sm">
+                            GPA Calculation Information
+                        </SheetTitle>
+                        <SheetDescription class="text-xs leading-relaxed">
+                            Semester GPA and Average GWA are computed using
+                            weighted averages based on credited units and valid
+                            graded subjects only.
+                        </SheetDescription>
+                    </SheetHeader>
+
+                    <div
+                        class="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 text-xs leading-relaxed text-slate-600 dark:text-slate-300"
+                    >
+                        <div
+                            class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-400/30 dark:bg-emerald-500/10"
+                        >
+                            <div class="grid gap-3 sm:grid-cols-3">
+                                <div>
+                                    <p
+                                        class="text-[10px] font-bold tracking-wide text-emerald-700 uppercase dark:text-emerald-300"
+                                    >
+                                        Average GWA
+                                    </p>
+                                    <p
+                                        class="mt-1 text-base font-bold text-emerald-950 dark:text-emerald-100"
+                                    >
+                                        {{ averageGrade }}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p
+                                        class="text-[10px] font-bold tracking-wide text-emerald-700 uppercase dark:text-emerald-300"
+                                    >
+                                        Counted Units
+                                    </p>
+                                    <p
+                                        class="mt-1 text-base font-bold text-emerald-950 dark:text-emerald-100"
+                                    >
+                                        {{ countedUnitsDisplay }}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p
+                                        class="text-[10px] font-bold tracking-wide text-emerald-700 uppercase dark:text-emerald-300"
+                                    >
+                                        Included Subjects
+                                    </p>
+                                    <p
+                                        class="mt-1 text-base font-bold text-emerald-950 dark:text-emerald-100"
+                                    >
+                                        {{
+                                            gradeReport.computed_summary
+                                                ?.included_subject_count ?? 0
+                                        }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3">
+                            <p>
+                                The following subjects are not included in the
+                                computation:
+                                <span class="font-semibold text-slate-800 dark:text-slate-100">
+                                    NSTP, Thesis, Capstone, OJT, and Practicum
+                                    subjects.
+                                </span>
+                            </p>
+                            <p>
+                                Subjects with IP, INC, DRP, incomplete, blank,
+                                or non-numeric grades are automatically excluded
+                                from the calculation.
+                            </p>
+                            <p>
+                                The system computes grades directly from subject
+                                records and not from averaging semester GPAs.
+                            </p>
+                        </div>
+
+                        <div
+                            class="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200"
+                        >
+                            <p class="font-bold">Official Disclaimer</p>
+                            <p class="mt-1">
+                                Please note that GPA and GWA computations in the
+                                portal are system-generated and may occasionally
+                                encounter computation or data synchronization
+                                issues. The displayed values are for reference
+                                only and are not considered official or final.
+                            </p>
+                            <p class="mt-2 font-semibold">
+                                The Admission and Records Office remains the
+                                official authority for the verification,
+                                validation, and final computation of academic
+                                records, GPA, and GWA.
+                            </p>
+                        </div>
+                    </div>
+
+                    <SheetFooter
+                        class="border-t border-slate-200 px-5 py-3 dark:border-white/10"
+                    >
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="calculationDetailsOpen = false"
+                        >
+                            Close
                         </Button>
                     </SheetFooter>
                 </div>
@@ -980,6 +1245,21 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                     >
                         {{ averageGrade }}
                     </div>
+                    <div class="mt-1 flex flex-wrap items-center gap-2">
+                        <p
+                            class="text-[11px] font-medium text-emerald-700 dark:text-emerald-300"
+                        >
+                            Tentative computation, not final.
+                        </p>
+                        <button
+                            type="button"
+                            class="rounded-full border border-emerald-200 bg-white/70 px-2 py-0.5 text-[10px] font-bold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
+                            title="NSTP, Thesis, Capstone, OJT, and Practicum subjects are excluded from GPA computation."
+                            @click="calculationDetailsOpen = true"
+                        >
+                            Exclusions applied
+                        </button>
+                    </div>
                 </div>
                 <div
                     class="rounded-lg border border-slate-200 bg-gradient-to-br from-white to-amber-50/70 p-3 dark:border-white/10 dark:from-white/5 dark:to-amber-500/10"
@@ -1008,7 +1288,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                     <div
                         class="mt-2 text-2xl font-bold text-slate-950 dark:text-white"
                     >
-                        {{ totalUnits }}
+                        {{ countedUnitsDisplay }}
                     </div>
                 </div>
             </div>
@@ -1016,10 +1296,10 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
 
         <div class="grid gap-4 xl:grid-cols-[1fr_340px]">
             <section
-                class="min-w-0 rounded-lg border border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 shadow-sm dark:border-white/10 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900"
+                class="min-w-0 rounded-lg border border-emerald-100 bg-gradient-to-br from-white via-white to-emerald-50/60 shadow-sm dark:border-emerald-400/20 dark:from-slate-950 dark:via-slate-950 dark:to-emerald-950/20"
             >
                 <div
-                    class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-white/10"
+                    class="flex items-center justify-between gap-3 rounded-t-lg border-b border-emerald-100 bg-gradient-to-br from-white to-emerald-50/80 px-4 py-3 dark:border-emerald-400/20 dark:from-white/5 dark:to-emerald-500/10"
                 >
                     <div>
                         <h2
@@ -1033,11 +1313,6 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                             {{ latestTerm }}
                         </p>
                     </div>
-                    <span
-                        class="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:border-white/10 dark:text-slate-300"
-                    >
-                        {{ records.length }} rows
-                    </span>
                 </div>
 
                 <div
@@ -1080,7 +1355,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                         <CollapsibleTrigger as-child>
                             <button
                                 type="button"
-                                class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50 dark:hover:bg-white/5"
+                                class="flex w-full items-center justify-between gap-3 bg-gradient-to-r from-white via-white to-emerald-50/60 px-4 py-3 text-left transition hover:from-emerald-50 hover:to-cyan-50/70 dark:from-slate-950 dark:via-slate-950 dark:to-emerald-950/20 dark:hover:from-emerald-950/30 dark:hover:to-cyan-950/20"
                             >
                                 <div class="min-w-0">
                                     <div
@@ -1093,7 +1368,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                         </h3>
                                         <span
                                             v-if="group.section !== '-'"
-                                            class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300"
+                                            class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
                                         >
                                             Section {{ group.section }}
                                         </span>
@@ -1117,8 +1392,12 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                             </span>
                                         </template>
                                         <template v-else>
-                                            Calculated GPA
-                                            {{ calculatedGpa(group.rows) }}
+                                            Semester GPA
+                                            {{
+                                                group.computedGpa !== '-'
+                                                    ? group.computedGpa
+                                                    : '0.0000'
+                                            }}
                                         </template>
                                     </p>
                                 </div>
@@ -1327,6 +1606,21 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                         }}
                                                     </p>
                                                 </template>
+                                                <button
+                                                    v-else-if="
+                                                        evaluatedSummary(row)
+                                                            .length
+                                                    "
+                                                    type="button"
+                                                    class="inline-flex items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[10px] font-bold text-emerald-700 uppercase dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+                                                    @click="
+                                                        openEvaluationChooser(
+                                                            row,
+                                                        )
+                                                    "
+                                                >
+                                                    Evaluated
+                                                </button>
                                                 <span
                                                     v-else
                                                     class="text-[10px] font-semibold text-slate-400"

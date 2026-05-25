@@ -105,14 +105,17 @@ class StudentEvaluationApiService
                     $evaluations = $subject['evaluations'] ?? [];
                     $hasPendingEvaluations = false;
                     $pendingItems = [];
+                    $evaluatedItems = [];
 
                     foreach ($evaluations as $eval) {
+                        $surveyTemplate = $eval['surveyTemplate'] ?? null;
+                        $evaluationId = $eval['id'] ?? $eval['subjectForEvaluationId'] ?? '';
+
                         if ($this->isNotEvaluatedStatus($eval['status'] ?? null)) {
-                            $surveyTemplate = $eval['surveyTemplate'] ?? null;
                             $jsonString = [
                                 'studentId' => $periodStudentId,
                                 'templateSurveyId' => $surveyTemplate['id'] ?? ($eval['surveyTemplateId'] ?? ''),
-                                'evaluationId' => $eval['id'] ?? '',
+                                'evaluationId' => $evaluationId,
                                 'code' => $surveyTemplate['code'] ?? '',
                                 'name' => $surveyTemplate['name'] ?? '',
                                 'description' => $surveyTemplate['description'] ?? '',
@@ -128,13 +131,32 @@ class StudentEvaluationApiService
                             $hasPendingEvaluations = true;
                             $pendingItems[] = [
                                 'faculty' => $eval['faculty'] ?? 'Unknown Faculty',
-                                'facultyEmployeeId' => $eval['facultyEmployeeId'] ?? '',
                                 'type' => ($eval['lecture'] ?? false) ? 'lecture' : (($eval['lab'] ?? false) ? 'lab' : 'unknown'),
-                                'id' => $eval['id'] ?? '',
+                                'id' => $evaluationId,
+                                'status' => $eval['status'] ?? 'Not Evaluated',
+                                'isEvaluated' => false,
                                 'surveyTemplateId' => $eval['surveyTemplateId'] ?? '',
                                 'surveyTemplateDescription' => $surveyTemplate['description'] ?? '',
                                 'encodedSurveyTemplate' => base64_encode((string) json_encode($surveyTemplate ?? new \stdClass)),
                                 'encodedJsonString' => base64_encode((string) json_encode($jsonString)),
+                            ];
+                        }
+
+                        if (! $this->isNotEvaluatedStatus($eval['status'] ?? null)) {
+                            $evaluatedItems[] = [
+                                'faculty' => $eval['faculty'] ?? 'Unknown Faculty',
+                                'type' => ($eval['lecture'] ?? false) ? 'lecture' : (($eval['lab'] ?? false) ? 'lab' : 'unknown'),
+                                'id' => $evaluationId,
+                                'status' => $eval['status'] ?? 'Evaluated',
+                                'isEvaluated' => true,
+                                'evaluationDate' => ($eval['lab'] ?? false)
+                                    ? ($eval['labEvaluationDate'] ?? null)
+                                    : ($eval['lectureEvaluationDate'] ?? null),
+                                'surveyTemplateId' => $eval['surveyTemplateId'] ?? '',
+                                'surveyTemplateName' => $surveyTemplate['name'] ?? '',
+                                'surveyTemplateDescription' => $surveyTemplate['description'] ?? '',
+                                'encodedSurveyTemplate' => base64_encode((string) json_encode($surveyTemplate ?? new \stdClass)),
+                                'encodedSurveyAnswers' => base64_encode((string) json_encode($eval['surveys'] ?? [])),
                             ];
                         }
                     }
@@ -148,6 +170,7 @@ class StudentEvaluationApiService
                         'subject_title' => $subject['subjectTitle'] ?? '',
                         'term_id' => $termId,
                         'pending_evaluations' => $pendingItems,
+                        'evaluated_evaluations' => $evaluatedItems,
                         'faculty_names' => collect($evaluations)->pluck('faculty')->unique()->filter()->values()->all(),
                         'evaluation_payload' => [
                             'evaluationPeriodId' => $period['id'] ?? '',
