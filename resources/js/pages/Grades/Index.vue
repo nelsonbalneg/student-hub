@@ -228,10 +228,6 @@ const totalCourses = computed(() => records.value.length);
 
 const latestTerm = computed(() => groupedGrades.value[0]?.term ?? '-');
 
-const totalUnits = computed(
-    () => props.gradeReport.computed_summary?.counted_units_display ?? '0.0000',
-);
-
 const columns = [
     {
         label: 'Course',
@@ -283,7 +279,9 @@ const printCOR = () => {
 };
 
 const termUnits = (group: TermGroup) => {
-    return group.countedUnits !== '-' ? group.countedUnits : '0.0000';
+    const value = group.rows.reduce((sum, row) => sum + subjectUnits(row), 0);
+
+    return Number.isFinite(value) ? String(value).replace(/\.0+$/, '') : '0';
 };
 
 const averageGrade = computed(
@@ -303,6 +301,34 @@ const excludedKeywords = computed(
 
 const countedUnitsDisplay = computed(() => {
     const value = Number(props.gradeReport.computed_summary?.counted_units ?? 0);
+
+    return Number.isFinite(value) ? String(value).replace(/\.0$/, '') : '0';
+});
+
+const numericPick = (row: GradeRecord, keys: string[]): number | null => {
+    for (const key of keys) {
+        const value = row[key];
+
+        if (value !== null && value !== undefined && value !== '') {
+            const numeric = Number(value);
+
+            if (Number.isFinite(numeric)) {
+                return numeric;
+            }
+        }
+    }
+
+    return null;
+};
+
+const subjectUnits = (row: GradeRecord) =>
+    numericPick(row, columns[2].keys) ?? 0;
+
+const totalUnitsDisplay = computed(() => {
+    const value = records.value.reduce(
+        (sum, row) => sum + subjectUnits(row),
+        0,
+    );
 
     return Number.isFinite(value) ? String(value).replace(/\.0$/, '') : '0';
 });
@@ -1288,7 +1314,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                     <div
                         class="mt-2 text-2xl font-bold text-slate-950 dark:text-white"
                     >
-                        {{ countedUnitsDisplay }}
+                        {{ totalUnitsDisplay }}
                     </div>
                 </div>
             </div>
