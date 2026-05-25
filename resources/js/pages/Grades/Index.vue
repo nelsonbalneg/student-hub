@@ -508,6 +508,74 @@ const questionTypeLabel = (
     return 'Unknown';
 };
 
+const questionIdFor = (item: Record<string, any>) =>
+    item.id ?? item.templateQuestionId ?? item.templateSurveyQuestionId;
+
+const normalizedQuestionType = (item: Record<string, any>): number | null => {
+    const rawType =
+        item.questionType ??
+        item.question_type ??
+        item.type ??
+        item.questionTypeId ??
+        item.question_type_id;
+
+    if (rawType !== null && rawType !== undefined && rawType !== '') {
+        const numericType = Number(rawType);
+
+        if (Number.isFinite(numericType)) {
+            return numericType;
+        }
+
+        const textType = String(rawType).trim().toLowerCase();
+
+        if (
+            textType.includes('star') ||
+            textType.includes('rating') ||
+            textType.includes('scale')
+        ) {
+            return 3;
+        }
+
+        if (
+            textType.includes('text') ||
+            textType.includes('answer') ||
+            textType.includes('comment') ||
+            textType.includes('essay')
+        ) {
+            return 99;
+        }
+    }
+
+    const statement = String(
+        item.questionStatement ??
+            item.question ??
+            item.text ??
+            item.title ??
+            item.label ??
+            '',
+    ).toLowerCase();
+
+    if (
+        statement.includes('suggestion') ||
+        statement.includes('improvement') ||
+        statement.includes('comment')
+    ) {
+        return 99;
+    }
+
+    if (Number(item.starCount ?? 0) > 0) {
+        return 3;
+    }
+
+    return null;
+};
+
+const isRatingQuestion = (item: Record<string, any>) =>
+    normalizedQuestionType(item) === 3;
+
+const isTextQuestion = (item: Record<string, any>) =>
+    normalizedQuestionType(item) === 99;
+
 const submittedAnswerForQuestion = (question: Record<string, any>) => {
     const questionId = question.id ?? question.templateQuestionId;
     const answers = decodedSurveyAnswers.value.flatMap((answer) => {
@@ -565,14 +633,13 @@ const canSubmitEvaluation = computed(() => {
     }
 
     return questionnaireItems.value.every((item) => {
-        const type = Number(item.questionType);
-        const value = evaluationAnswers.value[item.id];
+        const value = evaluationAnswers.value[questionIdFor(item)];
 
-        if (type === 3) {
+        if (isRatingQuestion(item)) {
             return Number(value) > 0;
         }
 
-        if (type === 99) {
+        if (isTextQuestion(item)) {
             return String(value ?? '').trim().length > 0;
         }
 
@@ -599,20 +666,23 @@ const submitEvaluation = () => {
     );
 
     const commentValues = orderedItems
-        .filter((item) => Number(item.questionType) === 99)
-        .map((item) => String(evaluationAnswers.value[item.id] ?? '').trim())
+        .filter((item) => isTextQuestion(item))
+        .map((item) =>
+            String(evaluationAnswers.value[questionIdFor(item)] ?? '').trim(),
+        )
         .filter((text) => text.length > 0);
 
     const mergedComment = commentValues.join(', ');
     const lastIndex = orderedItems.length - 1;
 
     const surveyAnswers = orderedItems.map((item, index) => {
-        const type = Number(item.questionType);
-        const answer = evaluationAnswers.value[item.id];
+        const type = normalizedQuestionType(item) ?? 0;
+        const questionId = questionIdFor(item);
+        const answer = evaluationAnswers.value[questionId];
 
         return {
             sortOrder: item.sortOrder ?? 0,
-            templateQuestionId: item.id,
+            templateQuestionId: questionId,
             questionType: type,
             questionStatement: item.questionStatement ?? '',
             description: item.description ?? '',
@@ -909,7 +979,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                     </p>
 
                                     <div
-                                        v-if="Number(item.questionType) === 3"
+                                        v-if="isRatingQuestion(item)"
                                         class="mt-2 flex flex-wrap gap-1.5"
                                     >
                                         <button
@@ -926,7 +996,9 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                       )
                                                     : Number(
                                                           evaluationAnswers[
-                                                              item.id
+                                                              questionIdFor(
+                                                                  item,
+                                                              )
                                                           ] || 0,
                                                       )) >= n
                                                     ? 'border-amber-300 bg-amber-50 text-amber-600 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300'
@@ -937,7 +1009,10 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                             "
                                             @click="
                                                 !selectedEvaluationIsReadOnly &&
-                                                    setRatingAnswer(item.id, n)
+                                                    setRatingAnswer(
+                                                        questionIdFor(item),
+                                                        n,
+                                                    )
                                             "
                                         >
                                             <Star class="size-4" />
@@ -956,9 +1031,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                     </div>
 
                                     <div
-                                        v-else-if="
-                                            Number(item.questionType) === 99
-                                        "
+                                        v-else-if="isTextQuestion(item)"
                                         class="mt-2"
                                     >
                                         <div
@@ -978,13 +1051,13 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                             :value="
                                                 String(
                                                     evaluationAnswers[
-                                                        item.id
+                                                        questionIdFor(item)
                                                     ] ?? '',
                                                 )
                                             "
                                             @input="
                                                 setTextAnswer(
-                                                    item.id,
+                                                    questionIdFor(item),
                                                     (
                                                         $event.target as HTMLTextAreaElement
                                                     ).value,
