@@ -195,32 +195,32 @@ const processedData = computed(() => {
     return groups;
 });
 
-const totalUnits = computed(() => {
-    return asArray(props.curriculum.data).reduce((sum, row) => {
-        const units = Number(
-            pick(row, [
-                'acadUnits',
-                'unit',
-                'units',
-                'creditUnits',
-                'credit_units',
-                'credits',
-                'units_load',
-                'unitsLoad',
-            ]),
-        );
-        const labUnits = Number(pick(row, ['labUnits']));
-        return (
-            sum + (isNaN(units) ? 0 : units) + (isNaN(labUnits) ? 0 : labUnits)
-        );
-    }, 0);
-});
-
 const totalSubjects = computed(() => asArray(props.curriculum.data).length);
 
 const totalSemesters = computed(() =>
     processedData.value.reduce((sum, year) => sum + year.semesters.length, 0),
 );
+
+const subjectLookup = computed(() => {
+    const lookup = new Map<string, string>();
+
+    asArray(props.curriculum.data).forEach((row) => {
+        const subjectId = pick(row, ['subjectId', 'subject_id', 'id']);
+        const subjectCode = pick(row, [
+            'subjectCode',
+            'courseCode',
+            'course_code',
+            'subject_code',
+            'code',
+        ]);
+
+        if (subjectId !== '-' && subjectCode !== '-') {
+            lookup.set(subjectId, subjectCode);
+        }
+    });
+
+    return lookup;
+});
 
 const columns = [
     {
@@ -255,6 +255,12 @@ const columns = [
         label: 'Units',
         keys: [
             'acadUnits',
+            'academicUnits',
+            'academic_units',
+            'totalUnits',
+            'total_units',
+            'totalCreditUnits',
+            'total_credit_units',
             'unit',
             'units',
             'creditUnits',
@@ -290,17 +296,140 @@ const columns = [
     },
 ];
 
-const semesterUnits = (rows: CurriculumRecord[]) =>
-    rows.reduce((sum, row) => {
-        const units = Number(pick(row, columns[2].keys));
-        const labUnits = Number(pick(row, ['labUnits']));
+const lectureUnitKeys = [
+    'acadUnits',
+    'academicUnits',
+    'academic_units',
+    'lecUnits',
+    'lectureUnits',
+    'lecture_units',
+    'lec_units',
+];
 
-        return (
-            sum +
-            (Number.isFinite(units) ? units : 0) +
-            (Number.isFinite(labUnits) ? labUnits : 0)
-        );
-    }, 0);
+const labUnitKeys = [
+    'labUnits',
+    'laboratoryUnits',
+    'laboratory_units',
+    'lab_units',
+];
+
+const totalUnitKeys = [
+    'totalUnits',
+    'total_units',
+    'totalCreditUnits',
+    'total_credit_units',
+    'unit',
+    'units',
+    'creditUnits',
+    'credit_units',
+    'credits',
+    'units_load',
+    'unitsLoad',
+];
+
+const numericPick = (row: CurriculumRecord, keys: string[]): number | null => {
+    for (const key of keys) {
+        const value = row[key];
+
+        if (value !== null && value !== undefined && value !== '') {
+            const numeric = Number(value);
+
+            if (Number.isFinite(numeric)) {
+                return numeric;
+            }
+        }
+    }
+
+    return null;
+};
+
+const subjectLectureUnits = (row: CurriculumRecord) =>
+    numericPick(row, lectureUnitKeys) ?? 0;
+
+const subjectLabUnits = (row: CurriculumRecord) =>
+    numericPick(row, labUnitKeys) ?? 0;
+
+const subjectUnits = (row: CurriculumRecord) => {
+    const lectureUnits = subjectLectureUnits(row);
+    const labUnits = subjectLabUnits(row);
+
+    if (lectureUnits > 0 || labUnits > 0) {
+        return lectureUnits + labUnits;
+    }
+
+    return numericPick(row, totalUnitKeys) ?? 0;
+};
+
+const formatUnit = (units: number) =>
+    units > 0 ? String(units).replace(/\.0$/, '') : '-';
+
+const totalLectureUnits = computed(() =>
+    asArray(props.curriculum.data).reduce(
+        (sum, row) => sum + subjectLectureUnits(row),
+        0,
+    ),
+);
+
+const totalLabUnits = computed(() =>
+    asArray(props.curriculum.data).reduce(
+        (sum, row) => sum + subjectLabUnits(row),
+        0,
+    ),
+);
+
+const totalUnits = computed(() =>
+    asArray(props.curriculum.data).reduce(
+        (sum, row) => sum + subjectUnits(row),
+        0,
+    ),
+);
+
+const subjectLectureUnitsDisplay = (row: CurriculumRecord) =>
+    formatUnit(subjectLectureUnits(row));
+
+const subjectLabUnitsDisplay = (row: CurriculumRecord) =>
+    formatUnit(subjectLabUnits(row));
+
+const prerequisiteItems = (row: CurriculumRecord): string[] => {
+    const prerequisites = row.preRequisites ?? row.pre_requisites;
+
+    if (Array.isArray(prerequisites) && prerequisites.length > 0) {
+        return prerequisites
+            .map((prerequisite) => {
+                if (!prerequisite || typeof prerequisite !== 'object') {
+                    return null;
+                }
+
+                const subjectId = pick(prerequisite, [
+                    'subjectId',
+                    'subject_id',
+                    'prerequisiteSubjectId',
+                    'prerequisite_subject_id',
+                ]);
+
+                if (subjectId === '-') {
+                    return null;
+                }
+
+                return subjectLookup.value.get(subjectId) ?? subjectId;
+            })
+            .filter((item): item is string => Boolean(item));
+    }
+
+    const textValue = pick(row, columns[3].keys);
+
+    if (textValue === '-') {
+        return [];
+    }
+
+    return textValue
+        .split(/[,\n;/]+/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+};
+
+const semesterUnits = (rows: CurriculumRecord[]) =>
+    rows.reduce((sum, row) => sum + subjectUnits(row), 0);
 
 const isTruthy = (value: unknown) => {
     if (typeof value === 'boolean') return value;
@@ -400,7 +529,7 @@ const can = (permission?: string | string[]): boolean => {
             </div>
 
             <div class="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
-                <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+                <div class="rounded-lg border border-slate-200 bg-gradient-to-br from-white to-sky-50/70 p-3 dark:border-white/10 dark:from-white/5 dark:to-sky-500/10">
                     <div
                         class="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400">
                         <Layers class="size-4 text-sky-600" />
@@ -410,17 +539,27 @@ const can = (permission?: string | string[]): boolean => {
                         {{ totalSubjects }}
                     </div>
                 </div>
-                <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+                <div class="rounded-lg border border-slate-200 bg-gradient-to-br from-white to-emerald-50/70 p-3 dark:border-white/10 dark:from-white/5 dark:to-emerald-500/10">
                     <div
                         class="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400">
                         <CheckCircle2 class="size-4 text-emerald-600" />
-                        Units
+                        Total Units
                     </div>
                     <div class="mt-2 text-2xl font-bold text-slate-950 dark:text-white">
-                        {{ totalUnits }}
+                        {{ formatUnit(totalUnits) }}
+                    </div>
+                    <div class="mt-2 flex flex-wrap gap-1.5 text-[10px] font-bold uppercase">
+                        <span
+                            class="rounded-full border border-emerald-200 bg-white/80 px-2 py-0.5 text-emerald-700 dark:border-emerald-400/30 dark:bg-white/10 dark:text-emerald-300">
+                            Lec {{ formatUnit(totalLectureUnits) }}
+                        </span>
+                        <span
+                            class="rounded-full border border-cyan-200 bg-white/80 px-2 py-0.5 text-cyan-700 dark:border-cyan-400/30 dark:bg-white/10 dark:text-cyan-300">
+                            Lab {{ formatUnit(totalLabUnits) }}
+                        </span>
                     </div>
                 </div>
-                <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+                <div class="rounded-lg border border-slate-200 bg-gradient-to-br from-white to-amber-50/70 p-3 dark:border-white/10 dark:from-white/5 dark:to-amber-500/10">
                     <div
                         class="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400">
                         <GraduationCap class="size-4 text-amber-600" />
@@ -430,7 +569,7 @@ const can = (permission?: string | string[]): boolean => {
                         {{ processedData.length }}
                     </div>
                 </div>
-                <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+                <div class="rounded-lg border border-slate-200 bg-gradient-to-br from-white to-violet-50/70 p-3 dark:border-white/10 dark:from-white/5 dark:to-violet-500/10">
                     <div
                         class="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400">
                         <Calendar class="size-4 text-violet-600" />
@@ -457,10 +596,6 @@ const can = (permission?: string | string[]): boolean => {
                             {{ totalSemesters }} terms
                         </p>
                     </div>
-                    <span
-                        class="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:border-white/10 dark:text-slate-300">
-                        {{ totalSubjects }} rows
-                    </span>
                 </div>
 
                 <div v-if="curriculum.error"
@@ -527,7 +662,7 @@ const can = (permission?: string | string[]): boolean => {
 
                             <CollapsibleContent>
                                 <div class="overflow-x-auto border-t border-slate-200 dark:border-white/10">
-                                    <table class="w-full min-w-[840px] text-sm">
+                                    <table class="w-full min-w-[920px] text-sm">
                                         <thead
                                             class="bg-slate-50 text-left text-[11px] font-bold text-slate-500 uppercase dark:bg-white/5 dark:text-slate-400">
                                             <tr>
@@ -538,7 +673,10 @@ const can = (permission?: string | string[]): boolean => {
                                                     Description
                                                 </th>
                                                 <th class="px-4 py-3 text-center">
-                                                    Units
+                                                    Lecture Unit
+                                                </th>
+                                                <th class="px-4 py-3 text-center">
+                                                    Lab Unit
                                                 </th>
                                                 <th class="px-4 py-3">
                                                     Prerequisites
@@ -572,30 +710,25 @@ const can = (permission?: string | string[]): boolean => {
                                                 <td class="px-4 py-3 text-center align-top">
                                                     <span
                                                         class="inline-flex min-w-9 items-center justify-center rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-800 dark:bg-white/10 dark:text-slate-100">
-                                                        {{
-                                                            pick(
-                                                                row,
-                                                                columns[2].keys,
-                                                            )
-                                                        }}
+                                                        {{ subjectLectureUnitsDisplay(row) }}
+                                                    </span>
+                                                </td>
+                                                <td class="px-4 py-3 text-center align-top">
+                                                    <span
+                                                        class="inline-flex min-w-9 items-center justify-center rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-800 dark:bg-white/10 dark:text-slate-100">
+                                                        {{ subjectLabUnitsDisplay(row) }}
                                                     </span>
                                                 </td>
                                                 <td
                                                     class="px-4 py-3 align-top text-xs font-medium text-slate-500 dark:text-slate-400">
-                                                    <span v-if="
-                                                        pick(
-                                                            row,
-                                                            columns[3].keys,
-                                                        ) !== '-'
-                                                    "
-                                                        class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300">
-                                                        {{
-                                                            pick(
-                                                                row,
-                                                                columns[3].keys,
-                                                            )
-                                                        }}
-                                                    </span>
+                                                    <div v-if="prerequisiteItems(row).length"
+                                                        class="flex max-w-xs flex-wrap gap-1.5">
+                                                        <span v-for="prerequisite in prerequisiteItems(row)"
+                                                            :key="prerequisite"
+                                                            class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300">
+                                                            {{ prerequisite }}
+                                                        </span>
+                                                    </div>
                                                     <span v-else class="text-slate-400">
                                                         None
                                                     </span>

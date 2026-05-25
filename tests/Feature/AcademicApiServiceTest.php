@@ -63,3 +63,46 @@ test('it resolves active semester details for a user', function () {
         ->and($result['campusId'])->toBe(9)
         ->and($result['error'])->toBeNull();
 });
+
+test('it loads the student curriculum for the active term', function () {
+    Http::fake([
+        'https://academic.example/api/v2/TrialProgram/curriculum/student/22-77886/term/102?tenantId=1' => Http::response([
+            'message' => 'Success',
+            'yearAndLevel' => [
+                [
+                    'yearTermDesc' => '1st Year - 1st Semester',
+                    'totalUnits' => 20,
+                    'subjects' => [
+                        [
+                            'subjectCode' => 'CS 01',
+                            'subjectDesc' => 'Fundamentals of Programming',
+                            'acadUnits' => 2,
+                            'labUnits' => 1,
+                        ],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $result = app(AcademicApiService::class)->curriculumForStudent('22-77886', 102, '1');
+
+    expect($result['error'])->toBeNull()
+        ->and($result['data']['message'])->toBe('Success')
+        ->and($result['data']['yearAndLevel'][0]['totalUnits'])->toBe(20);
+
+    Http::assertSent(fn ($request) => $request->url() === 'https://academic.example/api/v2/TrialProgram/curriculum/student/22-77886/term/102?tenantId=1');
+});
+
+test('it requires an active term before loading the student curriculum', function () {
+    Http::fake();
+
+    $result = app(AcademicApiService::class)->curriculumForStudent('22-77886', null, '1');
+
+    expect($result)->toBe([
+        'data' => [],
+        'error' => 'No active academic term is available right now.',
+    ]);
+
+    Http::assertNothingSent();
+});

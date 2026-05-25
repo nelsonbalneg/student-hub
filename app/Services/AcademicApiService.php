@@ -157,7 +157,7 @@ class AcademicApiService
         ];
     }
 
-    public function curriculumForStudent(?string $studentNo, ?string $tenantId): array
+    public function curriculumForStudent(?string $studentNo, int|string|null $termId, ?string $tenantId): array
     {
         if (blank($studentNo)) {
             return [
@@ -173,7 +173,14 @@ class AcademicApiService
             ];
         }
 
-        $endpoint = 'TrialProgram/curriculum/student/'.rawurlencode($studentNo);
+        if (blank($termId)) {
+            return [
+                'data' => [],
+                'error' => 'No active academic term is available right now.',
+            ];
+        }
+
+        $endpoint = 'TrialProgram/curriculum/student/'.rawurlencode($studentNo).'/term/'.rawurlencode((string) $termId);
 
         try {
             $response = $this->client()->get($endpoint, [
@@ -183,13 +190,14 @@ class AcademicApiService
             if ($response->status() === 404) {
                 Log::info('No curriculum found for student', [
                     'student_no' => $studentNo,
+                    'term_id' => $termId,
                     'tenant_id' => $tenantId,
                     'response_body' => $response->body(),
                 ]);
 
                 return [
                     'data' => [],
-                    'error' => "No curriculum was found for student number {$studentNo}.",
+                    'error' => "No curriculum was found for student number {$studentNo} in the active term.",
                 ];
             }
 
@@ -204,6 +212,7 @@ class AcademicApiService
         } catch (Throwable $exception) {
             Log::warning('Unable to load student curriculum', [
                 'student_no' => $studentNo,
+                'term_id' => $termId,
                 'tenant_id' => $tenantId,
                 'exception' => $exception::class,
                 'message' => $exception->getMessage(),

@@ -16,6 +16,8 @@ class CurriculumController extends Controller
         $user = $request->user();
         $studentNo = $this->academicApi->studentNumberFor($user);
         $tenantId = blank($user->tenant_id) ? null : (string) $user->tenant_id;
+        $activeSemester = $this->academicApi->getActiveSemesterForUser($user);
+        $termId = $activeSemester['termId'] ?? null;
 
         return Inertia::render('Curriculum/Index', [
             'student' => [
@@ -24,7 +26,11 @@ class CurriculumController extends Controller
                 'campus_name' => $user->campus_name,
                 'tenant_id' => $tenantId,
             ],
-            'curriculum' => $this->academicApi->curriculumForStudent($studentNo, $tenantId),
+            'activeTerm' => [
+                'term_id' => $termId,
+                'semester' => $activeSemester['semester'] ?? null,
+            ],
+            'curriculum' => $this->academicApi->curriculumForStudent($studentNo, $termId, $tenantId),
         ]);
     }
 }
