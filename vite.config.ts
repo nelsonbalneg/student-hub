@@ -9,23 +9,32 @@ import laravel from 'laravel-vite-plugin';
 import { bunny } from 'laravel-vite-plugin/fonts';
 import { defineConfig } from 'vite';
 
+const laragonCertificate = 'C:/laragon/etc/ssl/laragon.crt';
+const laragonKey = 'C:/laragon/etc/ssl/laragon.key';
+const hasLaragonCertificate =
+    fs.existsSync(laragonCertificate) && fs.existsSync(laragonKey);
+
 export default defineConfig({
     server: {
         host: 'studenthub.test',
         port: 5173,
         strictPort: true,
-        origin: 'https://studenthub.test:5173',
+        origin: hasLaragonCertificate
+            ? 'https://studenthub.test:5173'
+            : 'http://studenthub.test:5173',
         cors: {
             origin: 'https://studenthub.test',
             credentials: true,
         },
-        https: {
-            cert: fs.readFileSync('C:/laragon/etc/ssl/laragon.crt'),
-            key: fs.readFileSync('C:/laragon/etc/ssl/laragon.key'),
-        },
+        https: hasLaragonCertificate
+            ? {
+                  cert: fs.readFileSync(laragonCertificate),
+                  key: fs.readFileSync(laragonKey),
+              }
+            : undefined,
         hmr: {
             host: 'studenthub.test',
-            protocol: 'wss',
+            protocol: hasLaragonCertificate ? 'wss' : 'ws',
             clientPort: 5173,
         },
     },
