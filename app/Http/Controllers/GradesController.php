@@ -70,6 +70,7 @@ class GradesController extends Controller
         $gradeReport = $this->academicApi->gradeReportForStudent($studentNo, $tenantId);
 
         $evaluationError = null;
+        $evaluationErrorType = null; // 'connectivity' | 'no_data' | 'missing_context'
         $evaluationLookup = [];
         $lockGradesDueToEvaluationVerificationFailure = false;
         $activeTerm = $this->activeTermService->execute($user->campus_id);
@@ -99,20 +100,34 @@ class GradesController extends Controller
                     ]);
                 } else {
                     $lockGradesDueToEvaluationVerificationFailure = true;
-                    $evaluationError = 'Faculty evaluation status could not be verified. Grades are locked until verification is available.';
+                    $evaluationErrorType = 'connectivity';
+                    $evaluationError = 'The faculty evaluation service could not be reached. Your grades are temporarily locked until the service is available again.';
                 }
 
                 if ($evaluationId && empty($evaluationLookup)) {
                     $lockGradesDueToEvaluationVerificationFailure = true;
-                    $evaluationError = 'Faculty evaluation status could not be verified. Grades are locked until verification is available.';
+                    $evaluationErrorType = 'no_data';
+                    $evaluationError = 'The evaluation service returned no data for your account. Your grades are temporarily locked. Please try again later or contact the registrar.';
                 }
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
+                $message = $e->getMessage();
+                $isConnectivity = str_contains($message, 'cURL') ||
+                    str_contains($message, 'Connection') ||
+                    str_contains($message, 'timed out') ||
+                    str_contains($message, 'SSL') ||
+                    str_contains($message, 'Could not resolve') ||
+                    str_contains($message, 'Failed to connect');
+
                 Log::error('Evaluation API error in GradesController', [
                     'student_no' => $studentNo,
-                    'message' => $e->getMessage(),
+                    'message' => $message,
+                    'type' => $isConnectivity ? 'connectivity' : 'unknown',
                 ]);
                 $lockGradesDueToEvaluationVerificationFailure = true;
-                $evaluationError = 'Faculty evaluation status could not be verified. Grades are locked until verification is available.';
+                $evaluationErrorType = $isConnectivity ? 'connectivity' : 'no_data';
+                $evaluationError = $isConnectivity
+                    ? 'The faculty evaluation service is currently unreachable (network or SSL issue). Your grades are temporarily locked. Please try again in a few minutes.'
+                    : 'An unexpected error occurred while verifying your evaluation status. Your grades are temporarily locked. Please contact the registrar if this persists.';
             }
         } elseif (! $bypassEvaluation) {
             Log::warning('Skipping grade evaluation verification because required context is missing', [
@@ -123,7 +138,8 @@ class GradesController extends Controller
             ]);
 
             $lockGradesDueToEvaluationVerificationFailure = true;
-            $evaluationError = 'Faculty evaluation status could not be verified. Grades are locked until verification is available.';
+            $evaluationErrorType = 'missing_context';
+            $evaluationError = 'Your account is missing required information (campus or tenant). Please contact your registrar or system administrator to complete your account setup.';
         }
 
         // Enrich grade data with evaluation status
@@ -206,6 +222,7 @@ class GradesController extends Controller
             ],
             'gradeReport' => $gradeReport,
             'evaluation_error' => $evaluationError,
+            'evaluation_error_type' => $evaluationErrorType,
         ]);
     }
 

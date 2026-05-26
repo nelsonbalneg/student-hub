@@ -51,7 +51,7 @@ class SiteBrandingController extends Controller
         $this->syncUpload($request, 'site_logo', 'branding/logos', (bool) ($validated['remove_logo'] ?? false), $current['site_logo'], $userId);
         $this->syncUpload($request, 'site_favicon', 'branding/favicons', (bool) ($validated['remove_favicon'] ?? false), $current['site_favicon'], $userId);
 
-        return back()->with('success', 'Site settings updated successfully.');
+        return redirect()->route('site-settings.branding.index')->with('success', 'Site settings updated successfully.');
     }
 
     private function syncUpload(Request $request, string $key, string $directory, bool $remove, ?string $currentPath, int $userId): void

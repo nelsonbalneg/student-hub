@@ -9,6 +9,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class SiteCampusController extends Controller
 {
@@ -69,7 +70,7 @@ class SiteCampusController extends Controller
                         'mime' => $file->getMimeType(),
                         'size' => $file->getSize(),
                     ]);
-                    return back()->withErrors(['logo' => 'The logo could not be processed. Please try again or use a different file.']);
+                    throw ValidationException::withMessages(['logo' => 'The logo could not be processed. Please try again or use a different file.']);
                 }
             }
         }
@@ -81,7 +82,7 @@ class SiteCampusController extends Controller
 
         SiteCampus::create($validated);
 
-        return back()->with('success', 'Campus created successfully.');
+        return redirect()->route('site-settings.campuses.index')->with('success', 'Campus created successfully.');
     }
 
     public function update(Request $request, SiteCampus $campus): RedirectResponse
@@ -115,7 +116,7 @@ class SiteCampusController extends Controller
                         'mime' => $file->getMimeType(),
                         'size' => $file->getSize(),
                     ]);
-                    return back()->withErrors(['logo' => 'The logo could not be processed. Please try again or use a different file.']);
+                    throw ValidationException::withMessages(['logo' => 'The logo could not be processed. Please try again or use a different file.']);
                 }
             }
         }
@@ -127,7 +128,7 @@ class SiteCampusController extends Controller
 
         $campus->update($validated);
 
-        return back()->with('success', 'Campus updated successfully.');
+        return redirect()->route('site-settings.campuses.show', $campus)->with('success', 'Campus updated successfully.');
     }
 
     public function destroy(SiteCampus $campus): RedirectResponse

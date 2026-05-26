@@ -20,7 +20,7 @@ class StudentRecordsController extends Controller
 
         $request->user()->achievements()->create($validated);
 
-        return back()->with('success', 'Achievement added successfully.');
+        return redirect()->route('student-profile.index')->with('success', 'Achievement added successfully.');
     }
 
     public function updateAchievement(Request $request, Achievement $achievement): RedirectResponse
@@ -38,7 +38,7 @@ class StudentRecordsController extends Controller
 
         $achievement->update($validated);
 
-        return back()->with('success', 'Achievement updated successfully.');
+        return redirect()->route('student-profile.index')->with('success', 'Achievement updated successfully.');
     }
 
     public function deleteAchievement(Request $request, Achievement $achievement): RedirectResponse
@@ -49,7 +49,7 @@ class StudentRecordsController extends Controller
 
         $achievement->delete();
 
-        return back()->with('success', 'Achievement deleted successfully.');
+        return redirect()->route('student-profile.index')->with('success', 'Achievement deleted successfully.');
     }
 
     public function storeTraining(Request $request): RedirectResponse
@@ -64,7 +64,7 @@ class StudentRecordsController extends Controller
 
         $request->user()->trainings()->create($validated);
 
-        return back()->with('success', 'Training/Seminar added successfully.');
+        return redirect()->route('student-profile.index')->with('success', 'Training/Seminar added successfully.');
     }
 
     public function updateTraining(Request $request, Training $training): RedirectResponse
@@ -83,7 +83,7 @@ class StudentRecordsController extends Controller
 
         $training->update($validated);
 
-        return back()->with('success', 'Training/Seminar updated successfully.');
+        return redirect()->route('student-profile.index')->with('success', 'Training/Seminar updated successfully.');
     }
 
     public function deleteTraining(Request $request, Training $training): RedirectResponse
@@ -94,6 +94,6 @@ class StudentRecordsController extends Controller
 
         $training->delete();
 
-        return back()->with('success', 'Training/Seminar deleted successfully.');
+        return redirect()->route('student-profile.index')->with('success', 'Training/Seminar deleted successfully.');
     }
 }

@@ -11,9 +11,12 @@ import {
     GraduationCap,
     MessageSquareQuote,
     Printer,
+    ServerCrash,
     Star,
     TrendingUp,
     User,
+    UserX,
+    WifiOff,
 } from 'lucide-vue-next';
 import {
     Collapsible,
@@ -102,6 +105,7 @@ const props = defineProps<{
         };
     };
     evaluation_error: string | null;
+    evaluation_error_type: 'connectivity' | 'no_data' | 'missing_context' | null;
 }>();
 
 const expandedTerms = ref<Record<string, boolean>>({});
@@ -1279,10 +1283,79 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
         <!-- Evaluation Warning Banner -->
         <div
             v-if="evaluation_error"
-            class="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200"
+            class="rounded-xl border p-4 shadow-sm"
+            :class="{
+                'border-red-200 bg-red-50 dark:border-red-400/30 dark:bg-red-500/10':
+                    evaluation_error_type === 'connectivity',
+                'border-amber-200 bg-amber-50 dark:border-amber-400/30 dark:bg-amber-500/10':
+                    evaluation_error_type !== 'connectivity',
+            }"
         >
-            <AlertCircle class="size-5 shrink-0 text-amber-600" />
-            <p class="font-medium">{{ evaluation_error }}</p>
+            <div class="flex items-start gap-3">
+                <div
+                    class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg"
+                    :class="{
+                        'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400':
+                            evaluation_error_type === 'connectivity',
+                        'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400':
+                            evaluation_error_type === 'no_data',
+                        'bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400':
+                            evaluation_error_type === 'missing_context',
+                        'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400':
+                            !evaluation_error_type,
+                    }"
+                >
+                    <WifiOff
+                        v-if="evaluation_error_type === 'connectivity'"
+                        class="size-5"
+                    />
+                    <ServerCrash
+                        v-else-if="evaluation_error_type === 'no_data'"
+                        class="size-5"
+                    />
+                    <UserX
+                        v-else-if="evaluation_error_type === 'missing_context'"
+                        class="size-5"
+                    />
+                    <AlertCircle v-else class="size-5" />
+                </div>
+                <div class="min-w-0 flex-1">
+                    <p
+                        class="text-sm font-semibold"
+                        :class="{
+                            'text-red-800 dark:text-red-300':
+                                evaluation_error_type === 'connectivity',
+                            'text-amber-800 dark:text-amber-200':
+                                evaluation_error_type !== 'connectivity',
+                        }"
+                    >
+                        <span v-if="evaluation_error_type === 'connectivity'"
+                            >Evaluation Service Unavailable</span
+                        >
+                        <span v-else-if="evaluation_error_type === 'no_data'"
+                            >Evaluation Data Not Found</span
+                        >
+                        <span
+                            v-else-if="
+                                evaluation_error_type === 'missing_context'
+                            "
+                            >Account Setup Incomplete</span
+                        >
+                        <span v-else>Grades Temporarily Locked</span>
+                    </p>
+                    <p
+                        class="mt-1 text-xs"
+                        :class="{
+                            'text-red-700 dark:text-red-400':
+                                evaluation_error_type === 'connectivity',
+                            'text-amber-700 dark:text-amber-300':
+                                evaluation_error_type !== 'connectivity',
+                        }"
+                    >
+                        {{ evaluation_error }}
+                    </p>
+                </div>
+            </div>
         </div>
 
         <section

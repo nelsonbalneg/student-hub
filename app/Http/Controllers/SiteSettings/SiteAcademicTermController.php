@@ -41,7 +41,7 @@ class SiteAcademicTermController extends Controller
 
         SiteAcademicTerm::create($validated);
 
-        return back()->with('success', 'Academic term created successfully.');
+        return redirect()->route('site-settings.campuses.show', $campus)->with('success', 'Academic term created successfully.');
     }
 
     public function update(Request $request, SiteCampus $campus, SiteAcademicTerm $term): RedirectResponse
@@ -73,7 +73,7 @@ class SiteAcademicTermController extends Controller
 
         $term->update($validated);
 
-        return back()->with('success', 'Academic term updated successfully.');
+        return redirect()->route('site-settings.campuses.show', $campus)->with('success', 'Academic term updated successfully.');
     }
 
     public function activate(Request $request, SiteCampus $campus, SiteAcademicTerm $term): RedirectResponse
@@ -87,7 +87,7 @@ class SiteAcademicTermController extends Controller
             'updated_by' => $request->user()->id,
         ]);
 
-        return back()->with('success', 'Academic term activated successfully.');
+        return redirect()->route('site-settings.campuses.show', $campus)->with('success', 'Academic term activated successfully.');
     }
 
     public function destroy(SiteCampus $campus, SiteAcademicTerm $term): RedirectResponse
@@ -96,6 +96,6 @@ class SiteAcademicTermController extends Controller
 
         $term->delete();
 
-        return back()->with('success', 'Academic term deleted successfully.');
+        return redirect()->route('site-settings.campuses.show', $campus)->with('success', 'Academic term deleted successfully.');
     }
 }

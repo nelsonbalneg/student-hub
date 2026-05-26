@@ -130,7 +130,7 @@ class UserManagementController extends Controller
 
         $user->syncRoles($validated['roles'] ?? []);
 
-        return back()->with('success', 'User created.');
+        return to_route('user-management.index')->with('success', 'User created.');
     }
 
     public function updateUser(UpdateUserRequest $request, User $user): RedirectResponse
@@ -145,14 +145,14 @@ class UserManagementController extends Controller
 
         $user->update($this->onlyExistingUserColumns($validated, ['name', 'email', 'password', 'is_active', 'user_type', 'office', 'office_id', 'department']));
 
-        return back()->with('success', 'User updated.');
+        return to_route('user-management.index')->with('success', 'User updated.');
     }
 
     public function assignRoles(AssignRoleRequest $request, User $user): RedirectResponse
     {
         $user->syncRoles($request->validated('roles') ?? []);
 
-        return back()->with('success', 'User roles updated.');
+        return to_route('user-management.index')->with('success', 'User roles updated.');
     }
 
     public function assignOffice(Request $request, User $user): RedirectResponse
@@ -165,7 +165,7 @@ class UserManagementController extends Controller
 
         $user->update($validated);
 
-        return back()->with('success', 'User office updated.');
+        return to_route('user-management.index')->with('success', 'User office updated.');
     }
 
     public function toggleUser(Request $request, User $user): RedirectResponse
@@ -176,7 +176,7 @@ class UserManagementController extends Controller
             $user->update(['is_active' => ! $user->is_active]);
         }
 
-        return back()->with('success', 'User status updated.');
+        return to_route('user-management.index')->with('success', 'User status updated.');
     }
 
     public function destroyUser(Request $request, User $user): RedirectResponse
@@ -256,7 +256,7 @@ class UserManagementController extends Controller
             'deleted_history_counts' => $deletedHistoryCounts,
         ]);
 
-        return back()->with('success', $force ? 'User and linked records deleted.' : 'User deleted.');
+        return to_route('user-management.index')->with('success', $force ? 'User and linked records deleted.' : 'User deleted.');
     }
 
     public function storeRole(StoreRoleRequest $request): RedirectResponse
@@ -270,7 +270,7 @@ class UserManagementController extends Controller
         $role->syncPermissions($request->validated('permissions') ?? []);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        return back()->with('success', 'Role created.');
+        return to_route('user-management.roles.index')->with('success', 'Role created.');
     }
 
     public function updateRole(UpdateRoleRequest $request, Role $role): RedirectResponse
@@ -288,7 +288,7 @@ class UserManagementController extends Controller
         $role->syncPermissions($request->validated('permissions') ?? []);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        return back()->with('success', 'Role updated.');
+        return to_route('user-management.roles.index')->with('success', 'Role updated.');
     }
 
     public function syncRolePermissions(Request $request, Role $role): RedirectResponse
@@ -308,7 +308,7 @@ class UserManagementController extends Controller
         $role->syncPermissions($permissionNames);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        return back()->with('success', 'Role permissions updated.');
+        return to_route('user-management.roles.index')->with('success', 'Role permissions updated.');
     }
 
     public function destroyRole(Request $request, Role $role): RedirectResponse
@@ -318,7 +318,7 @@ class UserManagementController extends Controller
         $role->delete();
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        return back()->with('success', 'Role deleted.');
+        return to_route('user-management.roles.index')->with('success', 'Role deleted.');
     }
 
     public function storePermission(StorePermissionRequest $request): RedirectResponse
@@ -331,7 +331,7 @@ class UserManagementController extends Controller
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        return back()->with('success', 'Permission created.');
+        return to_route('user-management.roles.index')->with('success', 'Permission created.');
     }
 
     public function updatePermission(UpdatePermissionRequest $request, Permission $permission): RedirectResponse
@@ -342,7 +342,7 @@ class UserManagementController extends Controller
         ]);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        return back()->with('success', 'Permission updated.');
+        return to_route('user-management.roles.index')->with('success', 'Permission updated.');
     }
 
     public function destroyPermission(Request $request, Permission $permission): RedirectResponse
@@ -352,7 +352,7 @@ class UserManagementController extends Controller
         $permission->delete();
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        return back()->with('success', 'Permission deleted.');
+        return to_route('user-management.roles.index')->with('success', 'Permission deleted.');
     }
 
     /**
