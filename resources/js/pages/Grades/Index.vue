@@ -502,7 +502,7 @@ const questionTypeLabel = (
     if (value === 3) {
         return 'Star Rating';
     }
-    if (value === 99) {
+    if (value === 0) {
         return 'Open-ended';
     }
     return 'Unknown';
@@ -542,7 +542,7 @@ const normalizedQuestionType = (item: Record<string, any>): number | null => {
             textType.includes('comment') ||
             textType.includes('essay')
         ) {
-            return 99;
+            return 0;
         }
     }
 
@@ -560,7 +560,7 @@ const normalizedQuestionType = (item: Record<string, any>): number | null => {
         statement.includes('improvement') ||
         statement.includes('comment')
     ) {
-        return 99;
+        return 0;
     }
 
     if (Number(item.starCount ?? 0) > 0) {
@@ -574,7 +574,7 @@ const isRatingQuestion = (item: Record<string, any>) =>
     normalizedQuestionType(item) === 3;
 
 const isTextQuestion = (item: Record<string, any>) =>
-    normalizedQuestionType(item) === 99;
+    normalizedQuestionType(item) === 0;
 
 const submittedAnswerForQuestion = (question: Record<string, any>) => {
     const questionId = question.id ?? question.templateQuestionId;

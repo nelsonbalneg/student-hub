@@ -15,11 +15,14 @@ class StudentEvaluationApiService
 
     private int $connectTimeout;
 
+    private bool $verifySsl;
+
     public function __construct()
     {
         $this->baseUrl = rtrim((string) config('services.evaluation_api.base_url'), '/');
         $this->timeout = (int) config('services.evaluation_api.timeout', 15);
         $this->connectTimeout = (int) config('services.evaluation_api.connect_timeout', 5);
+        $this->verifySsl = (bool) config('services.evaluation_api.verify_ssl', true);
     }
 
     /**
@@ -227,6 +230,9 @@ class StudentEvaluationApiService
             ->withHeaders([
                 'accept' => 'text/plain',
                 'X-Requested-With' => 'XMLHttpRequest',
+            ])
+            ->withOptions([
+                'verify' => $this->verifySsl,
             ])
             ->connectTimeout($this->connectTimeout)
             ->timeout($this->timeout);

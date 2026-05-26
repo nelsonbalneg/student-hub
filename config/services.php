@@ -53,6 +53,7 @@ return [
         'base_url' => env('EVALUATION_API_BASE_URL', 'https://localapps.usm.edu.ph/api/app'),
         'timeout' => env('EVALUATION_API_TIMEOUT', 15),
         'connect_timeout' => env('EVALUATION_API_CONNECT_TIMEOUT', 5),
+        'verify_ssl' => filter_var(env('EVALUATION_API_VERIFY_SSL', true), FILTER_VALIDATE_BOOLEAN),
     ],
 
     'academic_jwt' => [
