@@ -639,10 +639,6 @@ const canSubmitEvaluation = computed(() => {
             return Number(value) > 0;
         }
 
-        if (isTextQuestion(item)) {
-            return String(value ?? '').trim().length > 0;
-        }
-
         return true;
     });
 });
