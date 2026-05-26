@@ -173,7 +173,7 @@ class StudentEvaluationApiService
 
                             $hasPendingEvaluations = true;
                             $pendingItems[] = [
-                                'faculty' => $eval['faculty'] ?? 'Unknown Faculty',
+                                'faculty' => $eval['facultyName'] ?? $eval['faculty'] ?? 'Unknown Faculty',
                                 'type' => ($eval['lecture'] ?? false) ? 'lecture' : (($eval['lab'] ?? false) ? 'lab' : 'unknown'),
                                 'id' => $evaluationId,
                                 'status' => $eval['status'] ?? 'Not Evaluated',
@@ -187,7 +187,7 @@ class StudentEvaluationApiService
 
                         if (! $this->isNotEvaluatedStatus($eval['status'] ?? null)) {
                             $evaluatedItems[] = [
-                                'faculty' => $eval['faculty'] ?? 'Unknown Faculty',
+                                'faculty' => $eval['facultyName'] ?? $eval['faculty'] ?? 'Unknown Faculty',
                                 'type' => ($eval['lecture'] ?? false) ? 'lecture' : (($eval['lab'] ?? false) ? 'lab' : 'unknown'),
                                 'id' => $evaluationId,
                                 'status' => $eval['status'] ?? 'Evaluated',
@@ -214,7 +214,7 @@ class StudentEvaluationApiService
                         'term_id' => $termId,
                         'pending_evaluations' => $pendingItems,
                         'evaluated_evaluations' => $evaluatedItems,
-                        'faculty_names' => collect($evaluations)->pluck('faculty')->unique()->filter()->values()->all(),
+                        'faculty_names' => collect($evaluations)->map(fn ($e) => $e['facultyName'] ?? $e['faculty'] ?? null)->unique()->filter()->values()->all(),
                         'evaluation_payload' => [
                             'evaluationPeriodId' => $period['id'] ?? '',
                             'subjectForEvaluationId' => $subject['id'] ?? '',
