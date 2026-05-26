@@ -304,7 +304,7 @@ class GradesController extends Controller
             'student_no' => $validated['studentNo'] ?? null,
         ]);
 
-        return back()->with('success', 'Evaluation submitted successfully.');
+        return redirect()->route('grades.index')->with('success', 'Evaluation submitted successfully.');
     }
 
     private function maskEvaluationLockedGradeFields(array $grade): array
