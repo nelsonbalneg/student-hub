@@ -80,13 +80,13 @@ class InternetAccountController extends Controller
         $studentId = $this->academicApiService->studentNumberFor($user);
 
         if (blank($studentId)) {
-            return back()->with('error', 'No student number is linked to your SSO account.');
+            return redirect()->route('internet-accounts.index')->with('error', 'No student number is linked to your SSO account.');
         }
 
         $activeSemester = $this->academicApiService->getActiveSemesterForUser($user);
 
         if ($activeSemester['error']) {
-            return back()->with('error', $activeSemester['error']);
+            return redirect()->route('internet-accounts.index')->with('error', $activeSemester['error']);
         }
 
         $semester = $activeSemester['semester'];
@@ -94,7 +94,7 @@ class InternetAccountController extends Controller
         $campusId = $activeSemester['campusId'];
 
         if (blank($semester) || blank($termId)) {
-            return back()->with('error', 'No active semester found.');
+            return redirect()->route('internet-accounts.index')->with('error', 'No active semester found.');
         }
 
         $alreadyRequested = InternetAccountRequest::query()
@@ -104,7 +104,7 @@ class InternetAccountController extends Controller
             ->exists();
 
         if ($alreadyRequested) {
-            return back()->with('error', 'You already have an internet account request for the active term.');
+            return redirect()->route('internet-accounts.index')->with('error', 'You already have an internet account request for the active term.');
         }
 
         $username = $studentId.'-'.$termId;
@@ -147,20 +147,20 @@ class InternetAccountController extends Controller
                 'message' => $exception->getMessage(),
             ]);
 
-            return back()->with('error', 'Unable to submit your internet account request right now.');
+            return redirect()->route('internet-accounts.index')->with('error', 'Unable to submit your internet account request right now.');
         }
 
-        return back()->with('success', 'Internet account request submitted and queued for provisioning.');
+        return redirect()->route('internet-accounts.index')->with('success', 'Internet account request submitted and queued for provisioning.');
     }
 
     public function approve(InternetAccountRequest $internetAccount): RedirectResponse
     {
         if ($internetAccount->status === InternetAccountRequest::STATUS_ACTIVE || $internetAccount->status === InternetAccountRequest::STATUS_PROCESSING) {
-            return back()->with('error', 'This internet account request has already been provisioned.');
+            return redirect()->route('internet-accounts.index')->with('error', 'This internet account request has already been provisioned.');
         }
 
         if (blank($internetAccount->password)) {
-            return back()->with('error', 'This internet account request has no password to provision.');
+            return redirect()->route('internet-accounts.index')->with('error', 'This internet account request has no password to provision.');
         }
 
         try {
@@ -187,16 +187,16 @@ class InternetAccountController extends Controller
                 'message' => $exception->getMessage(),
             ]);
 
-            return back()->with('error', 'Unable to approve this internet account request right now.');
+            return redirect()->route('internet-accounts.index')->with('error', 'Unable to approve this internet account request right now.');
         }
 
-        return back()->with('success', 'Internet account request approved. MikroTik provisioning has been queued.');
+        return redirect()->route('internet-accounts.index')->with('success', 'Internet account request approved. MikroTik provisioning has been queued.');
     }
 
     public function cancel(InternetAccountRequest $internetAccount): RedirectResponse
     {
         if ($internetAccount->status === InternetAccountRequest::STATUS_ACTIVE) {
-            return back()->with('error', 'Active internet accounts cannot be cancelled from this screen.');
+            return redirect()->route('internet-accounts.index')->with('error', 'Active internet accounts cannot be cancelled from this screen.');
         }
 
         $internetAccount->update([
@@ -209,13 +209,13 @@ class InternetAccountController extends Controller
             'cancelled_by' => auth()->id(),
         ]);
 
-        return back()->with('success', 'Internet account request cancelled.');
+        return redirect()->route('internet-accounts.index')->with('success', 'Internet account request cancelled.');
     }
 
     public function update(Request $request, InternetAccountRequest $internetAccount): RedirectResponse
     {
         if ($internetAccount->status === InternetAccountRequest::STATUS_PROCESSING) {
-            return back()->with('error', 'Processing internet account requests cannot be edited.');
+            return redirect()->route('internet-accounts.index')->with('error', 'Processing internet account requests cannot be edited.');
         }
 
         $validated = $request->validate([
@@ -250,13 +250,13 @@ class InternetAccountController extends Controller
             'status' => $internetAccount->status,
         ]);
 
-        return back()->with('success', 'Internet account request updated.');
+        return redirect()->route('internet-accounts.index')->with('success', 'Internet account request updated.');
     }
 
     public function destroy(InternetAccountRequest $internetAccount): RedirectResponse
     {
         if ($internetAccount->status === InternetAccountRequest::STATUS_PROCESSING) {
-            return back()->with('error', 'Processing internet account requests cannot be deleted.');
+            return redirect()->route('internet-accounts.index')->with('error', 'Processing internet account requests cannot be deleted.');
         }
 
         $internetAccount->delete();
@@ -266,7 +266,7 @@ class InternetAccountController extends Controller
             'deleted_by' => auth()->id(),
         ]);
 
-        return back()->with('success', 'Internet account request deleted.');
+        return redirect()->route('internet-accounts.index')->with('success', 'Internet account request deleted.');
     }
 
     private function canManageInternetAccounts($user): bool
