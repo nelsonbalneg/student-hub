@@ -36,6 +36,7 @@ type Student = {
     campus_name: string | null;
     tenant_id: string | null;
     bypass_evaluation?: boolean;
+    show_gwa_gpa?: boolean;
     evaluation_id?: string | null;
 };
 
@@ -288,6 +289,8 @@ const averageGrade = computed(
     () => props.gradeReport.computed_summary?.average_gwa_display ?? '0.0000',
 );
 
+const canViewGwaGpa = computed(() => props.student.show_gwa_gpa !== false);
+
 const excludedKeywords = computed(
     () =>
         props.gradeReport.computed_summary?.excluded_keywords ?? [
@@ -300,7 +303,9 @@ const excludedKeywords = computed(
 );
 
 const countedUnitsDisplay = computed(() => {
-    const value = Number(props.gradeReport.computed_summary?.counted_units ?? 0);
+    const value = Number(
+        props.gradeReport.computed_summary?.counted_units ?? 0,
+    );
 
     return Number.isFinite(value) ? String(value).replace(/\.0$/, '') : '0';
 });
@@ -421,10 +426,12 @@ const isEvaluationClosed = (row: GradeRecord) => {
 };
 
 const hasEvaluationItems = (row: GradeRecord) => {
-    return [
-        ...(row.pending_evaluations ?? []),
-        ...(row.evaluated_evaluations ?? []),
-    ].length > 0;
+    return (
+        [
+            ...(row.pending_evaluations ?? []),
+            ...(row.evaluated_evaluations ?? []),
+        ].length > 0
+    );
 };
 
 const evaluatedSummary = (row: GradeRecord) => {
@@ -502,7 +509,7 @@ const questionTypeLabel = (
     if (value === 3) {
         return 'Star Rating';
     }
-    if (value === 0) {
+    if (value === 0 || value === 99) {
         return 'Open-ended';
     }
     return 'Unknown';
@@ -573,8 +580,11 @@ const normalizedQuestionType = (item: Record<string, any>): number | null => {
 const isRatingQuestion = (item: Record<string, any>) =>
     normalizedQuestionType(item) === 3;
 
-const isTextQuestion = (item: Record<string, any>) =>
-    normalizedQuestionType(item) === 0;
+const isTextQuestion = (item: Record<string, any>) => {
+    const type = normalizedQuestionType(item);
+
+    return type === 0 || type === 99;
+};
 
 const submittedAnswerForQuestion = (question: Record<string, any>) => {
     const questionId = question.id ?? question.templateQuestionId;
@@ -1005,10 +1015,10 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                             "
                                             @click="
                                                 !selectedEvaluationIsReadOnly &&
-                                                    setRatingAnswer(
-                                                        questionIdFor(item),
-                                                        n,
-                                                    )
+                                                setRatingAnswer(
+                                                    questionIdFor(item),
+                                                    n,
+                                                )
                                             "
                                         >
                                             <Star class="size-4" />
@@ -1213,7 +1223,9 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                             <p>
                                 The following subjects are not included in the
                                 computation:
-                                <span class="font-semibold text-slate-800 dark:text-slate-100">
+                                <span
+                                    class="font-semibold text-slate-800 dark:text-slate-100"
+                                >
                                     NSTP, Thesis, Capstone, OJT, and Practicum
                                     subjects.
                                 </span>
@@ -1327,6 +1339,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                     </div>
                 </div>
                 <div
+                    v-if="canViewGwaGpa"
                     class="rounded-lg border border-slate-200 bg-gradient-to-br from-white to-emerald-50/70 p-3 dark:border-white/10 dark:from-white/5 dark:to-emerald-500/10"
                 >
                     <div
@@ -1472,22 +1485,24 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                         class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400"
                                     >
                                         {{ group.rows.length }} courses /
-                                        {{ termUnits(group) }} units /
+                                        {{ termUnits(group) }} units
                                         <template
                                             v-if="
+                                                canViewGwaGpa &&
                                                 groupHasPendingEvaluations(
                                                     group,
                                                 )
                                             "
                                         >
+                                            /
                                             <span
                                                 class="font-bold text-amber-600 dark:text-amber-400"
                                             >
                                                 GPA Hidden (Evaluation Required)
                                             </span>
                                         </template>
-                                        <template v-else>
-                                            Semester GPA
+                                        <template v-else-if="canViewGwaGpa">
+                                            / Semester GPA
                                             {{
                                                 group.computedGpa !== '-'
                                                     ? group.computedGpa

@@ -278,6 +278,95 @@ class AcademicApiService
         }
     }
 
+    public function updateProfileForStudent(?string $studentNo, int|string|null $campusId, ?string $tenantId, array $payload): array
+    {
+        if (blank($studentNo)) {
+            return [
+                'ok' => false,
+                'error' => 'No student number is linked to your SSO account.',
+                'status' => null,
+            ];
+        }
+
+        if (blank($tenantId)) {
+            return [
+                'ok' => false,
+                'error' => 'No tenant ID is linked to your SSO account.',
+                'status' => null,
+            ];
+        }
+
+        if (blank($campusId)) {
+            return [
+                'ok' => false,
+                'error' => 'No campus is linked to your SSO account.',
+                'status' => null,
+            ];
+        }
+
+        $endpoint = 'Students/'.rawurlencode($studentNo);
+        $query = Arr::query([
+            'tenantId' => $tenantId,
+            'campusId' => $campusId,
+        ]);
+
+        try {
+            Log::info('Updating student profile', [
+                'student_no' => $studentNo,
+                'tenant_id' => $tenantId,
+                'campus_id' => $campusId,
+                'url' => $this->urlFor($endpoint),
+                'payload_keys' => array_keys($payload),
+            ]);
+
+            $response = $this->client()->patch($endpoint.'?'.$query, $payload);
+
+            if ($response->status() === 405) {
+                $response = $this->client()->put($endpoint.'?'.$query, $payload);
+            }
+
+            if (! $response->successful()) {
+                Log::warning('Student profile update rejected', [
+                    'student_no' => $studentNo,
+                    'tenant_id' => $tenantId,
+                    'campus_id' => $campusId,
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                    'url' => $this->urlFor($endpoint),
+                ]);
+
+                return [
+                    'ok' => false,
+                    'error' => 'Unable to save your profile right now.',
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ];
+            }
+
+            return [
+                'ok' => true,
+                'data' => $response->json(),
+                'status' => $response->status(),
+                'error' => null,
+            ];
+        } catch (Throwable $exception) {
+            Log::warning('Unable to update student profile', [
+                'student_no' => $studentNo,
+                'tenant_id' => $tenantId,
+                'campus_id' => $campusId,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+                'url' => $this->urlFor($endpoint),
+            ]);
+
+            return [
+                'ok' => false,
+                'error' => 'Unable to save your profile right now.',
+                'status' => null,
+            ];
+        }
+    }
+
     public function profileLookups(): array
     {
         $fetch = function (string $endpoint): array {
@@ -287,6 +376,7 @@ class AcademicApiService
                     return [];
                 }
                 $data = $response->json();
+
                 return is_array($data) ? $data : [];
             } catch (Throwable) {
                 return [];

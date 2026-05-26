@@ -30,6 +30,7 @@ class GradesController extends Controller
         $user = $request->user();
         $studentNo = $this->academicApi->studentNumberFor($user);
         $tenantId = blank($user->tenant_id) ? null : (string) $user->tenant_id;
+        $evaluationCampusId = blank($user->campus_id) ? null : (string) $user->campus_id;
 
         $activeSemester = $this->academicApi->getActiveSemesterForUser($user);
         $campusId = $activeSemester['campusId'] ?: 1;
@@ -38,11 +39,12 @@ class GradesController extends Controller
         // Check for grade viewing bypass rule with safe fallback.
         // If table/campus data is not ready yet, do not block grade/evaluation flow.
         $bypassEvaluation = false;
+        $showGwaGpa = true;
         if (! blank($user->campus_id)) {
             try {
                 $realCampusExists = SiteCampus::where('real_campus_id', (string) $user->campus_id)->exists();
 
-                $bypassEvaluation = GradeViewingRule::whereHas('campus', function ($query) use ($realCampusExists, $user) {
+                $gradeViewingRule = GradeViewingRule::whereHas('campus', function ($query) use ($realCampusExists, $user) {
                     if ($realCampusExists) {
                         $query->where('real_campus_id', (string) $user->campus_id);
 
@@ -52,10 +54,13 @@ class GradesController extends Controller
                     $query->where('id', $user->campus_id);
                 })
                     ->where('is_active', true)
-                    ->where('bypass_evaluation', true)
-                    ->exists();
+                    ->latest()
+                    ->first();
+
+                $bypassEvaluation = (bool) $gradeViewingRule?->bypass_evaluation;
+                $showGwaGpa = $gradeViewingRule?->show_gwa_gpa ?? true;
             } catch (\Throwable $e) {
-                Log::warning('Grade viewing rules lookup failed; defaulting bypass_evaluation to false', [
+                Log::warning('Grade viewing rules lookup failed; using strict grade viewing defaults', [
                     'campus_id' => $user->campus_id,
                     'message' => $e->getMessage(),
                 ]);
@@ -70,13 +75,28 @@ class GradesController extends Controller
         $activeTerm = $this->activeTermService->execute($user->campus_id);
         $activeTermId = $activeTerm?->term_id;
 
-        if (! $bypassEvaluation && $studentNo) {
+        if (! $bypassEvaluation && $studentNo && $evaluationCampusId && $tenantId) {
             try {
-                $evaluationId = $this->evaluationApi->findStudentByStudentNo($studentNo);
+                Log::info('Starting grade evaluation verification', [
+                    'user_id' => $user->id,
+                    'student_no' => $studentNo,
+                    'campus_id' => $evaluationCampusId,
+                    'tenant_id' => $tenantId,
+                    'active_term_id' => $activeTermId,
+                ]);
+
+                $evaluationId = $this->evaluationApi->findStudentByStudentNo($studentNo, $evaluationCampusId, $tenantId);
 
                 if ($evaluationId) {
                     $details = $this->evaluationApi->getStudentEvaluationDetails($evaluationId);
                     $evaluationLookup = $this->evaluationApi->buildEvaluationLookup($details);
+
+                    Log::info('Finished grade evaluation verification lookup', [
+                        'user_id' => $user->id,
+                        'student_no' => $studentNo,
+                        'evaluation_id' => $evaluationId,
+                        'matched_subject_count' => count($evaluationLookup),
+                    ]);
                 } else {
                     $lockGradesDueToEvaluationVerificationFailure = true;
                     $evaluationError = 'Faculty evaluation status could not be verified. Grades are locked until verification is available.';
@@ -95,6 +115,13 @@ class GradesController extends Controller
                 $evaluationError = 'Faculty evaluation status could not be verified. Grades are locked until verification is available.';
             }
         } elseif (! $bypassEvaluation) {
+            Log::warning('Skipping grade evaluation verification because required context is missing', [
+                'user_id' => $user->id,
+                'student_no' => $studentNo,
+                'campus_id' => $evaluationCampusId,
+                'tenant_id' => $tenantId,
+            ]);
+
             $lockGradesDueToEvaluationVerificationFailure = true;
             $evaluationError = 'Faculty evaluation status could not be verified. Grades are locked until verification is available.';
         }
@@ -174,6 +201,7 @@ class GradesController extends Controller
                 'campus_name' => $user->campus_name,
                 'tenant_id' => $tenantId,
                 'bypass_evaluation' => $bypassEvaluation,
+                'show_gwa_gpa' => $showGwaGpa,
                 'evaluation_id' => $evaluationId,
             ],
             'gradeReport' => $gradeReport,

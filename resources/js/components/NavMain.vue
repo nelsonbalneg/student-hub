@@ -107,7 +107,7 @@ const hasCurrentChild = (item: NavItem): boolean =>
                                     isCurrentNavigationItem(item.href) ||
                                     hasCurrentChild(item)
                                 "
-                                class="h-9 rounded-lg px-2.5 text-[13px] font-semibold tracking-tight text-slate-600 transition-all duration-150 hover:bg-slate-100 hover:text-slate-950 data-[active=true]:bg-sky-50 data-[active=true]:text-slate-950 dark:text-slate-400 dark:hover:bg-white/[0.05] dark:hover:text-slate-100 dark:data-[active=true]:bg-sky-500/10 dark:data-[active=true]:text-sky-200"
+                                class="h-9 rounded-lg px-2.5 text-[13px] font-semibold tracking-tight text-slate-600 transition-all duration-150 hover:bg-slate-100 hover:text-slate-950 data-[active=true]:bg-emerald-50 data-[active=true]:text-emerald-900 dark:text-slate-400 dark:hover:bg-white/[0.05] dark:hover:text-slate-100 dark:data-[active=true]:bg-emerald-500/10 dark:data-[active=true]:text-emerald-200"
                             >
                                 <component :is="item.icon" v-if="item.icon" />
                                 <span>{{ item.title }}</span>
@@ -137,7 +137,7 @@ const hasCurrentChild = (item: NavItem): boolean =>
                                                 subItem.href,
                                             )
                                         "
-                                        class="h-8 rounded-md px-2 text-[12px] font-semibold text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-950 data-[active=true]:bg-sky-50 data-[active=true]:text-sky-700 dark:text-slate-500 dark:hover:bg-white/[0.05] dark:hover:text-slate-300 dark:data-[active=true]:bg-sky-500/10 dark:data-[active=true]:text-sky-300"
+                                        class="h-8 rounded-md px-2 text-[12px] font-semibold text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-950 data-[active=true]:bg-emerald-50 data-[active=true]:text-emerald-700 dark:text-slate-500 dark:hover:bg-white/[0.05] dark:hover:text-slate-300 dark:data-[active=true]:bg-emerald-500/10 dark:data-[active=true]:text-emerald-300"
                                     >
                                         <a
                                             v-if="subItem.download"
@@ -180,14 +180,14 @@ const hasCurrentChild = (item: NavItem): boolean =>
                         as-child
                         :is-active="isCurrentNavigationItem(item.href)"
                         :tooltip="item.title"
-                        class="h-9 rounded-lg px-2.5 text-[13px] font-semibold tracking-tight text-slate-600 transition-all duration-150 hover:bg-slate-100 hover:text-slate-950 data-[active=true]:bg-sky-50 data-[active=true]:text-slate-950 dark:text-slate-400 dark:hover:bg-white/[0.05] dark:hover:text-slate-100 dark:data-[active=true]:bg-sky-500/10 dark:data-[active=true]:text-sky-200"
+                        class="h-9 rounded-lg px-2.5 text-[13px] font-semibold tracking-tight text-slate-600 transition-all duration-150 hover:bg-slate-100 hover:text-slate-950 data-[active=true]:bg-emerald-50 data-[active=true]:text-emerald-900 dark:text-slate-400 dark:hover:bg-white/[0.05] dark:hover:text-slate-100 dark:data-[active=true]:bg-emerald-500/10 dark:data-[active=true]:text-emerald-200"
                     >
                         <a v-if="item.download" :href="toUrl(item.href)">
                             <component :is="item.icon" v-if="item.icon" />
                             <span>{{ item.title }}</span>
                             <span
                                 v-if="isCurrentNavigationItem(item.href)"
-                                class="ml-auto size-1.5 rounded-full bg-sky-500 shadow-[0_0_8px_rgba(14,165,233,0.35)] group-data-[collapsible=icon]:hidden dark:bg-sky-400"
+                                class="ml-auto size-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.35)] group-data-[collapsible=icon]:hidden dark:bg-amber-300"
                             />
                             <span
                                 v-if="item.badge"
@@ -206,7 +206,7 @@ const hasCurrentChild = (item: NavItem): boolean =>
                             <span>{{ item.title }}</span>
                             <span
                                 v-if="isCurrentNavigationItem(item.href)"
-                                class="ml-auto size-1.5 rounded-full bg-sky-500 shadow-[0_0_8px_rgba(14,165,233,0.35)] group-data-[collapsible=icon]:hidden dark:bg-sky-400"
+                                class="ml-auto size-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.35)] group-data-[collapsible=icon]:hidden dark:bg-amber-300"
                             />
                             <span
                                 v-if="item.badge"

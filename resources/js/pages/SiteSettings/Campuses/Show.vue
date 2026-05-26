@@ -1,29 +1,28 @@
 <script setup lang="ts">
-import { Head, useForm, Link } from '@inertiajs/vue3';
-import { 
-    Building2, 
-    Calendar, 
-    Info, 
-    Plus, 
-    Search, 
-    Trash2, 
-    Edit, 
-    Power,
-    ArrowLeft,
-    Clock,
-    History,
-    CheckCircle2,
-    XCircle,
+import { Head, Link, useForm } from '@inertiajs/vue3';
+import {
     Archive,
-    MapPin,
+    ArrowLeft,
+    Building2,
+    Calendar,
+    CheckCircle2,
+    Clock,
+    Edit,
     Fingerprint,
-    RefreshCcw
+    History,
+    Info,
+    MapPin,
+    Plus,
+    Power,
+    RefreshCcw,
+    Search,
+    Trash2,
+    XCircle,
 } from 'lucide-vue-next';
-import { ref, computed } from 'vue';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { computed, ref } from 'vue';
+import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -32,6 +31,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
     Select,
@@ -40,11 +40,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import SiteSettingsLayout from '@/layouts/SiteSettingsLayout.vue';
-import { format } from 'date-fns';
 import * as campusRoutes from '@/routes/site-settings/campuses';
 import * as termRoutes from '@/routes/site-settings/campuses/terms';
+import { format } from 'date-fns';
 
 interface AcademicTerm {
     id: number;
@@ -77,7 +76,7 @@ const showDeleteTermModal = ref(false);
 const showEditModal = ref(false);
 const selectedTerm = ref<AcademicTerm | null>(null);
 const searchTerm = ref('');
-const activeTab = ref('info');
+const activeTab = ref<'info' | 'terms'>('info');
 
 const form = useForm({
     campus_name: props.campus.campus_name,
@@ -94,6 +93,31 @@ const termForm = useForm({
     status: 'Inactive' as 'Active' | 'Inactive' | 'Archived',
     start_date: '',
     end_date: '',
+});
+
+const terms = computed(() => props.campus.academic_terms || []);
+
+const activeTerm = computed(() =>
+    terms.value.find((term) => term.status === 'Active'),
+);
+
+const termStats = computed(() => ({
+    total: terms.value.length,
+    active: terms.value.filter((term) => term.status === 'Active').length,
+    archived: terms.value.filter((term) => term.status === 'Archived').length,
+}));
+
+const filteredTerms = computed(() => {
+    const query = searchTerm.value.toLowerCase();
+
+    return terms.value
+        .filter(
+            (term) =>
+                term.school_year.toLowerCase().includes(query) ||
+                term.semester.toLowerCase().includes(query) ||
+                term.term_id?.toLowerCase().includes(query),
+        )
+        .sort((a, b) => b.id - a.id);
 });
 
 const openEditModal = () => {
@@ -119,14 +143,6 @@ const updateCampus = () => {
     });
 };
 
-const filteredTerms = computed(() => {
-    return props.campus.academic_terms.filter(term => 
-        term.school_year.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-        term.semester.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-        term.term_id?.toLowerCase().includes(searchTerm.value.toLowerCase())
-    ).sort((a, b) => b.id - a.id);
-});
-
 const openCreateTerm = () => {
     selectedTerm.value = null;
     termForm.reset();
@@ -146,26 +162,39 @@ const openEditTerm = (term: AcademicTerm) => {
 
 const saveTerm = () => {
     if (selectedTerm.value) {
-        termForm.patch(termRoutes.update.url({ campus: props.campus.id, term: selectedTerm.value.id }), {
-            preserveScroll: true,
-            preserveState: true,
-            onSuccess: () => showTermModal.value = false,
-        });
-    } else {
-        termForm.post(termRoutes.store.url(props.campus.id), {
-            preserveScroll: true,
-            preserveState: true,
-            onSuccess: () => showTermModal.value = false,
-        });
+        termForm.patch(
+            termRoutes.update.url({
+                campus: props.campus.id,
+                term: selectedTerm.value.id,
+            }),
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onSuccess: () => (showTermModal.value = false),
+            },
+        );
+
+        return;
     }
+
+    termForm.post(termRoutes.store.url(props.campus.id), {
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => (showTermModal.value = false),
+    });
 };
 
 const activateTerm = (term: AcademicTerm) => {
-    termForm.patch(termRoutes.activate.url({ campus: props.campus.id, term: term.id }), {
-        preserveScroll: true,
-        preserveState: true,
-        onSuccess: () => {},
-    });
+    termForm.patch(
+        termRoutes.activate.url({
+            campus: props.campus.id,
+            term: term.id,
+        }),
+        {
+            preserveScroll: true,
+            preserveState: true,
+        },
+    );
 };
 
 const confirmDeleteTerm = (term: AcademicTerm) => {
@@ -175,18 +204,31 @@ const confirmDeleteTerm = (term: AcademicTerm) => {
 
 const deleteTerm = () => {
     if (!selectedTerm.value) return;
-    termForm.delete(termRoutes.destroy.url({ campus: props.campus.id, term: selectedTerm.value.id }), {
-        preserveScroll: true,
-        preserveState: true,
-        onSuccess: () => showDeleteTermModal.value = false,
-    });
+
+    termForm.delete(
+        termRoutes.destroy.url({
+            campus: props.campus.id,
+            term: selectedTerm.value.id,
+        }),
+        {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => (showDeleteTermModal.value = false),
+        },
+    );
 };
+
+const formatDate = (date?: string | null, pattern = 'MMM d, yyyy') =>
+    date ? format(new Date(date), pattern) : 'N/A';
 
 const getStatusBadgeClass = (status: string) => {
     switch (status) {
-        case 'Active': return 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400';
-        case 'Archived': return 'bg-slate-500/10 text-slate-600 dark:bg-slate-500/20 dark:text-slate-400';
-        default: return 'bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400';
+        case 'Active':
+            return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300';
+        case 'Archived':
+            return 'border-slate-200 bg-slate-100 text-slate-600 dark:border-white/10 dark:bg-white/10 dark:text-slate-300';
+        default:
+            return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300';
     }
 };
 </script>
@@ -195,416 +237,734 @@ const getStatusBadgeClass = (status: string) => {
     <Head :title="`${props.campus.campus_name} - Details`" />
 
     <SiteSettingsLayout>
-        <div class="flex flex-col gap-8 p-6 lg:p-10">
-            <!-- Header Section -->
-        <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-                <div class="flex items-center gap-6">
-                    <div class="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-3xl bg-white p-1 shadow-xl shadow-slate-200/50 ring-1 ring-slate-200 dark:bg-white/5 dark:shadow-none dark:ring-white/10">
-                        <img v-if="props.campus.campus_logo_path" :src="`/storage/${props.campus.campus_logo_path}`" :alt="props.campus.campus_name" class="h-full w-full rounded-2xl object-cover" />
-                        <Building2 v-else class="size-12 text-slate-200 dark:text-white/10" />
-                        <div class="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-white p-0.5 shadow-sm dark:bg-slate-900">
-                            <div :class="['h-full w-full rounded-full border-2 border-white dark:border-slate-900', props.campus.status === 'Active' ? 'bg-emerald-500' : 'bg-slate-400']"></div>
+        <div class="space-y-4 p-4 lg:p-6">
+            <div
+                class="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+            >
+                <div
+                    class="flex flex-col gap-4 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between dark:border-white/10"
+                >
+                    <div class="flex min-w-0 items-center gap-3">
+                        <div
+                            class="relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5"
+                        >
+                            <img
+                                v-if="props.campus.campus_logo_path"
+                                :src="`/storage/${props.campus.campus_logo_path}`"
+                                :alt="props.campus.campus_name"
+                                class="size-full object-cover"
+                            />
+                            <Building2
+                                v-else
+                                class="size-7 text-slate-300 dark:text-slate-600"
+                            />
+                        </div>
+
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h1
+                                    class="truncate text-xl font-semibold text-slate-950 dark:text-white"
+                                >
+                                    {{ props.campus.campus_name }}
+                                </h1>
+                                <Badge
+                                    :class="
+                                        props.campus.status === 'Active'
+                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                            : 'border-slate-200 bg-slate-100 text-slate-600 dark:border-white/10 dark:bg-white/10 dark:text-slate-300'
+                                    "
+                                    variant="outline"
+                                >
+                                    <component
+                                        :is="
+                                            props.campus.status === 'Active'
+                                                ? CheckCircle2
+                                                : XCircle
+                                        "
+                                        class="mr-1 size-3"
+                                    />
+                                    {{ props.campus.status }}
+                                </Badge>
+                            </div>
+                            <div
+                                class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400"
+                            >
+                                <span class="flex min-w-0 items-center gap-1.5">
+                                    <MapPin class="size-3.5 shrink-0" />
+                                    <span class="truncate">{{
+                                        props.campus.campus_address ||
+                                        'No address set'
+                                    }}</span>
+                                </span>
+                                <span class="flex items-center gap-1.5">
+                                    <Fingerprint class="size-3.5" />
+                                    External ID:
+                                    <span
+                                        class="font-mono font-semibold text-slate-700 dark:text-slate-200"
+                                        >{{
+                                            props.campus.real_campus_id ||
+                                            'Not set'
+                                        }}</span
+                                    >
+                                </span>
+                            </div>
                         </div>
                     </div>
-                    <div class="space-y-1.5">
-                        <div class="flex items-center gap-3">
-                            <h1 class="text-3xl font-extrabold tracking-tight text-slate-950 dark:text-white lg:text-4xl">{{ props.campus.campus_name }}</h1>
-                            <Badge :variant="props.campus.status === 'Active' ? 'default' : 'secondary'" class="rounded-full px-3 py-0.5 font-bold shadow-sm">
-                                {{ props.campus.status }}
-                            </Badge>
-                        </div>
-                        <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-medium text-slate-500 dark:text-slate-400">
-                            <div class="flex items-center gap-2">
-                                <div class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-white/5">
-                                    <MapPin class="size-3" />
-                                </div>
-                                {{ props.campus.campus_address || 'No address set' }}
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <div class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-white/5">
-                                    <Fingerprint class="size-3" />
-                                </div>
-                                ID: <span class="font-mono font-bold text-slate-900 dark:text-white">{{ props.campus.real_campus_id || 'Not Assigned' }}</span>
-                            </div>
-                        </div>
+
+                    <div class="flex shrink-0 items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            as-child
+                            class="h-8 rounded-md px-3 text-xs"
+                        >
+                            <Link :href="campusRoutes.index.url()">
+                                <ArrowLeft class="mr-1.5 size-3.5" />
+                                Back
+                            </Link>
+                        </Button>
+                        <Button
+                            size="sm"
+                            class="h-8 rounded-md bg-sky-600 px-3 text-xs hover:bg-sky-700"
+                            @click="openEditModal"
+                        >
+                            <Edit class="mr-1.5 size-3.5" />
+                            Edit
+                        </Button>
                     </div>
                 </div>
 
-                <div class="flex items-center gap-3">
-                    <Button variant="outline" size="sm" as-child class="h-10 rounded-xl px-4 font-bold shadow-sm hover:bg-slate-50">
-                        <Link :href="campusRoutes.index.url()">
-                            <ArrowLeft class="mr-2 size-4" />
-                            Back to List
-                        </Link>
-                    </Button>
-                    <Button @click="openEditModal" class="h-10 rounded-xl bg-sky-600 px-5 font-bold shadow-lg shadow-sky-200 hover:bg-sky-700 dark:shadow-none">
-                        <Edit class="mr-2 size-4" />
-                        Edit Campus
-                    </Button>
+                <div
+                    class="grid divide-y divide-slate-200 text-xs sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4 dark:divide-white/10"
+                >
+                    <div
+                        class="flex items-center justify-between gap-3 px-4 py-3"
+                    >
+                        <span class="font-medium text-slate-500"
+                            >Active term</span
+                        >
+                        <span
+                            class="truncate text-right font-semibold text-slate-900 dark:text-white"
+                        >
+                            {{
+                                activeTerm
+                                    ? `${activeTerm.school_year} ${activeTerm.semester}`
+                                    : 'None'
+                            }}
+                        </span>
+                    </div>
+                    <div
+                        class="flex items-center justify-between gap-3 px-4 py-3"
+                    >
+                        <span class="font-medium text-slate-500">Terms</span>
+                        <span
+                            class="font-semibold text-slate-900 dark:text-white"
+                        >
+                            {{ termStats.total }} total /
+                            {{ termStats.archived }}
+                            archived
+                        </span>
+                    </div>
+                    <div
+                        class="flex items-center justify-between gap-3 px-4 py-3"
+                    >
+                        <span class="font-medium text-slate-500">Created</span>
+                        <span
+                            class="font-semibold text-slate-900 dark:text-white"
+                        >
+                            {{ formatDate(props.campus.created_at) }}
+                        </span>
+                    </div>
+                    <div
+                        class="flex items-center justify-between gap-3 px-4 py-3"
+                    >
+                        <span class="font-medium text-slate-500">Updated</span>
+                        <span
+                            class="font-semibold text-slate-900 dark:text-white"
+                        >
+                            {{ formatDate(props.campus.updated_at) }}
+                        </span>
+                    </div>
                 </div>
             </div>
 
-            <div class="mt-8 space-y-8">
-                <!-- Tabs Navigation -->
-                <div class="flex items-center gap-2 border-b border-slate-200 dark:border-white/5">
-                    <button 
-                        @click="activeTab = 'info'"
-                        :class="[
-                            'group flex items-center gap-2.5 px-6 py-4 text-sm font-bold transition-all relative',
-                            activeTab === 'info' 
-                                ? 'text-sky-600' 
-                                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-                        ]"
+            <div
+                class="flex w-full flex-wrap items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-white/10 dark:bg-white/5"
+            >
+                <button
+                    type="button"
+                    class="inline-flex h-8 items-center gap-2 rounded-md px-3 text-xs font-semibold transition"
+                    :class="
+                        activeTab === 'info'
+                            ? 'bg-white text-sky-700 shadow-sm dark:bg-slate-900 dark:text-sky-300'
+                            : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                    "
+                    @click="activeTab = 'info'"
+                >
+                    <Info class="size-3.5" />
+                    Overview
+                </button>
+                <button
+                    type="button"
+                    class="inline-flex h-8 items-center gap-2 rounded-md px-3 text-xs font-semibold transition"
+                    :class="
+                        activeTab === 'terms'
+                            ? 'bg-white text-sky-700 shadow-sm dark:bg-slate-900 dark:text-sky-300'
+                            : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                    "
+                    @click="activeTab = 'terms'"
+                >
+                    <Calendar class="size-3.5" />
+                    Academic Terms
+                    <span
+                        class="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] dark:bg-white/10"
+                        >{{ termStats.total }}</span
                     >
-                        <Info :class="['size-4 transition-colors', activeTab === 'info' ? 'text-sky-600' : 'text-slate-400 group-hover:text-slate-600']" />
-                        Overview
-                        <div v-if="activeTab === 'info'" class="absolute bottom-0 left-0 h-1 w-full rounded-t-full bg-sky-600"></div>
-                    </button>
-                    <button 
-                        @click="activeTab = 'terms'"
-                        :class="[
-                            'group flex items-center gap-2.5 px-6 py-4 text-sm font-bold transition-all relative',
-                            activeTab === 'terms' 
-                                ? 'text-sky-600' 
-                                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-                        ]"
+                </button>
+            </div>
+
+            <div
+                v-if="activeTab === 'info'"
+                class="grid gap-4 lg:grid-cols-[1fr_320px]"
+            >
+                <section
+                    class="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+                >
+                    <div
+                        class="flex items-center gap-2 border-b border-slate-200 px-4 py-3 dark:border-white/10"
                     >
-                        <Calendar :class="['size-4 transition-colors', activeTab === 'terms' ? 'text-sky-600' : 'text-slate-400 group-hover:text-slate-600']" />
-                        Academic Terms
-                        <Badge variant="secondary" :class="['ml-1.5 px-2 py-0 h-5 min-w-[20px] justify-center rounded-full text-[10px] font-black', activeTab === 'terms' ? 'bg-sky-100 text-sky-600' : '']">
-                            {{ props.campus.academic_terms?.length || 0 }}
-                        </Badge>
-                        <div v-if="activeTab === 'terms'" class="absolute bottom-0 left-0 h-1 w-full rounded-t-full bg-sky-600"></div>
-                    </button>
+                        <Building2 class="size-4 text-slate-400" />
+                        <h2
+                            class="text-sm font-semibold text-slate-900 dark:text-white"
+                        >
+                            Campus Record
+                        </h2>
+                    </div>
+                    <dl
+                        class="divide-y divide-slate-100 text-sm dark:divide-white/10"
+                    >
+                        <div
+                            class="grid gap-1 px-4 py-3 sm:grid-cols-[180px_1fr]"
+                        >
+                            <dt class="text-xs font-semibold text-slate-500">
+                                Official name
+                            </dt>
+                            <dd
+                                class="font-medium text-slate-900 dark:text-white"
+                            >
+                                {{ props.campus.campus_name }}
+                            </dd>
+                        </div>
+                        <div
+                            class="grid gap-1 px-4 py-3 sm:grid-cols-[180px_1fr]"
+                        >
+                            <dt class="text-xs font-semibold text-slate-500">
+                                Address
+                            </dt>
+                            <dd class="text-slate-700 dark:text-slate-300">
+                                {{
+                                    props.campus.campus_address ||
+                                    'No physical address provided.'
+                                }}
+                            </dd>
+                        </div>
+                        <div
+                            class="grid gap-1 px-4 py-3 sm:grid-cols-[180px_1fr]"
+                        >
+                            <dt class="text-xs font-semibold text-slate-500">
+                                External campus ID
+                            </dt>
+                            <dd>
+                                <Badge
+                                    variant="outline"
+                                    class="font-mono text-[11px] font-semibold"
+                                >
+                                    {{
+                                        props.campus.real_campus_id || 'Not set'
+                                    }}
+                                </Badge>
+                            </dd>
+                        </div>
+                        <div
+                            class="grid gap-1 px-4 py-3 sm:grid-cols-[180px_1fr]"
+                        >
+                            <dt class="text-xs font-semibold text-slate-500">
+                                Visibility
+                            </dt>
+                            <dd>
+                                <Badge
+                                    :class="
+                                        getStatusBadgeClass(props.campus.status)
+                                    "
+                                    variant="outline"
+                                >
+                                    {{ props.campus.status }}
+                                </Badge>
+                            </dd>
+                        </div>
+                    </dl>
+                </section>
+
+                <section
+                    class="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+                >
+                    <div
+                        class="flex items-center gap-2 border-b border-slate-200 px-4 py-3 dark:border-white/10"
+                    >
+                        <History class="size-4 text-slate-400" />
+                        <h2
+                            class="text-sm font-semibold text-slate-900 dark:text-white"
+                        >
+                            System
+                        </h2>
+                    </div>
+                    <div class="divide-y divide-slate-100 dark:divide-white/10">
+                        <div class="flex items-start gap-3 px-4 py-3">
+                            <Clock class="mt-0.5 size-4 text-slate-400" />
+                            <div>
+                                <p class="text-xs font-semibold text-slate-500">
+                                    Created
+                                </p>
+                                <p
+                                    class="text-sm font-medium text-slate-900 dark:text-white"
+                                >
+                                    {{ formatDate(props.campus.created_at) }}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3 px-4 py-3">
+                            <RefreshCcw class="mt-0.5 size-4 text-slate-400" />
+                            <div>
+                                <p class="text-xs font-semibold text-slate-500">
+                                    Last updated
+                                </p>
+                                <p
+                                    class="text-sm font-medium text-slate-900 dark:text-white"
+                                >
+                                    {{ formatDate(props.campus.updated_at) }}
+                                </p>
+                            </div>
+                        </div>
+                        <div
+                            class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400"
+                        >
+                            <span
+                                class="font-semibold text-slate-700 dark:text-slate-200"
+                            >
+                                {{ termStats.active }}
+                            </span>
+                            active term configured for this campus.
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div v-if="activeTab === 'terms'" class="space-y-3">
+                <div
+                    class="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-slate-950"
+                >
+                    <div class="relative max-w-sm flex-1">
+                        <Search
+                            class="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-slate-400"
+                        />
+                        <Input
+                            v-model="searchTerm"
+                            placeholder="Search school year, semester, or API ID"
+                            class="h-8 pl-8 text-xs"
+                        />
+                    </div>
+                    <Button
+                        size="sm"
+                        class="h-8 bg-sky-600 text-xs hover:bg-sky-700"
+                        @click="openCreateTerm"
+                    >
+                        <Plus class="mr-1.5 size-3.5" />
+                        Add Term
+                    </Button>
                 </div>
 
-            <!-- Campus Info Tab Content -->
-            <div v-if="activeTab === 'info'" class="grid gap-6 lg:grid-cols-3">
-                <div class="lg:col-span-2 space-y-6">
-                    <Card class="overflow-hidden border-none shadow-sm ring-1 ring-slate-200 dark:bg-slate-900/50 dark:ring-white/5">
-                        <CardHeader class="border-b border-slate-100 bg-slate-50/30 px-6 py-4 dark:border-white/5 dark:bg-white/5">
-                            <div class="flex items-center gap-2">
-                                <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-400">
-                                    <Building2 class="size-4" />
-                                </div>
-                                <CardTitle class="text-base">Identity Information</CardTitle>
-                            </div>
-                        </CardHeader>
-                        <CardContent class="p-0">
-                            <div class="grid divide-y divide-slate-100 dark:divide-white/5 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-                                <div class="space-y-4 p-6">
-                                    <div class="space-y-1.5">
-                                        <div class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                                            <Building2 class="size-3" />
-                                            Official Name
-                                        </div>
-                                        <p class="text-base font-bold text-slate-900 dark:text-white">{{ props.campus.campus_name }}</p>
+                <div
+                    class="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+                >
+                    <table class="w-full min-w-[820px] text-left text-sm">
+                        <thead
+                            class="border-b border-slate-200 bg-slate-50 text-[10px] font-bold tracking-wider text-slate-500 uppercase dark:border-white/10 dark:bg-white/5 dark:text-slate-400"
+                        >
+                            <tr>
+                                <th class="px-4 py-2.5">Academic period</th>
+                                <th class="px-4 py-2.5">API term ID</th>
+                                <th class="px-4 py-2.5">Status</th>
+                                <th class="px-4 py-2.5">Date range</th>
+                                <th class="px-4 py-2.5 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody
+                            class="divide-y divide-slate-100 dark:divide-white/10"
+                        >
+                            <tr
+                                v-for="term in filteredTerms"
+                                :key="term.id"
+                                class="hover:bg-slate-50 dark:hover:bg-white/5"
+                            >
+                                <td class="px-4 py-3">
+                                    <div
+                                        class="font-semibold text-slate-900 dark:text-white"
+                                    >
+                                        {{ term.school_year }}
                                     </div>
-                                    <div class="space-y-1.5">
-                                        <div class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                                            <Fingerprint class="size-3" />
-                                            External System ID
-                                        </div>
-                                        <div class="flex items-center gap-2">
-                                            <Badge variant="secondary" class="font-mono font-bold tracking-tight">
-                                                {{ props.campus.real_campus_id || 'Not Set' }}
-                                            </Badge>
-                                        </div>
+                                    <div class="text-xs text-slate-500">
+                                        {{ term.semester }}
                                     </div>
-                                </div>
-                                <div class="p-6">
-                                    <div class="space-y-1.5">
-                                        <div class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                                            <MapPin class="size-3" />
-                                            Physical Address
-                                        </div>
-                                        <p class="text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-300">
-                                            {{ props.campus.campus_address || 'No physical address provided for this campus.' }}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card class="overflow-hidden border-none shadow-sm ring-1 ring-slate-200 dark:bg-slate-900/50 dark:ring-white/5">
-                        <CardHeader class="border-b border-slate-100 bg-slate-50/30 px-6 py-4 dark:border-white/5 dark:bg-white/5">
-                            <div class="flex items-center gap-2">
-                                <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">
-                                    <History class="size-4" />
-                                </div>
-                                <CardTitle class="text-base">System Audit</CardTitle>
-                            </div>
-                        </CardHeader>
-                        <CardContent class="p-6">
-                            <div class="grid gap-8 sm:grid-cols-2">
-                                <div class="flex items-center gap-4">
-                                    <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 text-slate-400 ring-1 ring-slate-200 dark:bg-white/5 dark:ring-white/10">
-                                        <Clock class="size-6" />
-                                    </div>
-                                    <div>
-                                        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Created On</p>
-                                        <p class="text-sm font-bold text-slate-900 dark:text-white">
-                                            {{ props.campus.created_at ? format(new Date(props.campus.created_at), 'MMMM d, yyyy') : 'N/A' }}
-                                        </p>
-                                        <p class="text-[10px] text-slate-500">System initialization date</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-4">
-                                    <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 text-slate-400 ring-1 ring-slate-200 dark:bg-white/5 dark:ring-white/10">
-                                        <RefreshCcw class="size-6" />
-                                    </div>
-                                    <div>
-                                        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Last Updated</p>
-                                        <p class="text-sm font-bold text-slate-900 dark:text-white">
-                                            {{ props.campus.updated_at ? format(new Date(props.campus.updated_at), 'MMMM d, yyyy') : 'N/A' }}
-                                        </p>
-                                        <p class="text-[10px] text-slate-500">Recent modification timestamp</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                <div class="space-y-6">
-                    <Card class="overflow-hidden border-none shadow-sm ring-1 ring-slate-200 dark:bg-emerald-950/20 dark:ring-white/5">
-                        <CardHeader class="border-b border-emerald-100 bg-emerald-50/50 px-6 py-4 dark:border-emerald-500/20 dark:bg-emerald-500/10">
-                            <CardTitle class="text-base text-emerald-800 dark:text-emerald-400">Current Status</CardTitle>
-                        </CardHeader>
-                        <CardContent class="p-6">
-                            <div class="rounded-2xl bg-emerald-50 p-5 ring-1 ring-emerald-100 dark:bg-emerald-900/40 dark:ring-emerald-500/20">
-                                <div class="flex items-center justify-between">
-                                    <span class="text-sm font-bold text-emerald-900 dark:text-emerald-200">Campus Visibility</span>
-                                    <Badge :variant="props.campus.status === 'Active' ? 'default' : 'secondary'" class="bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-500">
-                                        {{ props.campus.status }}
+                                </td>
+                                <td
+                                    class="px-4 py-3 font-mono text-xs font-semibold text-sky-700 dark:text-sky-300"
+                                >
+                                    {{ term.term_id || '-' }}
+                                </td>
+                                <td class="px-4 py-3">
+                                    <Badge
+                                        :class="
+                                            getStatusBadgeClass(term.status)
+                                        "
+                                        variant="outline"
+                                    >
+                                        <component
+                                            :is="
+                                                term.status === 'Active'
+                                                    ? CheckCircle2
+                                                    : term.status === 'Archived'
+                                                      ? Archive
+                                                      : Clock
+                                            "
+                                            class="mr-1 size-3"
+                                        />
+                                        {{ term.status }}
                                     </Badge>
-                                </div>
-                                <div class="mt-4 flex gap-3">
-                                    <div class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-emerald-700 dark:bg-emerald-500/30 dark:text-emerald-400">
-                                        <CheckCircle2 class="size-3" />
+                                </td>
+                                <td
+                                    class="px-4 py-3 text-xs text-slate-600 dark:text-slate-400"
+                                >
+                                    {{ formatDate(term.start_date) }}
+                                    <span class="px-1 text-slate-300">to</span>
+                                    {{ formatDate(term.end_date) }}
+                                </td>
+                                <td class="px-4 py-3">
+                                    <div class="flex justify-end gap-1">
+                                        <Button
+                                            v-if="term.status !== 'Active'"
+                                            variant="ghost"
+                                            size="icon"
+                                            class="size-7 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-500/10"
+                                            title="Set as active"
+                                            @click="activateTerm(term)"
+                                        >
+                                            <Power class="size-3.5" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            class="size-7 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-white"
+                                            title="Edit term"
+                                            @click="openEditTerm(term)"
+                                        >
+                                            <Edit class="size-3.5" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            class="size-7 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-500/10"
+                                            title="Delete term"
+                                            @click="confirmDeleteTerm(term)"
+                                        >
+                                            <Trash2 class="size-3.5" />
+                                        </Button>
                                     </div>
-                                    <p class="text-xs font-medium leading-relaxed text-emerald-800/80 dark:text-emerald-400/80">
-                                        {{ props.campus.status === 'Active' 
-                                            ? 'This campus is fully functional and visible to authorized users and students.' 
-                                            : 'This campus is currently restricted. Users may not be able to access related records.' }}
-                                    </p>
+                                </td>
+                            </tr>
+                            <tr v-if="filteredTerms.length === 0">
+                                <td
+                                    colspan="5"
+                                    class="px-4 py-10 text-center text-sm text-slate-500"
+                                >
+                                    <Calendar
+                                        class="mx-auto mb-2 size-7 text-slate-300"
+                                    />
+                                    No academic terms found for this campus.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <Dialog v-model:open="showTermModal">
+                <DialogContent class="sm:max-w-[520px]">
+                    <DialogHeader>
+                        <DialogTitle>
+                            {{
+                                selectedTerm
+                                    ? 'Edit Academic Term'
+                                    : 'New Academic Term'
+                            }}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Configure period metadata and API synchronization
+                            ID.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form class="space-y-3 py-2" @submit.prevent="saveTerm">
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div class="space-y-1.5">
+                                <Label for="sy">School Year</Label>
+                                <Input
+                                    id="sy"
+                                    v-model="termForm.school_year"
+                                    class="h-8 text-sm"
+                                    placeholder="2025-2026"
+                                    required
+                                />
+                                <div
+                                    v-if="termForm.errors.school_year"
+                                    class="text-xs text-red-500"
+                                >
+                                    {{ termForm.errors.school_year }}
                                 </div>
                             </div>
-                        </CardContent>
-                    </Card>
-                </div>
-            </div>
+                            <div class="space-y-1.5">
+                                <Label for="semester">Semester</Label>
+                                <Select v-model="termForm.semester">
+                                    <SelectTrigger id="semester" class="h-8">
+                                        <SelectValue
+                                            placeholder="Select semester"
+                                        />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="1st Semester">
+                                            1st Semester
+                                        </SelectItem>
+                                        <SelectItem value="2nd Semester">
+                                            2nd Semester
+                                        </SelectItem>
+                                        <SelectItem value="Summer"
+                                            >Summer</SelectItem
+                                        >
+                                    </SelectContent>
+                                </Select>
+                                <div
+                                    v-if="termForm.errors.semester"
+                                    class="text-xs text-red-500"
+                                >
+                                    {{ termForm.errors.semester }}
+                                </div>
+                            </div>
+                        </div>
 
-                <!-- Academic Terms Tab Content -->
-                <div v-if="activeTab === 'terms'" class="space-y-4">
-                    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div class="relative w-full max-w-sm">
-                            <Search class="absolute left-2.5 top-2.5 size-4 text-slate-400" />
-                            <Input v-model="searchTerm" placeholder="Search terms..." class="pl-9" />
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div class="space-y-1.5">
+                                <Label for="term_id">Term ID (API)</Label>
+                                <Input
+                                    id="term_id"
+                                    v-model="termForm.term_id"
+                                    class="h-8 text-sm"
+                                    placeholder="102"
+                                />
+                                <div
+                                    v-if="termForm.errors.term_id"
+                                    class="text-xs text-red-500"
+                                >
+                                    {{ termForm.errors.term_id }}
+                                </div>
+                            </div>
+                            <div class="space-y-1.5">
+                                <Label for="term_status">Status</Label>
+                                <Select v-model="termForm.status">
+                                    <SelectTrigger id="term_status" class="h-8">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Active"
+                                            >Active</SelectItem
+                                        >
+                                        <SelectItem value="Inactive"
+                                            >Inactive</SelectItem
+                                        >
+                                        <SelectItem value="Archived"
+                                            >Archived</SelectItem
+                                        >
+                                    </SelectContent>
+                                </Select>
+                                <div
+                                    v-if="termForm.errors.status"
+                                    class="text-xs text-red-500"
+                                >
+                                    {{ termForm.errors.status }}
+                                </div>
+                            </div>
                         </div>
-                        <Button @click="openCreateTerm" class="bg-sky-600 hover:bg-sky-700">
-                            <Plus class="mr-2 size-4" />
-                            Add Term
-                        </Button>
-                    </div>
 
-                    <div class="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-white/5 dark:bg-slate-950">
-                        <table class="w-full text-left text-sm">
-                            <thead class="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:bg-white/5 dark:text-slate-400">
-                                <tr>
-                                    <th class="px-6 py-3">Academic Period</th>
-                                    <th class="px-6 py-3">Term ID</th>
-                                    <th class="px-6 py-3 text-center">Status</th>
-                                    <th class="px-6 py-3">Start / End Date</th>
-                                    <th class="px-6 py-3 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-100 dark:divide-white/5">
-                                <tr v-for="term in filteredTerms" :key="term.id" class="group hover:bg-slate-50/50 dark:hover:bg-white/5">
-                                    <td class="px-6 py-4">
-                                        <div class="flex flex-col">
-                                            <span class="font-bold text-slate-900 dark:text-white">{{ term.school_year }}</span>
-                                            <span class="text-xs text-slate-500">{{ term.semester }}</span>
-                                        </div>
-                                    </td>
-                                    <td class="px-6 py-4 font-mono text-xs font-bold text-sky-600 dark:text-sky-400">
-                                        {{ term.term_id || '-' }}
-                                    </td>
-                                    <td class="px-6 py-4">
-                                        <div class="flex justify-center">
-                                            <Badge :class="getStatusBadgeClass(term.status)">
-                                                <component :is="term.status === 'Active' ? CheckCircle2 : (term.status === 'Archived' ? Archive : Clock)" class="mr-1 size-3" />
-                                                {{ term.status }}
-                                            </Badge>
-                                        </div>
-                                    </td>
-                                    <td class="px-6 py-4 text-xs font-medium text-slate-600 dark:text-slate-400">
-                                        <div class="flex items-center gap-2">
-                                            <span>{{ term.start_date ? format(new Date(term.start_date), 'MMM d, yyyy') : 'N/A' }}</span>
-                                            <span class="text-slate-300">-</span>
-                                            <span>{{ term.end_date ? format(new Date(term.end_date), 'MMM d, yyyy') : 'N/A' }}</span>
-                                        </div>
-                                    </td>
-                                    <td class="px-6 py-4 text-right">
-                                        <div class="flex justify-end gap-2">
-                                            <Button v-if="term.status !== 'Active'" variant="ghost" size="icon" @click="activateTerm(term)" class="size-8 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700" title="Set as Active">
-                                                <Power class="size-4" />
-                                            </Button>
-                                            <Button variant="ghost" size="icon" @click="openEditTerm(term)" class="size-8 text-slate-600 hover:bg-slate-100" title="Edit">
-                                                <Edit class="size-4" />
-                                            </Button>
-                                            <Button variant="ghost" size="icon" @click="confirmDeleteTerm(term)" class="size-8 text-red-600 hover:bg-red-50 hover:text-red-700" title="Delete">
-                                                <Trash2 class="size-4" />
-                                            </Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr v-if="filteredTerms.length === 0">
-                                    <td colspan="5" class="px-6 py-12 text-center text-slate-500">
-                                        <div class="flex flex-col items-center">
-                                            <Calendar class="size-8 text-slate-300 mb-2" />
-                                            <p>No academic terms found for this campus.</p>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div class="space-y-1.5">
+                                <Label for="start_date">Start Date</Label>
+                                <Input
+                                    id="start_date"
+                                    v-model="termForm.start_date"
+                                    class="h-8 text-sm"
+                                    type="date"
+                                />
+                                <div
+                                    v-if="termForm.errors.start_date"
+                                    class="text-xs text-red-500"
+                                >
+                                    {{ termForm.errors.start_date }}
+                                </div>
+                            </div>
+                            <div class="space-y-1.5">
+                                <Label for="end_date">End Date</Label>
+                                <Input
+                                    id="end_date"
+                                    v-model="termForm.end_date"
+                                    class="h-8 text-sm"
+                                    type="date"
+                                />
+                                <div
+                                    v-if="termForm.errors.end_date"
+                                    class="text-xs text-red-500"
+                                >
+                                    {{ termForm.errors.end_date }}
+                                </div>
+                            </div>
+                        </div>
 
-        <!-- Term Modal -->
-        <Dialog v-model:open="showTermModal">
-            <DialogContent class="sm:max-w-[500px]">
-                <DialogHeader>
-                    <DialogTitle>{{ selectedTerm ? 'Edit Academic Term' : 'New Academic Term' }}</DialogTitle>
-                    <DialogDescription>Configure academic period settings and synchronization ID.</DialogDescription>
-                </DialogHeader>
-                <form @submit.prevent="saveTerm" class="space-y-4 py-4">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="space-y-2">
-                            <Label for="sy">School Year</Label>
-                            <Input id="sy" v-model="termForm.school_year" placeholder="2025-2026" required />
-                            <div v-if="termForm.errors.school_year" class="text-xs text-red-500">{{ termForm.errors.school_year }}</div>
-                        </div>
-                        <div class="space-y-2">
-                            <Label for="semester">Semester</Label>
-                            <Select v-model="termForm.semester">
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select semester" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="1st Semester">1st Semester</SelectItem>
-                                    <SelectItem value="2nd Semester">2nd Semester</SelectItem>
-                                    <SelectItem value="Summer">Summer</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <div v-if="termForm.errors.semester" class="text-xs text-red-500">{{ termForm.errors.semester }}</div>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="space-y-2">
-                            <Label for="term_id">Term ID (API)</Label>
-                            <Input id="term_id" v-model="termForm.term_id" placeholder="102" />
-                            <div v-if="termForm.errors.term_id" class="text-xs text-red-500">{{ termForm.errors.term_id }}</div>
-                        </div>
-                        <div class="space-y-2">
-                            <Label for="term_status">Status</Label>
-                            <Select v-model="termForm.status">
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="Active">Active</SelectItem>
-                                    <SelectItem value="Inactive">Inactive</SelectItem>
-                                    <SelectItem value="Archived">Archived</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <div v-if="termForm.errors.status" class="text-xs text-red-500">{{ termForm.errors.status }}</div>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="space-y-2">
-                            <Label for="start_date">Start Date</Label>
-                            <Input id="start_date" type="date" v-model="termForm.start_date" />
-                            <div v-if="termForm.errors.start_date" class="text-xs text-red-500">{{ termForm.errors.start_date }}</div>
-                        </div>
-                        <div class="space-y-2">
-                            <Label for="end_date">End Date</Label>
-                            <Input id="end_date" type="date" v-model="termForm.end_date" />
-                            <div v-if="termForm.errors.end_date" class="text-xs text-red-500">{{ termForm.errors.end_date }}</div>
-                        </div>
-                    </div>
-                    <DialogFooter class="pt-4">
-                        <Button type="submit" :disabled="termForm.processing" class="bg-sky-600 hover:bg-sky-700">
-                            {{ selectedTerm ? 'Update Term' : 'Create Term' }}
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
+                        <DialogFooter class="pt-2">
+                            <Button
+                                type="submit"
+                                :disabled="termForm.processing"
+                                class="h-8 bg-sky-600 px-3 text-xs hover:bg-sky-700"
+                            >
+                                {{
+                                    selectedTerm ? 'Update Term' : 'Create Term'
+                                }}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
 
-        <!-- Edit Campus Modal -->
-        <Dialog v-model:open="showEditModal">
-            <DialogContent class="sm:max-w-[425px]">
-                <DialogHeader>
-                    <DialogTitle>Edit Campus</DialogTitle>
-                    <DialogDescription>Update campus details and configuration.</DialogDescription>
-                </DialogHeader>
-                <form @submit.prevent="updateCampus" class="space-y-4 py-4">
-                    <div class="space-y-2">
-                        <Label for="edit_name">Campus Name</Label>
-                        <Input id="edit_name" v-model="form.campus_name" required />
-                        <div v-if="form.errors.campus_name" class="text-xs text-red-500">{{ form.errors.campus_name }}</div>
-                    </div>
-                    <div class="space-y-2">
-                        <Label for="edit_address">Address</Label>
-                        <Input id="edit_address" v-model="form.campus_address" />
-                        <div v-if="form.errors.campus_address" class="text-xs text-red-500">{{ form.errors.campus_address }}</div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="space-y-2">
-                            <Label for="edit_real_id">Real Campus ID</Label>
-                            <Input id="edit_real_id" v-model="form.real_campus_id" />
-                            <div v-if="form.errors.real_campus_id" class="text-xs text-red-500">{{ form.errors.real_campus_id }}</div>
+            <Dialog v-model:open="showEditModal">
+                <DialogContent class="sm:max-w-[460px]">
+                    <DialogHeader>
+                        <DialogTitle>Edit Campus</DialogTitle>
+                        <DialogDescription>
+                            Update identity, status, and logo settings.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form class="space-y-3 py-2" @submit.prevent="updateCampus">
+                        <div class="space-y-1.5">
+                            <Label for="edit_name">Campus Name</Label>
+                            <Input
+                                id="edit_name"
+                                v-model="form.campus_name"
+                                class="h-8 text-sm"
+                                required
+                            />
+                            <div
+                                v-if="form.errors.campus_name"
+                                class="text-xs text-red-500"
+                            >
+                                {{ form.errors.campus_name }}
+                            </div>
                         </div>
-                        <div class="space-y-2">
-                            <Label for="edit_status">Status</Label>
-                            <Select v-model="form.status">
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="Active">Active</SelectItem>
-                                    <SelectItem value="Inactive">Inactive</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <div v-if="form.errors.status" class="text-xs text-red-500">{{ form.errors.status }}</div>
+                        <div class="space-y-1.5">
+                            <Label for="edit_address">Address</Label>
+                            <Input
+                                id="edit_address"
+                                v-model="form.campus_address"
+                                class="h-8 text-sm"
+                            />
+                            <div
+                                v-if="form.errors.campus_address"
+                                class="text-xs text-red-500"
+                            >
+                                {{ form.errors.campus_address }}
+                            </div>
                         </div>
-                    </div>
-                    <div class="space-y-2">
-                        <Label for="edit_logo">Campus Logo (Leave blank to keep current)</Label>
-                        <Input id="edit_logo" type="file" @input="form.logo = $event.target.files[0]" accept="image/*" />
-                        <div v-if="form.errors.logo" class="text-xs text-red-500 font-medium">{{ form.errors.logo }}</div>
-                    </div>
-                    <DialogFooter class="pt-4">
-                        <Button type="submit" :disabled="form.processing" class="bg-sky-600 hover:bg-sky-700">Update Campus</Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div class="space-y-1.5">
+                                <Label for="edit_real_id">Real Campus ID</Label>
+                                <Input
+                                    id="edit_real_id"
+                                    v-model="form.real_campus_id"
+                                    class="h-8 text-sm"
+                                />
+                                <div
+                                    v-if="form.errors.real_campus_id"
+                                    class="text-xs text-red-500"
+                                >
+                                    {{ form.errors.real_campus_id }}
+                                </div>
+                            </div>
+                            <div class="space-y-1.5">
+                                <Label for="edit_status">Status</Label>
+                                <Select v-model="form.status">
+                                    <SelectTrigger id="edit_status" class="h-8">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Active"
+                                            >Active</SelectItem
+                                        >
+                                        <SelectItem value="Inactive"
+                                            >Inactive</SelectItem
+                                        >
+                                    </SelectContent>
+                                </Select>
+                                <div
+                                    v-if="form.errors.status"
+                                    class="text-xs text-red-500"
+                                >
+                                    {{ form.errors.status }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="edit_logo">Campus Logo</Label>
+                            <Input
+                                id="edit_logo"
+                                type="file"
+                                accept="image/*"
+                                class="h-8 text-sm"
+                                @input="form.logo = $event.target.files[0]"
+                            />
+                            <div
+                                v-if="form.errors.logo"
+                                class="text-xs font-medium text-red-500"
+                            >
+                                {{ form.errors.logo }}
+                            </div>
+                        </div>
+                        <DialogFooter class="pt-2">
+                            <Button
+                                type="submit"
+                                :disabled="form.processing"
+                                class="h-8 bg-sky-600 px-3 text-xs hover:bg-sky-700"
+                            >
+                                Update Campus
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
 
-        <ConfirmationModal
-            v-if="selectedTerm"
-            :show="showDeleteTermModal"
-            title="Delete Academic Term"
-            :description="`Are you sure you want to delete ${selectedTerm.school_year} ${selectedTerm.semester}? This action cannot be undone.`"
-            confirm-text="Delete Term"
-            variant="destructive"
-            @confirm="deleteTerm"
-            @close="showDeleteTermModal = false"
-        />
-    </div>
-</SiteSettingsLayout>
+            <ConfirmationModal
+                v-if="selectedTerm"
+                :show="showDeleteTermModal"
+                title="Delete Academic Term"
+                :description="`Are you sure you want to delete ${selectedTerm.school_year} ${selectedTerm.semester}? This action cannot be undone.`"
+                confirm-text="Delete Term"
+                variant="destructive"
+                @confirm="deleteTerm"
+                @close="showDeleteTermModal = false"
+            />
+        </div>
+    </SiteSettingsLayout>
 </template>

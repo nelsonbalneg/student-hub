@@ -147,10 +147,10 @@ class StudentProfileController extends Controller
         ]);
 
         foreach ([
-            'height','weight','civilStatusId','religionId','nationalityId','tribeId',
-            'permZipCode','resZipCode','familySize','lastSchoolAttendedType',
-            'fatherNatureOfWork','motherNatureOfWork','fatherEmploymentStatus','motherEmploymentStatus',
-            'fatherIncomeFrom','fatherIncomeTo','motherIncomeFrom','motherIncomeTo','noofBrothers','noofSisters',
+            'height', 'weight', 'civilStatusId', 'religionId', 'nationalityId', 'tribeId',
+            'permZipCode', 'resZipCode', 'familySize', 'lastSchoolAttendedType',
+            'fatherNatureOfWork', 'motherNatureOfWork', 'fatherEmploymentStatus', 'motherEmploymentStatus',
+            'fatherIncomeFrom', 'fatherIncomeTo', 'motherIncomeFrom', 'motherIncomeTo', 'noofBrothers', 'noofSisters',
         ] as $intField) {
             if (array_key_exists($intField, $payload) && $payload[$intField] !== '' && $payload[$intField] !== null) {
                 $payload[$intField] = (int) $payload[$intField];
@@ -172,7 +172,7 @@ class StudentProfileController extends Controller
             'TVL - HE' => 'TVL - HE (Home Economics)',
             'TVL - IA' => 'TVL - IA (Industrial Arts)',
         ];
-        if (!empty($payload['shsTrack']) && isset($shsTrackMap[$payload['shsTrack']])) {
+        if (! empty($payload['shsTrack']) && isset($shsTrackMap[$payload['shsTrack']])) {
             $payload['shsTrack'] = $shsTrackMap[$payload['shsTrack']];
         }
 
@@ -182,12 +182,13 @@ class StudentProfileController extends Controller
             if ($value === null) {
                 return false;
             }
+
             return ! (is_string($value) && trim($value) === '');
         });
 
         $result = $this->academicApi->updateProfileForStudent($studentNo, $campusId, $tenantId, $payload);
 
-        if (!($result['ok'] ?? false)) {
+        if (! ($result['ok'] ?? false)) {
             return back()->with('error', $result['error'] ?? 'Unable to save profile.');
         }
 

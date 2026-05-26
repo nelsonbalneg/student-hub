@@ -26,24 +26,53 @@ class StudentEvaluationApiService
     }
 
     /**
-     * Step 1: Find student evaluation system ID using student number.
-     * GET /api/app/student?StudentNo={studentNo}
+     * Step 1: Find student evaluation system ID using campus and tenant context.
+     * GET /api/app/student/student-portal-token?campusId={campusId}&studentNo={studentNo}&tenantId={tenantId}
      */
-    public function findStudentByStudentNo(string $studentNo): ?string
+    public function findStudentByStudentNo(string $studentNo, int|string|null $campusId, int|string|null $tenantId): ?string
     {
+        if (blank($studentNo) || blank($campusId) || blank($tenantId)) {
+            Log::warning('Unable to find student evaluation ID because required context is missing', [
+                'student_no' => $studentNo,
+                'campus_id' => $campusId,
+                'tenant_id' => $tenantId,
+            ]);
+
+            return null;
+        }
+
         try {
+            Log::info('Requesting evaluation student portal token', [
+                'student_no' => $studentNo,
+                'campus_id' => $campusId,
+                'tenant_id' => $tenantId,
+            ]);
+
             $response = $this->client()
-                ->get('student', [
-                    'StudentNo' => $studentNo,
+                ->get('student/student-portal-token', [
+                    'campusId' => $campusId,
+                    'studentNo' => $studentNo,
+                    'tenantId' => $tenantId,
                 ])
                 ->throw();
 
-            $data = $response->json();
+            $studentId = $this->studentIdFromPortalToken($response->body(), $studentNo, $campusId, $tenantId);
 
-            return $data['items'][0]['id'] ?? null;
+            if ($studentId) {
+                Log::info('Resolved evaluation student ID from portal token', [
+                    'student_no' => $studentNo,
+                    'campus_id' => $campusId,
+                    'tenant_id' => $tenantId,
+                    'student_id' => $studentId,
+                ]);
+            }
+
+            return $studentId;
         } catch (Throwable $exception) {
             Log::warning('Unable to find student evaluation ID', [
                 'student_no' => $studentNo,
+                'campus_id' => $campusId,
+                'tenant_id' => $tenantId,
                 'exception' => $exception::class,
                 'message' => $exception->getMessage(),
             ]);
@@ -59,11 +88,22 @@ class StudentEvaluationApiService
     public function getStudentEvaluationDetails(string $studentId): array
     {
         try {
+            Log::info('Requesting student evaluation details', [
+                'student_id' => $studentId,
+            ]);
+
             $response = $this->client()
                 ->get("student/{$studentId}")
                 ->throw();
 
-            return $response->json();
+            $details = $response->json();
+
+            Log::info('Loaded student evaluation details', [
+                'student_id' => $studentId,
+                'evaluation_period_count' => count($details['evaluationPeriods'] ?? []),
+            ]);
+
+            return $details;
         } catch (Throwable $exception) {
             Log::warning('Unable to get student evaluation details', [
                 'student_id' => $studentId,
@@ -241,5 +281,48 @@ class StudentEvaluationApiService
     private function isNotEvaluatedStatus(mixed $status): bool
     {
         return strtolower(trim((string) $status)) === 'not evaluated';
+    }
+
+    private function studentIdFromPortalToken(string $token, string $studentNo, int|string $campusId, int|string $tenantId): ?string
+    {
+        $decoded = base64_decode(trim($token), true);
+
+        if ($decoded === false) {
+            Log::warning('Evaluation student portal token is not valid base64', [
+                'student_no' => $studentNo,
+                'campus_id' => $campusId,
+                'tenant_id' => $tenantId,
+            ]);
+
+            return null;
+        }
+
+        try {
+            $payload = json_decode($decoded, true, flags: JSON_THROW_ON_ERROR);
+        } catch (Throwable $exception) {
+            Log::warning('Evaluation student portal token is not valid JSON', [
+                'student_no' => $studentNo,
+                'campus_id' => $campusId,
+                'tenant_id' => $tenantId,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return null;
+        }
+
+        $studentId = $payload['studentId'] ?? null;
+
+        if (blank($studentId)) {
+            Log::warning('Evaluation student portal token is missing studentId', [
+                'student_no' => $studentNo,
+                'campus_id' => $campusId,
+                'tenant_id' => $tenantId,
+            ]);
+
+            return null;
+        }
+
+        return (string) $studentId;
     }
 }

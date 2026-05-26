@@ -78,14 +78,14 @@ const isActive = (href: string) => {
 
 <template>
     <aside
-        class="flex w-full shrink-0 flex-col border-b border-slate-200 bg-white dark:border-white/5 dark:bg-slate-950 lg:w-72 lg:border-r lg:border-b-0"
+        class="flex w-full shrink-0 flex-col border-b border-slate-200 bg-white lg:w-72 lg:border-r lg:border-b-0 dark:border-white/5 dark:bg-slate-950"
     >
         <div
-            class="flex h-14 items-center border-b border-slate-100 px-4 dark:border-white/5 sm:px-6 lg:h-16"
+            class="flex h-14 items-center border-b border-slate-100 px-4 sm:px-6 lg:h-16 dark:border-white/5"
         >
             <div class="flex items-center gap-2.5">
                 <div
-                    class="flex size-8 items-center justify-center rounded-lg bg-sky-500/10 text-sky-600 ring-1 ring-sky-500/20"
+                    class="flex size-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-700 ring-1 ring-emerald-500/20 dark:text-emerald-300"
                 >
                     <Settings2 class="size-4.5" />
                 </div>
@@ -97,7 +97,9 @@ const isActive = (href: string) => {
             </div>
         </div>
 
-        <nav class="flex gap-2 overflow-x-auto p-3 lg:block lg:flex-1 lg:space-y-1 lg:overflow-visible">
+        <nav
+            class="flex gap-2 overflow-x-auto p-3 lg:block lg:flex-1 lg:space-y-1 lg:overflow-visible"
+        >
             <Link
                 v-for="tab in tabs"
                 :key="tab.name"
@@ -106,7 +108,7 @@ const isActive = (href: string) => {
                 :class="[
                     'group flex min-w-[150px] items-start gap-3 rounded-xl p-3 transition-all lg:min-w-0',
                     isActive(tab.href)
-                        ? 'bg-sky-500/5 text-sky-600 ring-1 ring-sky-500/10 dark:bg-sky-500/10'
+                        ? 'bg-emerald-500/5 text-emerald-700 ring-1 ring-emerald-500/10 dark:bg-emerald-500/10 dark:text-emerald-300'
                         : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-slate-100',
                 ]"
             >
@@ -114,7 +116,7 @@ const isActive = (href: string) => {
                     :class="[
                         'mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors',
                         isActive(tab.href)
-                            ? 'bg-sky-500/10 text-sky-600'
+                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
                             : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-600 dark:bg-white/5 dark:group-hover:bg-white/10 dark:group-hover:text-slate-300',
                     ]"
                 >
@@ -125,14 +127,16 @@ const isActive = (href: string) => {
                         tab.name
                     }}</span>
                     <span
-                        class="hidden text-[11px] leading-none font-medium text-slate-400 group-hover:text-slate-500 dark:text-slate-500 sm:block"
+                        class="hidden text-[11px] leading-none font-medium text-slate-400 group-hover:text-slate-500 sm:block dark:text-slate-500"
                         >{{ tab.description }}</span
                     >
                 </div>
             </Link>
         </nav>
 
-        <div class="hidden border-t border-slate-100 p-4 dark:border-white/5 lg:block">
+        <div
+            class="hidden border-t border-slate-100 p-4 lg:block dark:border-white/5"
+        >
             <div class="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
                 <p
                     class="text-[10px] font-bold tracking-wider text-slate-400 uppercase"

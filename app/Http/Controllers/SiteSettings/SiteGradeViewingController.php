@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\GradeViewingLog;
 use App\Models\GradeViewingRule;
 use App\Models\SiteCampus;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -26,12 +27,13 @@ class SiteGradeViewingController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             'site_campus_id' => 'required|exists:site_campuses,id',
             'rule_name' => 'required|string|max:255',
             'bypass_evaluation' => 'required|boolean',
+            'show_gwa_gpa' => 'required|boolean',
             'is_active' => 'required|boolean',
             'description' => 'nullable|string',
         ]);
@@ -49,15 +51,17 @@ class SiteGradeViewingController extends Controller
             'ip_address' => $request->ip(),
         ]);
 
-        return back()->with('success', 'Grade viewing rule created successfully.');
+        return to_route('site-settings.grade-viewing.index')
+            ->with('success', 'Grade viewing rule created successfully.');
     }
 
-    public function update(Request $request, GradeViewingRule $rule)
+    public function update(Request $request, GradeViewingRule $rule): RedirectResponse
     {
         $validated = $request->validate([
             'site_campus_id' => 'required|exists:site_campuses,id',
             'rule_name' => 'required|string|max:255',
             'bypass_evaluation' => 'required|boolean',
+            'show_gwa_gpa' => 'required|boolean',
             'is_active' => 'required|boolean',
             'description' => 'nullable|string',
         ]);
@@ -78,14 +82,15 @@ class SiteGradeViewingController extends Controller
             'ip_address' => $request->ip(),
         ]);
 
-        return back()->with('success', 'Grade viewing rule updated successfully.');
+        return to_route('site-settings.grade-viewing.index')
+            ->with('success', 'Grade viewing rule updated successfully.');
     }
 
-    public function destroy(Request $request, GradeViewingRule $rule)
+    public function destroy(Request $request, GradeViewingRule $rule): RedirectResponse
     {
         $oldValues = $rule->toArray();
         $ruleId = $rule->id;
-        
+
         $rule->delete();
 
         GradeViewingLog::create([
@@ -96,12 +101,13 @@ class SiteGradeViewingController extends Controller
             'ip_address' => $request->ip(),
         ]);
 
-        return back()->with('success', 'Grade viewing rule deleted successfully.');
+        return to_route('site-settings.grade-viewing.index')
+            ->with('success', 'Grade viewing rule deleted successfully.');
     }
 
-    public function toggle(Request $request, GradeViewingRule $rule)
+    public function toggle(Request $request, GradeViewingRule $rule): RedirectResponse
     {
-        $rule->is_active = !$rule->is_active;
+        $rule->is_active = ! $rule->is_active;
         $rule->updated_by = auth()->id();
         $rule->save();
 
@@ -113,6 +119,7 @@ class SiteGradeViewingController extends Controller
             'ip_address' => $request->ip(),
         ]);
 
-        return back()->with('success', 'Rule status updated.');
+        return to_route('site-settings.grade-viewing.index')
+            ->with('success', 'Rule status updated.');
     }
 }

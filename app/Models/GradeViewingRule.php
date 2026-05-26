@@ -14,6 +14,7 @@ class GradeViewingRule extends Model
         'site_campus_id',
         'rule_name',
         'bypass_evaluation',
+        'show_gwa_gpa',
         'is_active',
         'description',
         'created_by',
@@ -22,6 +23,7 @@ class GradeViewingRule extends Model
 
     protected $casts = [
         'bypass_evaluation' => 'boolean',
+        'show_gwa_gpa' => 'boolean',
         'is_active' => 'boolean',
     ];
 
