@@ -118,6 +118,6 @@ class FaqController extends Controller
 
         $faq->delete();
 
-        return back()->with('success', 'FAQ deleted successfully.');
+        return redirect()->route('faqs.manage.faqs.index')->with('success', 'FAQ deleted successfully.');
     }
 }

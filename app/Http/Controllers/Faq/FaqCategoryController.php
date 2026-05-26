@@ -50,7 +50,7 @@ class FaqCategoryController extends Controller
 
         FaqCategory::create($validated);
 
-        return back()->with('success', 'FAQ Category created successfully.');
+        return redirect()->route('faqs.manage.categories.index')->with('success', 'FAQ Category created successfully.');
     }
 
     /**
@@ -67,7 +67,7 @@ class FaqCategoryController extends Controller
 
         $category->update($validated);
 
-        return back()->with('success', 'FAQ Category updated successfully.');
+        return redirect()->route('faqs.manage.categories.index')->with('success', 'FAQ Category updated successfully.');
     }
 
     /**
@@ -78,11 +78,11 @@ class FaqCategoryController extends Controller
         $this->authorize('delete', $category);
 
         if ($category->faqs()->count() > 0) {
-            return back()->with('error', 'Cannot delete category with associated FAQs.');
+            return redirect()->route('faqs.manage.categories.index')->with('error', 'Cannot delete category with associated FAQs.');
         }
 
         $category->delete();
 
-        return back()->with('success', 'FAQ Category deleted successfully.');
+        return redirect()->route('faqs.manage.categories.index')->with('success', 'FAQ Category deleted successfully.');
     }
 }
