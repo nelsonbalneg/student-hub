@@ -114,6 +114,21 @@ return [
             'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
         ],
 
+        'cee' => [
+            'driver' => 'sqlsrv',
+            'url' => env('CEE_DB_URL'),
+            'host' => env('CEE_DB_HOST'),
+            'port' => env('CEE_DB_PORT', '1433'),
+            'database' => env('CEE_DB_DATABASE'),
+            'username' => env('CEE_DB_USERNAME'),
+            'password' => env('CEE_DB_PASSWORD'),
+            'charset' => env('CEE_DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'encrypt' => env('CEE_DB_ENCRYPT', 'no'),
+            'trust_server_certificate' => env('CEE_DB_TRUST_SERVER_CERTIFICATE', 'true'),
+        ],
+
     ],
 
     /*

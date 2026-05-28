@@ -6,7 +6,10 @@ import {
     AlertCircle,
     BookOpen,
     Calendar,
+    Download,
     Edit,
+    ExternalLink,
+    FileText,
     GraduationCap,
     Home,
     IdCard,
@@ -79,9 +82,24 @@ type Training = {
     organizer: string | null;
 };
 
+type CeeDocument = {
+    key: string;
+    field: string;
+    label: string;
+    name: string;
+    path: string;
+    url: string;
+    exists: boolean;
+    extension: string;
+};
+
 const props = defineProps<{
     profile: {
         data: ProfileData | null;
+        error: string | null;
+    };
+    ceeDocuments: {
+        data: CeeDocument[];
         error: string | null;
     };
     achievements: Achievement[];
@@ -102,6 +120,7 @@ const tabs = [
     { id: 'academic', label: 'Academic', icon: GraduationCap },
     { id: 'family', label: 'Family', icon: Users },
     { id: 'education', label: 'Education', icon: BookOpen },
+    { id: 'documents', label: 'Documents', icon: FileText },
     { id: 'achievements', label: 'Awards', icon: Trophy },
     { id: 'trainings', label: 'Trainings', icon: Calendar },
     { id: 'socio', label: 'Socio-Econ', icon: Info },
@@ -255,6 +274,42 @@ const socioFields = computed(() => [
         value: displayValue(props.profile.data?.studentType),
     },
 ]);
+
+const ceeDocumentCount = computed(() => props.ceeDocuments?.data?.length ?? 0);
+
+const groupedCeeDocuments = computed(() => {
+    const groups = new Map<
+        string,
+        { key: string; label: string; documents: CeeDocument[] }
+    >();
+
+    for (const document of props.ceeDocuments?.data ?? []) {
+        const key = document.field;
+
+        if (!groups.has(key)) {
+            groups.set(key, {
+                key,
+                label: document.label,
+                documents: [],
+            });
+        }
+
+        groups.get(key)?.documents.push(document);
+    }
+
+    return Array.from(groups.values());
+});
+
+const isImageDocument = (document: CeeDocument) =>
+    ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(document.extension);
+
+const isPdfDocument = (document: CeeDocument) => document.extension === 'pdf';
+
+const activeTabDescription = computed(() =>
+    activeTab.value === 'documents'
+        ? 'Student profile information synced with the usmcee system.'
+        : 'Student profile information synced with the academic system.',
+);
 
 const achievementModalOpen = ref(false);
 const editingAchievement = ref<Achievement | null>(null);
@@ -904,8 +959,15 @@ watch(editMode, (val) => {
                                 <p
                                     class="text-xs font-medium text-slate-500 dark:text-slate-400"
                                 >
-                                    Student profile information synced with the
-                                    academic system.
+                                    {{ activeTabDescription }}
+                                </p>
+                                <p
+                                    v-if="activeTab === 'documents'"
+                                    class="mt-1 text-xs font-semibold text-amber-700 dark:text-amber-300"
+                                >
+                                    The viewing of documents is available only
+                                    to students enrolled from AY 2024-2025
+                                    onwards.
                                 </p>
                             </div>
 
@@ -1130,6 +1192,163 @@ watch(editMode, (val) => {
                                             {{ field.value }}
                                         </div>
                                     </div>
+                                </div>
+                            </div>
+
+                            <div v-if="activeTab === 'documents'">
+                                <div
+                                    v-if="ceeDocuments.error"
+                                    class="mb-3 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-medium text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100"
+                                >
+                                    <AlertCircle
+                                        class="mt-0.5 size-4 shrink-0"
+                                    />
+                                    <span>{{ ceeDocuments.error }}</span>
+                                </div>
+
+                                <div
+                                    v-if="ceeDocumentCount === 0"
+                                    class="flex min-h-[240px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-200 p-6 text-center dark:border-white/10"
+                                >
+                                    <FileText class="size-9 text-slate-300" />
+                                    <p
+                                        class="text-sm font-bold text-slate-900 dark:text-white"
+                                    >
+                                        No CEE uploaded files found
+                                    </p>
+                                    <p
+                                        class="max-w-md text-xs font-medium text-slate-500 dark:text-slate-400"
+                                    >
+                                        Uploaded admission requirements from the
+                                        CEE portal will appear here once matched
+                                        by student number and campus.
+                                    </p>
+                                </div>
+
+                                <div v-else class="grid gap-4">
+                                    <section
+                                        v-for="group in groupedCeeDocuments"
+                                        :key="group.key"
+                                        class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+                                    >
+                                        <div
+                                            class="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-white/5"
+                                        >
+                                            <div
+                                                class="flex min-w-0 items-center gap-3"
+                                            >
+                                                <span
+                                                    class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
+                                                >
+                                                    <FileText class="size-4" />
+                                                </span>
+                                                <div class="min-w-0">
+                                                    <h3
+                                                        class="truncate text-sm font-bold text-slate-950 dark:text-white"
+                                                    >
+                                                        {{ group.label }}
+                                                    </h3>
+                                                    <p
+                                                        class="text-xs font-medium text-slate-500 dark:text-slate-400"
+                                                    >
+                                                        {{
+                                                            group.documents
+                                                                .length
+                                                        }}
+                                                        file{{
+                                                            group.documents
+                                                                .length === 1
+                                                                ? ''
+                                                                : 's'
+                                                        }}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div
+                                            class="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3"
+                                        >
+                                            <div
+                                                v-for="document in group.documents"
+                                                :key="document.key"
+                                                class="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
+                                            >
+                                                <div
+                                                    class="flex aspect-[4/3] items-center justify-center overflow-hidden bg-slate-50 dark:bg-white/5"
+                                                >
+                                                    <img
+                                                        v-if="
+                                                            document.exists &&
+                                                            isImageDocument(
+                                                                document,
+                                                            )
+                                                        "
+                                                        :src="document.url"
+                                                        :alt="document.label"
+                                                        class="size-full object-contain"
+                                                        loading="lazy"
+                                                    />
+                                                    <iframe
+                                                        v-else-if="
+                                                            document.exists &&
+                                                            isPdfDocument(
+                                                                document,
+                                                            )
+                                                        "
+                                                        :src="document.url"
+                                                        :title="document.label"
+                                                        class="size-full border-0"
+                                                    />
+                                                    <div
+                                                        v-else
+                                                        class="flex flex-col items-center gap-2 p-6 text-center"
+                                                    >
+                                                        <FileText
+                                                            class="size-10 text-slate-300"
+                                                        />
+                                                        <p
+                                                            class="text-xs font-semibold text-slate-500 dark:text-slate-400"
+                                                        >
+                                                            {{
+                                                                document.exists
+                                                                    ? 'Preview is not available for this file type.'
+                                                                    : 'File not found in linked storage.'
+                                                            }}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div
+                                                    class="grid grid-cols-2 gap-2 p-3"
+                                                >
+                                                    <a
+                                                        :href="document.url"
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-50 px-3 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
+                                                    >
+                                                        <ExternalLink
+                                                            class="size-4"
+                                                        />
+                                                        View
+                                                    </a>
+                                                    <a
+                                                        :href="document.url"
+                                                        :download="
+                                                            document.name
+                                                        "
+                                                        class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-sky-50 px-3 text-xs font-bold text-sky-700 transition hover:bg-sky-100 dark:bg-sky-500/10 dark:text-sky-300 dark:hover:bg-sky-500/20"
+                                                    >
+                                                        <Download
+                                                            class="size-4"
+                                                        />
+                                                        Download
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </section>
                                 </div>
                             </div>
 
