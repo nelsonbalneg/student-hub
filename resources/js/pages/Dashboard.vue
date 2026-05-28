@@ -4,14 +4,15 @@ import {
     AlertTriangle,
     Building2,
     CalendarDays,
+    ChevronDown,
     CheckCircle2,
-    Clock3,
     Database,
     Megaphone,
     Pin,
     Server,
+    X,
 } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { dashboard } from '@/routes';
 import { format } from 'date-fns';
@@ -24,13 +25,28 @@ type Campus = {
 
 type ActiveSemester = Record<string, unknown>;
 
+type DashboardAnnouncement = {
+    id: number;
+    title: string;
+    summary?: string | null;
+    content?: string | null;
+    priority: 'low' | 'normal' | 'high' | 'urgent' | string;
+    is_pinned?: boolean;
+    published_at?: string | null;
+    created_at?: string | null;
+    category: {
+        name: string;
+        color?: string | null;
+    };
+};
+
 const props = defineProps<{
     campus: Campus;
     activeSemesters: {
         data: ActiveSemester[];
         error: string | null;
     };
-    announcements: any[];
+    announcements: DashboardAnnouncement[];
     studentProfile?: {
         studentPicture?: string | null;
         firstName?: string | null;
@@ -38,6 +54,17 @@ const props = defineProps<{
         lastName?: string | null;
     };
 }>();
+
+const showAnnouncements = ref(false);
+const selectedAnnouncement = ref<DashboardAnnouncement | null>(null);
+
+const openAnnouncement = (announcement: DashboardAnnouncement) => {
+    selectedAnnouncement.value = announcement;
+};
+
+const closeAnnouncement = () => {
+    selectedAnnouncement.value = null;
+};
 
 const labelFor = (semester: ActiveSemester): string => {
     const fields = [
@@ -88,7 +115,14 @@ const integrationState = computed(() => {
 });
 
 const page = usePage();
-const currentUser = computed(() => (page.props.auth as { user?: { name?: string; avatar?: string | null } }).user ?? {});
+const currentUser = computed(
+    () =>
+        (
+            page.props.auth as {
+                user?: { name?: string; avatar?: string | null };
+            }
+        ).user ?? {},
+);
 const profileFullName = computed(() => {
     const parts = [
         props.studentProfile?.firstName,
@@ -99,9 +133,13 @@ const profileFullName = computed(() => {
         .filter((v) => v.length > 0);
     return parts.join(' ').trim();
 });
-const currentUserName = computed(() => profileFullName.value || currentUser.value?.name || 'Student');
+const currentUserName = computed(
+    () => profileFullName.value || currentUser.value?.name || 'Student',
+);
 const currentUserAvatar = computed(() => {
-    const fromProfile = String(props.studentProfile?.studentPicture ?? '').trim();
+    const fromProfile = String(
+        props.studentProfile?.studentPicture ?? '',
+    ).trim();
     const raw = fromProfile;
     if (!raw) return null;
     if (raw.startsWith('data:image')) return raw;
@@ -139,7 +177,8 @@ const statusCards = computed(() => {
         {
             label: 'Active Terms',
             value: activeTermCount.value,
-            detail: activeTermCount.value === 1 ? 'Current semester' : 'Semesters',
+            detail:
+                activeTermCount.value === 1 ? 'Current semester' : 'Semesters',
             icon: CalendarDays,
             tone: 'blue',
             permission: null,
@@ -170,8 +209,31 @@ const statusCards = computed(() => {
         },
     ];
 
-    return cards.filter(card => can(card.permission));
+    return cards.filter((card) => can(card.permission));
 });
+
+const priorityClass = (priority: string) => {
+    switch (priority) {
+        case 'urgent':
+            return 'border-red-200 bg-red-50 text-red-700 dark:border-red-400/30 dark:bg-red-500/10 dark:text-red-300';
+        case 'high':
+            return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300';
+        case 'low':
+            return 'border-slate-200 bg-slate-50 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300';
+        default:
+            return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-300';
+    }
+};
+
+const postedDate = (announcement: DashboardAnnouncement) => {
+    const date = announcement.published_at || announcement.created_at;
+
+    if (!date) {
+        return '-';
+    }
+
+    return format(new Date(date), 'MMM d, yyyy');
+};
 
 defineOptions({
     layout: {
@@ -216,7 +278,9 @@ defineOptions({
                         >
                             Dashboard
                         </h1>
-                        <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                        <p
+                            class="text-xs font-semibold text-slate-700 dark:text-slate-200"
+                        >
                             {{ currentUserName }}
                         </p>
                         <p class="text-xs text-slate-500 dark:text-slate-400">
@@ -224,15 +288,6 @@ defineOptions({
                         </p>
                     </div>
                 </div>
-            </div>
-            <div
-                class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 dark:border-white/10 dark:bg-slate-950 dark:text-slate-300"
-            >
-                <Clock3 class="size-3.5 text-slate-400" />
-                <span class="font-medium">Academic Year</span>
-                <span class="font-bold text-slate-900 dark:text-white"
-                    >2023-2024</span
-                >
             </div>
         </section>
 
@@ -398,44 +453,158 @@ defineOptions({
 
             <div class="grid content-start gap-4">
                 <!-- Announcements Widget -->
-                <div class="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950">
-                    <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-white/10">
-                        <div>
-                            <h2 class="text-sm font-bold text-slate-900 dark:text-white">Latest Announcements</h2>
-                            <p class="text-[10px] text-slate-500">Stay updated with the latest news.</p>
-                        </div>
-                        <Megaphone class="h-4 w-4 text-sky-500" />
-                    </div>
-                    <div class="divide-y divide-slate-50 dark:divide-white/5">
-                        <div v-for="ann in announcements" :key="ann.id" class="p-3 hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
-                            <div class="flex items-start gap-3">
-                                <div class="mt-1">
-                                    <Pin v-if="ann.is_pinned" class="h-3 w-3 text-sky-500 fill-sky-500" />
-                                    <div v-else class="h-2 w-2 rounded-full mt-1" :style="{ backgroundColor: ann.category.color }"></div>
-                                </div>
-                                <div class="flex-1 min-w-0">
-                                    <Link :href="'/announcements/' + ann.id" class="text-xs font-semibold text-slate-900 dark:text-white hover:underline line-clamp-1">
-                                        {{ ann.title }}
-                                    </Link>
-                                    <p class="text-[10px] text-slate-500 line-clamp-1 mt-0.5">{{ ann.summary || 'View details...' }}</p>
-                                    <div class="flex items-center gap-2 mt-1">
-                                        <span class="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-400">
-                                            {{ ann.category.name }}
-                                        </span>
-                                        <span class="text-[9px] text-slate-400">{{ format(new Date(ann.published_at || ann.created_at), 'MMM d') }}</span>
-                                    </div>
-                                </div>
+                <div
+                    class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+                >
+                    <div
+                        class="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 dark:border-white/10"
+                    >
+                        <div class="flex min-w-0 items-center gap-3">
+                            <span
+                                class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
+                            >
+                                <Megaphone class="size-4" />
+                            </span>
+                            <div class="min-w-0">
+                                <h2
+                                    class="text-sm font-bold text-slate-900 dark:text-white"
+                                >
+                                    Announcements
+                                </h2>
+                                <p
+                                    class="text-xs text-slate-500 dark:text-slate-400"
+                                >
+                                    Quick updates posted for students.
+                                </p>
                             </div>
                         </div>
-                        <div v-if="announcements.length === 0" class="p-8 text-center text-[11px] text-slate-400">
-                            No announcements yet.
+
+                        <button
+                            type="button"
+                            class="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 text-[11px] font-bold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
+                            :aria-expanded="showAnnouncements"
+                            @click="showAnnouncements = !showAnnouncements"
+                        >
+                            {{
+                                showAnnouncements
+                                    ? 'Hide Announcements'
+                                    : 'Show Announcements'
+                            }}
+                            <ChevronDown
+                                class="size-3.5 transition-transform duration-200"
+                                :class="{ 'rotate-180': showAnnouncements }"
+                            />
+                        </button>
+                    </div>
+
+                    <Transition name="announcement-panel">
+                        <div
+                            v-if="showAnnouncements"
+                            class="divide-y divide-slate-100 dark:divide-white/10"
+                        >
+                            <div
+                                v-if="announcements.length === 0"
+                                class="grid place-items-center px-4 py-10 text-center"
+                            >
+                                <div>
+                                    <Megaphone
+                                        class="mx-auto size-8 text-slate-300 dark:text-slate-700"
+                                    />
+                                    <p
+                                        class="mt-3 text-sm font-bold text-slate-900 dark:text-white"
+                                    >
+                                        No active announcements
+                                    </p>
+                                    <p
+                                        class="mt-1 text-xs text-slate-500 dark:text-slate-400"
+                                    >
+                                        New student announcements will appear
+                                        here.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <article
+                                v-for="ann in announcements"
+                                v-else
+                                :key="ann.id"
+                                class="p-0"
+                            >
+                                <button
+                                    type="button"
+                                    class="flex w-full items-start gap-3 p-3 text-left transition-colors hover:bg-emerald-50/40 focus:bg-emerald-50/60 focus:outline-none dark:hover:bg-emerald-500/5 dark:focus:bg-emerald-500/10"
+                                    @click="openAnnouncement(ann)"
+                                >
+                                    <span
+                                        class="mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-lg"
+                                        :class="
+                                            ann.is_pinned
+                                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                                : 'bg-slate-100 text-slate-500 dark:bg-white/5 dark:text-slate-300'
+                                        "
+                                    >
+                                        <Pin
+                                            v-if="ann.is_pinned"
+                                            class="size-3.5 fill-current"
+                                        />
+                                        <Megaphone v-else class="size-3.5" />
+                                    </span>
+
+                                    <div class="min-w-0 flex-1">
+                                        <div
+                                            class="flex flex-wrap items-center gap-2"
+                                        >
+                                            <h3
+                                                class="min-w-0 flex-1 text-sm font-bold text-slate-950 dark:text-white"
+                                            >
+                                                {{ ann.title }}
+                                            </h3>
+                                            <span
+                                                class="inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase"
+                                                :class="
+                                                    priorityClass(ann.priority)
+                                                "
+                                            >
+                                                {{ ann.priority }}
+                                            </span>
+                                        </div>
+
+                                        <div
+                                            class="mt-1 flex flex-wrap items-center gap-2 text-[11px]"
+                                        >
+                                            <span
+                                                class="inline-flex items-center rounded-full px-2 py-0.5 font-semibold"
+                                                :style="{
+                                                    backgroundColor:
+                                                        (ann.category.color ||
+                                                            '#059669') + '18',
+                                                    color:
+                                                        ann.category.color ||
+                                                        '#047857',
+                                                }"
+                                            >
+                                                {{ ann.category.name }}
+                                            </span>
+                                            <span
+                                                class="font-medium text-slate-400"
+                                            >
+                                                {{ postedDate(ann) }}
+                                            </span>
+                                        </div>
+
+                                        <p
+                                            class="mt-2 line-clamp-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300"
+                                        >
+                                            {{
+                                                ann.summary ||
+                                                'No announcement summary provided.'
+                                            }}
+                                        </p>
+                                    </div>
+                                </button>
+                            </article>
                         </div>
-                    </div>
-                    <div class="p-2 border-t border-slate-50 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.01]">
-                        <Link href="/announcements" class="block w-full text-center text-[10px] font-bold text-sky-600 hover:text-sky-700 dark:text-sky-400 uppercase tracking-wider">
-                            View All Announcements
-                        </Link>
-                    </div>
+                    </Transition>
                 </div>
 
                 <div
@@ -554,6 +723,113 @@ defineOptions({
                 </div>
             </div>
         </section>
+
+        <Transition name="drawer-fade">
+            <div
+                v-if="selectedAnnouncement"
+                class="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[2px]"
+                @click="closeAnnouncement"
+            />
+        </Transition>
+
+        <Transition name="drawer-slide">
+            <aside
+                v-if="selectedAnnouncement"
+                class="fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-950"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="announcement-drawer-title"
+            >
+                <div
+                    class="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 dark:border-white/10"
+                >
+                    <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span
+                                class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold"
+                                :style="{
+                                    backgroundColor:
+                                        (selectedAnnouncement.category.color ||
+                                            '#059669') + '18',
+                                    color:
+                                        selectedAnnouncement.category.color ||
+                                        '#047857',
+                                }"
+                            >
+                                {{ selectedAnnouncement.category.name }}
+                            </span>
+                            <span
+                                class="inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase"
+                                :class="
+                                    priorityClass(selectedAnnouncement.priority)
+                                "
+                            >
+                                {{ selectedAnnouncement.priority }}
+                            </span>
+                            <span
+                                v-if="selectedAnnouncement.is_pinned"
+                                class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
+                            >
+                                <Pin class="size-3 fill-current" />
+                                Pinned
+                            </span>
+                        </div>
+                        <h2
+                            id="announcement-drawer-title"
+                            class="mt-3 text-lg leading-snug font-bold text-slate-950 dark:text-white"
+                        >
+                            {{ selectedAnnouncement.title }}
+                        </h2>
+                        <p
+                            class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400"
+                        >
+                            Posted {{ postedDate(selectedAnnouncement) }}
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
+                        aria-label="Close announcement details"
+                        @click="closeAnnouncement"
+                    >
+                        <X class="size-4" />
+                    </button>
+                </div>
+
+                <div class="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+                    <div
+                        v-if="selectedAnnouncement.summary"
+                        class="mb-5 rounded-lg border border-emerald-100 bg-emerald-50/70 p-4 text-sm leading-6 font-semibold text-slate-700 dark:border-emerald-400/20 dark:bg-emerald-500/10 dark:text-slate-200"
+                    >
+                        {{ selectedAnnouncement.summary }}
+                    </div>
+
+                    <article
+                        v-if="selectedAnnouncement.content"
+                        class="announcement-content max-w-none"
+                        v-html="selectedAnnouncement.content"
+                    />
+
+                    <div
+                        v-else
+                        class="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center dark:border-white/10 dark:bg-white/5"
+                    >
+                        <Megaphone
+                            class="mx-auto size-7 text-slate-300 dark:text-slate-700"
+                        />
+                        <p
+                            class="mt-3 text-sm font-bold text-slate-900 dark:text-white"
+                        >
+                            No additional details
+                        </p>
+                        <p class="mt-1 text-xs text-slate-500">
+                            This announcement only has a summary.
+                        </p>
+                    </div>
+                </div>
+            </aside>
+        </Transition>
     </div>
 </template>
 
@@ -562,5 +838,110 @@ defineOptions({
 
 .table-head {
     @apply px-4 py-2 text-left text-[10px] font-bold tracking-wide text-slate-500 uppercase;
+}
+
+.announcement-content {
+    @apply text-xs leading-6 text-slate-700 dark:text-slate-200;
+}
+
+.announcement-content :deep(*) {
+    color: #334155 !important;
+    font-size: 0.75rem !important;
+    line-height: 1.5rem !important;
+}
+
+.dark .announcement-content :deep(*) {
+    color: #e2e8f0 !important;
+}
+
+.announcement-content :deep(p) {
+    @apply my-2 text-xs leading-6;
+}
+
+.announcement-content :deep(ol),
+.announcement-content :deep(ul) {
+    @apply my-2 space-y-1 pl-5 text-xs leading-6;
+}
+
+.announcement-content :deep(ol) {
+    @apply list-decimal;
+}
+
+.announcement-content :deep(ul) {
+    @apply list-disc;
+}
+
+.announcement-content :deep(li) {
+    @apply pl-1 text-xs leading-6;
+}
+
+.announcement-content :deep(strong),
+.announcement-content :deep(b) {
+    @apply font-bold;
+    color: #0f172a !important;
+}
+
+.dark .announcement-content :deep(strong),
+.dark .announcement-content :deep(b) {
+    color: #ffffff !important;
+}
+
+.announcement-content :deep(a) {
+    @apply font-semibold underline-offset-2 hover:underline;
+    color: #047857 !important;
+}
+
+.dark .announcement-content :deep(a) {
+    color: #6ee7b7 !important;
+}
+
+.announcement-content :deep(h1),
+.announcement-content :deep(h2),
+.announcement-content :deep(h3) {
+    @apply mt-4 mb-2 font-bold;
+    color: #0f172a !important;
+    font-size: 0.875rem !important;
+}
+
+.dark .announcement-content :deep(h1),
+.dark .announcement-content :deep(h2),
+.dark .announcement-content :deep(h3) {
+    color: #ffffff !important;
+}
+
+.announcement-panel-enter-active,
+.announcement-panel-leave-active {
+    transition:
+        opacity 180ms ease,
+        transform 180ms ease;
+}
+
+.announcement-panel-enter-from,
+.announcement-panel-leave-to {
+    opacity: 0;
+    transform: translateY(-4px);
+}
+
+.drawer-fade-enter-active,
+.drawer-fade-leave-active {
+    transition: opacity 180ms ease;
+}
+
+.drawer-fade-enter-from,
+.drawer-fade-leave-to {
+    opacity: 0;
+}
+
+.drawer-slide-enter-active,
+.drawer-slide-leave-active {
+    transition:
+        opacity 220ms ease,
+        transform 220ms ease;
+}
+
+.drawer-slide-enter-from,
+.drawer-slide-leave-to {
+    opacity: 0;
+    transform: translateX(24px);
 }
 </style>

@@ -931,8 +931,8 @@ watch(editMode, (val) => {
                             class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-bold transition"
                             :class="
                                 activeTab === tab.id
-                                    ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950'
-                                    : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-white/5'
+                                    ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/20 dark:bg-emerald-500 dark:text-emerald-950'
+                                    : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 dark:text-slate-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300'
                             "
                             @click="setActiveTab(tab.id)"
                         >

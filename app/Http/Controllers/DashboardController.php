@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Announcement;
 use App\Services\AcademicApiService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -21,7 +22,7 @@ class DashboardController extends Controller
         $announcements = Announcement::published()
             ->with(['category', 'creator'])
             ->where(function ($query) use ($user) {
-                $query->where('visibility', 'public')
+                $query->whereIn('visibility', ['public', 'students'])
                     ->orWhere(function ($q) use ($user) {
                         $q->whereHas('targets', function ($sub) use ($user) {
                             $sub->where(function ($inner) use ($user) {
@@ -43,7 +44,23 @@ class DashboardController extends Controller
             ->orderBy('is_pinned', 'desc')
             ->orderBy('published_at', 'desc')
             ->take(5)
-            ->get();
+            ->get()
+            ->map(fn (Announcement $announcement): array => [
+                'id' => $announcement->id,
+                'title' => $announcement->title,
+                'summary' => filled($announcement->summary)
+                    ? $announcement->summary
+                    : Str::limit(trim(strip_tags((string) $announcement->content)), 160),
+                'content' => $announcement->content,
+                'priority' => $announcement->priority,
+                'is_pinned' => $announcement->is_pinned,
+                'published_at' => $announcement->published_at?->toIso8601String(),
+                'created_at' => $announcement->created_at?->toIso8601String(),
+                'category' => [
+                    'name' => $announcement->category?->name ?? 'General',
+                    'color' => $announcement->category?->color ?? '#059669',
+                ],
+            ]);
 
         return Inertia::render('Dashboard', [
             'campus' => [
