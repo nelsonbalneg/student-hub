@@ -105,7 +105,11 @@ const props = defineProps<{
         };
     };
     evaluation_error: string | null;
-    evaluation_error_type: 'connectivity' | 'no_data' | 'missing_context' | null;
+    evaluation_error_type:
+        | 'connectivity'
+        | 'no_data'
+        | 'missing_context'
+        | null;
 }>();
 
 const expandedTerms = ref<Record<string, boolean>>({});
@@ -267,11 +271,25 @@ const columns = [
     },
     {
         label: 'Final',
-        keys: ['final', 'final_exam'],
+        keys: [
+            'final',
+            'final_exam',
+            'finalGrade',
+            'final_grade',
+            'grade',
+            'rating',
+        ],
     },
     {
-        label: 'Grade',
-        keys: ['finalGrade', 'final_grade', 'grade', 'rating'],
+        label: 'Reexam',
+        keys: [
+            'reeExam',
+            'reExam',
+            'reexam',
+            're_exam',
+            'reExamination',
+            're_examination',
+        ],
     },
     {
         label: 'Remarks',
@@ -1615,7 +1633,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                 Final
                                             </th>
                                             <th class="px-4 py-3 text-center">
-                                                Grade
+                                                Reexam
                                             </th>
                                             <th class="px-4 py-3 text-center">
                                                 Action
@@ -1711,7 +1729,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                 </template>
                                             </td>
                                             <td
-                                                class="px-4 py-3 text-center align-top"
+                                                class="px-4 py-3 text-center align-top text-xs font-medium text-slate-500 dark:text-slate-400"
                                             >
                                                 <template
                                                     v-if="
@@ -1724,16 +1742,12 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                     >
                                                 </template>
                                                 <template v-else>
-                                                    <span
-                                                        class="inline-flex min-w-10 items-center justify-center rounded-md bg-slate-900 px-2 py-1 text-xs font-bold text-white dark:bg-white dark:text-slate-950"
-                                                    >
-                                                        {{
-                                                            pick(
-                                                                row,
-                                                                columns[5].keys,
-                                                            )
-                                                        }}
-                                                    </span>
+                                                    {{
+                                                        pick(
+                                                            row,
+                                                            columns[5].keys,
+                                                        )
+                                                    }}
                                                 </template>
                                             </td>
                                             <td
