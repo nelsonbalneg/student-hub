@@ -34,6 +34,7 @@ use Spatie\Permission\Traits\HasRoles;
     'campus_name',
     'student_no',
     'employee_no',
+    'two_factor_confirmed_at',
 ])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable

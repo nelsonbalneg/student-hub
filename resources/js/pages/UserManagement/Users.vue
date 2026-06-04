@@ -51,15 +51,29 @@ type ManagedUser = {
     id: number;
     name: string;
     email: string;
+    email_verified_at?: string | null;
     user_type?: string | null;
     office?: string | null;
     department?: string | null;
+    sso_id?: string | null;
+    sso_uuid?: string | null;
+    sso_username?: string | null;
+    sso_account_type?: string | null;
+    sso_avatar?: string | null;
+    tenant_id?: number | null;
+    campus_id?: number | null;
+    campus_name?: string | null;
+    student_no?: string | null;
+    employee_no?: string | null;
+    two_factor_confirmed_at?: string | null;
     status: string;
     is_active: boolean;
     roles: string[];
     office_id?: number | null;
     office_details?: { id: number; name: string; code: string | null } | null;
     created_at?: string;
+    created_at_full?: string | null;
+    updated_at_full?: string | null;
 };
 
 const props = defineProps<{
@@ -121,12 +135,24 @@ const modal = ref<
 const userForm = useForm({
     name: '',
     email: '',
+    email_verified_at: '',
     password: '',
     is_active: true,
     user_type: '',
     office: '',
     department: '',
     office_id: null as number | null,
+    sso_id: '',
+    sso_uuid: '',
+    sso_username: '',
+    sso_account_type: '',
+    sso_avatar: '',
+    tenant_id: null as number | null,
+    campus_id: null as number | null,
+    campus_name: '',
+    student_no: '',
+    employee_no: '',
+    two_factor_confirmed_at: '',
     roles: [] as string[],
 });
 
@@ -212,12 +238,24 @@ const openEdit = (user: ManagedUser) => {
     userForm.clearErrors();
     userForm.name = user.name;
     userForm.email = user.email;
+    userForm.email_verified_at = user.email_verified_at ?? '';
     userForm.password = '';
     userForm.is_active = user.is_active;
     userForm.user_type = user.user_type ?? '';
     userForm.office = user.office ?? '';
     userForm.department = user.department ?? '';
     userForm.office_id = user.office_id ?? null;
+    userForm.sso_id = user.sso_id ?? '';
+    userForm.sso_uuid = user.sso_uuid ?? '';
+    userForm.sso_username = user.sso_username ?? '';
+    userForm.sso_account_type = user.sso_account_type ?? '';
+    userForm.sso_avatar = user.sso_avatar ?? '';
+    userForm.tenant_id = user.tenant_id ?? null;
+    userForm.campus_id = user.campus_id ?? null;
+    userForm.campus_name = user.campus_name ?? '';
+    userForm.student_no = user.student_no ?? '';
+    userForm.employee_no = user.employee_no ?? '';
+    userForm.two_factor_confirmed_at = user.two_factor_confirmed_at ?? '';
     userForm.roles = [...user.roles];
     modal.value = { type: 'edit', user };
 };
@@ -315,10 +353,14 @@ const confirmDelete = (force = false) => {
 };
 
 const toggleUserStatus = (user: ManagedUser) => {
-    router.patch(toggleUserRoute.url(user.id), {}, {
-        preserveScroll: true,
-        preserveState: true,
-    });
+    router.patch(
+        toggleUserRoute.url(user.id),
+        {},
+        {
+            preserveScroll: true,
+            preserveState: true,
+        },
+    );
 };
 
 const navigatePage = (url: string | null) => {
@@ -837,7 +879,7 @@ const navigatePage = (url: string | null) => {
         @click.self="modal = null"
     >
         <div
-            class="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl bg-white p-5 shadow-xl dark:bg-slate-950"
+            class="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-white p-5 shadow-xl dark:bg-slate-950"
         >
             <div class="mb-4 flex items-center justify-between gap-3">
                 <h2 class="text-sm font-bold text-slate-900 dark:text-white">
@@ -864,18 +906,84 @@ const navigatePage = (url: string | null) => {
                 v-if="modal.type === 'view'"
                 class="grid gap-3 text-sm text-slate-600 dark:text-slate-300"
             >
-                <p><strong>Name:</strong> {{ modal.user.name }}</p>
-                <p><strong>Email:</strong> {{ modal.user.email }}</p>
-                <p>
-                    <strong>User type:</strong>
-                    {{ modal.user.user_type || 'Member' }}
-                </p>
-                <p>
-                    <strong>Office:</strong> {{ modal.user.office || 'None' }}
-                </p>
-                <p>
-                    <strong>Department:</strong>
-                    {{ modal.user.department || 'None' }}
+                <div class="grid gap-3 md:grid-cols-2">
+                    <p><strong>ID:</strong> {{ modal.user.id }}</p>
+                    <p><strong>Name:</strong> {{ modal.user.name }}</p>
+                    <p><strong>Email:</strong> {{ modal.user.email }}</p>
+                    <p>
+                        <strong>Email verified:</strong>
+                        {{ modal.user.email_verified_at || 'No' }}
+                    </p>
+                    <p>
+                        <strong>User type:</strong>
+                        {{ modal.user.user_type || 'Member' }}
+                    </p>
+                    <p><strong>Status:</strong> {{ modal.user.status }}</p>
+                    <p>
+                        <strong>Tenant/Campus:</strong>
+                        {{ modal.user.tenant_id || 'N/A' }} /
+                        {{ modal.user.campus_id || 'N/A' }}
+                    </p>
+                    <p>
+                        <strong>Campus name:</strong>
+                        {{ modal.user.campus_name || 'None' }}
+                    </p>
+                    <p>
+                        <strong>Student no:</strong>
+                        {{ modal.user.student_no || 'None' }}
+                    </p>
+                    <p>
+                        <strong>Employee no:</strong>
+                        {{ modal.user.employee_no || 'None' }}
+                    </p>
+                    <p>
+                        <strong>Office:</strong>
+                        {{ modal.user.office || 'None' }}
+                    </p>
+                    <p>
+                        <strong>Office ID:</strong>
+                        {{ modal.user.office_id || 'None' }}
+                    </p>
+                    <p>
+                        <strong>Department:</strong>
+                        {{ modal.user.department || 'None' }}
+                    </p>
+                    <p>
+                        <strong>SSO ID:</strong>
+                        {{ modal.user.sso_id || 'None' }}
+                    </p>
+                    <p>
+                        <strong>SSO UUID:</strong>
+                        {{ modal.user.sso_uuid || 'None' }}
+                    </p>
+                    <p>
+                        <strong>SSO username:</strong>
+                        {{ modal.user.sso_username || 'None' }}
+                    </p>
+                    <p>
+                        <strong>SSO account type:</strong>
+                        {{ modal.user.sso_account_type || 'None' }}
+                    </p>
+                    <p>
+                        <strong>2FA confirmed:</strong>
+                        {{ modal.user.two_factor_confirmed_at || 'No' }}
+                    </p>
+                    <p>
+                        <strong>Created:</strong>
+                        {{
+                            modal.user.created_at_full ||
+                            modal.user.created_at ||
+                            'N/A'
+                        }}
+                    </p>
+                    <p>
+                        <strong>Updated:</strong>
+                        {{ modal.user.updated_at_full || 'N/A' }}
+                    </p>
+                </div>
+                <p class="truncate">
+                    <strong>SSO avatar:</strong>
+                    {{ modal.user.sso_avatar || 'None' }}
                 </p>
                 <p>
                     <strong>Roles:</strong>
@@ -932,47 +1040,269 @@ const navigatePage = (url: string | null) => {
                 class="grid gap-4"
                 @submit.prevent="saveUser"
             >
-                <input
-                    v-model="userForm.name"
-                    class="form-input"
-                    placeholder="Name"
-                />
-                <InputError :message="userForm.errors.name" />
-                <input
-                    v-model="userForm.email"
-                    class="form-input"
-                    placeholder="Email"
-                    type="email"
-                />
-                <InputError :message="userForm.errors.email" />
-                <input
-                    v-model="userForm.password"
-                    class="form-input"
-                    :placeholder="
-                        modal.type === 'edit'
-                            ? 'New password (optional)'
-                            : 'Password'
-                    "
-                    type="password"
-                />
-                <InputError :message="userForm.errors.password" />
-                <div class="grid gap-3 md:grid-cols-3">
-                    <input
-                        v-model="userForm.user_type"
-                        class="form-input"
-                        placeholder="User type"
-                    />
-                    <input
-                        v-model="userForm.office"
-                        class="form-input"
-                        placeholder="Office"
-                    />
-                    <input
-                        v-model="userForm.department"
-                        class="form-input"
-                        placeholder="Department"
-                    />
+                <div
+                    v-if="modal.type === 'edit'"
+                    class="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs dark:border-white/10 dark:bg-white/[0.03]"
+                >
+                    <div class="grid gap-2 md:grid-cols-3">
+                        <p class="text-slate-500">
+                            <span
+                                class="font-bold text-slate-700 dark:text-slate-200"
+                                >ID:</span
+                            >
+                            {{ modal.user.id }}
+                        </p>
+                        <p class="text-slate-500">
+                            <span
+                                class="font-bold text-slate-700 dark:text-slate-200"
+                                >Created:</span
+                            >
+                            {{
+                                modal.user.created_at_full ||
+                                modal.user.created_at ||
+                                'N/A'
+                            }}
+                        </p>
+                        <p class="text-slate-500">
+                            <span
+                                class="font-bold text-slate-700 dark:text-slate-200"
+                                >Updated:</span
+                            >
+                            {{ modal.user.updated_at_full || 'N/A' }}
+                        </p>
+                    </div>
+                    <p class="text-[11px] text-slate-500">
+                        Password hashes, remember tokens, and 2FA recovery
+                        secrets are not displayed. Use the password field below
+                        to set a new password.
+                    </p>
                 </div>
+
+                <section class="grid gap-3">
+                    <h3
+                        class="text-[10px] font-bold tracking-wide text-slate-400 uppercase"
+                    >
+                        Account
+                    </h3>
+                    <div class="grid gap-3 md:grid-cols-2">
+                        <label class="form-field">
+                            Name
+                            <input v-model="userForm.name" class="form-input" />
+                            <InputError :message="userForm.errors.name" />
+                        </label>
+                        <label class="form-field">
+                            Email
+                            <input
+                                v-model="userForm.email"
+                                class="form-input"
+                                type="email"
+                            />
+                            <InputError :message="userForm.errors.email" />
+                        </label>
+                        <label class="form-field">
+                            Email verified at
+                            <input
+                                v-model="userForm.email_verified_at"
+                                class="form-input"
+                                type="datetime-local"
+                            />
+                            <InputError
+                                :message="userForm.errors.email_verified_at"
+                            />
+                        </label>
+                        <label class="form-field">
+                            {{
+                                modal.type === 'edit'
+                                    ? 'New password (optional)'
+                                    : 'Password'
+                            }}
+                            <input
+                                v-model="userForm.password"
+                                class="form-input"
+                                type="password"
+                            />
+                            <InputError :message="userForm.errors.password" />
+                        </label>
+                    </div>
+                </section>
+
+                <section class="grid gap-3">
+                    <h3
+                        class="text-[10px] font-bold tracking-wide text-slate-400 uppercase"
+                    >
+                        Campus & Identity
+                    </h3>
+                    <div class="grid gap-3 md:grid-cols-3">
+                        <label class="form-field">
+                            Tenant ID
+                            <input
+                                v-model.number="userForm.tenant_id"
+                                class="form-input"
+                                type="number"
+                            />
+                            <InputError :message="userForm.errors.tenant_id" />
+                        </label>
+                        <label class="form-field">
+                            Campus ID
+                            <input
+                                v-model.number="userForm.campus_id"
+                                class="form-input"
+                                type="number"
+                            />
+                            <InputError :message="userForm.errors.campus_id" />
+                        </label>
+                        <label class="form-field">
+                            Campus name
+                            <input
+                                v-model="userForm.campus_name"
+                                class="form-input"
+                            />
+                            <InputError
+                                :message="userForm.errors.campus_name"
+                            />
+                        </label>
+                        <label class="form-field">
+                            Student no.
+                            <input
+                                v-model="userForm.student_no"
+                                class="form-input"
+                            />
+                            <InputError :message="userForm.errors.student_no" />
+                        </label>
+                        <label class="form-field">
+                            Employee no.
+                            <input
+                                v-model="userForm.employee_no"
+                                class="form-input"
+                            />
+                            <InputError
+                                :message="userForm.errors.employee_no"
+                            />
+                        </label>
+                        <label class="form-field">
+                            User type
+                            <input
+                                v-model="userForm.user_type"
+                                class="form-input"
+                            />
+                            <InputError :message="userForm.errors.user_type" />
+                        </label>
+                    </div>
+                </section>
+
+                <section class="grid gap-3">
+                    <h3
+                        class="text-[10px] font-bold tracking-wide text-slate-400 uppercase"
+                    >
+                        SSO
+                    </h3>
+                    <div class="grid gap-3 md:grid-cols-2">
+                        <label class="form-field">
+                            SSO ID
+                            <input
+                                v-model="userForm.sso_id"
+                                class="form-input"
+                            />
+                            <InputError :message="userForm.errors.sso_id" />
+                        </label>
+                        <label class="form-field">
+                            SSO UUID
+                            <input
+                                v-model="userForm.sso_uuid"
+                                class="form-input"
+                            />
+                            <InputError :message="userForm.errors.sso_uuid" />
+                        </label>
+                        <label class="form-field">
+                            SSO username
+                            <input
+                                v-model="userForm.sso_username"
+                                class="form-input"
+                            />
+                            <InputError
+                                :message="userForm.errors.sso_username"
+                            />
+                        </label>
+                        <label class="form-field">
+                            SSO account type
+                            <input
+                                v-model="userForm.sso_account_type"
+                                class="form-input"
+                            />
+                            <InputError
+                                :message="userForm.errors.sso_account_type"
+                            />
+                        </label>
+                        <label class="form-field md:col-span-2">
+                            SSO avatar
+                            <input
+                                v-model="userForm.sso_avatar"
+                                class="form-input"
+                            />
+                            <InputError :message="userForm.errors.sso_avatar" />
+                        </label>
+                    </div>
+                </section>
+
+                <section class="grid gap-3">
+                    <h3
+                        class="text-[10px] font-bold tracking-wide text-slate-400 uppercase"
+                    >
+                        Office & Security
+                    </h3>
+                    <div class="grid gap-3 md:grid-cols-3">
+                        <label class="form-field">
+                            Office text
+                            <input
+                                v-model="userForm.office"
+                                class="form-input"
+                            />
+                            <InputError :message="userForm.errors.office" />
+                        </label>
+                        <label class="form-field">
+                            Office record
+                            <select
+                                v-model="userForm.office_id"
+                                class="form-input bg-white"
+                            >
+                                <option :value="null">No Office</option>
+                                <option
+                                    v-for="office in lookupOffices"
+                                    :key="office.id"
+                                    :value="office.id"
+                                >
+                                    {{ office.name }}
+                                    <span v-if="office.code"
+                                        >({{ office.code }})</span
+                                    >
+                                </option>
+                            </select>
+                            <InputError :message="userForm.errors.office_id" />
+                        </label>
+                        <label class="form-field">
+                            Department
+                            <input
+                                v-model="userForm.department"
+                                class="form-input"
+                            />
+                            <InputError :message="userForm.errors.department" />
+                        </label>
+                        <label class="form-field">
+                            2FA confirmed at
+                            <input
+                                v-model="userForm.two_factor_confirmed_at"
+                                class="form-input"
+                                type="datetime-local"
+                            />
+                            <InputError
+                                :message="
+                                    userForm.errors.two_factor_confirmed_at
+                                "
+                            />
+                        </label>
+                    </div>
+                </section>
+
                 <label
                     class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300"
                 >
@@ -983,7 +1313,10 @@ const navigatePage = (url: string | null) => {
                     />
                     Active account
                 </label>
-                <div class="grid gap-2 md:grid-cols-2">
+                <div
+                    v-if="modal.type === 'create' || can.assignRole"
+                    class="grid gap-2 md:grid-cols-2"
+                >
                     <label
                         v-for="role in allRoles"
                         :key="role.id"
@@ -1105,6 +1438,10 @@ const navigatePage = (url: string | null) => {
     color-scheme: light;
     background-color: #ffffff;
     color: #0f172a;
+}
+
+.form-field {
+    @apply grid gap-1 text-[11px] font-bold text-slate-500 uppercase;
 }
 </style>
 

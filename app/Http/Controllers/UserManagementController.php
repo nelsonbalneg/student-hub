@@ -124,7 +124,7 @@ class UserManagementController extends Controller
         $validated = $request->validated();
 
         $user = User::query()->create([
-            ...$this->onlyExistingUserColumns($validated, ['name', 'email', 'is_active', 'user_type', 'office', 'office_id', 'department']),
+            ...$this->onlyExistingUserColumns($validated, $this->editableUserColumns()),
             'password' => Hash::make($validated['password']),
         ]);
 
@@ -143,7 +143,11 @@ class UserManagementController extends Controller
             $validated['password'] = Hash::make($password);
         }
 
-        $user->update($this->onlyExistingUserColumns($validated, ['name', 'email', 'password', 'is_active', 'user_type', 'office', 'office_id', 'department']));
+        $user->update($this->onlyExistingUserColumns($validated, [...$this->editableUserColumns(), 'password']));
+
+        if ($request->user()->can('users.assign-role') && array_key_exists('roles', $validated)) {
+            $user->syncRoles($validated['roles'] ?? []);
+        }
 
         return to_route('user-management.index')->with('success', 'User updated.');
     }
@@ -498,6 +502,34 @@ class UserManagementController extends Controller
             ->filter(fn (string $column): bool => array_key_exists($column, $values))
             ->mapWithKeys(fn (string $column): array => [$column => $values[$column]])
             ->all();
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function editableUserColumns(): array
+    {
+        return [
+            'name',
+            'email',
+            'email_verified_at',
+            'is_active',
+            'user_type',
+            'office',
+            'office_id',
+            'department',
+            'sso_id',
+            'sso_uuid',
+            'sso_username',
+            'sso_account_type',
+            'sso_avatar',
+            'tenant_id',
+            'campus_id',
+            'campus_name',
+            'student_no',
+            'employee_no',
+            'two_factor_confirmed_at',
+        ];
     }
 
     /**
