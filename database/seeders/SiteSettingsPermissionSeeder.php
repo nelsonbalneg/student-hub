@@ -20,6 +20,10 @@ class SiteSettingsPermissionSeeder extends Seeder
             'site-settings.delete',
             'site-settings.manage-terms',
             'site-settings.activate-term',
+            'site-settings.student-profile.view',
+            'site-settings.student-profile.create',
+            'site-settings.student-profile.update',
+            'site-settings.student-profile.delete',
             'site_settings.manage',
         ];
 

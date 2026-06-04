@@ -28,17 +28,19 @@ use App\Http\Controllers\SiteSettings\SiteAcademicTermController;
 use App\Http\Controllers\SiteSettings\SiteBrandingController;
 use App\Http\Controllers\SiteSettings\SiteCampusController;
 use App\Http\Controllers\SiteSettings\SiteGradeViewingController;
+use App\Http\Controllers\SiteSettings\SiteStudentProfileController;
+use App\Http\Controllers\Society\SocietyAccreditationController;
+use App\Http\Controllers\Society\SocietyAnnouncementController;
+use App\Http\Controllers\Society\SocietyController;
+use App\Http\Controllers\Society\SocietyDashboardController;
+use App\Http\Controllers\Society\SocietyEventController;
+use App\Http\Controllers\Society\SocietyMembershipController;
+use App\Http\Controllers\Society\SocietyReportController;
 use App\Http\Controllers\StudentProfileController;
 use App\Http\Controllers\StudentRecordsController;
 use App\Http\Controllers\StudentSemesterClearanceController;
+use App\Http\Controllers\SystemLogController;
 use App\Http\Controllers\UserManagementController;
-use App\Http\Controllers\Society\SocietyDashboardController;
-use App\Http\Controllers\Society\SocietyAccreditationController;
-use App\Http\Controllers\Society\SocietyController;
-use App\Http\Controllers\Society\SocietyMembershipController;
-use App\Http\Controllers\Society\SocietyEventController;
-use App\Http\Controllers\Society\SocietyAnnouncementController;
-use App\Http\Controllers\Society\SocietyReportController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -74,6 +76,23 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
     Route::get('dashboard', DashboardController::class)
         ->middleware('can:dashboard.view')
         ->name('dashboard');
+
+    Route::prefix('system/logs')
+        ->name('system.logs.')
+        ->middleware('role_or_permission:Super Admin|System Administrator|system.logs.view')
+        ->group(function () {
+            Route::get('/', [SystemLogController::class, 'index'])->name('index');
+            Route::get('/download', [SystemLogController::class, 'download'])
+                ->middleware('role_or_permission:Super Admin|System Administrator|system.logs.download')
+                ->name('download');
+            Route::get('/export', [SystemLogController::class, 'export'])
+                ->middleware('role_or_permission:Super Admin|System Administrator|system.logs.export|system.logs.download')
+                ->name('export');
+            Route::delete('/clear', [SystemLogController::class, 'clear'])
+                ->middleware('role_or_permission:Super Admin|system.logs.clear')
+                ->name('clear');
+        });
+
     Route::get('grades', GradesController::class)
         ->middleware('can:grades.view')
         ->name('grades.index');
@@ -441,6 +460,14 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
             Route::delete('grade-viewing/{rule}', [SiteGradeViewingController::class, 'destroy'])->name('grade-viewing.destroy');
             Route::patch('grade-viewing/{rule}/toggle', [SiteGradeViewingController::class, 'toggle'])->name('grade-viewing.toggle');
 
+            Route::get('student-profile', [SiteStudentProfileController::class, 'index'])->name('student-profile.index');
+            Route::post('student-profile/awards', [SiteStudentProfileController::class, 'storeAward'])->name('student-profile.awards.store');
+            Route::patch('student-profile/awards/{achievement}', [SiteStudentProfileController::class, 'updateAward'])->name('student-profile.awards.update');
+            Route::delete('student-profile/awards/{achievement}', [SiteStudentProfileController::class, 'destroyAward'])->name('student-profile.awards.destroy');
+            Route::post('student-profile/trainings', [SiteStudentProfileController::class, 'storeTraining'])->name('student-profile.trainings.store');
+            Route::patch('student-profile/trainings/{training}', [SiteStudentProfileController::class, 'updateTraining'])->name('student-profile.trainings.update');
+            Route::delete('student-profile/trainings/{training}', [SiteStudentProfileController::class, 'destroyTraining'])->name('student-profile.trainings.destroy');
+
             Route::get('sar', fn () => Inertia::render('SiteSettings/Placeholder', ['title' => 'SAR']))->name('sar');
 
             Route::get('site-settings', [SiteBrandingController::class, 'index'])->name('branding.index');
@@ -470,7 +497,7 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
             Route::get('/students/search', [SocietyController::class, 'searchStudents'])
                 ->middleware('can:society.manage_officers')
                 ->name('students.search');
-            
+
             Route::get('/{society}', [SocietyController::class, 'show'])->name('show');
             Route::post('/{society}/join', [SocietyMembershipController::class, 'join'])->name('join');
 

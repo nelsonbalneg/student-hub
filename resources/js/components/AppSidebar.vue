@@ -21,6 +21,7 @@ import {
     FileText,
     Building2,
     Leaf,
+    ServerCog,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
@@ -110,7 +111,6 @@ const firstVisibleHref = (items: NavItem[]): NavItem['href'] | string => {
 };
 
 const overviewNavItems: NavItem[] = [
-   
     {
         title: 'Dashboard',
         href: dashboard(),
@@ -239,7 +239,7 @@ const overviewNavItems: NavItem[] = [
             },
         ],
     },
-     {
+    {
         title: 'Societies',
         href: '/societies',
         icon: Users,
@@ -331,6 +331,13 @@ const siteAdministrationNavItems: NavItem[] = [
                 icon: Leaf,
                 permission: 'reporting.carbon_footprint.view',
             },
+             {
+                title: 'System Logs',
+                href: '/system/logs',
+                icon: FileText,
+                permission: 'system.logs.view',
+                roles: ['Super Admin', 'System Administrator'],
+            },
         ],
     },
     {
@@ -361,6 +368,15 @@ const siteAdministrationNavItems: NavItem[] = [
                 href: '/admin/site-settings/campuses',
                 icon: Building2,
                 permission: 'site-settings.view',
+            },
+            {
+                title: 'Student Profile',
+                href: '/admin/site-settings/student-profile',
+                icon: User,
+                permission: [
+                    'site-settings.student-profile.view',
+                    'site-settings.view',
+                ],
             },
             {
                 title: 'Legal',

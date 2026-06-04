@@ -8,6 +8,7 @@ import {
     FileText,
     Palette,
     Settings2,
+    UserRound,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 
@@ -20,14 +21,20 @@ const roles = computed<string[]>(
     () => (page.props.auth as { roles?: string[] }).roles ?? [],
 );
 
-const can = (permission?: string) => {
+const can = (permission?: string | string[]) => {
     if (!permission) {
         return true;
     }
 
+    const requiredPermissions = Array.isArray(permission)
+        ? permission
+        : [permission];
+
     return (
         roles.value.includes('Super Admin') ||
-        permissions.value.includes(permission)
+        requiredPermissions.some((requiredPermission) =>
+            permissions.value.includes(requiredPermission),
+        )
     );
 };
 
@@ -55,6 +62,16 @@ const tabs = [
         href: '/admin/site-settings/grade-viewing',
         icon: GraduationCap,
         description: 'Results visibility control',
+    },
+    {
+        name: 'Student Profile',
+        href: '/admin/site-settings/student-profile',
+        icon: UserRound,
+        description: 'Awards and trainings',
+        permission: [
+            'site-settings.student-profile.view',
+            'site-settings.view',
+        ],
     },
     {
         name: 'SAR',

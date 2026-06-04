@@ -30,6 +30,10 @@ class RolesAndPermissionsSeeder extends Seeder
             ['module' => 'Academic', 'name' => 'view class schedule'],
             ['module' => 'Academic', 'name' => 'download cor'],
             ['module' => 'Student Profile', 'name' => 'student-profile.view'],
+            ['module' => 'Student Profile', 'name' => 'site-settings.student-profile.view'],
+            ['module' => 'Student Profile', 'name' => 'site-settings.student-profile.create'],
+            ['module' => 'Student Profile', 'name' => 'site-settings.student-profile.update'],
+            ['module' => 'Student Profile', 'name' => 'site-settings.student-profile.delete'],
             ['module' => 'Internet Accounts', 'name' => 'internet-accounts.view'],
             ['module' => 'Internet Accounts', 'name' => 'internet-accounts.create'],
             ['module' => 'Internet Accounts', 'name' => 'internet-accounts.manage'],
@@ -90,6 +94,10 @@ class RolesAndPermissionsSeeder extends Seeder
             ['module' => 'Reporting', 'name' => 'reporting.carbon_footprint.view'],
             ['module' => 'Reporting', 'name' => 'reporting.carbon_footprint.user_view'],
             ['module' => 'Reporting', 'name' => 'reporting.export'],
+            ['module' => 'System Logs', 'name' => 'system.logs.view'],
+            ['module' => 'System Logs', 'name' => 'system.logs.download'],
+            ['module' => 'System Logs', 'name' => 'system.logs.export'],
+            ['module' => 'System Logs', 'name' => 'system.logs.clear'],
             ['module' => 'Settings', 'name' => 'settings.view'],
             ['module' => 'Site Settings', 'name' => 'site_settings.manage'],
             ['module' => 'Legal', 'name' => 'legal.view'],
@@ -146,6 +154,22 @@ class RolesAndPermissionsSeeder extends Seeder
             'reporting.carbon_footprint.user_view',
         ]);
 
+        $systemAdministratorRole = Role::query()->updateOrCreate(
+            [
+                'name' => 'System Administrator',
+                'guard_name' => 'web',
+            ],
+            [
+                'label' => 'System Administrator',
+            ],
+        );
+
+        $systemAdministratorRole->givePermissionTo([
+            'system.logs.view',
+            'system.logs.download',
+            'system.logs.export',
+        ]);
+
         $studentRole = Role::query()->updateOrCreate(
             [
                 'name' => 'Student',
@@ -157,6 +181,13 @@ class RolesAndPermissionsSeeder extends Seeder
         );
 
         $studentRole->givePermissionTo([
+            'student-profile.view',
+            'achievements.create',
+            'achievements.update',
+            'achievements.delete',
+            'trainings.create',
+            'trainings.update',
+            'trainings.delete',
             'view class schedule',
             'download cor',
             'evaluation.view',
