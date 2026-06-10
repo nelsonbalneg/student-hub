@@ -34,11 +34,15 @@ const valueOrDash = (value: unknown): string => {
     return String(value);
 };
 
-const accountType = computed(() => user.value.sso_account_type ?? user.value.user_type);
+const accountType = computed(
+    () => user.value.sso_account_type ?? user.value.user_type,
+);
 
 const isEmployeeAccount = computed(() =>
     ['employee', 'faculty', 'staff', 'admin'].some((type) =>
-        String(accountType.value ?? '').toLowerCase().includes(type),
+        String(accountType.value ?? '')
+            .toLowerCase()
+            .includes(type),
     ),
 );
 
@@ -87,13 +91,14 @@ const accountDetails = computed(() =>
     ].filter((detail) => detail.show),
 );
 
-const initials = computed(() =>
-    String(user.value.name ?? '')
-        .split(' ')
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((part) => part[0]?.toUpperCase())
-        .join('') || 'U',
+const initials = computed(
+    () =>
+        String(user.value.name ?? '')
+            .split(' ')
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part[0]?.toUpperCase())
+            .join('') || 'U',
 );
 </script>
 
@@ -134,7 +139,7 @@ const initials = computed(() =>
                         </p>
                     </div>
                     <span
-                        class="inline-flex w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold uppercase text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+                        class="inline-flex w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700 uppercase dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-300"
                     >
                         Active Account
                     </span>
@@ -142,9 +147,11 @@ const initials = computed(() =>
             </div>
 
             <div class="grid gap-0 md:grid-cols-2">
-                <div class="border-b border-slate-100 px-5 py-4 md:border-r dark:border-white/10">
+                <div
+                    class="border-b border-slate-100 px-5 py-4 md:border-r dark:border-white/10"
+                >
                     <p
-                        class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+                        class="text-[11px] font-bold tracking-wide text-slate-500 uppercase dark:text-slate-400"
                     >
                         Full Name
                     </p>
@@ -154,9 +161,11 @@ const initials = computed(() =>
                         {{ valueOrDash(user.name) }}
                     </p>
                 </div>
-                <div class="border-b border-slate-100 px-5 py-4 dark:border-white/10">
+                <div
+                    class="border-b border-slate-100 px-5 py-4 dark:border-white/10"
+                >
                     <p
-                        class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+                        class="text-[11px] font-bold tracking-wide text-slate-500 uppercase dark:text-slate-400"
                     >
                         Email Address
                     </p>
@@ -166,21 +175,25 @@ const initials = computed(() =>
                         {{ valueOrDash(user.email) }}
                     </p>
                 </div>
-                <div class="border-b border-slate-100 px-5 py-4 md:border-r md:border-b-0 dark:border-white/10">
+                <div
+                    class="border-b border-slate-100 px-5 py-4 md:border-r md:border-b-0 dark:border-white/10"
+                >
                     <p
-                        class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+                        class="text-[11px] font-bold tracking-wide text-slate-500 uppercase dark:text-slate-400"
                     >
                         Account Type
                     </p>
                     <p
                         class="mt-1 truncate text-sm font-semibold text-slate-950 dark:text-white"
                     >
-                        {{ valueOrDash(user.sso_account_type ?? user.user_type) }}
+                        {{
+                            valueOrDash(user.sso_account_type ?? user.user_type)
+                        }}
                     </p>
                 </div>
                 <div class="px-5 py-4">
                     <p
-                        class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+                        class="text-[11px] font-bold tracking-wide text-slate-500 uppercase dark:text-slate-400"
                     >
                         Campus
                     </p>
@@ -216,12 +229,17 @@ const initials = computed(() =>
         <section
             class="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
         >
-            <div class="border-b border-slate-200 px-4 py-3 dark:border-white/10">
+            <div
+                class="border-b border-slate-200 px-4 py-3 dark:border-white/10"
+            >
                 <h2 class="text-sm font-bold text-slate-950 dark:text-white">
                     Account details
                 </h2>
-                <p class="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
-                    Important profile information synced from StudentHub and SSO.
+                <p
+                    class="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-400"
+                >
+                    Important profile information synced from StudentHub and
+                    SSO.
                 </p>
             </div>
 
@@ -229,10 +247,10 @@ const initials = computed(() =>
                 <div
                     v-for="detail in accountDetails"
                     :key="detail.label"
-                    class="border-b border-slate-100 px-4 py-3 last:border-b-0 odd:sm:border-r sm:[&:nth-last-child(-n+2)]:border-b-0 dark:border-white/10"
+                    class="border-b border-slate-100 px-4 py-3 last:border-b-0 odd:sm:border-r dark:border-white/10 sm:[&:nth-last-child(-n+2)]:border-b-0"
                 >
                     <dt
-                        class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+                        class="text-[11px] font-bold tracking-wide text-slate-500 uppercase dark:text-slate-400"
                     >
                         {{ detail.label }}
                     </dt>

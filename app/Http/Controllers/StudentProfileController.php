@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Achievement;
+use App\Models\PftComponent;
+use App\Models\SiteAcademicTerm;
+use App\Models\StudentPftResult;
 use App\Models\Training;
 use App\Services\AcademicApiService;
 use App\Services\CeeStudentRequirementService;
@@ -24,6 +27,15 @@ class StudentProfileController extends Controller
         $studentNo = $this->academicApi->studentNumberFor($user);
         $tenantId = blank($user->tenant_id) ? null : (string) $user->tenant_id;
         $campusId = $user->campus_id;
+        $activePftTerms = SiteAcademicTerm::query()
+            ->select(['id', 'site_campus_id', 'school_year', 'semester', 'term_id', 'status', 'start_date', 'end_date'])
+            ->where('status', 'Active')
+            ->whereNotNull('term_id')
+            ->whereHas('campus', fn ($query) => $query->where('real_campus_id', (string) $campusId))
+            ->orderByDesc('start_date')
+            ->orderByDesc('id')
+            ->get();
+        $activePftTermIds = $activePftTerms->pluck('term_id')->filter()->map(fn ($termId): string => (string) $termId)->all();
 
         return Inertia::render('StudentProfile/Index', [
             'profile' => $this->academicApi->profileForStudent($studentNo, $tenantId),
@@ -31,6 +43,29 @@ class StudentProfileController extends Controller
             'lookups' => $this->academicApi->profileLookups(),
             'achievements' => Achievement::where('user_id', $user->id)->latest('date_received')->get(),
             'trainings' => Training::where('user_id', $user->id)->latest('date_from')->get(),
+            'physicalFitness' => [
+                'components' => PftComponent::query()
+                    ->active()
+                    ->with([
+                        'categories' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('name'),
+                        'categories.testTypes' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('name'),
+                        'categories.testTypes.configurations' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('field_label'),
+                    ])
+                    ->orderBy('sort_order')
+                    ->orderBy('name')
+                    ->get(),
+                'results' => StudentPftResult::query()
+                    ->where('user_id', $user->id)
+                    ->when(
+                        $activePftTermIds !== [],
+                        fn ($query) => $query->whereIn('term_id', $activePftTermIds),
+                        fn ($query) => $query->whereRaw('1 = 0'),
+                    )
+                    ->get()
+                    ->keyBy(fn (StudentPftResult $result): string => "{$result->term_id}:{$result->pft_test_type_id}"),
+                'terms' => $activePftTerms,
+                'canSubmit' => $user->can('pft.submit'),
+            ],
         ]);
     }
 

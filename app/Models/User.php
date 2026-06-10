@@ -78,6 +78,11 @@ class User extends Authenticatable
         return $this->hasMany(Training::class);
     }
 
+    public function pftResults(): HasMany
+    {
+        return $this->hasMany(StudentPftResult::class);
+    }
+
     public function studentClearances(): HasMany
     {
         return $this->hasMany(StudentSemesterClearance::class, 'student_id');

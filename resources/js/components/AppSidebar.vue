@@ -331,7 +331,7 @@ const siteAdministrationNavItems: NavItem[] = [
                 icon: Leaf,
                 permission: 'reporting.carbon_footprint.view',
             },
-             {
+            {
                 title: 'System Logs',
                 href: '/system/logs',
                 icon: FileText,

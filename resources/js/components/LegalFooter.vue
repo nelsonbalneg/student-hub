@@ -27,10 +27,16 @@ const footerName = computed(
 </script>
 
 <template>
-    <footer class="sticky bottom-0 z-20 border-t border-slate-200 bg-white/85 px-4 py-3 backdrop-blur dark:border-white/10 dark:bg-slate-950/85">
-        <div class="flex flex-col items-center justify-between gap-2 text-xs text-slate-500 sm:flex-row dark:text-slate-400">
+    <footer
+        class="sticky bottom-0 z-20 border-t border-slate-200 bg-white/85 px-4 py-3 backdrop-blur dark:border-white/10 dark:bg-slate-950/85"
+    >
+        <div
+            class="flex flex-col items-center justify-between gap-2 text-xs text-slate-500 sm:flex-row dark:text-slate-400"
+        >
             <p>© {{ new Date().getFullYear() }} {{ footerName }}</p>
-            <nav class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+            <nav
+                class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1"
+            >
                 <button
                     v-for="link in links"
                     :key="link.type"

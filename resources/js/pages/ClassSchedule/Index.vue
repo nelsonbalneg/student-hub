@@ -139,9 +139,21 @@ const hoursFromSchedule = (schedule: string | null): number => {
         return 0;
     }
 
-    const [, startHour, startMinute, startMeridiem, endHour, endMinute, endMeridiem] =
-        match;
-    const start = parseClock(startHour, startMinute, startMeridiem, endMeridiem);
+    const [
+        ,
+        startHour,
+        startMinute,
+        startMeridiem,
+        endHour,
+        endMinute,
+        endMeridiem,
+    ] = match;
+    const start = parseClock(
+        startHour,
+        startMinute,
+        startMeridiem,
+        endMeridiem,
+    );
     let end = parseClock(endHour, endMinute, endMeridiem, startMeridiem);
 
     if (end <= start) {
@@ -235,14 +247,18 @@ const downloadCOR = async () => {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = filenameFromDisposition(response.headers.get('Content-Disposition'));
+        link.download = filenameFromDisposition(
+            response.headers.get('Content-Disposition'),
+        );
         document.body.appendChild(link);
         link.click();
         link.remove();
         URL.revokeObjectURL(url);
         toast.success('COR download started.');
     } catch {
-        toast.error('Unable to download your COR right now. Please try again later.');
+        toast.error(
+            'Unable to download your COR right now. Please try again later.',
+        );
     } finally {
         downloadingCor.value = false;
     }
@@ -293,66 +309,95 @@ const sessionAccentClass = (index: number): string => {
 </script>
 
 <template>
-
     <Head title="Class Schedule" />
 
     <div class="flex h-full flex-1 flex-col gap-4 p-4 lg:p-5">
-        <section class="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950">
+        <section
+            class="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+        >
             <div
-                class="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 md:flex-row md:items-center md:justify-between dark:border-white/10">
+                class="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 md:flex-row md:items-center md:justify-between dark:border-white/10"
+            >
                 <div class="flex min-w-0 items-center gap-3">
                     <div
-                        class="flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+                        class="flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                    >
                         <CalendarDays class="size-5" />
                     </div>
                     <div class="min-w-0">
-                        <h1 class="truncate text-lg font-bold text-slate-950 dark:text-white">
+                        <h1
+                            class="truncate text-lg font-bold text-slate-950 dark:text-white"
+                        >
                             Class Schedule
                         </h1>
-                        <p class="truncate text-xs font-medium text-slate-500 dark:text-slate-400">
-                            Enrolled subjects for the current academic
-                            term.
+                        <p
+                            class="truncate text-xs font-medium text-slate-500 dark:text-slate-400"
+                        >
+                            Enrolled subjects for the current academic term.
                         </p>
                     </div>
                 </div>
 
-                <Button type="button" size="sm" class="h-8 gap-2 rounded-md text-xs font-bold" :disabled="refreshing"
-                    @click="refresh">
-                    <RefreshCw class="size-3.5" :class="{ 'animate-spin': refreshing }" />
+                <Button
+                    type="button"
+                    size="sm"
+                    class="h-8 gap-2 rounded-md text-xs font-bold"
+                    :disabled="refreshing"
+                    @click="refresh"
+                >
+                    <RefreshCw
+                        class="size-3.5"
+                        :class="{ 'animate-spin': refreshing }"
+                    />
                     Refresh
                 </Button>
             </div>
 
             <div class="grid gap-3 p-4 sm:grid-cols-3">
-                <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+                <div
+                    class="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5"
+                >
                     <div
-                        class="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400">
+                        class="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400"
+                    >
                         <LibraryBig class="size-4 text-sky-600" />
                         Courses
                     </div>
-                    <div class="mt-2 text-2xl font-bold text-slate-950 dark:text-white">
+                    <div
+                        class="mt-2 text-2xl font-bold text-slate-950 dark:text-white"
+                    >
                         {{ subjectCount }}
                     </div>
                 </div>
 
-                <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+                <div
+                    class="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5"
+                >
                     <div
-                        class="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400">
+                        class="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400"
+                    >
                         <Clock3 class="size-4 text-emerald-600" />
                         Lec Hours
                     </div>
-                    <div class="mt-2 text-2xl font-bold text-slate-950 dark:text-white">
+                    <div
+                        class="mt-2 text-2xl font-bold text-slate-950 dark:text-white"
+                    >
                         {{ formatHours(lectureHours) }}
                     </div>
                 </div>
 
-                <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+                <div
+                    class="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5"
+                >
                     <div
-                        class="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400">
+                        class="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400"
+                    >
                         <FlaskConical class="size-4 text-violet-600" />
                         Lab Hours
                     </div>
-                    <div class="mt-2 text-2xl font-bold text-slate-950 dark:text-white">
+                    <div
+                        class="mt-2 text-2xl font-bold text-slate-950 dark:text-white"
+                    >
                         {{ formatHours(labHours) }}
                     </div>
                 </div>
@@ -361,34 +406,55 @@ const sessionAccentClass = (index: number): string => {
 
         <div class="grid gap-4 xl:grid-cols-[1fr_320px]">
             <section
-                class="min-w-0 rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950">
+                class="min-w-0 rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+            >
                 <div
-                    class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-white/10">
+                    class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-white/10"
+                >
                     <div>
-                        <h2 class="text-sm font-bold text-slate-950 dark:text-white">
+                        <h2
+                            class="text-sm font-bold text-slate-950 dark:text-white"
+                        >
                             Current Classes
                         </h2>
-                        <p class="text-xs font-medium text-slate-500 dark:text-slate-400">
+                        <p
+                            class="text-xs font-medium text-slate-500 dark:text-slate-400"
+                        >
                             {{ subjectCount }} matched sections
                         </p>
                     </div>
-                    <button v-if="canDownloadCor" type="button"
+                    <button
+                        v-if="canDownloadCor"
+                        type="button"
                         class="inline-flex h-8 items-center gap-2 rounded-md border border-slate-200 px-3 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
-                        :disabled="downloadingCor" @click="downloadCOR">
-                        <RefreshCw v-if="downloadingCor" class="size-3.5 animate-spin" />
+                        :disabled="downloadingCor"
+                        @click="downloadCOR"
+                    >
+                        <RefreshCw
+                            v-if="downloadingCor"
+                            class="size-3.5 animate-spin"
+                        />
                         <Printer v-else class="size-3.5" />
                         {{ downloadingCor ? 'Downloading...' : 'Download COR' }}
                     </button>
                 </div>
 
-                <div v-if="refreshing && !schedules.length" class="grid gap-3 p-4">
-                    <div v-for="index in 4" :key="index"
-                        class="h-24 animate-pulse rounded-lg bg-slate-100 dark:bg-white/5" />
+                <div
+                    v-if="refreshing && !schedules.length"
+                    class="grid gap-3 p-4"
+                >
+                    <div
+                        v-for="index in 4"
+                        :key="index"
+                        class="h-24 animate-pulse rounded-lg bg-slate-100 dark:bg-white/5"
+                    />
                 </div>
 
                 <template v-else>
-                    <div v-if="classSchedule.error"
-                        class="m-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200">
+                    <div
+                        v-if="classSchedule.error"
+                        class="m-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200"
+                    >
                         <AlertCircle class="mt-0.5 size-4 shrink-0" />
                         <div>
                             <p class="font-bold">Schedule notice</p>
@@ -398,79 +464,135 @@ const sessionAccentClass = (index: number): string => {
                         </div>
                     </div>
 
-                    <div v-if="!schedules.length"
-                        class="flex min-h-[320px] flex-col items-center justify-center gap-2 p-6 text-center">
-                        <CalendarDays class="size-10 text-slate-300 dark:text-slate-700" />
-                        <h3 class="text-sm font-bold text-slate-900 dark:text-white">
+                    <div
+                        v-if="!schedules.length"
+                        class="flex min-h-[320px] flex-col items-center justify-center gap-2 p-6 text-center"
+                    >
+                        <CalendarDays
+                            class="size-10 text-slate-300 dark:text-slate-700"
+                        />
+                        <h3
+                            class="text-sm font-bold text-slate-900 dark:text-white"
+                        >
                             No class schedule found
                         </h3>
-                        <p class="max-w-md text-xs font-medium text-slate-500 dark:text-slate-400">
+                        <p
+                            class="max-w-md text-xs font-medium text-slate-500 dark:text-slate-400"
+                        >
                             No matched class schedule is currently available for
                             your enrolled subjects in this term.
                         </p>
                     </div>
 
                     <div v-else class="grid gap-3 p-4">
-                        <article v-for="schedule in schedules" :key="`${schedule.subject_id}-${schedule.schedule_id}`"
-                            class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition hover:border-slate-300 hover:shadow-md dark:border-white/10 dark:bg-slate-950 dark:hover:border-white/20">
+                        <article
+                            v-for="schedule in schedules"
+                            :key="`${schedule.subject_id}-${schedule.schedule_id}`"
+                            class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition hover:border-slate-300 hover:shadow-md dark:border-white/10 dark:bg-slate-950 dark:hover:border-white/20"
+                        >
                             <div
-                                class="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:flex-row sm:items-start sm:justify-between dark:border-white/10 dark:bg-white/[0.03]">
+                                class="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:flex-row sm:items-start sm:justify-between dark:border-white/10 dark:bg-white/[0.03]"
+                            >
                                 <div class="min-w-0">
-                                    <div class="flex flex-wrap items-center gap-2">
+                                    <div
+                                        class="flex flex-wrap items-center gap-2"
+                                    >
                                         <span
-                                            class="inline-flex h-7 items-center rounded-md bg-slate-900 px-2.5 text-xs font-bold text-white dark:bg-white dark:text-slate-950">
+                                            class="inline-flex h-7 items-center rounded-md bg-slate-900 px-2.5 text-xs font-bold text-white dark:bg-white dark:text-slate-950"
+                                        >
                                             {{ schedule.subject_code }}
                                         </span>
                                         <span
-                                            class="inline-flex h-7 items-center rounded-md border border-slate-200 bg-white px-2.5 text-[11px] font-bold text-slate-600 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300">
-                                            Section {{ valueOrDash(schedule.section) }}
+                                            class="inline-flex h-7 items-center rounded-md border border-slate-200 bg-white px-2.5 text-[11px] font-bold text-slate-600 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
+                                        >
+                                            Section
+                                            {{ valueOrDash(schedule.section) }}
                                         </span>
                                     </div>
 
-                                    <h3 class="mt-2 text-base font-bold leading-snug text-slate-950 dark:text-white">
+                                    <h3
+                                        class="mt-2 text-base leading-snug font-bold text-slate-950 dark:text-white"
+                                    >
                                         {{ schedule.subject_title }}
                                     </h3>
                                 </div>
 
                                 <div
-                                    class="flex min-w-0 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 sm:max-w-[300px] dark:border-white/10 dark:bg-slate-900 dark:text-slate-300">
-                                    <UserRound class="size-3.5 shrink-0 text-slate-400" />
-                                    <span class="min-w-0 truncate font-semibold">
-                                        Faculty: {{ facultyName(schedule.faculty_name) }}
+                                    class="flex min-w-0 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 sm:max-w-[300px] dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
+                                >
+                                    <UserRound
+                                        class="size-3.5 shrink-0 text-slate-400"
+                                    />
+                                    <span
+                                        class="min-w-0 truncate font-semibold"
+                                    >
+                                        Faculty:
+                                        {{ facultyName(schedule.faculty_name) }}
                                     </span>
                                 </div>
                             </div>
 
                             <div class="grid gap-2 p-4 md:grid-cols-2">
-                                <div v-if="!schedule.sessions.length"
-                                    class="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs font-semibold text-slate-500 md:col-span-2 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+                                <div
+                                    v-if="!schedule.sessions.length"
+                                    class="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs font-semibold text-slate-500 md:col-span-2 dark:border-white/10 dark:bg-white/5 dark:text-slate-400"
+                                >
                                     Schedule TBA
                                 </div>
-                                <div v-for="(session, index) in schedule.sessions" :key="index"
-                                    class="rounded-lg border p-3" :class="sessionAccentClass(index)">
-                                    <div class="mb-2 flex items-center justify-between gap-2">
-                                        <p class="text-[11px] font-bold uppercase">
+                                <div
+                                    v-for="(
+                                        session, index
+                                    ) in schedule.sessions"
+                                    :key="index"
+                                    class="rounded-lg border p-3"
+                                    :class="sessionAccentClass(index)"
+                                >
+                                    <div
+                                        class="mb-2 flex items-center justify-between gap-2"
+                                    >
+                                        <p
+                                            class="text-[11px] font-bold uppercase"
+                                        >
                                             {{ sessionLabel(index) }}
                                         </p>
                                         <span
-                                            class="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-500 dark:bg-white/10 dark:text-slate-300">
-                                            {{ index === 0 ? 'Schedule 1' : index === 1 ? 'Schedule 2' : `Schedule
-                                            ${index + 1}` }}
+                                            class="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-bold text-slate-500 uppercase dark:bg-white/10 dark:text-slate-300"
+                                        >
+                                            {{
+                                                index === 0
+                                                    ? 'Schedule 1'
+                                                    : index === 1
+                                                      ? 'Schedule 2'
+                                                      : `Schedule
+                                            ${index + 1}`
+                                            }}
                                         </span>
                                     </div>
 
                                     <div
-                                        class="grid gap-2 rounded-md bg-white/70 p-2 text-slate-700 dark:bg-slate-950/60 dark:text-slate-200">
+                                        class="grid gap-2 rounded-md bg-white/70 p-2 text-slate-700 dark:bg-slate-950/60 dark:text-slate-200"
+                                    >
                                         <div class="flex items-start gap-2">
-                                            <Clock3 class="mt-0.5 size-3.5 shrink-0 text-slate-400" />
-                                            <span class="font-bold leading-snug">
-                                                {{ valueOrDash(session.schedule) }}
+                                            <Clock3
+                                                class="mt-0.5 size-3.5 shrink-0 text-slate-400"
+                                            />
+                                            <span
+                                                class="leading-snug font-bold"
+                                            >
+                                                {{
+                                                    valueOrDash(
+                                                        session.schedule,
+                                                    )
+                                                }}
                                             </span>
                                         </div>
                                         <div class="flex items-center gap-2">
-                                            <MapPin class="size-3.5 shrink-0 text-slate-400" />
+                                            <MapPin
+                                                class="size-3.5 shrink-0 text-slate-400"
+                                            />
                                             <span class="font-semibold">
-                                                Room {{ valueOrDash(session.room) }}
+                                                Room
+                                                {{ valueOrDash(session.room) }}
                                             </span>
                                         </div>
                                     </div>
@@ -483,17 +605,23 @@ const sessionAccentClass = (index: number): string => {
 
             <aside class="grid content-start gap-4">
                 <section
-                    class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950">
+                    class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950"
+                >
                     <div class="flex items-center gap-3">
                         <div
-                            class="flex size-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-200">
+                            class="flex size-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-200"
+                        >
                             <UserRound class="size-4" />
                         </div>
                         <div class="min-w-0">
-                            <h2 class="truncate text-sm font-bold text-slate-950 dark:text-white">
+                            <h2
+                                class="truncate text-sm font-bold text-slate-950 dark:text-white"
+                            >
                                 {{ student.name }}
                             </h2>
-                            <p class="truncate text-xs font-medium text-slate-500 dark:text-slate-400">
+                            <p
+                                class="truncate text-xs font-medium text-slate-500 dark:text-slate-400"
+                            >
                                 Synced from One USM SSO
                             </p>
                         </div>
@@ -501,26 +629,35 @@ const sessionAccentClass = (index: number): string => {
 
                     <dl class="mt-4 grid gap-2 text-xs">
                         <div
-                            class="flex items-center justify-between gap-3 rounded-md bg-slate-50 px-3 py-2 dark:bg-white/5">
-                            <dt class="font-bold text-slate-500 dark:text-slate-400">
+                            class="flex items-center justify-between gap-3 rounded-md bg-slate-50 px-3 py-2 dark:bg-white/5"
+                        >
+                            <dt
+                                class="font-bold text-slate-500 dark:text-slate-400"
+                            >
                                 Student No.
                             </dt>
-                            <dd class="truncate font-bold text-slate-900 dark:text-white">
+                            <dd
+                                class="truncate font-bold text-slate-900 dark:text-white"
+                            >
                                 {{ student.student_no || '-' }}
                             </dd>
                         </div>
                         <div
-                            class="flex items-center justify-between gap-3 rounded-md bg-slate-50 px-3 py-2 dark:bg-white/5">
-                            <dt class="font-bold text-slate-500 dark:text-slate-400">
+                            class="flex items-center justify-between gap-3 rounded-md bg-slate-50 px-3 py-2 dark:bg-white/5"
+                        >
+                            <dt
+                                class="font-bold text-slate-500 dark:text-slate-400"
+                            >
                                 Campus
                             </dt>
-                            <dd class="truncate font-bold text-slate-900 dark:text-white">
+                            <dd
+                                class="truncate font-bold text-slate-900 dark:text-white"
+                            >
                                 {{ student.campus_name || '-' }}
                             </dd>
                         </div>
                     </dl>
                 </section>
-
             </aside>
         </div>
     </div>

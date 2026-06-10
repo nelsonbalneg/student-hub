@@ -135,27 +135,26 @@ const filteredModuleMap = computed(() => {
 
     const query = permissionSearch.value.toLowerCase();
 
-    return Object.entries(moduleMap.value).reduce<Record<string, PermissionModuleGroup>>(
-        (groups, [key, group]) => {
-            const filteredPermissions = group.permissions.filter(
-                (permission) =>
-                    permission.name.toLowerCase().includes(query) ||
-                    permission.label.toLowerCase().includes(query) ||
-                    moduleName(permission).toLowerCase().includes(query) ||
-                    group.label.toLowerCase().includes(query),
-            );
+    return Object.entries(moduleMap.value).reduce<
+        Record<string, PermissionModuleGroup>
+    >((groups, [key, group]) => {
+        const filteredPermissions = group.permissions.filter(
+            (permission) =>
+                permission.name.toLowerCase().includes(query) ||
+                permission.label.toLowerCase().includes(query) ||
+                moduleName(permission).toLowerCase().includes(query) ||
+                group.label.toLowerCase().includes(query),
+        );
 
-            if (filteredPermissions.length > 0) {
-                groups[key] = {
-                    ...group,
-                    permissions: filteredPermissions,
-                };
-            }
+        if (filteredPermissions.length > 0) {
+            groups[key] = {
+                ...group,
+                permissions: filteredPermissions,
+            };
+        }
 
-            return groups;
-        },
-        {},
-    );
+        return groups;
+    }, {});
 });
 
 const allChecked = computed(
@@ -194,11 +193,14 @@ const moduleChecked = (module: string) =>
     );
 
 const moduleIndeterminate = (module: string) => {
-    const checkedCount = moduleMap.value[module].permissions.filter((permission) =>
-        checkedIds.value.has(permission.id),
+    const checkedCount = moduleMap.value[module].permissions.filter(
+        (permission) => checkedIds.value.has(permission.id),
     ).length;
 
-    return checkedCount > 0 && checkedCount < moduleMap.value[module].permissions.length;
+    return (
+        checkedCount > 0 &&
+        checkedCount < moduleMap.value[module].permissions.length
+    );
 };
 
 const toggleModuleAll = (module: string) => {

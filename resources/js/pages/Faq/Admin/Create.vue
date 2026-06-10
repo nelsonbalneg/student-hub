@@ -61,7 +61,7 @@ const addTag = () => {
 };
 
 const removeTag = (tag: string) => {
-    form.tags = form.tags.filter(t => t !== tag);
+    form.tags = form.tags.filter((t) => t !== tag);
 };
 
 const addKeyword = () => {
@@ -72,7 +72,7 @@ const addKeyword = () => {
 };
 
 const removeKeyword = (keyword: string) => {
-    form.keywords = form.keywords.filter(k => k !== keyword);
+    form.keywords = form.keywords.filter((k) => k !== keyword);
 };
 
 const submit = () => {
@@ -86,32 +86,62 @@ const submit = () => {
 <template>
     <Head title="Create FAQ Article" />
 
-    <div class="flex h-full flex-1 flex-col gap-5 bg-slate-50/60 p-4 dark:bg-slate-950 lg:p-6">
+    <div
+        class="flex h-full flex-1 flex-col gap-5 bg-slate-50/60 p-4 lg:p-6 dark:bg-slate-950"
+    >
         <!-- Header Section -->
         <section class="border-b border-slate-200 pb-5 dark:border-white/10">
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div
+                class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
+            >
                 <div class="min-w-0">
-                    <div class="flex items-center gap-2 mb-2">
-                        <Link :href="faqRoutes.index.url()" class="inline-flex h-7 items-center justify-center rounded-md border border-slate-200 bg-white px-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                    <div class="mb-2 flex items-center gap-2">
+                        <Link
+                            :href="faqRoutes.index.url()"
+                            class="inline-flex h-7 items-center justify-center rounded-md border border-slate-200 bg-white px-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                        >
                             <ChevronLeft class="mr-1 size-3.5" />
                             Back to Articles
                         </Link>
                     </div>
                     <div class="flex items-center gap-3">
-                        <div class="h-10 w-10 rounded-full bg-emerald-100 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-600">
+                        <div
+                            class="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-500/10"
+                        >
                             <Plus class="size-6" />
                         </div>
                         <div>
-                            <h1 class="text-2xl font-bold tracking-normal text-slate-950 dark:text-white">Create FAQ Article</h1>
-                            <p class="text-sm font-medium text-slate-500 dark:text-slate-400">Compose a new help article for the knowledge base.</p>
+                            <h1
+                                class="text-2xl font-bold tracking-normal text-slate-950 dark:text-white"
+                            >
+                                Create FAQ Article
+                            </h1>
+                            <p
+                                class="text-sm font-medium text-slate-500 dark:text-slate-400"
+                            >
+                                Compose a new help article for the knowledge
+                                base.
+                            </p>
                         </div>
                     </div>
                 </div>
 
                 <div class="flex items-center gap-3">
-                    <Button variant="ghost" @click="router.visit(faqRoutes.index.url())" class="font-bold text-slate-600">Cancel</Button>
-                    <Button @click="submit" :disabled="form.processing" class="h-10 rounded-md px-6 bg-emerald-600 hover:bg-emerald-700 text-white border-0 font-bold shadow-lg shadow-emerald-200 dark:shadow-none">
-                        <Loader2 v-if="form.processing" class="mr-2 size-4 animate-spin" />
+                    <Button
+                        variant="ghost"
+                        @click="router.visit(faqRoutes.index.url())"
+                        class="font-bold text-slate-600"
+                        >Cancel</Button
+                    >
+                    <Button
+                        @click="submit"
+                        :disabled="form.processing"
+                        class="h-10 rounded-md border-0 bg-emerald-600 px-6 font-bold text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700 dark:shadow-none"
+                    >
+                        <Loader2
+                            v-if="form.processing"
+                            class="mr-2 size-4 animate-spin"
+                        />
                         <Save class="mr-2 size-4" />
                         Save Article
                     </Button>
@@ -119,39 +149,59 @@ const submit = () => {
             </div>
         </section>
 
-        <form @submit.prevent="submit" class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <form
+            @submit.prevent="submit"
+            class="grid grid-cols-1 gap-6 lg:grid-cols-3"
+        >
             <!-- Left Column: Content -->
-            <div class="lg:col-span-2 space-y-6">
+            <div class="space-y-6 lg:col-span-2">
                 <!-- Question & Editor -->
-                <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-950">
-                    <div class="flex items-center gap-2 mb-6 border-b border-slate-100 pb-4 dark:border-white/5">
+                <div
+                    class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-950"
+                >
+                    <div
+                        class="mb-6 flex items-center gap-2 border-b border-slate-100 pb-4 dark:border-white/5"
+                    >
                         <FileText class="size-4 text-emerald-600" />
-                        <h2 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Article Content</h2>
+                        <h2
+                            class="text-sm font-bold tracking-wider text-slate-900 uppercase dark:text-white"
+                        >
+                            Article Content
+                        </h2>
                     </div>
 
                     <div class="space-y-6">
                         <div class="space-y-2">
-                            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider dark:text-slate-400">Question / Heading</label>
-                            <input 
-                                v-model="form.question" 
-                                class="flex h-12 w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-lg font-bold text-slate-900 placeholder:font-normal focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-100 shadow-sm" 
-                                placeholder="What is the question being answered?" 
+                            <label
+                                class="text-[11px] font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
+                                >Question / Heading</label
+                            >
+                            <input
+                                v-model="form.question"
+                                class="flex h-12 w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-lg font-bold text-slate-900 shadow-sm placeholder:font-normal focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"
+                                placeholder="What is the question being answered?"
                             />
                             <InputError :message="form.errors.question" />
                         </div>
 
                         <div class="space-y-2">
-                            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider dark:text-slate-400">Short Summary (Used in search results)</label>
-                            <textarea 
-                                v-model="form.summary" 
-                                class="flex min-h-[80px] w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-100 shadow-sm resize-none" 
+                            <label
+                                class="text-[11px] font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
+                                >Short Summary (Used in search results)</label
+                            >
+                            <textarea
+                                v-model="form.summary"
+                                class="flex min-h-[80px] w-full resize-none rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"
                                 placeholder="Briefly summarize the answer..."
                             ></textarea>
                             <InputError :message="form.errors.summary" />
                         </div>
 
                         <div class="space-y-2">
-                            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider dark:text-slate-400">Detailed Answer</label>
+                            <label
+                                class="text-[11px] font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
+                                >Detailed Answer</label
+                            >
                             <div class="min-h-[400px]">
                                 <TiptapEditor v-model="form.answer" />
                             </div>
@@ -161,28 +211,53 @@ const submit = () => {
                 </div>
 
                 <!-- Tags & Keywords -->
-                <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-950">
-                    <div class="flex items-center gap-2 mb-6 border-b border-slate-100 pb-4 dark:border-white/5">
+                <div
+                    class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-950"
+                >
+                    <div
+                        class="mb-6 flex items-center gap-2 border-b border-slate-100 pb-4 dark:border-white/5"
+                    >
                         <Search class="size-4 text-emerald-600" />
-                        <h2 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Search Optimization</h2>
+                        <h2
+                            class="text-sm font-bold tracking-wider text-slate-900 uppercase dark:text-white"
+                        >
+                            Search Optimization
+                        </h2>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                         <div class="space-y-2">
-                            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider dark:text-slate-400">Tags</label>
+                            <label
+                                class="text-[11px] font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
+                                >Tags</label
+                            >
                             <div class="flex gap-2">
-                                <input 
-                                    v-model="tagInput" 
+                                <input
+                                    v-model="tagInput"
                                     @keydown.enter.prevent="addTag"
-                                    class="flex h-9 flex-1 rounded-md border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-900 focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-100 shadow-sm" 
-                                    placeholder="Add tag..." 
+                                    class="flex h-9 flex-1 rounded-md border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-900 shadow-sm focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"
+                                    placeholder="Add tag..."
                                 />
-                                <Button type="button" size="sm" @click="addTag" class="bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300">Add</Button>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    @click="addTag"
+                                    class="bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300"
+                                    >Add</Button
+                                >
                             </div>
-                            <div class="flex flex-wrap gap-1.5 mt-3">
-                                <div v-for="tag in form.tags" :key="tag" class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                            <div class="mt-3 flex flex-wrap gap-1.5">
+                                <div
+                                    v-for="tag in form.tags"
+                                    :key="tag"
+                                    class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
+                                >
                                     {{ tag }}
-                                    <button type="button" @click="removeTag(tag)" class="hover:text-emerald-900 transition-colors">
+                                    <button
+                                        type="button"
+                                        @click="removeTag(tag)"
+                                        class="transition-colors hover:text-emerald-900"
+                                    >
                                         <X class="size-3" />
                                     </button>
                                 </div>
@@ -190,20 +265,37 @@ const submit = () => {
                         </div>
 
                         <div class="space-y-2">
-                            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider dark:text-slate-400">Keywords (Hidden)</label>
+                            <label
+                                class="text-[11px] font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
+                                >Keywords (Hidden)</label
+                            >
                             <div class="flex gap-2">
-                                <input 
-                                    v-model="keywordInput" 
+                                <input
+                                    v-model="keywordInput"
                                     @keydown.enter.prevent="addKeyword"
-                                    class="flex h-9 flex-1 rounded-md border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-900 focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-100 shadow-sm" 
-                                    placeholder="Add keyword..." 
+                                    class="flex h-9 flex-1 rounded-md border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-900 shadow-sm focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"
+                                    placeholder="Add keyword..."
                                 />
-                                <Button type="button" size="sm" @click="addKeyword" class="bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300">Add</Button>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    @click="addKeyword"
+                                    class="bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300"
+                                    >Add</Button
+                                >
                             </div>
-                            <div class="flex flex-wrap gap-1.5 mt-3">
-                                <div v-for="kw in form.keywords" :key="kw" class="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-400">
+                            <div class="mt-3 flex flex-wrap gap-1.5">
+                                <div
+                                    v-for="kw in form.keywords"
+                                    :key="kw"
+                                    class="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-400"
+                                >
                                     {{ kw }}
-                                    <button type="button" @click="removeKeyword(kw)" class="hover:text-slate-900 transition-colors">
+                                    <button
+                                        type="button"
+                                        @click="removeKeyword(kw)"
+                                        class="transition-colors hover:text-slate-900"
+                                    >
                                         <X class="size-3" />
                                     </button>
                                 </div>
@@ -216,37 +308,72 @@ const submit = () => {
             <!-- Right Column: Settings -->
             <div class="space-y-6">
                 <!-- Publishing & Taxonomy -->
-                <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-950">
-                    <div class="flex items-center gap-2 mb-6 border-b border-slate-100 pb-4 dark:border-white/5">
+                <div
+                    class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-950"
+                >
+                    <div
+                        class="mb-6 flex items-center gap-2 border-b border-slate-100 pb-4 dark:border-white/5"
+                    >
                         <Settings2 class="size-4 text-emerald-600" />
-                        <h2 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Publication Settings</h2>
+                        <h2
+                            class="text-sm font-bold tracking-wider text-slate-900 uppercase dark:text-white"
+                        >
+                            Publication Settings
+                        </h2>
                     </div>
 
                     <div class="space-y-5">
                         <div class="space-y-2">
-                            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider dark:text-slate-400">Article Category</label>
-                            <select v-model="form.faq_category_id" class="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-100 shadow-sm">
+                            <label
+                                class="text-[11px] font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
+                                >Article Category</label
+                            >
+                            <select
+                                v-model="form.faq_category_id"
+                                class="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"
+                            >
                                 <option value="">Select Category...</option>
-                                <option v-for="cat in categories.data" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+                                <option
+                                    v-for="cat in categories.data"
+                                    :key="cat.id"
+                                    :value="cat.id"
+                                >
+                                    {{ cat.name }}
+                                </option>
                             </select>
-                            <InputError :message="form.errors.faq_category_id" />
+                            <InputError
+                                :message="form.errors.faq_category_id"
+                            />
                         </div>
 
                         <div class="space-y-2">
-                            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider dark:text-slate-400">Initial Status</label>
+                            <label
+                                class="text-[11px] font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
+                                >Initial Status</label
+                            >
                             <div class="grid grid-cols-2 gap-2">
-                                <button 
-                                    type="button" 
+                                <button
+                                    type="button"
                                     @click="form.status = 'draft'"
-                                    :class="['flex items-center justify-center gap-2 rounded-lg border p-2.5 text-xs font-bold transition-all', form.status === 'draft' ? 'border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-500/10' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-950']"
+                                    :class="[
+                                        'flex items-center justify-center gap-2 rounded-lg border p-2.5 text-xs font-bold transition-all',
+                                        form.status === 'draft'
+                                            ? 'border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-500/10'
+                                            : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-950',
+                                    ]"
                                 >
                                     <FileText class="size-3.5" />
                                     Draft
                                 </button>
-                                <button 
-                                    type="button" 
+                                <button
+                                    type="button"
                                     @click="form.status = 'published'"
-                                    :class="['flex items-center justify-center gap-2 rounded-lg border p-2.5 text-xs font-bold transition-all', form.status === 'published' ? 'border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-950']"
+                                    :class="[
+                                        'flex items-center justify-center gap-2 rounded-lg border p-2.5 text-xs font-bold transition-all',
+                                        form.status === 'published'
+                                            ? 'border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10'
+                                            : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-950',
+                                    ]"
                                 >
                                     <Globe class="size-3.5" />
                                     Publish
@@ -256,35 +383,66 @@ const submit = () => {
                         </div>
 
                         <div class="space-y-2">
-                            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider dark:text-slate-400">Audience Visibility</label>
-                            <select v-model="form.visibility" class="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-100 shadow-sm">
-                                <option value="public">Public (Everyone)</option>
+                            <label
+                                class="text-[11px] font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
+                                >Audience Visibility</label
+                            >
+                            <select
+                                v-model="form.visibility"
+                                class="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"
+                            >
+                                <option value="public">
+                                    Public (Everyone)
+                                </option>
                                 <option value="students">Students Only</option>
-                                <option value="employees">Employees Only</option>
-                                <option value="admin">Administrators Only</option>
+                                <option value="employees">
+                                    Employees Only
+                                </option>
+                                <option value="admin">
+                                    Administrators Only
+                                </option>
                             </select>
                             <InputError :message="form.errors.visibility" />
                         </div>
 
                         <div class="space-y-2">
-                            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider dark:text-slate-400">Display Order</label>
-                            <input 
-                                v-model="form.sort_order" 
+                            <label
+                                class="text-[11px] font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
+                                >Display Order</label
+                            >
+                            <input
+                                v-model="form.sort_order"
                                 type="number"
-                                class="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-100 shadow-sm" 
+                                class="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"
                             />
                             <InputError :message="form.errors.sort_order" />
                         </div>
 
                         <div class="pt-2">
-                            <label class="flex items-center gap-3 cursor-pointer group p-3 rounded-lg border border-slate-100 bg-slate-50/50 hover:bg-emerald-50/50 hover:border-emerald-200 transition-all dark:border-white/5 dark:bg-white/5">
+                            <label
+                                class="group flex cursor-pointer items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/50 p-3 transition-all hover:border-emerald-200 hover:bg-emerald-50/50 dark:border-white/5 dark:bg-white/5"
+                            >
                                 <div class="relative flex items-center">
-                                    <input type="checkbox" v-model="form.is_featured" class="peer h-5 w-5 cursor-pointer appearance-none rounded border border-slate-200 bg-white transition-all checked:bg-emerald-600 dark:border-white/10 dark:bg-slate-950 shadow-sm" />
-                                    <Star v-if="form.is_featured" class="absolute left-1/2 top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 text-white fill-white" />
+                                    <input
+                                        type="checkbox"
+                                        v-model="form.is_featured"
+                                        class="peer h-5 w-5 cursor-pointer appearance-none rounded border border-slate-200 bg-white shadow-sm transition-all checked:bg-emerald-600 dark:border-white/10 dark:bg-slate-950"
+                                    />
+                                    <Star
+                                        v-if="form.is_featured"
+                                        class="absolute top-1/2 left-1/2 size-3 -translate-x-1/2 -translate-y-1/2 fill-white text-white"
+                                    />
                                 </div>
                                 <div class="flex flex-col">
-                                    <span class="text-xs font-bold text-slate-900 dark:text-white">Feature this Article</span>
-                                    <span class="text-[10px] text-slate-500 dark:text-slate-400">Pin to the top of the FAQ landing page.</span>
+                                    <span
+                                        class="text-xs font-bold text-slate-900 dark:text-white"
+                                        >Feature this Article</span
+                                    >
+                                    <span
+                                        class="text-[10px] text-slate-500 dark:text-slate-400"
+                                        >Pin to the top of the FAQ landing
+                                        page.</span
+                                    >
                                 </div>
                             </label>
                         </div>
@@ -292,22 +450,50 @@ const submit = () => {
                 </div>
 
                 <!-- Preview Card -->
-                <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-950 overflow-hidden relative">
+                <div
+                    class="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-950"
+                >
                     <div class="absolute top-0 right-0 p-2">
-                        <div class="text-[10px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded dark:bg-white/10">PREVIEW</div>
+                        <div
+                            class="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500 dark:bg-white/10"
+                        >
+                            PREVIEW
+                        </div>
                     </div>
-                    <div class="flex items-center gap-2 mb-4">
+                    <div class="mb-4 flex items-center gap-2">
                         <Layout class="size-4 text-emerald-600" />
-                        <h2 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Appearance</h2>
+                        <h2
+                            class="text-sm font-bold tracking-wider text-slate-900 uppercase dark:text-white"
+                        >
+                            Appearance
+                        </h2>
                     </div>
 
                     <div class="space-y-4">
-                        <div class="rounded-lg border border-slate-100 p-4 bg-slate-50/30 dark:border-white/5">
-                            <h3 class="text-sm font-bold text-slate-900 dark:text-white mb-2">{{ form.question || 'Article Question Title' }}</h3>
-                            <p class="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">{{ form.summary || 'Short summary will appear here to help users identify if this article solves their problem.' }}</p>
+                        <div
+                            class="rounded-lg border border-slate-100 bg-slate-50/30 p-4 dark:border-white/5"
+                        >
+                            <h3
+                                class="mb-2 text-sm font-bold text-slate-900 dark:text-white"
+                            >
+                                {{ form.question || 'Article Question Title' }}
+                            </h3>
+                            <p
+                                class="line-clamp-2 text-xs text-slate-500 dark:text-slate-400"
+                            >
+                                {{
+                                    form.summary ||
+                                    'Short summary will appear here to help users identify if this article solves their problem.'
+                                }}
+                            </p>
                             <div class="mt-3 flex items-center gap-2">
-                                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                                <span class="text-[10px] font-bold text-slate-600 dark:text-slate-400">Category Name</span>
+                                <span
+                                    class="h-1.5 w-1.5 rounded-full bg-emerald-500"
+                                ></span>
+                                <span
+                                    class="text-[10px] font-bold text-slate-600 dark:text-slate-400"
+                                    >Category Name</span
+                                >
                             </div>
                         </div>
                     </div>

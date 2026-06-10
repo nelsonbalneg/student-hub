@@ -24,6 +24,10 @@ class SiteSettingsPermissionSeeder extends Seeder
             'site-settings.student-profile.create',
             'site-settings.student-profile.update',
             'site-settings.student-profile.delete',
+            'pft.configuration.view',
+            'pft.configuration.create',
+            'pft.configuration.update',
+            'pft.configuration.delete',
             'site_settings.manage',
         ];
 

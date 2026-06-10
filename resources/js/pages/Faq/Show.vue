@@ -69,24 +69,34 @@ const copyLink = async () => {
     <Head :title="faq.data.question" />
 
     <div class="flex min-h-screen flex-col bg-slate-50/70 dark:bg-slate-950">
-        <section class="border-b border-slate-200 bg-white px-4 py-5 dark:border-white/10 dark:bg-slate-950 lg:px-8">
-            <div class="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+        <section
+            class="border-b border-slate-200 bg-white px-4 py-5 lg:px-8 dark:border-white/10 dark:bg-slate-950"
+        >
+            <div
+                class="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between"
+            >
                 <div class="flex items-start gap-4">
-                    <div class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+                    <div
+                        class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+                    >
                         <FileQuestion class="size-6" />
                     </div>
                     <div class="min-w-0">
                         <Link
                             href="/faqs"
-                            class="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.16em] text-emerald-700 transition hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+                            class="inline-flex items-center gap-1.5 text-xs font-bold tracking-[0.16em] text-emerald-700 uppercase transition hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
                         >
                             <ChevronLeft class="size-3.5" />
                             Knowledge Base
                         </Link>
-                        <h1 class="mt-2 max-w-5xl text-2xl font-bold tracking-tight text-slate-950 dark:text-white">
+                        <h1
+                            class="mt-2 max-w-5xl text-2xl font-bold tracking-tight text-slate-950 dark:text-white"
+                        >
                             {{ faq.data.question }}
                         </h1>
-                        <p class="mt-2 max-w-4xl text-sm leading-6 text-slate-600 dark:text-slate-400">
+                        <p
+                            class="mt-2 max-w-4xl text-sm leading-6 text-slate-600 dark:text-slate-400"
+                        >
                             {{ faq.data.summary }}
                         </p>
                     </div>
@@ -103,23 +113,33 @@ const copyLink = async () => {
             </div>
         </section>
 
-        <main class="grid w-full flex-1 gap-5 p-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:p-8">
-            <article class="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900/60">
-                <div class="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
+        <main
+            class="grid w-full flex-1 gap-5 p-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:p-8"
+        >
+            <article
+                class="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900/60"
+            >
+                <div
+                    class="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-white/10"
+                >
                     <div class="flex items-center gap-3">
                         <span
                             class="size-2.5 rounded-full"
-                            :style="{ backgroundColor: faq.data.category.color }"
+                            :style="{
+                                backgroundColor: faq.data.category.color,
+                            }"
                         ></span>
                         <Link
                             :href="`/faqs?category=${faq.data.category.slug}`"
-                            class="text-xs font-bold uppercase tracking-wide text-slate-500 transition hover:text-emerald-700 dark:text-slate-400 dark:hover:text-emerald-300"
+                            class="text-xs font-bold tracking-wide text-slate-500 uppercase transition hover:text-emerald-700 dark:text-slate-400 dark:hover:text-emerald-300"
                         >
                             {{ faq.data.category.name }}
                         </Link>
                     </div>
 
-                    <div class="flex items-center gap-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    <div
+                        class="flex items-center gap-4 text-xs font-semibold text-slate-500 dark:text-slate-400"
+                    >
                         <span class="inline-flex items-center gap-1.5">
                             <Calendar class="size-3.5" />
                             {{ publishedDate }}
@@ -133,22 +153,29 @@ const copyLink = async () => {
 
                 <div class="px-5 py-6 sm:px-8">
                     <div
-                        class="prose prose-slate max-w-none prose-headings:font-bold prose-h2:mt-8 prose-h2:text-xl prose-p:text-sm prose-p:leading-7 prose-a:text-emerald-700 prose-a:no-underline hover:prose-a:underline prose-ul:text-sm prose-li:leading-7 prose-img:rounded-lg prose-strong:text-slate-950 dark:prose-invert dark:prose-a:text-emerald-300 dark:prose-strong:text-white"
+                        class="prose prose-slate prose-headings:font-bold prose-h2:mt-8 prose-h2:text-xl prose-p:text-sm prose-p:leading-7 prose-a:text-emerald-700 prose-a:no-underline hover:prose-a:underline prose-ul:text-sm prose-li:leading-7 prose-img:rounded-lg prose-strong:text-slate-950 dark:prose-invert dark:prose-a:text-emerald-300 dark:prose-strong:text-white max-w-none"
                         v-html="faq.data.answer"
                     ></div>
                 </div>
 
-                <div class="border-t border-slate-200 px-5 py-5 dark:border-white/10 sm:px-8">
+                <div
+                    class="border-t border-slate-200 px-5 py-5 sm:px-8 dark:border-white/10"
+                >
                     <div
                         v-if="!feedbackSubmitted"
-                        class="flex flex-col gap-4 rounded-lg bg-slate-50 p-4 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between"
+                        class="flex flex-col gap-4 rounded-lg bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between dark:bg-white/5"
                     >
                         <div>
-                            <h2 class="text-sm font-bold text-slate-950 dark:text-white">
+                            <h2
+                                class="text-sm font-bold text-slate-950 dark:text-white"
+                            >
                                 Was this article helpful?
                             </h2>
-                            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                                Your feedback helps improve StudentHub support content.
+                            <p
+                                class="mt-1 text-sm text-slate-500 dark:text-slate-400"
+                            >
+                                Your feedback helps improve StudentHub support
+                                content.
                             </p>
                         </div>
                         <div class="flex shrink-0 gap-2">
@@ -182,7 +209,9 @@ const copyLink = async () => {
                         <CheckCircle2 class="size-5 shrink-0" />
                         <div>
                             <h2 class="text-sm font-bold">Feedback received</h2>
-                            <p class="text-sm text-emerald-700/80 dark:text-emerald-100/80">
+                            <p
+                                class="text-sm text-emerald-700/80 dark:text-emerald-100/80"
+                            >
                                 Thank you. Your response was recorded.
                             </p>
                         </div>
@@ -191,9 +220,15 @@ const copyLink = async () => {
             </article>
 
             <aside class="space-y-5 lg:sticky lg:top-24 lg:self-start">
-                <section class="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900/60">
-                    <div class="border-b border-slate-200 px-4 py-3 dark:border-white/10">
-                        <h2 class="text-sm font-bold text-slate-950 dark:text-white">
+                <section
+                    class="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900/60"
+                >
+                    <div
+                        class="border-b border-slate-200 px-4 py-3 dark:border-white/10"
+                    >
+                        <h2
+                            class="text-sm font-bold text-slate-950 dark:text-white"
+                        >
                             Article Details
                         </h2>
                     </div>
@@ -201,10 +236,14 @@ const copyLink = async () => {
                         <div class="flex items-center gap-3 px-4 py-3">
                             <Calendar class="size-4 text-slate-400" />
                             <div>
-                                <p class="text-xs font-bold uppercase tracking-wide text-slate-400">
+                                <p
+                                    class="text-xs font-bold tracking-wide text-slate-400 uppercase"
+                                >
                                     Last Updated
                                 </p>
-                                <p class="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                                <p
+                                    class="text-sm font-semibold text-slate-800 dark:text-slate-200"
+                                >
                                     {{ publishedDate }}
                                 </p>
                             </div>
@@ -212,10 +251,14 @@ const copyLink = async () => {
                         <div class="flex items-center gap-3 px-4 py-3">
                             <Eye class="size-4 text-slate-400" />
                             <div>
-                                <p class="text-xs font-bold uppercase tracking-wide text-slate-400">
+                                <p
+                                    class="text-xs font-bold tracking-wide text-slate-400 uppercase"
+                                >
                                     Views
                                 </p>
-                                <p class="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                                <p
+                                    class="text-sm font-semibold text-slate-800 dark:text-slate-200"
+                                >
                                     {{ faq.data.view_count }}
                                 </p>
                             </div>
@@ -223,7 +266,9 @@ const copyLink = async () => {
                         <div class="flex items-center gap-3 px-4 py-3">
                             <FolderOpen class="size-4 text-slate-400" />
                             <div>
-                                <p class="text-xs font-bold uppercase tracking-wide text-slate-400">
+                                <p
+                                    class="text-xs font-bold tracking-wide text-slate-400 uppercase"
+                                >
                                     Category
                                 </p>
                                 <Link
@@ -242,8 +287,12 @@ const copyLink = async () => {
                     class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/60"
                 >
                     <div class="mb-3 flex items-center gap-2">
-                        <Tag class="size-4 text-slate-500 dark:text-slate-400" />
-                        <h2 class="text-sm font-bold text-slate-950 dark:text-white">
+                        <Tag
+                            class="size-4 text-slate-500 dark:text-slate-400"
+                        />
+                        <h2
+                            class="text-sm font-bold text-slate-950 dark:text-white"
+                        >
                             Tags
                         </h2>
                     </div>
@@ -262,8 +311,12 @@ const copyLink = async () => {
                     v-if="relatedFaqs.data.length > 0"
                     class="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900/60"
                 >
-                    <div class="border-b border-slate-200 px-4 py-3 dark:border-white/10">
-                        <h2 class="text-sm font-bold text-slate-950 dark:text-white">
+                    <div
+                        class="border-b border-slate-200 px-4 py-3 dark:border-white/10"
+                    >
+                        <h2
+                            class="text-sm font-bold text-slate-950 dark:text-white"
+                        >
                             Related Articles
                         </h2>
                     </div>
@@ -274,10 +327,14 @@ const copyLink = async () => {
                             :href="`/faqs/view/${related.id}`"
                             class="group flex items-start justify-between gap-3 px-4 py-3 transition hover:bg-slate-50 dark:hover:bg-white/5"
                         >
-                            <span class="line-clamp-2 text-sm font-semibold leading-6 text-slate-700 transition group-hover:text-emerald-700 dark:text-slate-300 dark:group-hover:text-emerald-300">
+                            <span
+                                class="line-clamp-2 text-sm leading-6 font-semibold text-slate-700 transition group-hover:text-emerald-700 dark:text-slate-300 dark:group-hover:text-emerald-300"
+                            >
                                 {{ related.question }}
                             </span>
-                            <ChevronRight class="mt-1 size-4 shrink-0 text-slate-400 transition group-hover:text-emerald-600" />
+                            <ChevronRight
+                                class="mt-1 size-4 shrink-0 text-slate-400 transition group-hover:text-emerald-600"
+                            />
                         </Link>
                     </div>
                 </section>

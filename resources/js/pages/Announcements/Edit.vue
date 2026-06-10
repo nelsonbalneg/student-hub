@@ -73,7 +73,7 @@ const form = useForm({
     publish_at: props.announcement.publish_at || '',
     send_notification: false,
     status: props.announcement.status,
-    targets: props.announcement.targets.map(t => ({
+    targets: props.announcement.targets.map((t) => ({
         role_id: t.role_id || null,
         campus_id: t.campus_id || null,
         office_id: t.office_id || null,
@@ -116,7 +116,10 @@ const removeExistingAttachment = (id: number) => {
 const isRemoved = (id: number) => form.remove_attachments.includes(id);
 
 const submit = () => {
-    if (form.publish_at && (form.status === 'published' || form.status === 'draft')) {
+    if (
+        form.publish_at &&
+        (form.status === 'published' || form.status === 'draft')
+    ) {
         form.status = 'scheduled';
     } else if (!form.publish_at && form.status === 'scheduled') {
         form.status = 'published';
@@ -135,28 +138,54 @@ const submit = () => {
 <template>
     <Head title="Edit Announcement" />
 
-    <div class="flex h-full flex-1 flex-col gap-5 p-4 lg:p-6 max-w-7xl mx-auto w-full">
+    <div
+        class="mx-auto flex h-full w-full max-w-7xl flex-1 flex-col gap-5 p-4 lg:p-6"
+    >
         <!-- Header Section -->
         <section class="border-b border-slate-200 pb-5 dark:border-white/10">
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div
+                class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"
+            >
                 <div class="min-w-0">
-                    <div class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600 uppercase shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                    <div
+                        class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600 uppercase shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                    >
                         <Megaphone class="size-3.5 text-sky-600" />
                         Bulletin Board
                     </div>
                     <div class="mt-3 flex items-center gap-4">
-                        <Link :href="announcementRoutes.index.url()" class="group">
-                            <div class="h-9 w-9 rounded-full border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors dark:border-white/10 dark:hover:bg-white/5">
-                                <ArrowLeft class="size-4 text-slate-600 group-hover:text-slate-900 dark:text-slate-400 dark:group-hover:text-white" />
+                        <Link
+                            :href="announcementRoutes.index.url()"
+                            class="group"
+                        >
+                            <div
+                                class="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 transition-colors hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
+                            >
+                                <ArrowLeft
+                                    class="size-4 text-slate-600 group-hover:text-slate-900 dark:text-slate-400 dark:group-hover:text-white"
+                                />
                             </div>
                         </Link>
-                        <h1 class="text-2xl font-bold tracking-normal text-slate-950 dark:text-white line-clamp-1">Edit: {{ announcement.title }}</h1>
+                        <h1
+                            class="line-clamp-1 text-2xl font-bold tracking-normal text-slate-950 dark:text-white"
+                        >
+                            Edit: {{ announcement.title }}
+                        </h1>
                     </div>
                 </div>
 
                 <div class="flex items-center gap-3">
-                    <Button variant="ghost" @click="router.visit(announcementRoutes.index.url())" class="font-bold text-slate-500">Discard Changes</Button>
-                    <Button @click="submit" :disabled="form.processing" class="h-10 rounded-md px-6 font-bold shadow-sky-200 dark:shadow-none">
+                    <Button
+                        variant="ghost"
+                        @click="router.visit(announcementRoutes.index.url())"
+                        class="font-bold text-slate-500"
+                        >Discard Changes</Button
+                    >
+                    <Button
+                        @click="submit"
+                        :disabled="form.processing"
+                        class="h-10 rounded-md px-6 font-bold shadow-sky-200 dark:shadow-none"
+                    >
                         <Save v-if="!form.processing" class="mr-2 size-4" />
                         <Loader2 v-else class="mr-2 size-4 animate-spin" />
                         Save Changes
@@ -165,39 +194,56 @@ const submit = () => {
             </div>
         </section>
 
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-12">
             <!-- Main Content Area -->
-            <div class="lg:col-span-8 space-y-6">
+            <div class="space-y-6 lg:col-span-8">
                 <!-- Content Card -->
-                <div class="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950 overflow-hidden">
-                    <div class="border-b border-slate-100 p-4 dark:border-white/5 bg-slate-50/50 dark:bg-white/5">
-                        <h3 class="text-sm font-bold text-slate-950 dark:text-white flex items-center gap-2">
+                <div
+                    class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+                >
+                    <div
+                        class="border-b border-slate-100 bg-slate-50/50 p-4 dark:border-white/5 dark:bg-white/5"
+                    >
+                        <h3
+                            class="flex items-center gap-2 text-sm font-bold text-slate-950 dark:text-white"
+                        >
                             <FileText class="size-4 text-sky-600" />
                             Update Content
                         </h3>
                     </div>
-                    <div class="p-6 space-y-6">
+                    <div class="space-y-6 p-6">
                         <div class="space-y-2">
-                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider dark:text-slate-400">Headline Title</label>
-                            <input 
-                                v-model="form.title" 
-                                class="flex h-12 w-full rounded-md border border-slate-200 bg-white px-4 text-base font-bold text-slate-900 focus:border-sky-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100" 
+                            <label
+                                class="text-xs font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
+                                >Headline Title</label
+                            >
+                            <input
+                                v-model="form.title"
+                                class="flex h-12 w-full rounded-md border border-slate-200 bg-white px-4 text-base font-bold text-slate-900 focus:border-sky-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
                             />
                             <InputError :message="form.errors.title" />
                         </div>
 
                         <div class="space-y-2">
-                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider dark:text-slate-400">Executive Summary</label>
-                            <textarea 
-                                v-model="form.summary" 
-                                class="flex min-h-[80px] w-full rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 focus:border-sky-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100" 
+                            <label
+                                class="text-xs font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
+                                >Executive Summary</label
+                            >
+                            <textarea
+                                v-model="form.summary"
+                                class="flex min-h-[80px] w-full rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 focus:border-sky-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
                             ></textarea>
                             <InputError :message="form.errors.summary" />
                         </div>
 
                         <div class="space-y-2">
-                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider dark:text-slate-400">Detailed Message</label>
-                            <div class="rounded-md border border-slate-200 dark:border-white/10 overflow-hidden">
+                            <label
+                                class="text-xs font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
+                                >Detailed Message</label
+                            >
+                            <div
+                                class="overflow-hidden rounded-md border border-slate-200 dark:border-white/10"
+                            >
                                 <TiptapEditor v-model="form.content" />
                             </div>
                             <InputError :message="form.errors.content" />
@@ -206,43 +252,89 @@ const submit = () => {
                 </div>
 
                 <!-- Audience Targeting -->
-                <div class="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950">
-                    <div class="border-b border-slate-100 p-4 dark:border-white/5 flex items-center justify-between">
-                        <h3 class="text-sm font-bold text-slate-950 dark:text-white flex items-center gap-2">
+                <div
+                    class="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+                >
+                    <div
+                        class="flex items-center justify-between border-b border-slate-100 p-4 dark:border-white/5"
+                    >
+                        <h3
+                            class="flex items-center gap-2 text-sm font-bold text-slate-950 dark:text-white"
+                        >
                             <Target class="size-4 text-emerald-600" />
                             Update Audience
                         </h3>
-                        <Button type="button" variant="outline" size="sm" @click="addTarget" class="h-8 text-xs font-bold">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            @click="addTarget"
+                            class="h-8 text-xs font-bold"
+                        >
                             <Plus class="mr-1 size-3" />
                             Add Rule
                         </Button>
                     </div>
-                    <div class="p-6 space-y-4">
-                        <div v-for="(target, index) in form.targets" :key="index" class="grid grid-cols-1 md:grid-cols-4 gap-3 p-4 rounded-xl border border-slate-100 bg-slate-50/50 dark:border-white/10 dark:bg-white/5 relative group">
+                    <div class="space-y-4 p-6">
+                        <div
+                            v-for="(target, index) in form.targets"
+                            :key="index"
+                            class="group relative grid grid-cols-1 gap-3 rounded-xl border border-slate-100 bg-slate-50/50 p-4 md:grid-cols-4 dark:border-white/10 dark:bg-white/5"
+                        >
                             <div class="space-y-1.5">
-                                <label class="text-[10px] font-bold text-slate-500 uppercase">Role</label>
-                                <select v-model="target.role_id" class="w-full h-8 rounded-md border border-slate-200 bg-white text-xs px-2 dark:border-white/10 dark:bg-slate-900">
+                                <label
+                                    class="text-[10px] font-bold text-slate-500 uppercase"
+                                    >Role</label
+                                >
+                                <select
+                                    v-model="target.role_id"
+                                    class="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs dark:border-white/10 dark:bg-slate-900"
+                                >
                                     <option value="">Any Role</option>
-                                    <option v-for="role in roles" :key="role.id" :value="role.id">{{ role.name }}</option>
+                                    <option
+                                        v-for="role in roles"
+                                        :key="role.id"
+                                        :value="role.id"
+                                    >
+                                        {{ role.name }}
+                                    </option>
                                 </select>
                             </div>
                             <div class="space-y-1.5">
-                                <label class="text-[10px] font-bold text-slate-500 uppercase">Campus</label>
-                                <select v-model="target.campus_id" class="w-full h-8 rounded-md border border-slate-200 bg-white text-xs px-2 dark:border-white/10 dark:bg-slate-900">
+                                <label
+                                    class="text-[10px] font-bold text-slate-500 uppercase"
+                                    >Campus</label
+                                >
+                                <select
+                                    v-model="target.campus_id"
+                                    class="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs dark:border-white/10 dark:bg-slate-900"
+                                >
                                     <option value="">Any Campus</option>
                                     <!-- Campuses list would be here -->
                                 </select>
                             </div>
                             <div class="space-y-1.5">
-                                <label class="text-[10px] font-bold text-slate-500 uppercase">Office</label>
-                                <select v-model="target.office_id" class="w-full h-8 rounded-md border border-slate-200 bg-white text-xs px-2 dark:border-white/10 dark:bg-slate-900">
+                                <label
+                                    class="text-[10px] font-bold text-slate-500 uppercase"
+                                    >Office</label
+                                >
+                                <select
+                                    v-model="target.office_id"
+                                    class="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs dark:border-white/10 dark:bg-slate-900"
+                                >
                                     <option value="">Any Office</option>
                                     <!-- Offices list would be here -->
                                 </select>
                             </div>
                             <div class="space-y-1.5">
-                                <label class="text-[10px] font-bold text-slate-500 uppercase">Year Level</label>
-                                <select v-model="target.year_level" class="w-full h-8 rounded-md border border-slate-200 bg-white text-xs px-2 dark:border-white/10 dark:bg-slate-900">
+                                <label
+                                    class="text-[10px] font-bold text-slate-500 uppercase"
+                                    >Year Level</label
+                                >
+                                <select
+                                    v-model="target.year_level"
+                                    class="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs dark:border-white/10 dark:bg-slate-900"
+                                >
                                     <option value="">Any Year</option>
                                     <option value="1">1st Year</option>
                                     <option value="2">2nd Year</option>
@@ -250,7 +342,10 @@ const submit = () => {
                                     <option value="4">4th Year</option>
                                 </select>
                             </div>
-                            <button @click="removeTarget(index)" class="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-100 text-red-600 border border-red-200 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
+                            <button
+                                @click="removeTarget(index)"
+                                class="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full border border-red-200 bg-red-100 text-red-600 opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+                            >
                                 <X class="size-3" />
                             </button>
                         </div>
@@ -259,125 +354,299 @@ const submit = () => {
             </div>
 
             <!-- Sidebar Sidebar Area -->
-            <div class="lg:col-span-4 space-y-6">
+            <div class="space-y-6 lg:col-span-4">
                 <!-- Publishing Options -->
-                <div class="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950">
-                    <div class="border-b border-slate-100 p-4 dark:border-white/5">
-                        <h3 class="text-sm font-bold text-slate-950 dark:text-white flex items-center gap-2">
+                <div
+                    class="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+                >
+                    <div
+                        class="border-b border-slate-100 p-4 dark:border-white/5"
+                    >
+                        <h3
+                            class="flex items-center gap-2 text-sm font-bold text-slate-950 dark:text-white"
+                        >
                             <Settings class="size-4 text-amber-600" />
                             Publication Settings
                         </h3>
                     </div>
-                    <div class="p-6 space-y-5">
+                    <div class="space-y-5 p-6">
                         <div class="space-y-2">
-                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider dark:text-slate-400">Category</label>
-                            <select v-model="form.category_id" class="w-full h-10 rounded-md border border-slate-200 bg-white text-sm px-3 dark:border-white/10 dark:bg-slate-900">
+                            <label
+                                class="text-xs font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
+                                >Category</label
+                            >
+                            <select
+                                v-model="form.category_id"
+                                class="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"
+                            >
                                 <option value="">Select Category</option>
-                                <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+                                <option
+                                    v-for="cat in categories"
+                                    :key="cat.id"
+                                    :value="cat.id"
+                                >
+                                    {{ cat.name }}
+                                </option>
                             </select>
                             <InputError :message="form.errors.category_id" />
                         </div>
 
                         <div class="space-y-2">
-                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider dark:text-slate-400">Priority Level</label>
+                            <label
+                                class="text-xs font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
+                                >Priority Level</label
+                            >
                             <div class="grid grid-cols-2 gap-2">
-                                <button v-for="p in ['low', 'normal', 'high', 'urgent']" :key="p" type="button" 
+                                <button
+                                    v-for="p in [
+                                        'low',
+                                        'normal',
+                                        'high',
+                                        'urgent',
+                                    ]"
+                                    :key="p"
+                                    type="button"
                                     @click="form.priority = p"
-                                    :class="['h-9 rounded-md text-[10px] font-bold uppercase border transition-all', form.priority === p ? 'border-sky-500 bg-sky-50 text-sky-700 dark:bg-sky-500/20' : 'border-slate-100 bg-white text-slate-500 hover:bg-slate-50 dark:border-white/5 dark:bg-slate-900']">
+                                    :class="[
+                                        'h-9 rounded-md border text-[10px] font-bold uppercase transition-all',
+                                        form.priority === p
+                                            ? 'border-sky-500 bg-sky-50 text-sky-700 dark:bg-sky-500/20'
+                                            : 'border-slate-100 bg-white text-slate-500 hover:bg-slate-50 dark:border-white/5 dark:bg-slate-900',
+                                    ]"
+                                >
                                     {{ p }}
                                 </button>
                             </div>
                         </div>
 
-                        <div class="pt-2 flex flex-col gap-3">
-                            <label class="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-slate-50/30 dark:border-white/5 cursor-pointer hover:bg-slate-50 transition-colors group">
+                        <div class="flex flex-col gap-3 pt-2">
+                            <label
+                                class="group flex cursor-pointer items-center justify-between rounded-lg border border-slate-100 bg-slate-50/30 p-3 transition-colors hover:bg-slate-50 dark:border-white/5"
+                            >
                                 <div class="flex items-center gap-3">
-                                    <div class="h-8 w-8 rounded-full bg-sky-100 dark:bg-sky-500/10 flex items-center justify-center text-sky-600 group-hover:scale-110 transition-transform">
-                                        <Pin :class="['size-4', form.is_pinned ? 'fill-sky-600' : '']" />
+                                    <div
+                                        class="flex h-8 w-8 items-center justify-center rounded-full bg-sky-100 text-sky-600 transition-transform group-hover:scale-110 dark:bg-sky-500/10"
+                                    >
+                                        <Pin
+                                            :class="[
+                                                'size-4',
+                                                form.is_pinned
+                                                    ? 'fill-sky-600'
+                                                    : '',
+                                            ]"
+                                        />
                                     </div>
                                     <div>
-                                        <p class="text-xs font-bold text-slate-700 dark:text-slate-300">Pin to Top</p>
-                                        <p class="text-[9px] text-slate-500 uppercase font-bold tracking-widest">Featured Status</p>
+                                        <p
+                                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                                        >
+                                            Pin to Top
+                                        </p>
+                                        <p
+                                            class="text-[9px] font-bold tracking-widest text-slate-500 uppercase"
+                                        >
+                                            Featured Status
+                                        </p>
                                     </div>
                                 </div>
-                                <input type="checkbox" v-model="form.is_pinned" class="peer h-5 w-5 rounded border-slate-200 checked:bg-sky-600 transition-all dark:border-white/10 dark:bg-slate-900" />
+                                <input
+                                    type="checkbox"
+                                    v-model="form.is_pinned"
+                                    class="peer h-5 w-5 rounded border-slate-200 transition-all checked:bg-sky-600 dark:border-white/10 dark:bg-slate-900"
+                                />
                             </label>
 
-                            <label class="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-slate-50/30 dark:border-white/5 cursor-pointer hover:bg-slate-50 transition-colors group">
+                            <label
+                                class="group flex cursor-pointer items-center justify-between rounded-lg border border-slate-100 bg-slate-50/30 p-3 transition-colors hover:bg-slate-50 dark:border-white/5"
+                            >
                                 <div class="flex items-center gap-3">
-                                    <div class="h-8 w-8 rounded-full bg-emerald-100 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
+                                    <div
+                                        class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-transform group-hover:scale-110 dark:bg-emerald-500/10"
+                                    >
                                         <Eye class="size-4" />
                                     </div>
                                     <div>
-                                        <p class="text-xs font-bold text-slate-700 dark:text-slate-300">Resend Notification</p>
-                                        <p class="text-[9px] text-slate-500 uppercase font-bold tracking-widest">Blast Alerts Again</p>
+                                        <p
+                                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                                        >
+                                            Resend Notification
+                                        </p>
+                                        <p
+                                            class="text-[9px] font-bold tracking-widest text-slate-500 uppercase"
+                                        >
+                                            Blast Alerts Again
+                                        </p>
                                     </div>
                                 </div>
-                                <input type="checkbox" v-model="form.send_notification" class="peer h-5 w-5 rounded border-slate-200 checked:bg-emerald-600 transition-all dark:border-white/10 dark:bg-slate-900" />
+                                <input
+                                    type="checkbox"
+                                    v-model="form.send_notification"
+                                    class="peer h-5 w-5 rounded border-slate-200 transition-all checked:bg-emerald-600 dark:border-white/10 dark:bg-slate-900"
+                                />
                             </label>
                         </div>
 
                         <div class="space-y-2">
-                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider dark:text-slate-400">Schedule Date</label>
+                            <label
+                                class="text-xs font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
+                                >Schedule Date</label
+                            >
                             <div class="relative">
-                                <Calendar class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
-                                <input type="datetime-local" v-model="form.publish_at" class="w-full h-10 rounded-md border border-slate-200 bg-white text-xs pl-9 pr-3 dark:border-white/10 dark:bg-slate-900 dark:text-white focus:border-sky-400 focus:outline-none" />
+                                <Calendar
+                                    class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400"
+                                />
+                                <input
+                                    type="datetime-local"
+                                    v-model="form.publish_at"
+                                    class="h-10 w-full rounded-md border border-slate-200 bg-white pr-3 pl-9 text-xs focus:border-sky-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white"
+                                />
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Attachments -->
-                <div class="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950 overflow-hidden">
-                    <div class="border-b border-slate-100 p-4 dark:border-white/5 flex items-center justify-between">
-                        <h3 class="text-sm font-bold text-slate-950 dark:text-white flex items-center gap-2">
+                <div
+                    class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+                >
+                    <div
+                        class="flex items-center justify-between border-b border-slate-100 p-4 dark:border-white/5"
+                    >
+                        <h3
+                            class="flex items-center gap-2 text-sm font-bold text-slate-950 dark:text-white"
+                        >
                             <FileText class="size-4 text-violet-600" />
                             Manage Media
                         </h3>
-                        <label class="h-8 px-3 rounded-md border border-slate-200 dark:border-white/10 flex items-center justify-center text-[10px] font-bold uppercase tracking-wider cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                        <label
+                            class="flex h-8 cursor-pointer items-center justify-center rounded-md border border-slate-200 px-3 text-[10px] font-bold tracking-wider uppercase transition-colors hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
+                        >
                             <Plus class="mr-1.5 size-3" />
                             Upload
-                            <input type="file" multiple @change="handleFileSelect" class="hidden" />
+                            <input
+                                type="file"
+                                multiple
+                                @change="handleFileSelect"
+                                class="hidden"
+                            />
                         </label>
                     </div>
-                    <div class="p-4 space-y-4">
+                    <div class="space-y-4 p-4">
                         <!-- Existing Files -->
-                        <div v-if="announcement.attachments.length > 0" class="space-y-2">
-                            <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">Currently Attached</p>
-                            <div v-for="file in announcement.attachments" :key="file.id" 
-                                :class="['flex items-center justify-between p-2 rounded-lg border transition-all', isRemoved(file.id) ? 'opacity-40 bg-slate-50 line-through grayscale' : 'border-slate-50 bg-slate-50/50 dark:border-white/5 dark:bg-white/5']">
-                                <div class="flex items-center gap-2 min-w-0">
-                                    <FileText class="size-3.5 text-slate-400 shrink-0" />
-                                    <span class="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">{{ file.original_name }}</span>
+                        <div
+                            v-if="announcement.attachments.length > 0"
+                            class="space-y-2"
+                        >
+                            <p
+                                class="px-1 text-[9px] font-bold tracking-widest text-slate-500 uppercase"
+                            >
+                                Currently Attached
+                            </p>
+                            <div
+                                v-for="file in announcement.attachments"
+                                :key="file.id"
+                                :class="[
+                                    'flex items-center justify-between rounded-lg border p-2 transition-all',
+                                    isRemoved(file.id)
+                                        ? 'bg-slate-50 line-through opacity-40 grayscale'
+                                        : 'border-slate-50 bg-slate-50/50 dark:border-white/5 dark:bg-white/5',
+                                ]"
+                            >
+                                <div class="flex min-w-0 items-center gap-2">
+                                    <FileText
+                                        class="size-3.5 shrink-0 text-slate-400"
+                                    />
+                                    <span
+                                        class="truncate text-xs font-medium text-slate-700 dark:text-slate-300"
+                                        >{{ file.original_name }}</span
+                                    >
                                 </div>
                                 <div class="flex items-center gap-1">
-                                    <a v-if="!isRemoved(file.id)" :href="'/storage/' + file.file_path" download class="h-6 w-6 flex items-center justify-center text-slate-400 hover:text-sky-600">
+                                    <a
+                                        v-if="!isRemoved(file.id)"
+                                        :href="'/storage/' + file.file_path"
+                                        download
+                                        class="flex h-6 w-6 items-center justify-center text-slate-400 hover:text-sky-600"
+                                    >
                                         <Download class="size-3.5" />
                                     </a>
-                                    <button @click="isRemoved(file.id) ? form.remove_attachments = form.remove_attachments.filter(id => id !== file.id) : removeExistingAttachment(file.id)" 
-                                        :class="['h-6 w-6 flex items-center justify-center transition-colors', isRemoved(file.id) ? 'text-sky-600' : 'text-slate-400 hover:text-red-500']">
-                                        <component :is="isRemoved(file.id) ? Plus : Trash2" class="size-3.5" />
+                                    <button
+                                        @click="
+                                            isRemoved(file.id)
+                                                ? (form.remove_attachments =
+                                                      form.remove_attachments.filter(
+                                                          (id) =>
+                                                              id !== file.id,
+                                                      ))
+                                                : removeExistingAttachment(
+                                                      file.id,
+                                                  )
+                                        "
+                                        :class="[
+                                            'flex h-6 w-6 items-center justify-center transition-colors',
+                                            isRemoved(file.id)
+                                                ? 'text-sky-600'
+                                                : 'text-slate-400 hover:text-red-500',
+                                        ]"
+                                    >
+                                        <component
+                                            :is="
+                                                isRemoved(file.id)
+                                                    ? Plus
+                                                    : Trash2
+                                            "
+                                            class="size-3.5"
+                                        />
                                     </button>
                                 </div>
                             </div>
                         </div>
 
                         <!-- New Files -->
-                        <div v-if="form.attachments.length > 0" class="space-y-2">
-                            <p class="text-[9px] font-bold text-emerald-600 uppercase tracking-widest px-1">New Uploads</p>
-                            <div v-for="(file, i) in form.attachments" :key="i" class="flex items-center justify-between p-2 rounded-lg border border-emerald-100 bg-emerald-50/20 dark:border-emerald-500/10">
-                                <div class="flex items-center gap-2 min-w-0">
-                                    <Plus class="size-3.5 text-emerald-500 shrink-0" />
-                                    <span class="text-xs font-medium text-emerald-800 dark:text-emerald-300 truncate">{{ file.name }}</span>
+                        <div
+                            v-if="form.attachments.length > 0"
+                            class="space-y-2"
+                        >
+                            <p
+                                class="px-1 text-[9px] font-bold tracking-widest text-emerald-600 uppercase"
+                            >
+                                New Uploads
+                            </p>
+                            <div
+                                v-for="(file, i) in form.attachments"
+                                :key="i"
+                                class="flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50/20 p-2 dark:border-emerald-500/10"
+                            >
+                                <div class="flex min-w-0 items-center gap-2">
+                                    <Plus
+                                        class="size-3.5 shrink-0 text-emerald-500"
+                                    />
+                                    <span
+                                        class="truncate text-xs font-medium text-emerald-800 dark:text-emerald-300"
+                                        >{{ file.name }}</span
+                                    >
                                 </div>
-                                <button @click="removeNewAttachment(i)" class="h-6 w-6 text-slate-400 hover:text-red-500">
+                                <button
+                                    @click="removeNewAttachment(i)"
+                                    class="h-6 w-6 text-slate-400 hover:text-red-500"
+                                >
                                     <Trash2 class="size-3.5" />
                                 </button>
                             </div>
                         </div>
-                        
-                        <div v-if="announcement.attachments.length === 0 && form.attachments.length === 0" class="py-6 text-center">
-                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">No attachments</p>
+
+                        <div
+                            v-if="
+                                announcement.attachments.length === 0 &&
+                                form.attachments.length === 0
+                            "
+                            class="py-6 text-center"
+                        >
+                            <p
+                                class="text-[10px] font-bold tracking-widest text-slate-400 uppercase"
+                            >
+                                No attachments
+                            </p>
                         </div>
                     </div>
                 </div>

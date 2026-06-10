@@ -24,6 +24,7 @@ use App\Http\Controllers\LegalDocumentController;
 use App\Http\Controllers\LegalPublicController;
 use App\Http\Controllers\MyCarbonFootprintController;
 use App\Http\Controllers\ReportingOverviewController;
+use App\Http\Controllers\SiteSettings\PhysicalFitnessConfigurationController;
 use App\Http\Controllers\SiteSettings\SiteAcademicTermController;
 use App\Http\Controllers\SiteSettings\SiteBrandingController;
 use App\Http\Controllers\SiteSettings\SiteCampusController;
@@ -36,6 +37,7 @@ use App\Http\Controllers\Society\SocietyDashboardController;
 use App\Http\Controllers\Society\SocietyEventController;
 use App\Http\Controllers\Society\SocietyMembershipController;
 use App\Http\Controllers\Society\SocietyReportController;
+use App\Http\Controllers\StudentPftResultController;
 use App\Http\Controllers\StudentProfileController;
 use App\Http\Controllers\StudentRecordsController;
 use App\Http\Controllers\StudentSemesterClearanceController;
@@ -121,6 +123,9 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
     Route::patch('student-profile', [StudentProfileController::class, 'update'])
         ->middleware('can:student-profile.view')
         ->name('student-profile.update');
+    Route::post('student-profile/physical-fitness/{testType}', [StudentPftResultController::class, 'store'])
+        ->middleware('can:pft.submit')
+        ->name('student-profile.physical-fitness.store');
     Route::get('internet-accounts', [InternetAccountController::class, 'index'])
         ->name('internet-accounts.index');
     Route::post('internet-accounts', [InternetAccountController::class, 'store'])
@@ -467,6 +472,26 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
             Route::post('student-profile/trainings', [SiteStudentProfileController::class, 'storeTraining'])->name('student-profile.trainings.store');
             Route::patch('student-profile/trainings/{training}', [SiteStudentProfileController::class, 'updateTraining'])->name('student-profile.trainings.update');
             Route::delete('student-profile/trainings/{training}', [SiteStudentProfileController::class, 'destroyTraining'])->name('student-profile.trainings.destroy');
+
+            Route::prefix('physical-fitness/configuration')
+                ->name('physical-fitness.configuration.')
+                ->controller(PhysicalFitnessConfigurationController::class)
+                ->middleware('can:pft.configuration.view')
+                ->group(function () {
+                    Route::get('/', 'index')->name('index');
+                    Route::post('components', 'storeComponent')->middleware('can:pft.configuration.create')->name('components.store');
+                    Route::patch('components/{component}', 'updateComponent')->middleware('can:pft.configuration.update')->name('components.update');
+                    Route::delete('components/{component}', 'destroyComponent')->middleware('can:pft.configuration.delete')->name('components.destroy');
+                    Route::post('categories', 'storeCategory')->middleware('can:pft.configuration.create')->name('categories.store');
+                    Route::patch('categories/{category}', 'updateCategory')->middleware('can:pft.configuration.update')->name('categories.update');
+                    Route::delete('categories/{category}', 'destroyCategory')->middleware('can:pft.configuration.delete')->name('categories.destroy');
+                    Route::post('test-types', 'storeTestType')->middleware('can:pft.configuration.create')->name('test-types.store');
+                    Route::patch('test-types/{testType}', 'updateTestType')->middleware('can:pft.configuration.update')->name('test-types.update');
+                    Route::delete('test-types/{testType}', 'destroyTestType')->middleware('can:pft.configuration.delete')->name('test-types.destroy');
+                    Route::post('fields', 'storeConfiguration')->middleware('can:pft.configuration.create')->name('fields.store');
+                    Route::patch('fields/{configuration}', 'updateConfiguration')->middleware('can:pft.configuration.update')->name('fields.update');
+                    Route::delete('fields/{configuration}', 'destroyConfiguration')->middleware('can:pft.configuration.delete')->name('fields.destroy');
+                });
 
             Route::get('sar', fn () => Inertia::render('SiteSettings/Placeholder', ['title' => 'SAR']))->name('sar');
 

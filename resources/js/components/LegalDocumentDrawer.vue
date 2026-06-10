@@ -69,42 +69,72 @@ defineExpose({ openDocument });
             side="right"
             class="w-full overflow-y-auto border-slate-200 bg-white p-0 sm:max-w-xl dark:border-white/10 dark:bg-slate-950"
         >
-            <div class="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur dark:border-white/10 dark:bg-slate-950/95">
+            <div
+                class="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur dark:border-white/10 dark:bg-slate-950/95"
+            >
                 <SheetHeader class="space-y-1 pr-8 text-left">
-                    <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">
+                    <div
+                        class="flex items-center gap-2 text-xs font-bold tracking-wide text-emerald-600 uppercase dark:text-emerald-300"
+                    >
                         <ShieldCheck class="size-3.5" />
                         Legal
                     </div>
-                    <SheetTitle class="text-xl font-bold tracking-tight text-slate-950 dark:text-white">
+                    <SheetTitle
+                        class="text-xl font-bold tracking-tight text-slate-950 dark:text-white"
+                    >
                         {{ title }}
                     </SheetTitle>
-                    <SheetDescription class="text-xs text-slate-500 dark:text-slate-400">
-                        <span v-if="document?.version">Version {{ document.version }}</span>
-                        <span v-if="document?.version && document?.published_at_human"> · </span>
-                        <span v-if="document?.published_at_human">Published {{ document.published_at_human }}</span>
+                    <SheetDescription
+                        class="text-xs text-slate-500 dark:text-slate-400"
+                    >
+                        <span v-if="document?.version"
+                            >Version {{ document.version }}</span
+                        >
+                        <span
+                            v-if="
+                                document?.version &&
+                                document?.published_at_human
+                            "
+                        >
+                            ·
+                        </span>
+                        <span v-if="document?.published_at_human"
+                            >Published {{ document.published_at_human }}</span
+                        >
                     </SheetDescription>
                 </SheetHeader>
             </div>
 
             <div class="px-5 py-5">
-                <div v-if="loading" class="flex min-h-60 items-center justify-center gap-2 text-sm text-slate-500">
+                <div
+                    v-if="loading"
+                    class="flex min-h-60 items-center justify-center gap-2 text-sm text-slate-500"
+                >
                     <Loader2 class="size-4 animate-spin" />
                     Loading document
                 </div>
 
-                <div v-else-if="error" class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200">
+                <div
+                    v-else-if="error"
+                    class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200"
+                >
                     {{ error }}
                 </div>
 
                 <article
                     v-else-if="document"
-                    class="prose prose-sm max-w-none text-slate-700 dark:prose-invert dark:text-slate-200"
+                    class="prose prose-sm dark:prose-invert max-w-none text-slate-700 dark:text-slate-200"
                     v-html="document.content"
                 />
 
-                <div v-else class="grid min-h-60 place-items-center text-center text-sm text-slate-500">
+                <div
+                    v-else
+                    class="grid min-h-60 place-items-center text-center text-sm text-slate-500"
+                >
                     <div>
-                        <FileText class="mx-auto mb-3 size-10 text-slate-300 dark:text-slate-700" />
+                        <FileText
+                            class="mx-auto mb-3 size-10 text-slate-300 dark:text-slate-700"
+                        />
                         Select a legal document to preview.
                     </div>
                 </div>

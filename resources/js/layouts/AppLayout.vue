@@ -17,7 +17,11 @@ const props = withDefaults(
 </script>
 
 <template>
-    <AppLayout :breadcrumbs="props.breadcrumbs" :hide-header="props.hideHeader" :hide-footer="props.hideFooter">
+    <AppLayout
+        :breadcrumbs="props.breadcrumbs"
+        :hide-header="props.hideHeader"
+        :hide-footer="props.hideFooter"
+    >
         <slot />
     </AppLayout>
 </template>

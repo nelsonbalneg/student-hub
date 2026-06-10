@@ -26,8 +26,8 @@ withDefaults(defineProps<Props>(), {
         <AppSidebar />
         <AppContent variant="sidebar" class="w-full overflow-x-hidden">
             <AppSidebarHeader v-if="!hideHeader" :breadcrumbs="breadcrumbs" />
-            <div class="flex w-full min-h-[calc(100svh-4rem)] flex-col">
-                <div class="flex-1 w-full">
+            <div class="flex min-h-[calc(100svh-4rem)] w-full flex-col">
+                <div class="w-full flex-1">
                     <slot />
                 </div>
                 <LegalFooter v-if="!hideFooter" />

@@ -6,6 +6,7 @@ import {
     Heart,
     GraduationCap,
     FileText,
+    Dumbbell,
     Palette,
     Settings2,
     UserRound,
@@ -72,6 +73,13 @@ const tabs = [
             'site-settings.student-profile.view',
             'site-settings.view',
         ],
+    },
+    {
+        name: 'Physical Fitness',
+        href: '/admin/site-settings/physical-fitness/configuration',
+        icon: Dumbbell,
+        description: 'PFT master data',
+        permission: ['pft.configuration.view', 'site-settings.view'],
     },
     {
         name: 'SAR',

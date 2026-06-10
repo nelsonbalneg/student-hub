@@ -98,6 +98,12 @@ class RolesAndPermissionsSeeder extends Seeder
             ['module' => 'System Logs', 'name' => 'system.logs.download'],
             ['module' => 'System Logs', 'name' => 'system.logs.export'],
             ['module' => 'System Logs', 'name' => 'system.logs.clear'],
+            ['module' => 'Physical Fitness Test', 'name' => 'pft.view'],
+            ['module' => 'Physical Fitness Test', 'name' => 'pft.submit'],
+            ['module' => 'Physical Fitness Test', 'name' => 'pft.configuration.view'],
+            ['module' => 'Physical Fitness Test', 'name' => 'pft.configuration.create'],
+            ['module' => 'Physical Fitness Test', 'name' => 'pft.configuration.update'],
+            ['module' => 'Physical Fitness Test', 'name' => 'pft.configuration.delete'],
             ['module' => 'Settings', 'name' => 'settings.view'],
             ['module' => 'Site Settings', 'name' => 'site_settings.manage'],
             ['module' => 'Legal', 'name' => 'legal.view'],
@@ -192,6 +198,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'download cor',
             'evaluation.view',
             'evaluation.submit-intent',
+            'pft.view',
+            'pft.submit',
             'reporting.carbon_footprint.user_view',
         ]);
 

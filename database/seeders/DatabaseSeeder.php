@@ -35,6 +35,8 @@ class DatabaseSeeder extends Seeder
             SocietyPermissionSeeder::class,
             SocietyOfficerPositionSeeder::class,
             SocietyAccreditationRequirementSeeder::class,
+            PhysicalFitnessTestPermissionSeeder::class,
+            PhysicalFitnessTestSeeder::class,
         ]);
 
         $testUser->assignRole('Super Admin');

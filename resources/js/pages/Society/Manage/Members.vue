@@ -11,7 +11,10 @@ defineProps<{
 
 <template>
     <Roster
-        :society="{ ...society, members: memberships?.data ?? society.members ?? [] }"
+        :society="{
+            ...society,
+            members: memberships?.data ?? society.members ?? [],
+        }"
         section="members"
         :active-term="activeTerm"
         :current-application="currentApplication"
