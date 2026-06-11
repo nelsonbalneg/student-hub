@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\ReferenceLookupController;
+use App\Http\Controllers\Admin\RegistrarController;
 use App\Http\Controllers\AnnouncementCategoryController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\AuditLogController;
@@ -166,6 +167,25 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
             Route::get('/carbon-footprint', [CarbonFootprintController::class, 'index'])
                 ->middleware('can:reporting.carbon_footprint.view')
                 ->name('carbon-footprint.index');
+        });
+
+    Route::prefix('admin/registrar')
+        ->name('admin.registrar.')
+        ->controller(RegistrarController::class)
+        ->middleware('can:registrar.view')
+        ->group(function () {
+            Route::get('student-profile', 'studentProfile')
+                ->middleware('can:registrar.student-profile.view')
+                ->name('student-profile.index');
+            Route::get('report-of-grades', 'reportOfGrades')
+                ->middleware('can:registrar.report-of-grades.view')
+                ->name('report-of-grades.index');
+            Route::post('report-of-grades/search', 'searchReportOfGrades')
+                ->middleware('can:registrar.report-of-grades.view')
+                ->name('report-of-grades.search');
+            Route::get('tag-graduating-student', 'tagGraduatingStudent')
+                ->middleware('can:registrar.tag-graduating-student.view')
+                ->name('tag-graduating-student.index');
         });
 
     Route::prefix('student/evaluation')

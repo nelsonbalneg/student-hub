@@ -94,6 +94,10 @@ class RolesAndPermissionsSeeder extends Seeder
             ['module' => 'Reporting', 'name' => 'reporting.carbon_footprint.view'],
             ['module' => 'Reporting', 'name' => 'reporting.carbon_footprint.user_view'],
             ['module' => 'Reporting', 'name' => 'reporting.export'],
+            ['module' => 'Registrar', 'name' => 'registrar.view'],
+            ['module' => 'Registrar', 'name' => 'registrar.student-profile.view'],
+            ['module' => 'Registrar', 'name' => 'registrar.report-of-grades.view'],
+            ['module' => 'Registrar', 'name' => 'registrar.tag-graduating-student.view'],
             ['module' => 'System Logs', 'name' => 'system.logs.view'],
             ['module' => 'System Logs', 'name' => 'system.logs.download'],
             ['module' => 'System Logs', 'name' => 'system.logs.export'],
@@ -158,6 +162,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'evaluation.evaluate',
             'evaluation.feedback',
             'evaluation.mark-done',
+            'registrar.view',
+            'registrar.student-profile.view',
+            'registrar.report-of-grades.view',
+            'registrar.tag-graduating-student.view',
             'reporting.carbon_footprint.user_view',
         ]);
 

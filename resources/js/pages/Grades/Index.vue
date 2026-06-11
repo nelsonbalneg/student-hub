@@ -1903,7 +1903,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                     <span
                                                         class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 uppercase dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300"
                                                     >
-                                                        Evaluation Required
+                                                        Evaluate faculty first
                                                     </span>
                                                 </template>
                                                 <span

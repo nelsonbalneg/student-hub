@@ -39,7 +39,7 @@ class GradeComputationService
                 'counted_units_display' => $this->formatUnits($overallComputation['units']),
                 'included_subject_count' => $allIncludedSubjects->count(),
                 'excluded_keywords' => $this->excludedKeywords(),
-                'note' => 'NSTP, Thesis, Capstone, OJT, and Practicum subjects are excluded from GPA computation.',
+                'note' => 'ROTC, CWTS/NSTP, Thesis, Capstone, OJT, and Practicum subjects are excluded from GPA computation.',
             ],
         ];
     }

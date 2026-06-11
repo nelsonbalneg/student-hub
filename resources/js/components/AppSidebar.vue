@@ -411,7 +411,37 @@ const siteAdministrationNavItems: NavItem[] = [
     },
 ];
 
+const registrarNavItems: NavItem[] = [
+    {
+        title: 'Registrar',
+        href: '/admin/registrar/report-of-grades',
+        icon: FileText,
+        permission: 'registrar.view',
+        items: [
+            {
+                title: 'Student Profile',
+                href: '/admin/registrar/student-profile',
+                icon: User,
+                permission: 'registrar.student-profile.view',
+            },
+            {
+                title: 'Report of Grades',
+                href: '/admin/registrar/report-of-grades',
+                icon: GraduationCap,
+                permission: 'registrar.report-of-grades.view',
+            },
+            {
+                title: 'Tag Graduating Student',
+                href: '/admin/registrar/tag-graduating-student',
+                icon: ClipboardCheck,
+                permission: 'registrar.tag-graduating-student.view',
+            },
+        ],
+    },
+];
+
 const visibleOverviewNavItems = computed(() => visibleItems(overviewNavItems));
+const visibleRegistrarNavItems = computed(() => visibleItems(registrarNavItems));
 const visibleSiteAdministrationNavItems = computed(() =>
     visibleItems(siteAdministrationNavItems),
 );
@@ -459,6 +489,11 @@ const footerNavItems: NavItem[] = [
 
         <SidebarContent class="gap-0 overflow-y-auto px-2 pb-4">
             <NavMain label="Overview" :items="visibleOverviewNavItems" />
+            <NavMain
+                v-if="visibleRegistrarNavItems.length > 0"
+                label="Registrar"
+                :items="visibleRegistrarNavItems"
+            />
             <NavMain
                 v-if="visibleSiteAdministrationNavItems.length > 0"
                 label="Site Administration"

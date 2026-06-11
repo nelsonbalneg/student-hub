@@ -129,6 +129,21 @@ return [
             'trust_server_certificate' => env('CEE_DB_TRUST_SERVER_CERTIFICATE', 'true'),
         ],
 
+        'sso_sqlsrv' => [
+            'driver' => env('DB_SSO_CONNECTION', 'sqlsrv'),
+            'url' => env('DB_SSO_URL'),
+            'host' => env('DB_SSO_HOST', '127.0.0.1'),
+            'port' => env('DB_SSO_PORT', '1433'),
+            'database' => env('DB_SSO_DATABASE', 'ssodb'),
+            'username' => env('DB_SSO_USERNAME', 'usmcee'),
+            'password' => env('DB_SSO_PASSWORD', ''),
+            'charset' => env('DB_SSO_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'encrypt' => env('DB_SSO_ENCRYPT', 'no'),
+            'trust_server_certificate' => env('DB_SSO_TRUST_SERVER_CERTIFICATE', 'true'),
+        ],
+
     ],
 
     /*
