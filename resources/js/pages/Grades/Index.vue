@@ -9,6 +9,7 @@ import {
     CheckCircle2,
     FileText,
     GraduationCap,
+    Dumbbell,
     MessageSquareQuote,
     Printer,
     ServerCrash,
@@ -110,6 +111,7 @@ const props = defineProps<{
         | 'no_data'
         | 'missing_context'
         | null;
+    active_term_id: string | number | null;
 }>();
 
 const expandedTerms = ref<Record<string, boolean>>({});
@@ -162,6 +164,48 @@ const pick = (row: GradeRecord, keys: string[]): string => {
         .find((item) => item !== null && item !== undefined && item !== '');
 
     return value === null || value === undefined ? '-' : String(value);
+};
+
+const rowSubjectCode = (row: GradeRecord) =>
+    pick(row, ['courseCode', 'course_code', 'subjectCode', 'subject_code', 'code']);
+
+const rowSubjectDescription = (row: GradeRecord) =>
+    pick(row, [
+        'courseTitle',
+        'course_title',
+        'courseDescription',
+        'course_description',
+        'subjectDescription',
+        'subject_description',
+        'description',
+        'title',
+    ]);
+
+const isPhysicalFitnessSubject = (row: GradeRecord) => {
+    const code = rowSubjectCode(row).toUpperCase();
+    const description = rowSubjectDescription(row).toLowerCase();
+
+    return (
+        code.includes('PATHFIT') ||
+        code.includes('PATH FIT') ||
+        /(^|[^A-Z0-9])P\.?\s*E\.?([^A-Z0-9]|$)/.test(code) ||
+        description.includes('pathfit') ||
+        description.includes('physical fitness') ||
+        description.includes('exercise-based fitness') ||
+        description.includes('exercise based fitness')
+    );
+};
+
+const isActiveTermGroup = (group: TermGroup) =>
+    props.active_term_id !== null &&
+    props.active_term_id !== undefined &&
+    String(group.termId) === String(props.active_term_id);
+
+const showPhysicalFitnessShortcut = (group: TermGroup, row: GradeRecord) =>
+    isActiveTermGroup(group) && isPhysicalFitnessSubject(row);
+
+const openPhysicalFitnessTest = () => {
+    window.location.href = '/student-profile#physical-fitness-test';
 };
 
 const groupedGrades = computed<TermGroup[]>(() => {
@@ -1657,16 +1701,40 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                 <div
                                                     class="flex flex-col gap-0.5"
                                                 >
-                                                    <span
-                                                        class="font-bold text-slate-900 dark:text-white"
+                                                    <div
+                                                        class="flex flex-wrap items-center gap-2"
                                                     >
-                                                        {{
-                                                            pick(
-                                                                row,
-                                                                columns[0].keys,
-                                                            )
-                                                        }}
-                                                    </span>
+                                                        <span
+                                                            class="font-bold text-slate-900 dark:text-white"
+                                                        >
+                                                            {{
+                                                                pick(
+                                                                    row,
+                                                                    columns[0]
+                                                                        .keys,
+                                                                )
+                                                            }}
+                                                        </span>
+                                                        <button
+                                                            v-if="
+                                                                showPhysicalFitnessShortcut(
+                                                                    group,
+                                                                    row,
+                                                                )
+                                                            "
+                                                            type="button"
+                                                            class="inline-flex h-7 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 text-[10px] font-bold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
+                                                            @click.stop="
+                                                                openPhysicalFitnessTest
+                                                            "
+                                                        >
+                                                            <Dumbbell
+                                                                class="size-3"
+                                                            />
+                                                            Physical Fitness
+                                                            Test
+                                                        </button>
+                                                    </div>
                                                     <span
                                                         class="max-w-[400px] truncate text-xs text-slate-500 dark:text-slate-400"
                                                     >

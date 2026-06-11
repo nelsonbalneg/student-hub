@@ -9,6 +9,7 @@ use App\Models\StudentPftResult;
 use App\Models\Training;
 use App\Services\AcademicApiService;
 use App\Services\CeeStudentRequirementService;
+use App\Services\PhysicalFitnessPermissionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -19,6 +20,7 @@ class StudentProfileController extends Controller
     public function __construct(
         private readonly AcademicApiService $academicApi,
         private readonly CeeStudentRequirementService $ceeRequirements,
+        private readonly PhysicalFitnessPermissionService $pftPermission,
     ) {}
 
     public function __invoke(Request $request): Response
@@ -27,15 +29,37 @@ class StudentProfileController extends Controller
         $studentNo = $this->academicApi->studentNumberFor($user);
         $tenantId = blank($user->tenant_id) ? null : (string) $user->tenant_id;
         $campusId = $user->campus_id;
-        $activePftTerms = SiteAcademicTerm::query()
+        $canFillUpPft = $this->pftPermission->canFillUp($user);
+        $savedPftTermIds = StudentPftResult::query()
+            ->where('user_id', $user->id)
+            ->when(! $canFillUpPft, fn ($query) => $query->where('status', 'completed'))
+            ->whereNotNull('term_id')
+            ->pluck('term_id')
+            ->filter()
+            ->map(fn ($termId): string => (string) $termId)
+            ->unique()
+            ->values();
+        $pftTerms = SiteAcademicTerm::query()
             ->select(['id', 'site_campus_id', 'school_year', 'semester', 'term_id', 'status', 'start_date', 'end_date'])
-            ->where('status', 'Active')
             ->whereNotNull('term_id')
             ->whereHas('campus', fn ($query) => $query->where('real_campus_id', (string) $campusId))
+            ->when(
+                $canFillUpPft,
+                fn ($query) => $query->where(function ($query) use ($savedPftTermIds): void {
+                    $query->where('status', 'Active')
+                        ->when(
+                            $savedPftTermIds->isNotEmpty(),
+                            fn ($query) => $query->orWhereIn('term_id', $savedPftTermIds),
+                        );
+                }),
+                fn ($query) => $savedPftTermIds->isNotEmpty()
+                    ? $query->whereIn('term_id', $savedPftTermIds)
+                    : $query->whereRaw('1 = 0'),
+            )
             ->orderByDesc('start_date')
             ->orderByDesc('id')
             ->get();
-        $activePftTermIds = $activePftTerms->pluck('term_id')->filter()->map(fn ($termId): string => (string) $termId)->all();
+        $pftTermIds = $pftTerms->pluck('term_id')->filter()->map(fn ($termId): string => (string) $termId)->all();
 
         return Inertia::render('StudentProfile/Index', [
             'profile' => $this->academicApi->profileForStudent($studentNo, $tenantId),
@@ -56,15 +80,17 @@ class StudentProfileController extends Controller
                     ->get(),
                 'results' => StudentPftResult::query()
                     ->where('user_id', $user->id)
+                    ->when(! $canFillUpPft, fn ($query) => $query->where('status', 'completed'))
                     ->when(
-                        $activePftTermIds !== [],
-                        fn ($query) => $query->whereIn('term_id', $activePftTermIds),
+                        $pftTermIds !== [],
+                        fn ($query) => $query->whereIn('term_id', $pftTermIds),
                         fn ($query) => $query->whereRaw('1 = 0'),
                     )
                     ->get()
                     ->keyBy(fn (StudentPftResult $result): string => "{$result->term_id}:{$result->pft_test_type_id}"),
-                'terms' => $activePftTerms,
+                'terms' => $pftTerms,
                 'canSubmit' => $user->can('pft.submit'),
+                'canFillUp' => $canFillUpPft,
             ],
         ]);
     }

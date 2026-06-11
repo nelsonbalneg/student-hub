@@ -123,6 +123,9 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
     Route::patch('student-profile', [StudentProfileController::class, 'update'])
         ->middleware('can:student-profile.view')
         ->name('student-profile.update');
+    Route::get('student-profile/physical-fitness/analytics', [StudentPftResultController::class, 'analytics'])
+        ->middleware('can:student-profile.view')
+        ->name('student-profile.physical-fitness.analytics');
     Route::post('student-profile/physical-fitness/{testType}', [StudentPftResultController::class, 'store'])
         ->middleware('can:pft.submit')
         ->name('student-profile.physical-fitness.store');
@@ -472,6 +475,9 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
             Route::post('student-profile/trainings', [SiteStudentProfileController::class, 'storeTraining'])->name('student-profile.trainings.store');
             Route::patch('student-profile/trainings/{training}', [SiteStudentProfileController::class, 'updateTraining'])->name('student-profile.trainings.update');
             Route::delete('student-profile/trainings/{training}', [SiteStudentProfileController::class, 'destroyTraining'])->name('student-profile.trainings.destroy');
+            Route::patch('student-profile/physical-fitness-permission', [SiteStudentProfileController::class, 'updatePhysicalFitnessPermission'])
+                ->middleware('can:pft.permission.manage')
+                ->name('student-profile.physical-fitness-permission.update');
 
             Route::prefix('physical-fitness/configuration')
                 ->name('physical-fitness.configuration.')

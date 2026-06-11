@@ -104,6 +104,7 @@ class RolesAndPermissionsSeeder extends Seeder
             ['module' => 'Physical Fitness Test', 'name' => 'pft.configuration.create'],
             ['module' => 'Physical Fitness Test', 'name' => 'pft.configuration.update'],
             ['module' => 'Physical Fitness Test', 'name' => 'pft.configuration.delete'],
+            ['module' => 'Physical Fitness Test', 'name' => 'pft.permission.manage'],
             ['module' => 'Settings', 'name' => 'settings.view'],
             ['module' => 'Site Settings', 'name' => 'site_settings.manage'],
             ['module' => 'Legal', 'name' => 'legal.view'],

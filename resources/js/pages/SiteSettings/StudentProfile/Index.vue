@@ -3,10 +3,12 @@ import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import SiteSettingsLayout from '@/layouts/SiteSettingsLayout.vue';
 import { index as profileIndex } from '@/routes/site-settings/student-profile';
 import * as awardRoutes from '@/routes/site-settings/student-profile/awards';
+import * as physicalFitnessPermissionRoutes from '@/routes/site-settings/student-profile/physical-fitness-permission';
 import * as trainingRoutes from '@/routes/site-settings/student-profile/trainings';
 import {
     Award,
     CalendarDays,
+    Dumbbell,
     Edit2,
     Medal,
     Plus,
@@ -60,18 +62,28 @@ type TrainingRecord = {
     user: Student;
 };
 
+type PhysicalFitnessSetting = {
+    permission: string;
+    options: Array<{
+        label: string;
+        value: string;
+    }>;
+};
+
 const props = defineProps<{
-    activeTab: 'awards' | 'trainings';
+    activeTab: 'awards' | 'trainings' | 'physical-fitness';
     filters: {
         search: string;
     };
     students: Student[];
     awards: Paginator<AwardRecord>;
     trainings: Paginator<TrainingRecord>;
+    physicalFitnessSetting: PhysicalFitnessSetting;
     can: {
         create: boolean;
         update: boolean;
         delete: boolean;
+        managePhysicalFitnessPermission: boolean;
     };
 }>();
 
@@ -103,12 +115,23 @@ const trainingForm = useForm({
     organizer: '',
 });
 
-const visitTab = (tab: 'awards' | 'trainings') => {
+const physicalFitnessForm = useForm({
+    permission: props.physicalFitnessSetting.permission,
+});
+
+const visitTab = (tab: 'awards' | 'trainings' | 'physical-fitness') => {
     router.get(
         profileIndex.url({ query: { tab, search: search.value || undefined } }),
         {},
         { preserveScroll: true, preserveState: true },
     );
+};
+
+const submitPhysicalFitnessPermission = () => {
+    physicalFitnessForm.patch(physicalFitnessPermissionRoutes.update.url(), {
+        preserveScroll: true,
+        preserveState: true,
+    });
 };
 
 const applySearch = () => {
@@ -292,6 +315,21 @@ const confirmDelete = () => {
                             >{{ trainings.total }}</span
                         >
                     </button>
+                    <button
+                        type="button"
+                        class="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-3 text-left transition"
+                        :class="
+                            activeTab === 'physical-fitness'
+                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white'
+                        "
+                        @click="visitTab('physical-fitness')"
+                    >
+                        <Dumbbell class="size-4" />
+                        <span class="text-sm font-bold"
+                            >Physical Fitness</span
+                        >
+                    </button>
                 </aside>
 
                 <section
@@ -305,7 +343,9 @@ const confirmDelete = () => {
                                 class="text-sm font-bold text-slate-950 dark:text-white"
                             >
                                 {{
-                                    activeTab === 'awards'
+                                    activeTab === 'physical-fitness'
+                                        ? 'Physical Fitness'
+                                        : activeTab === 'awards'
                                         ? 'Award Records'
                                         : 'Training Records'
                                 }}
@@ -314,13 +354,15 @@ const confirmDelete = () => {
                                 {{
                                     activeTab === 'awards'
                                         ? `${awards.from || 0}-${awards.to || 0} of ${awards.total}`
-                                        : `${trainings.from || 0}-${trainings.to || 0} of ${trainings.total}`
+                                        : activeTab === 'trainings'
+                                          ? `${trainings.from || 0}-${trainings.to || 0} of ${trainings.total}`
+                                          : 'Control who can submit Physical Fitness Test records'
                                 }}
                             </p>
                         </div>
 
                         <button
-                            v-if="can.create"
+                            v-if="can.create && activeTab !== 'physical-fitness'"
                             type="button"
                             class="inline-flex h-8 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-xs font-bold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700"
                             @click="
@@ -334,7 +376,67 @@ const confirmDelete = () => {
                         </button>
                     </div>
 
-                    <div class="overflow-x-auto">
+                    <div
+                        v-if="activeTab === 'physical-fitness'"
+                        class="space-y-4 p-4"
+                    >
+                        <div
+                            class="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]"
+                        >
+                            <p
+                                class="text-sm font-bold text-slate-950 dark:text-white"
+                            >
+                                PFT Fill-up Permission
+                            </p>
+                            <p class="mt-1 text-xs text-slate-500">
+                                Choose whether only students enrolled in
+                                PE/PATHFIT subjects can encode PFT results, or
+                                all students can fill up the form.
+                            </p>
+
+                            <form
+                                class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end"
+                                @submit.prevent="
+                                    submitPhysicalFitnessPermission
+                                "
+                            >
+                                <label class="flex-1">
+                                    <span
+                                        class="text-xs font-bold text-slate-600 dark:text-slate-300"
+                                    >
+                                        Permission
+                                    </span>
+                                    <select
+                                        v-model="
+                                            physicalFitnessForm.permission
+                                        "
+                                        class="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:ring-emerald-500/20"
+                                    >
+                                        <option
+                                            v-for="option in physicalFitnessSetting.options"
+                                            :key="option.value"
+                                            :value="option.value"
+                                        >
+                                            {{ option.label }}
+                                        </option>
+                                    </select>
+                                </label>
+
+                                <button
+                                    type="submit"
+                                    class="inline-flex h-10 items-center justify-center rounded-md bg-emerald-600 px-4 text-sm font-bold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                    :disabled="
+                                        !can.managePhysicalFitnessPermission ||
+                                        physicalFitnessForm.processing
+                                    "
+                                >
+                                    Save Setting
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div v-else class="overflow-x-auto">
                         <table class="min-w-full text-left text-sm">
                             <thead
                                 class="bg-slate-50 text-[11px] font-bold tracking-wide text-slate-500 uppercase dark:bg-white/[0.03] dark:text-slate-400"

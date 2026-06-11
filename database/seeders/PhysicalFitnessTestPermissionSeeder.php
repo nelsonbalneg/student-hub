@@ -21,6 +21,7 @@ class PhysicalFitnessTestPermissionSeeder extends Seeder
             'pft.configuration.create',
             'pft.configuration.update',
             'pft.configuration.delete',
+            'pft.permission.manage',
         ];
 
         foreach ($permissions as $permission) {

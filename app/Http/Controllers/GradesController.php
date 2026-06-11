@@ -223,6 +223,7 @@ class GradesController extends Controller
             'gradeReport' => $gradeReport,
             'evaluation_error' => $evaluationError,
             'evaluation_error_type' => $evaluationErrorType,
+            'active_term_id' => $activeTermId,
         ]);
     }
 

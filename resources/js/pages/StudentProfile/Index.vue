@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
-import { toast } from 'vue-sonner';
 import {
     AlertCircle,
     BookOpen,
     Calendar,
     CheckCircle2,
+    ChevronDown,
     Circle,
     Clock3,
     Download,
@@ -26,7 +25,11 @@ import {
     Trophy,
     User,
     Users,
+    ChartColumnIncreasing
 } from 'lucide-vue-next';
+import { computed, defineAsyncComponent, nextTick, onMounted, ref, watch } from 'vue';
+import { toast } from 'vue-sonner';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -37,10 +40,12 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
 import * as achievementsRoutes from '@/routes/achievements';
-import * as trainingsRoutes from '@/routes/trainings';
 import * as pftRoutes from '@/routes/student-profile/physical-fitness';
+import * as trainingsRoutes from '@/routes/trainings';
+
+
+const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
 
 type ProfileData = {
     studentNo: string;
@@ -136,6 +141,7 @@ type PftResult = {
     id: number;
     pft_test_type_id: number;
     term_id: string;
+    status: 'draft' | 'completed' | string;
     results_json: Record<string, unknown>;
     remarks: string | null;
     tested_at: string | null;
@@ -148,6 +154,15 @@ type PftTerm = {
     semester: string;
     term_id: string;
     status: string;
+};
+
+type PftRequirementRow = {
+    key: string;
+    term: PftTerm;
+    component: PftComponent;
+    category: PftCategory;
+    testType: PftTestType;
+    result: PftResult | null;
 };
 
 const props = defineProps<{
@@ -172,6 +187,7 @@ const props = defineProps<{
         results: Record<string, PftResult>;
         terms: PftTerm[];
         canSubmit: boolean;
+        canFillUp: boolean;
     };
 }>();
 
@@ -393,6 +409,20 @@ const selectedPftTestTypeId = ref(
 );
 const selectedPftTermId = ref(props.physicalFitness.terms[0]?.term_id ?? null);
 const pftDrawerOpen = ref(false);
+const pftAnalyticsDrawerOpen = ref(false);
+const pftAnalyticsChartsReady = ref(false);
+const pftAnalyticsChartKey = ref(0);
+const pftAnalyticsLoading = ref(false);
+const pftAnalyticsError = ref<string | null>(null);
+const pftAnalyticsData = ref<Record<string, any> | null>(null);
+const pftAnalyticsFilterTermId = ref('');
+const pftAnalyticsFilterComponentId = ref('');
+const pftAnalyticsFilterCategoryId = ref('');
+const pftAnalyticsFilterTestTypeId = ref('');
+const pftAnalyticsFilterDateFrom = ref('');
+const pftAnalyticsFilterDateTo = ref('');
+const openPftAnalyticsTimelineGroups = ref<string[]>([]);
+const openPftAnalyticsTimelineComponentGroups = ref<string[]>([]);
 
 const selectedPftComponent = computed(() =>
     props.physicalFitness.components.find(
@@ -415,6 +445,12 @@ const selectedPftTerm = computed(() =>
     props.physicalFitness.terms.find(
         (term) => term.term_id === selectedPftTermId.value,
     ),
+);
+const activePftTerm = computed(
+    () =>
+        props.physicalFitness.terms.find(
+            (term) => term.status?.toLowerCase() === 'active',
+        ) ?? selectedPftTerm.value,
 );
 
 watch(selectedPftComponentId, () => {
@@ -456,7 +492,7 @@ const pftResultFor = (
     termId: string | null = selectedPftTermId.value,
 ) => props.physicalFitness.results[pftResultKey(termId, testTypeId)] ?? null;
 
-const pftRequirementRows = computed(() =>
+const pftRequirementRows = computed<PftRequirementRow[]>(() =>
     props.physicalFitness.terms.flatMap((term) =>
         props.physicalFitness.components.flatMap((component) =>
             component.categories.flatMap((category) =>
@@ -475,20 +511,46 @@ const pftRequirementRows = computed(() =>
 
 const visiblePftRequirementRows = computed(() =>
     pftRequirementRows.value.filter(
-        (row) => row.term.term_id === selectedPftTermId.value,
+        (row) =>
+            row.term.term_id === selectedPftTermId.value &&
+            (props.physicalFitness.canFillUp || pftRowIsCompleted(row)),
     ),
 );
 
+const pftRowIsDraft = (row?: PftRequirementRow | null) => {
+    if (!row?.result) return false;
+    if (row.result.status === 'draft') return true;
+    if (row.result.status === 'completed') return false;
+    if (row.result.results_json._is_draft === true) return true;
+
+    return row.testType.configurations.some((field) => {
+        if (!field.is_required) return false;
+
+        const value = row.result?.results_json[field.field_name];
+
+        return value === null || value === undefined || value === '';
+    });
+};
+
+const pftRowIsCompleted = (row?: PftRequirementRow | null) =>
+    Boolean(row?.result) && !pftRowIsDraft(row);
+
 const totalPftPendingCount = computed(
-    () => pftRequirementRows.value.filter((row) => !row.result).length,
+    () =>
+        props.physicalFitness.canFillUp
+            ? pftRequirementRows.value.filter((row) => !pftRowIsCompleted(row))
+                  .length
+            : 0,
 );
 
 const selectedPftTermCompletedCount = computed(
-    () => visiblePftRequirementRows.value.filter((row) => row.result).length,
+    () => visiblePftRequirementRows.value.filter(pftRowIsCompleted).length,
 );
 
 const selectedPftTermPendingCount = computed(
-    () => visiblePftRequirementRows.value.filter((row) => !row.result).length,
+    () =>
+        visiblePftRequirementRows.value.filter((row) => !pftRowIsCompleted(row))
+            .length,
 );
 
 const selectedPftTermCompletionPercent = computed(() => {
@@ -500,13 +562,19 @@ const selectedPftTermCompletionPercent = computed(() => {
 });
 
 const pftRowsForTerm = (termId: string) =>
-    pftRequirementRows.value.filter((row) => row.term.term_id === termId);
+    pftRequirementRows.value.filter(
+        (row) =>
+            row.term.term_id === termId &&
+            (props.physicalFitness.canFillUp || pftRowIsCompleted(row)),
+    );
 
 const pftRowForTest = (termId: string, testTypeId: number) =>
     pftRowsForTerm(termId).find((row) => row.testType.id === testTypeId);
 
 const pftTermPendingCount = (termId: string) =>
-    pftRowsForTerm(termId).filter((row) => !row.result).length;
+    props.physicalFitness.canFillUp
+        ? pftRowsForTerm(termId).filter((row) => !pftRowIsCompleted(row)).length
+        : 0;
 
 const pftTermSavedCount = (termId: string) =>
     pftRowsForTerm(termId).filter((row) => row.result).length;
@@ -521,9 +589,13 @@ const pftComponentCompletedCount = (component: PftComponent) =>
     component.categories.reduce(
         (total, category) =>
             total +
-            category.test_types.filter((testType) =>
-                pftResultFor(testType.id, selectedPftTermId.value),
-            ).length,
+            category.test_types.filter((testType) => {
+                const row = selectedPftTermId.value
+                    ? pftRowForTest(selectedPftTermId.value, testType.id)
+                    : undefined;
+
+                return pftRowIsCompleted(row);
+            }).length,
         0,
     );
 
@@ -542,7 +614,8 @@ const hasPftDraftInput = computed(() => {
 });
 
 const pftTestStatus = (row?: (typeof pftRequirementRows.value)[number]) => {
-    if (row?.result) return 'Completed';
+    if (pftRowIsCompleted(row)) return 'Completed';
+    if (pftRowIsDraft(row)) return 'Draft';
     if (
         row &&
         selectedPftTermId.value === row.term.term_id &&
@@ -553,6 +626,15 @@ const pftTestStatus = (row?: (typeof pftRequirementRows.value)[number]) => {
     }
 
     return 'Not Started';
+};
+
+const pftResultValue = (value: unknown) => {
+    if (value === null || value === undefined || value === '') return '-';
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    if (Array.isArray(value)) return value.length ? value.join(', ') : '-';
+    if (typeof value === 'object') return JSON.stringify(value);
+
+    return String(value);
 };
 
 const selectPftRequirement = (
@@ -569,9 +651,15 @@ const selectPftRequirement = (
 };
 
 const openPftTermDrawer = (term: PftTerm) => {
+    if (!props.physicalFitness.canFillUp) {
+        openPftTermSummary(term);
+
+        return;
+    }
+
     selectedPftTermId.value = term.term_id;
     const firstRow =
-        pftRowsForTerm(term.term_id).find((row) => !row.result) ??
+        pftRowsForTerm(term.term_id).find((row) => !pftRowIsCompleted(row)) ??
         pftRowsForTerm(term.term_id)[0];
 
     if (firstRow) {
@@ -584,12 +672,600 @@ const openPftTermDrawer = (term: PftTerm) => {
 };
 
 const pftFormModalOpen = ref(false);
+const pftSummaryModalOpen = ref(false);
+const pftTermSummaryModalOpen = ref(false);
+const selectedPftSummaryRow = ref<PftRequirementRow | null>(null);
+const selectedPftSummaryTermId = ref<string | null>(null);
+const openPftSummaryComponentIds = ref<number[]>([]);
+
+const selectedPftSummaryTerm = computed(() =>
+    props.physicalFitness.terms.find(
+        (term) => term.term_id === selectedPftSummaryTermId.value,
+    ),
+);
+
+const pftTermSummaryRows = computed(() =>
+    selectedPftSummaryTermId.value
+        ? pftRowsForTerm(selectedPftSummaryTermId.value).filter(
+              pftRowIsCompleted,
+          )
+        : [],
+);
+
+const pftTermSummaryGroups = computed(() => {
+    const groups = new Map<
+        number,
+        { component: PftComponent; rows: PftRequirementRow[] }
+    >();
+
+    for (const row of pftTermSummaryRows.value) {
+        if (!groups.has(row.component.id)) {
+            groups.set(row.component.id, {
+                component: row.component,
+                rows: [],
+            });
+        }
+
+        groups.get(row.component.id)?.rows.push(row);
+    }
+
+    return Array.from(groups.values());
+});
+
+const pftSummaryFields = computed(() => {
+    const row = selectedPftSummaryRow.value;
+
+    if (!row?.result) return [];
+
+    return row.testType.configurations.map((field) => ({
+        label: field.field_label,
+        value: pftResultValue(row.result?.results_json[field.field_name]),
+    }));
+});
+
+const pftPrimaryScore = (row: PftRequirementRow) => {
+    const rawScore = row.result?.results_json.score;
+
+    if (rawScore === null || rawScore === undefined || rawScore === '') {
+        return null;
+    }
+
+    const score = Number(rawScore);
+
+    return Number.isFinite(score) ? score : null;
+};
+
+const pftBmiInterpretation = (bmi: number) => {
+    if (bmi < 18.5) return 'Underweight';
+    if (bmi < 25) return 'Normal';
+    if (bmi < 30) return 'Overweight';
+
+    return 'Obese';
+};
+
+const pftResultInterpretation = (row?: PftRequirementRow | null) => {
+    const result = row?.result;
+
+    if (!result) return '-';
+
+    const bmi = Number(result.results_json.bmi);
+
+    if (row.testType.slug === 'bmi-test' && Number.isFinite(bmi)) {
+        return `${pftBmiInterpretation(bmi)} BMI classification.`;
+    }
+
+    const remarks =
+        String(result.remarks ?? '').trim() ||
+        String(result.results_json.remarks ?? '').trim();
+
+    if (remarks) return remarks;
+
+    const score = pftPrimaryScore(row);
+
+    if (score === null) {
+        return 'Saved result is available for review.';
+    }
+
+    if (
+        ['shuttle-run', '40-meter-sprint', 'stick-drop-test'].includes(
+            row.testType.slug,
+        )
+    ) {
+        return `Recorded score: ${score}. Lower time or distance is generally better for this test.`;
+    }
+
+    if (
+        [
+            'push-up-test',
+            'curl-up-test',
+            'standing-long-jump',
+            'stork-balance-stand-test',
+            'juggling-test',
+            'zipper-test',
+            'sit-and-reach-test',
+            '3-minute-step-test',
+        ].includes(row.testType.slug)
+    ) {
+        return `Recorded score: ${score}. Higher scores generally indicate stronger performance for this test.`;
+    }
+
+    return `Recorded score: ${score}.`;
+};
+
+const togglePftSummaryComponent = (componentId: number) => {
+    openPftSummaryComponentIds.value = openPftSummaryComponentIds.value.includes(
+        componentId,
+    )
+        ? openPftSummaryComponentIds.value.filter((id) => id !== componentId)
+        : [...openPftSummaryComponentIds.value, componentId];
+};
+
+const pftAnalyticsRows = computed(() => pftRequirementRows.value);
+
+const pftAnalyticsCompletedRows = computed(() =>
+    pftAnalyticsRows.value.filter(pftRowIsCompleted),
+);
+
+const pftAnalyticsPendingRows = computed(() =>
+    pftAnalyticsRows.value.filter((row) => !pftRowIsCompleted(row)),
+);
+
+const pftCompletionPercentForRows = (rows: PftRequirementRow[]) => {
+    if (rows.length === 0) return 0;
+
+    return Math.round(
+        (rows.filter(pftRowIsCompleted).length / rows.length) * 100,
+    );
+};
+
+const pftAnalyticsSummary = computed(() => {
+    const total = pftAnalyticsRows.value.length;
+    const completed = pftAnalyticsCompletedRows.value.length;
+    const pending = pftAnalyticsPendingRows.value.length;
+    const latestDate = pftAnalyticsCompletedRows.value
+        .map(
+            (row) =>
+                row.result?.tested_at ??
+                row.result?.results_json.date_tested ??
+                row.result?.updated_at,
+        )
+        .filter(Boolean)
+        .map((date) => String(date))
+        .sort()
+        .at(-1);
+    const rowsForComponent = (componentName: string) =>
+        pftAnalyticsRows.value.filter(
+            (row) =>
+                row.component.name.toLowerCase() ===
+                componentName.toLowerCase(),
+        );
+
+    return {
+        total,
+        completed,
+        pending,
+        completionPercent:
+            total > 0 ? Math.round((completed / total) * 100) : 0,
+        healthCompletion: pftCompletionPercentForRows(
+            rowsForComponent('Health Related'),
+        ),
+        skillCompletion: pftCompletionPercentForRows(
+            rowsForComponent('Skill Related'),
+        ),
+        latestDate: latestDate ? formatDate(latestDate) : '-',
+        overallStatus:
+            total === 0
+                ? 'No Tests'
+                : pending === 0
+                  ? 'Complete'
+                  : `${pending} Pending`,
+    };
+});
+
+const pftAnalyticsOverview = computed(() => {
+    const overview = pftAnalyticsData.value?.overview;
+
+    if (!overview) {
+        return {
+            academicYear: activePftTerm.value?.school_year ?? '-',
+            semester: activePftTerm.value?.semester ?? '-',
+            totalRequiredTests: pftAnalyticsSummary.value.total,
+            completedTests: pftAnalyticsSummary.value.completed,
+            pendingTests: pftAnalyticsSummary.value.pending,
+            completionPercentage: pftAnalyticsSummary.value.completionPercent,
+            healthRelatedCompletion: pftAnalyticsSummary.value.healthCompletion,
+            skillRelatedCompletion: pftAnalyticsSummary.value.skillCompletion,
+            latestTestDate: pftAnalyticsSummary.value.latestDate,
+            overallFitnessStatus: pftAnalyticsSummary.value.overallStatus,
+        };
+    }
+
+    return overview;
+});
+
+const pftAnalyticsSummaryCards = computed(() => [
+    {
+        label: 'Academic Year',
+        value: pftAnalyticsOverview.value.academicYear,
+        tone: 'text-slate-950 dark:text-white',
+    },
+    {
+        label: 'Semester',
+        value: pftAnalyticsOverview.value.semester,
+        tone: 'text-slate-950 dark:text-white',
+    },
+    {
+        label: 'Completed Tests',
+        value: `${pftAnalyticsOverview.value.completedTests} / ${pftAnalyticsOverview.value.totalRequiredTests}`,
+        tone: 'text-emerald-700 dark:text-emerald-300',
+    },
+    {
+        label: 'Pending Tests',
+        value: pftAnalyticsOverview.value.pendingTests,
+        tone: 'text-amber-700 dark:text-amber-300',
+    },
+    {
+        label: 'Completion %',
+        value: `${pftAnalyticsOverview.value.completionPercentage}%`,
+        tone: 'text-emerald-700 dark:text-emerald-300',
+    },
+    {
+        label: 'Health Related Completion',
+        value: `${pftAnalyticsOverview.value.healthRelatedCompletion}%`,
+        tone: 'text-sky-700 dark:text-sky-300',
+    },
+    {
+        label: 'Skill Related Completion',
+        value: `${pftAnalyticsOverview.value.skillRelatedCompletion}%`,
+        tone: 'text-violet-700 dark:text-violet-300',
+    },
+    {
+        label: 'Latest Test Date',
+        value: pftAnalyticsOverview.value.latestTestDate,
+        tone: 'text-slate-950 dark:text-white',
+    },
+    {
+        label: 'Overall Fitness Status',
+        value: pftAnalyticsOverview.value.overallFitnessStatus,
+        tone:
+            pftAnalyticsOverview.value.pendingTests === 0
+                ? 'text-emerald-700 dark:text-emerald-300'
+                : 'text-amber-700 dark:text-amber-300',
+    },
+]);
+
+const pftAnalyticsComponentStats = computed(() =>
+    props.physicalFitness.components.map((component) => {
+        const rows = pftAnalyticsRows.value.filter(
+            (row) => row.component.id === component.id,
+        );
+        const completed = rows.filter(pftRowIsCompleted).length;
+
+        return {
+            name: component.name,
+            total: rows.length,
+            completed,
+            percent: pftCompletionPercentForRows(rows),
+        };
+    }),
+);
+
+const pftAnalyticsCategoryStats = computed(() =>
+    props.physicalFitness.components.flatMap((component) =>
+        component.categories.map((category) => {
+            const rows = pftAnalyticsRows.value.filter(
+                (row) => row.category.id === category.id,
+            );
+            const completed = rows.filter(pftRowIsCompleted).length;
+
+            return {
+                name: `${component.name} - ${category.name}`,
+                total: rows.length,
+                completed,
+                percent: pftCompletionPercentForRows(rows),
+            };
+        }),
+    ),
+);
+
+const pftAnalyticsResultValue = (row: PftRequirementRow) => {
+    if (!row.result) return '-';
+
+    const preferredField =
+        row.testType.configurations.find((field) =>
+            ['score', 'bmi'].includes(field.field_name),
+        ) ?? row.testType.configurations[0];
+
+    if (!preferredField) return '-';
+
+    return pftResultValue(row.result.results_json[preferredField.field_name]);
+};
+
+const pftAnalyticsRecentRows = computed(() =>
+    pftAnalyticsRows.value
+        .filter((row) => row.result)
+        .map((row) => ({
+            row,
+            sortDate: String(
+                row.result?.tested_at ??
+                    row.result?.results_json.date_tested ??
+                    row.result?.updated_at ??
+                    '',
+            ),
+        }))
+        .sort((a, b) => b.sortDate.localeCompare(a.sortDate))
+        .slice(0, 12)
+        .map(({ row }) => row),
+);
+
+const pftAnalyticsCompletionSeries = computed(() => [
+    pftAnalyticsOverview.value.completedTests,
+    pftAnalyticsOverview.value.pendingTests,
+]);
+
+const pftAnalyticsCompletionOptions = computed(() => ({
+    chart: { toolbar: { show: false } },
+    labels: ['Completed', 'Pending'],
+    colors: ['#059669', '#f59e0b'],
+    legend: { position: 'bottom' },
+    dataLabels: { enabled: true },
+}));
+
+const pftAnalyticsComponentSeries = computed(() => [
+    {
+        name: 'Completion %',
+        data: pftAnalyticsComponentStats.value.map((item) => item.percent),
+    },
+]);
+
+const pftAnalyticsComponentOptions = computed(() => ({
+    chart: { toolbar: { show: false } },
+    colors: ['#059669'],
+    plotOptions: { bar: { borderRadius: 4, columnWidth: '45%' } },
+    dataLabels: { enabled: false },
+    xaxis: {
+        categories: pftAnalyticsComponentStats.value.map((item) => item.name),
+    },
+    yaxis: { max: 100, labels: { formatter: (value: number) => `${value}%` } },
+}));
+
+const pftAnalyticsCategorySeries = computed(() => [
+    {
+        name: 'Completion %',
+        data: pftAnalyticsCategoryStats.value.map((item) => item.percent),
+    },
+]);
+
+const pftAnalyticsCategoryOptions = computed(() => ({
+    chart: { toolbar: { show: false } },
+    colors: ['#0ea5e9'],
+    plotOptions: { bar: { borderRadius: 4, horizontal: true } },
+    dataLabels: { enabled: false },
+    xaxis: {
+        categories: pftAnalyticsCategoryStats.value.map((item) => item.name),
+        max: 100,
+        labels: { formatter: (value: number) => `${value}%` },
+    },
+    yaxis: {
+        labels: {
+            minWidth: 140,
+            maxWidth: 220,
+        },
+    },
+}));
+
+const pftAnalyticsComparisonItems = computed(
+    () => pftAnalyticsData.value?.semesterComparison ?? [],
+);
+
+const selectedPftAnalyticsComparison = computed(
+    () => pftAnalyticsComparisonItems.value[0] ?? null,
+);
+
+const pftAnalyticsComparisonSeries = computed(() => [
+    {
+        name: selectedPftAnalyticsComparison.value?.testType ?? 'Trend',
+        data:
+            selectedPftAnalyticsComparison.value?.series?.map(
+                (item: Record<string, any>) => item.value,
+            ) ?? [],
+    },
+]);
+
+const pftAnalyticsComparisonOptions = computed(() => ({
+    chart: { toolbar: { show: false } },
+    colors: ['#059669'],
+    stroke: { curve: 'smooth', width: 3 },
+    markers: { size: 4 },
+    dataLabels: { enabled: false },
+    xaxis: {
+        categories:
+            selectedPftAnalyticsComparison.value?.series?.map(
+                (item: Record<string, any>) => item.label,
+            ) ?? [],
+    },
+}));
+
+const pftAnalyticsRadarSeries = computed(() => [
+    {
+        name: pftAnalyticsData.value?.radarData?.currentLabel ?? 'Current Semester',
+        data: pftAnalyticsData.value?.radarData?.current ?? [],
+    },
+    {
+        name:
+            pftAnalyticsData.value?.radarData?.previousLabel ??
+            'Previous Semester',
+        data: pftAnalyticsData.value?.radarData?.previous ?? [],
+    },
+]);
+
+const pftAnalyticsRadarOptions = computed(() => ({
+    chart: { toolbar: { show: false } },
+    colors: ['#059669', '#94a3b8'],
+    dataLabels: { enabled: false },
+    xaxis: { categories: pftAnalyticsData.value?.radarData?.labels ?? [] },
+    yaxis: { min: 0, max: 100 },
+}));
+
+const pftAnalyticsTimeline = computed(
+    () => pftAnalyticsData.value?.timeline ?? [],
+);
+
+const pftAnalyticsTimelineGroups = computed(() => {
+    const groups = new Map<
+        string,
+        {
+            key: string;
+            academicYear: string;
+            semester: string;
+            rows: Record<string, any>[];
+            components: {
+                key: string;
+                name: string;
+                rows: Record<string, any>[];
+            }[];
+        }
+    >();
+
+    for (const row of pftAnalyticsTimeline.value) {
+        const academicYear = row.academicYear ?? '-';
+        const semester = row.semester ?? '-';
+        const key = `${academicYear}:${semester}`;
+
+        if (!groups.has(key)) {
+            groups.set(key, {
+                key,
+                academicYear,
+                semester,
+                rows: [],
+                components: [],
+            });
+        }
+
+        const group = groups.get(key);
+        group?.rows.push(row);
+
+        if (group) {
+            const componentName = row.component ?? '-';
+            const componentKey = `${key}:${componentName}`;
+            let componentGroup = group.components.find(
+                (component) => component.key === componentKey,
+            );
+
+            if (!componentGroup) {
+                componentGroup = {
+                    key: componentKey,
+                    name: componentName,
+                    rows: [],
+                };
+                group.components.push(componentGroup);
+            }
+
+            componentGroup.rows.push(row);
+        }
+    }
+
+    return Array.from(groups.values());
+});
+
+const togglePftAnalyticsTimelineGroup = (key: string) => {
+    openPftAnalyticsTimelineGroups.value =
+        openPftAnalyticsTimelineGroups.value.includes(key)
+            ? openPftAnalyticsTimelineGroups.value.filter(
+                  (item) => item !== key,
+              )
+            : [...openPftAnalyticsTimelineGroups.value, key];
+};
+
+const togglePftAnalyticsTimelineComponentGroup = (key: string) => {
+    openPftAnalyticsTimelineComponentGroups.value =
+        openPftAnalyticsTimelineComponentGroups.value.includes(key)
+            ? openPftAnalyticsTimelineComponentGroups.value.filter(
+                  (item) => item !== key,
+              )
+            : [...openPftAnalyticsTimelineComponentGroups.value, key];
+};
+
+const pftAnalyticsInsights = computed(
+    () => pftAnalyticsData.value?.insights ?? [],
+);
+
+const pftAnalyticsFitnessIndex = computed(
+    () =>
+        pftAnalyticsData.value?.fitnessIndex ?? {
+            score: 0,
+            rating: 'Needs Improvement',
+            weights: { healthRelated: 60, skillRelated: 40 },
+        },
+);
+
+const loadPftAnalytics = async () => {
+    pftAnalyticsLoading.value = true;
+    pftAnalyticsError.value = null;
+
+    try {
+        const endpoint = new URL(pftRoutes.analytics.url(), window.location.origin);
+        const filters = {
+            term_id: pftAnalyticsFilterTermId.value,
+            component_id: pftAnalyticsFilterComponentId.value,
+            category_id: pftAnalyticsFilterCategoryId.value,
+            test_type_id: pftAnalyticsFilterTestTypeId.value,
+            date_from: pftAnalyticsFilterDateFrom.value,
+            date_to: pftAnalyticsFilterDateTo.value,
+        };
+
+        Object.entries(filters).forEach(([key, value]) => {
+            if (value) endpoint.searchParams.set(key, value);
+        });
+
+        const response = await fetch(endpoint.toString(), {
+            headers: { Accept: 'application/json' },
+        });
+
+        if (!response.ok) {
+            throw new Error('Unable to load physical fitness analytics.');
+        }
+
+        pftAnalyticsData.value = await response.json();
+        openPftAnalyticsTimelineGroups.value =
+            pftAnalyticsTimelineGroups.value.map((group) => group.key);
+        openPftAnalyticsTimelineComponentGroups.value =
+            pftAnalyticsTimelineGroups.value.flatMap((group) =>
+                group.components.map((component) => component.key),
+            );
+    } catch (error) {
+        pftAnalyticsError.value =
+            error instanceof Error
+                ? error.message
+                : 'Unable to load physical fitness analytics.';
+    } finally {
+        pftAnalyticsLoading.value = false;
+    }
+};
+
+const openPftAnalyticsDrawer = async () => {
+    pftAnalyticsDrawerOpen.value = true;
+    pftAnalyticsChartsReady.value = false;
+    pftAnalyticsChartKey.value += 1;
+    await loadPftAnalytics();
+
+    nextTick(() => {
+        pftAnalyticsChartsReady.value = true;
+    });
+};
+
+const closePftAnalyticsDrawer = () => {
+    pftAnalyticsChartsReady.value = false;
+    pftAnalyticsDrawerOpen.value = false;
+};
 
 const selectPftTestType = (
     component: PftComponent,
     category: PftCategory,
     testType: PftTestType,
 ) => {
+    if (!props.physicalFitness.canFillUp) return;
+
     selectedPftComponentId.value = component.id;
     selectedPftCategoryId.value = category.id;
     selectedPftTestTypeId.value = testType.id;
@@ -600,16 +1276,34 @@ const selectPftTestType = (
     });
 };
 
+const openPftSummary = (row?: PftRequirementRow) => {
+    if (!row?.result) return;
+
+    selectPftRequirement(row);
+    selectedPftSummaryRow.value = row;
+    pftSummaryModalOpen.value = true;
+};
+
+const openPftTermSummary = (term: PftTerm) => {
+    selectedPftSummaryTermId.value = term.term_id;
+    openPftSummaryComponentIds.value = Array.from(
+        new Set(pftRowsForTerm(term.term_id).map((row) => row.component.id)),
+    );
+    pftTermSummaryModalOpen.value = true;
+};
+
 const pftForm = useForm<{
     term_id: string;
     results: Record<string, unknown>;
     remarks: string;
     tested_at: string;
+    is_draft: boolean;
 }>({
     term_id: '',
     results: {},
     remarks: '',
     tested_at: '',
+    is_draft: false,
 });
 
 const loadPftResult = () => {
@@ -620,6 +1314,7 @@ const loadPftResult = () => {
     pftForm.tested_at = result?.tested_at
         ? String(result.tested_at).slice(0, 10)
         : '';
+    pftForm.is_draft = false;
 };
 
 watch(selectedPftTestTypeId, loadPftResult, { immediate: true });
@@ -658,15 +1353,32 @@ watch(
     { deep: true },
 );
 
-const submitPftResult = () => {
-    if (!selectedPftTestType.value || !selectedPftTermId.value) return;
+const submitPftResult = (isDraft = false) => {
+    if (
+        !props.physicalFitness.canFillUp ||
+        !selectedPftTestType.value ||
+        !selectedPftTermId.value
+    ) {
+        return;
+    }
 
     pftForm.term_id = selectedPftTermId.value;
+    pftForm.is_draft = isDraft;
     pftForm.post(pftRoutes.store.url(selectedPftTestType.value.id), {
         preserveScroll: true,
         preserveState: true,
         onSuccess: () => {
             pftFormModalOpen.value = false;
+            pftForm.is_draft = false;
+        },
+        onError: (errors) => {
+            pftForm.is_draft = false;
+            const firstError = Object.values(errors)[0];
+            toast.error(
+                typeof firstError === 'string'
+                    ? firstError
+                    : 'Unable to save the physical fitness result.',
+            );
         },
     });
 };
@@ -2166,8 +2878,21 @@ watch(editMode, (val) => {
 
                             <div
                                 v-if="activeTab === 'physical-fitness-test'"
-                                class="space-y-4"
+                                class="space-y-4 font-light"
                             >
+                                <div
+                                    v-if="!physicalFitness.canFillUp"
+                                    class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-light text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+                                >
+                                    Physical Fitness Test submissions are
+                                    available only to students currently
+                                    enrolled in PE/PATHFIT subjects.
+                                    <span class="block pt-1">
+                                        You may still view your completed
+                                        Physical Fitness Test records below.
+                                    </span>
+                                </div>
+
                                 <div
                                     v-if="
                                         physicalFitness.components.length ===
@@ -2178,16 +2903,22 @@ watch(editMode, (val) => {
                                 >
                                     <Dumbbell class="size-9 text-slate-300" />
                                     <p
-                                        class="text-sm font-bold text-slate-900 dark:text-white"
+                                        class="text-sm font-light text-slate-900 dark:text-white"
                                     >
-                                        No physical fitness tests configured
+                                        {{
+                                            physicalFitness.canFillUp
+                                                ? 'No physical fitness tests configured'
+                                                : 'No completed physical fitness records found'
+                                        }}
                                     </p>
                                     <p
-                                        class="max-w-md text-xs font-medium text-slate-500 dark:text-slate-400"
+                                        class="max-w-md text-xs font-light text-slate-500 dark:text-slate-400"
                                     >
-                                        Active PFT components and active campus
-                                        academic terms must be configured before
-                                        students can submit results.
+                                        {{
+                                            physicalFitness.canFillUp
+                                                ? 'Active PFT components and active campus academic terms must be configured before students can submit results.'
+                                                : 'Only completed Physical Fitness Test records are visible for your account.'
+                                        }}
                                     </p>
                                 </div>
 
@@ -2197,45 +2928,77 @@ watch(editMode, (val) => {
                                     >
                                         <div>
                                             <p
-                                                class="text-[11px] font-bold tracking-wide text-emerald-700 uppercase dark:text-emerald-300"
+                                                class="text-[11px] font-light tracking-wide text-emerald-700 uppercase dark:text-emerald-300"
                                             >
                                                 Physical Fitness Test
                                             </p>
                                             <h3
-                                                class="mt-1 text-lg font-black text-slate-950 dark:text-white"
+                                                class="mt-1 text-lg font-light text-slate-950 dark:text-white"
                                             >
-                                                Academic Year Terms
+                                                AY
+                                                {{
+                                                    activePftTerm?.school_year ??
+                                                    '-'
+                                                }}
+                                                ·
+                                                {{
+                                                    activePftTerm?.semester ??
+                                                    '-'
+                                                }}
                                             </h3>
                                             <p
-                                                class="text-xs font-semibold text-slate-500 dark:text-slate-400"
+                                                class="text-xs font-light text-slate-500 dark:text-slate-400"
                                             >
-                                                Open a term to fill up the
-                                                component, category, and test
-                                                type requirements.
+                                                Active academic year and
+                                                semester.
+                                                {{
+                                                    physicalFitness.canFillUp
+                                                        ? 'Open a term to fill up the component, category, and test type requirements.'
+                                                        : 'Completed Physical Fitness Test records are listed below.'
+                                                }}
                                             </p>
                                         </div>
                                         <div
-                                            class="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300"
+                                            class="flex flex-col gap-2 sm:items-end"
                                         >
-                                            <span
-                                                class="rounded-full bg-white px-3 py-1 text-emerald-700 ring-1 ring-emerald-100 dark:bg-white/10 dark:text-emerald-300 dark:ring-white/10"
+                                            <div
+                                                class="flex flex-wrap items-center gap-2 text-xs font-light text-slate-600 dark:text-slate-300"
                                             >
-                                                {{
-                                                    physicalFitness.terms.length
-                                                }}
-                                                term{{
-                                                    physicalFitness.terms
-                                                        .length === 1
-                                                        ? ''
-                                                        : 's'
-                                                }}
-                                            </span>
-                                            <span
-                                                class="rounded-full bg-white px-3 py-1 text-amber-700 ring-1 ring-amber-100 dark:bg-white/10 dark:text-amber-300 dark:ring-white/10"
+                                                <span
+                                                    class="rounded-full bg-white px-3 py-1 text-emerald-700 ring-1 ring-emerald-100 dark:bg-white/10 dark:text-emerald-300 dark:ring-white/10"
+                                                >
+                                                    {{
+                                                        physicalFitness.terms
+                                                            .length
+                                                    }}
+                                                    term{{
+                                                        physicalFitness.terms
+                                                            .length === 1
+                                                            ? ''
+                                                            : 's'
+                                                    }}
+                                                </span>
+                                                <span
+                                                    v-if="
+                                                        physicalFitness.canFillUp
+                                                    "
+                                                    class="rounded-full bg-white px-3 py-1 text-amber-700 ring-1 ring-amber-100 dark:bg-white/10 dark:text-amber-300 dark:ring-white/10"
+                                                >
+                                                    {{ totalPftPendingCount }}
+                                                    total pending
+                                                </span>
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                class="h-9 border-emerald-200 bg-white px-4 text-xs font-light text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/30 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
+                                                @click="
+                                                    openPftAnalyticsDrawer
+                                                "
                                             >
-                                                {{ totalPftPendingCount }}
-                                                total pending
-                                            </span>
+                                             <ChartColumnIncreasing class="mr-2 h-4 w-4" />
+                                                View My Analytics
+                                            </Button>
                                         </div>
                                     </div>
 
@@ -2245,7 +3008,7 @@ watch(editMode, (val) => {
                                         <div class="overflow-x-auto">
                                             <table class="min-w-full text-left">
                                                 <thead
-                                                    class="border-b border-slate-100 bg-slate-50 text-[11px] font-bold tracking-wide text-slate-500 uppercase dark:border-white/10 dark:bg-white/5 dark:text-slate-400"
+                                                    class="border-b border-slate-100 bg-slate-50 text-[11px] font-light tracking-wide text-slate-500 uppercase dark:border-white/10 dark:bg-white/5 dark:text-slate-400"
                                                 >
                                                     <tr>
                                                         <th class="px-3 py-3">
@@ -2260,7 +3023,12 @@ watch(editMode, (val) => {
                                                         <th class="px-3 py-3">
                                                             Tests
                                                         </th>
-                                                        <th class="px-3 py-3">
+                                                        <th
+                                                            v-if="
+                                                                physicalFitness.canFillUp
+                                                            "
+                                                            class="px-3 py-3"
+                                                        >
                                                             Pending
                                                         </th>
                                                         <th class="px-3 py-3">
@@ -2288,13 +3056,16 @@ watch(editMode, (val) => {
                                                         "
                                                     >
                                                         <td
-                                                            class="px-3 py-3 font-bold text-slate-900 dark:text-white"
+                                                            class="px-3 py-3 font-light text-slate-900 dark:text-white"
                                                         >
                                                             {{
                                                                 term.school_year
                                                             }}
                                                         </td>
                                                         <td
+                                                            v-if="
+                                                                physicalFitness.canFillUp
+                                                            "
                                                             class="px-3 py-3 text-slate-600 dark:text-slate-300"
                                                         >
                                                             {{ term.semester }}
@@ -2324,7 +3095,7 @@ watch(editMode, (val) => {
                                                         </td>
                                                         <td class="px-3 py-3">
                                                             <span
-                                                                class="inline-flex rounded-full px-2 py-1 text-[11px] font-bold"
+                                                                class="inline-flex rounded-full px-2 py-1 text-[11px] font-light"
                                                                 :class="
                                                                     pftTermPendingCount(
                                                                         term.term_id,
@@ -2338,7 +3109,9 @@ watch(editMode, (val) => {
                                                                         term.term_id,
                                                                     ) === 0
                                                                         ? 'Complete'
-                                                                        : 'Needs fill up'
+                                                                        : physicalFitness.canFillUp
+                                                                          ? 'Needs fill up'
+                                                                          : 'Completed records'
                                                                 }}
                                                             </span>
                                                         </td>
@@ -2350,17 +3123,30 @@ watch(editMode, (val) => {
                                                                 size="sm"
                                                                 class="h-8 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
                                                                 @click="
-                                                                    openPftTermDrawer(
-                                                                        term,
-                                                                    )
+                                                                    !physicalFitness.canFillUp ||
+                                                                    pftTermPendingCount(
+                                                                        term.term_id,
+                                                                    ) === 0
+                                                                        ? openPftTermSummary(
+                                                                              term,
+                                                                          )
+                                                                        : openPftTermDrawer(
+                                                                              term,
+                                                                          )
                                                                 "
                                                             >
                                                                 {{
-                                                                    pftTermSavedCount(
+                                                                    pftTermPendingCount(
                                                                         term.term_id,
-                                                                    ) > 0
-                                                                        ? 'Open'
-                                                                        : 'Fill Up'
+                                                                    ) === 0 ||
+                                                                    !physicalFitness.canFillUp
+                                                                        ? 'View Summary'
+                                                                        : pftTermSavedCount(
+                                                                                term.term_id,
+                                                                            ) >
+                                                                            0
+                                                                          ? 'Open'
+                                                                          : 'Fill Up'
                                                                 }}
                                                             </Button>
                                                         </td>
@@ -2371,8 +3157,824 @@ watch(editMode, (val) => {
                                     </div>
 
                                     <div
+                                        v-if="pftAnalyticsDrawerOpen"
+                                        class="fixed inset-0 z-50 flex justify-end bg-slate-950/40 backdrop-blur-[2px]"
+                                        @click.self="closePftAnalyticsDrawer"
+                                    >
+                                        <aside
+                                            class="flex h-full w-full flex-col bg-white shadow-2xl sm:max-w-[95vw] lg:max-w-[85vw] dark:bg-slate-950"
+                                        >
+                                            <div
+                                                class="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 dark:border-white/10"
+                                            >
+                                                <div class="min-w-0 font-light">
+                                                    <p
+                                                        class="text-[11px] tracking-wide text-emerald-700 uppercase dark:text-emerald-300"
+                                                    >
+                                                        Physical Fitness Test
+                                                    </p>
+                                                    <h3
+                                                        class="mt-1 text-lg text-slate-950 dark:text-white"
+                                                    >
+                                                        My Physical Fitness
+                                                        Analytics
+                                                    </h3>
+                                                    <p
+                                                        class="text-xs text-slate-500 dark:text-slate-400"
+                                                    >
+                                                        Dynamic results from
+                                                        your submitted fitness
+                                                        test records.
+                                                    </p>
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    class="h-9 font-light"
+                                                    @click="
+                                                        closePftAnalyticsDrawer
+                                                    "
+                                                >
+                                                    Close
+                                                </Button>
+                                            </div>
+
+                                            <div
+                                                class="min-h-0 flex-1 overflow-y-auto px-5 py-4 font-light"
+                                            >
+                                                <div
+                                                    v-if="pftAnalyticsError"
+                                                    class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
+                                                >
+                                                    {{ pftAnalyticsError }}
+                                                </div>
+                                                <div
+                                                    class="mb-5 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-2 xl:grid-cols-6 dark:border-white/10 dark:bg-white/5"
+                                                >
+                                                    <div>
+                                                        <Label
+                                                            class="text-xs text-slate-500 dark:text-slate-400"
+                                                            >Academic Year /
+                                                            Semester</Label
+                                                        >
+                                                        <select
+                                                            v-model="
+                                                                pftAnalyticsFilterTermId
+                                                            "
+                                                            class="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200"
+                                                            @change="
+                                                                loadPftAnalytics
+                                                            "
+                                                        >
+                                                            <option value="">
+                                                                All terms
+                                                            </option>
+                                                            <option
+                                                                v-for="term in pftAnalyticsData
+                                                                    ?.filters
+                                                                    ?.terms ??
+                                                                []"
+                                                                :key="
+                                                                    term.termId
+                                                                "
+                                                                :value="
+                                                                    term.termId
+                                                                "
+                                                            >
+                                                                {{
+                                                                    term.label
+                                                                }}
+                                                            </option>
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <Label
+                                                            class="text-xs text-slate-500 dark:text-slate-400"
+                                                            >Component</Label
+                                                        >
+                                                        <select
+                                                            v-model="
+                                                                pftAnalyticsFilterComponentId
+                                                            "
+                                                            class="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200"
+                                                            @change="
+                                                                pftAnalyticsFilterCategoryId =
+                                                                    '';
+                                                                pftAnalyticsFilterTestTypeId =
+                                                                    '';
+                                                                loadPftAnalytics();
+                                                            "
+                                                        >
+                                                            <option value="">
+                                                                All components
+                                                            </option>
+                                                            <option
+                                                                v-for="component in pftAnalyticsData
+                                                                    ?.filters
+                                                                    ?.components ??
+                                                                []"
+                                                                :key="
+                                                                    component.id
+                                                                "
+                                                                :value="
+                                                                    component.id
+                                                                "
+                                                            >
+                                                                {{
+                                                                    component.name
+                                                                }}
+                                                            </option>
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <Label
+                                                            class="text-xs text-slate-500 dark:text-slate-400"
+                                                            >Category</Label
+                                                        >
+                                                        <select
+                                                            v-model="
+                                                                pftAnalyticsFilterCategoryId
+                                                            "
+                                                            class="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200"
+                                                            @change="
+                                                                pftAnalyticsFilterTestTypeId =
+                                                                    '';
+                                                                loadPftAnalytics();
+                                                            "
+                                                        >
+                                                            <option value="">
+                                                                All categories
+                                                            </option>
+                                                            <template
+                                                                v-for="component in pftAnalyticsData
+                                                                    ?.filters
+                                                                    ?.components ??
+                                                                []"
+                                                                :key="
+                                                                    component.id
+                                                                "
+                                                            >
+                                                                <option
+                                                                    v-for="category in component.categories"
+                                                                    :key="
+                                                                        category.id
+                                                                    "
+                                                                    :value="
+                                                                        category.id
+                                                                    "
+                                                                >
+                                                                    {{
+                                                                        category.name
+                                                                    }}
+                                                                </option>
+                                                            </template>
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <Label
+                                                            class="text-xs text-slate-500 dark:text-slate-400"
+                                                            >Test Type</Label
+                                                        >
+                                                        <select
+                                                            v-model="
+                                                                pftAnalyticsFilterTestTypeId
+                                                            "
+                                                            class="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200"
+                                                            @change="
+                                                                loadPftAnalytics
+                                                            "
+                                                        >
+                                                            <option value="">
+                                                                All tests
+                                                            </option>
+                                                            <template
+                                                                v-for="component in pftAnalyticsData
+                                                                    ?.filters
+                                                                    ?.components ??
+                                                                []"
+                                                                :key="
+                                                                    component.id
+                                                                "
+                                                            >
+                                                                <template
+                                                                    v-for="category in component.categories"
+                                                                    :key="
+                                                                        category.id
+                                                                    "
+                                                                >
+                                                                    <option
+                                                                        v-for="testType in category.testTypes"
+                                                                        :key="
+                                                                            testType.id
+                                                                        "
+                                                                        :value="
+                                                                            testType.id
+                                                                        "
+                                                                    >
+                                                                        {{
+                                                                            testType.name
+                                                                        }}
+                                                                    </option>
+                                                                </template>
+                                                            </template>
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <Label
+                                                            class="text-xs text-slate-500 dark:text-slate-400"
+                                                            >Date From</Label
+                                                        >
+                                                        <Input
+                                                            v-model="
+                                                                pftAnalyticsFilterDateFrom
+                                                            "
+                                                            type="date"
+                                                            class="mt-1 h-9 text-xs"
+                                                            @change="
+                                                                loadPftAnalytics
+                                                            "
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <Label
+                                                            class="text-xs text-slate-500 dark:text-slate-400"
+                                                            >Date To</Label
+                                                        >
+                                                        <Input
+                                                            v-model="
+                                                                pftAnalyticsFilterDateTo
+                                                            "
+                                                            type="date"
+                                                            class="mt-1 h-9 text-xs"
+                                                            @change="
+                                                                loadPftAnalytics
+                                                            "
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div
+                                                    v-if="pftAnalyticsLoading"
+                                                    class="mb-4 rounded-lg border border-dashed border-slate-200 p-6 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400"
+                                                >
+                                                    Loading analytics...
+                                                </div>
+                                                <section class="space-y-3">
+                                                    <div
+                                                        class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between"
+                                                    >
+                                                        <div>
+                                                            <p
+                                                                class="text-sm text-slate-950 dark:text-white"
+                                                            >
+                                                                Summary Cards
+                                                            </p>
+                                                            <p
+                                                                class="text-xs text-slate-500 dark:text-slate-400"
+                                                            >
+                                                                Based on all
+                                                                visible required
+                                                                tests for your
+                                                                configured
+                                                                terms.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div
+                                                        class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+                                                    >
+                                                        <div
+                                                            v-for="card in pftAnalyticsSummaryCards"
+                                                            :key="card.label"
+                                                            class="rounded-lg border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/5"
+                                                        >
+                                                            <p
+                                                                class="text-xs text-slate-500 dark:text-slate-400"
+                                                            >
+                                                                {{ card.label }}
+                                                            </p>
+                                                            <p
+                                                                class="mt-2 text-2xl"
+                                                                :class="
+                                                                    card.tone
+                                                                "
+                                                            >
+                                                                {{ card.value }}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </section>
+
+                                                <section
+                                                    class="mt-6 space-y-3"
+                                                >
+                                                    <div>
+                                                        <p
+                                                            class="text-sm text-slate-950 dark:text-white"
+                                                        >
+                                                            Charts
+                                                        </p>
+                                                        <p
+                                                            class="text-xs text-slate-500 dark:text-slate-400"
+                                                        >
+                                                            Completion and
+                                                            progress by
+                                                            component and
+                                                            category.
+                                                        </p>
+                                                    </div>
+                                                    <div
+                                                        v-if="
+                                                            pftAnalyticsChartsReady
+                                                        "
+                                                        class="grid gap-4 xl:grid-cols-2"
+                                                    >
+                                                        <div
+                                                            class="rounded-lg border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/5"
+                                                        >
+                                                            <p
+                                                                class="mb-3 text-sm text-slate-950 dark:text-white"
+                                                            >
+                                                                Completion Donut
+                                                                Chart
+                                                            </p>
+                                                            <VueApexCharts
+                                                                :key="`completion-${pftAnalyticsChartKey}`"
+                                                                type="donut"
+                                                                height="300"
+                                                                :options="
+                                                                    pftAnalyticsCompletionOptions
+                                                                "
+                                                                :series="
+                                                                    pftAnalyticsCompletionSeries
+                                                                "
+                                                            />
+                                                        </div>
+                                                        <div
+                                                            class="rounded-lg border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/5"
+                                                        >
+                                                            <p
+                                                                class="mb-3 text-sm text-slate-950 dark:text-white"
+                                                            >
+                                                                Component
+                                                                Completion Bar
+                                                                Chart
+                                                            </p>
+                                                            <VueApexCharts
+                                                                :key="`component-${pftAnalyticsChartKey}`"
+                                                                type="bar"
+                                                                height="300"
+                                                                :options="
+                                                                    pftAnalyticsComponentOptions
+                                                                "
+                                                                :series="
+                                                                    pftAnalyticsComponentSeries
+                                                                "
+                                                            />
+                                                        </div>
+                                                        <div
+                                                            class="rounded-lg border border-slate-200 bg-white p-4 xl:col-span-2 dark:border-white/10 dark:bg-white/5"
+                                                        >
+                                                            <p
+                                                                class="mb-3 text-sm text-slate-950 dark:text-white"
+                                                            >
+                                                                Category
+                                                                Progress Chart
+                                                            </p>
+                                                            <VueApexCharts
+                                                                :key="`category-${pftAnalyticsChartKey}`"
+                                                                type="bar"
+                                                                height="360"
+                                                                :options="
+                                                                    pftAnalyticsCategoryOptions
+                                                                "
+                                                                :series="
+                                                                    pftAnalyticsCategorySeries
+                                                                "
+                                                            />
+                                                        </div>
+                                                        <div
+                                                            class="rounded-lg border border-slate-200 bg-white p-4 xl:col-span-2 dark:border-white/10 dark:bg-white/5"
+                                                        >
+                                                            <div
+                                                                class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"
+                                                            >
+                                                                <p
+                                                                    class="text-sm text-slate-950 dark:text-white"
+                                                                >
+                                                                    Semester
+                                                                    Comparison
+                                                                    Line Chart
+                                                                </p>
+                                                                <p
+                                                                    v-if="
+                                                                        selectedPftAnalyticsComparison
+                                                                    "
+                                                                    class="text-xs text-slate-500 dark:text-slate-400"
+                                                                >
+                                                                    {{
+                                                                        selectedPftAnalyticsComparison.testType
+                                                                    }}
+                                                                    · Change
+                                                                    {{
+                                                                        selectedPftAnalyticsComparison.percentageChange ??
+                                                                        0
+                                                                    }}%
+                                                                </p>
+                                                            </div>
+                                                            <VueApexCharts
+                                                                :key="`comparison-${pftAnalyticsChartKey}`"
+                                                                type="line"
+                                                                height="320"
+                                                                :options="
+                                                                    pftAnalyticsComparisonOptions
+                                                                "
+                                                                :series="
+                                                                    pftAnalyticsComparisonSeries
+                                                                "
+                                                            />
+                                                        </div>
+                                                        <div
+                                                            class="rounded-lg border border-slate-200 bg-white p-4 xl:col-span-2 dark:border-white/10 dark:bg-white/5"
+                                                        >
+                                                            <p
+                                                                class="mb-3 text-sm text-slate-950 dark:text-white"
+                                                            >
+                                                                Student Fitness
+                                                                Profile Radar
+                                                                Chart
+                                                            </p>
+                                                            <VueApexCharts
+                                                                :key="`radar-${pftAnalyticsChartKey}`"
+                                                                type="radar"
+                                                                height="360"
+                                                                :options="
+                                                                    pftAnalyticsRadarOptions
+                                                                "
+                                                                :series="
+                                                                    pftAnalyticsRadarSeries
+                                                                "
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div
+                                                        v-else
+                                                        class="rounded-lg border border-dashed border-slate-200 p-6 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400"
+                                                    >
+                                                        Preparing charts...
+                                                    </div>
+                                                </section>
+
+                                                <section
+                                                    class="mt-6 space-y-3 pb-2"
+                                                >
+                                                    <div
+                                                        class="grid gap-4 lg:grid-cols-[280px_1fr]"
+                                                    >
+                                                        <div
+                                                            class="rounded-lg border border-emerald-100 bg-emerald-50/70 p-4 dark:border-emerald-500/20 dark:bg-emerald-500/10"
+                                                        >
+                                                            <p
+                                                                class="text-xs text-slate-500 dark:text-slate-400"
+                                                            >
+                                                                Overall Fitness
+                                                                Index
+                                                            </p>
+                                                            <p
+                                                                class="mt-2 text-4xl text-emerald-700 dark:text-emerald-300"
+                                                            >
+                                                                {{
+                                                                    pftAnalyticsFitnessIndex.score
+                                                                }}
+                                                                <span
+                                                                    class="text-lg text-slate-500 dark:text-slate-400"
+                                                                    >/ 100</span
+                                                                >
+                                                            </p>
+                                                            <p
+                                                                class="mt-1 text-sm text-slate-700 dark:text-slate-200"
+                                                            >
+                                                                {{
+                                                                    pftAnalyticsFitnessIndex.rating
+                                                                }}
+                                                            </p>
+                                                        </div>
+                                                        <div
+                                                            class="rounded-lg border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/5"
+                                                        >
+                                                            <p
+                                                                class="text-sm text-slate-950 dark:text-white"
+                                                            >
+                                                                AI Insights
+                                                            </p>
+                                                            <p
+                                                                class="text-xs text-slate-500 dark:text-slate-400"
+                                                            >
+                                                                Rule-based
+                                                                interpretations
+                                                                from completion,
+                                                                trends, and
+                                                                historical
+                                                                records.
+                                                            </p>
+                                                            <ul
+                                                                class="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300"
+                                                            >
+                                                                <li
+                                                                    v-for="insight in pftAnalyticsInsights"
+                                                                    :key="
+                                                                        insight
+                                                                    "
+                                                                    class="flex gap-2"
+                                                                >
+                                                                    <span
+                                                                        class="mt-1 size-1.5 rounded-full bg-emerald-500"
+                                                                    ></span>
+                                                                    <span>{{
+                                                                        insight
+                                                                    }}</span>
+                                                                </li>
+                                                                <li
+                                                                    v-if="
+                                                                        pftAnalyticsInsights.length ===
+                                                                        0
+                                                                    "
+                                                                    class="text-slate-500 dark:text-slate-400"
+                                                                >
+                                                                    No insights
+                                                                    available
+                                                                    yet.
+                                                                </li>
+                                                            </ul>
+                                                        </div>
+                                                    </div>
+                                                </section>
+
+                                                <section
+                                                    class="mt-6 space-y-3 pb-2"
+                                                >
+                                                    <div>
+                                                        <p
+                                                            class="text-sm text-slate-950 dark:text-white"
+                                                        >
+                                                            Test History
+                                                            Timeline
+                                                        </p>
+                                                        <p
+                                                            class="text-xs text-slate-500 dark:text-slate-400"
+                                                        >
+                                                            Newest saved
+                                                            records across your
+                                                            fitness test
+                                                            requirements.
+                                                        </p>
+                                                    </div>
+                                                    <div class="space-y-3">
+                                                        <section
+                                                            v-for="group in pftAnalyticsTimelineGroups"
+                                                            :key="group.key"
+                                                            class="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
+                                                        >
+                                                            <button
+                                                                type="button"
+                                                                class="flex w-full items-center justify-between gap-3 bg-slate-50 px-4 py-3 text-left transition hover:bg-emerald-50 focus:ring-2 focus:ring-emerald-500 focus:outline-none dark:bg-white/5 dark:hover:bg-emerald-500/10"
+                                                                :aria-expanded="
+                                                                    openPftAnalyticsTimelineGroups.includes(
+                                                                        group.key,
+                                                                    )
+                                                                "
+                                                                @click="
+                                                                    togglePftAnalyticsTimelineGroup(
+                                                                        group.key,
+                                                                    )
+                                                                "
+                                                            >
+                                                                <div>
+                                                                    <p
+                                                                        class="text-sm text-slate-950 dark:text-white"
+                                                                    >
+                                                                        AY
+                                                                        {{
+                                                                            group.academicYear
+                                                                        }}
+                                                                        ·
+                                                                        {{
+                                                                            group.semester
+                                                                        }}
+                                                                    </p>
+                                                                    <p
+                                                                        class="text-xs text-slate-500 dark:text-slate-400"
+                                                                    >
+                                                                        {{
+                                                                            group
+                                                                                .rows
+                                                                                .length
+                                                                        }}
+                                                                        saved
+                                                                        result{{
+                                                                            group
+                                                                                .rows
+                                                                                .length ===
+                                                                            1
+                                                                                ? ''
+                                                                                : 's'
+                                                                        }}
+                                                                    </p>
+                                                                </div>
+                                                                <ChevronDown
+                                                                    class="size-4 shrink-0 text-slate-400 transition"
+                                                                    :class="
+                                                                        openPftAnalyticsTimelineGroups.includes(
+                                                                            group.key,
+                                                                        )
+                                                                            ? 'rotate-180'
+                                                                            : ''
+                                                                    "
+                                                                />
+                                                            </button>
+                                                            <div
+                                                                v-if="
+                                                                    openPftAnalyticsTimelineGroups.includes(
+                                                                        group.key,
+                                                                    )
+                                                                "
+                                                                class="space-y-3 border-t border-slate-100 p-3 dark:border-white/10"
+                                                            >
+                                                                <section
+                                                                    v-for="componentGroup in group.components"
+                                                                    :key="
+                                                                        componentGroup.key
+                                                                    "
+                                                                    class="overflow-hidden rounded-lg border border-slate-200 dark:border-white/10"
+                                                                >
+                                                                    <button
+                                                                        type="button"
+                                                                        class="flex w-full items-center justify-between gap-3 bg-white px-4 py-3 text-left transition hover:bg-emerald-50 focus:ring-2 focus:ring-emerald-500 focus:outline-none dark:bg-slate-950 dark:hover:bg-emerald-500/10"
+                                                                        :aria-expanded="
+                                                                            openPftAnalyticsTimelineComponentGroups.includes(
+                                                                                componentGroup.key,
+                                                                            )
+                                                                        "
+                                                                        @click="
+                                                                            togglePftAnalyticsTimelineComponentGroup(
+                                                                                componentGroup.key,
+                                                                            )
+                                                                        "
+                                                                    >
+                                                                        <div>
+                                                                            <p class="text-sm text-slate-950 dark:text-white">
+                                                                                {{
+                                                                                    componentGroup.name
+                                                                                }}
+                                                                            </p>
+                                                                            <p class="text-xs text-slate-500 dark:text-slate-400">
+                                                                                {{
+                                                                                    componentGroup
+                                                                                        .rows
+                                                                                        .length
+                                                                                }}
+                                                                                result{{
+                                                                                    componentGroup
+                                                                                        .rows
+                                                                                        .length ===
+                                                                                    1
+                                                                                        ? ''
+                                                                                        : 's'
+                                                                                }}
+                                                                            </p>
+                                                                        </div>
+                                                                        <ChevronDown
+                                                                            class="size-4 shrink-0 text-slate-400 transition"
+                                                                            :class="
+                                                                                openPftAnalyticsTimelineComponentGroups.includes(
+                                                                                    componentGroup.key,
+                                                                                )
+                                                                                    ? 'rotate-180'
+                                                                                    : ''
+                                                                            "
+                                                                        />
+                                                                    </button>
+                                                                    <div
+                                                                        v-if="
+                                                                            openPftAnalyticsTimelineComponentGroups.includes(
+                                                                                componentGroup.key,
+                                                                            )
+                                                                        "
+                                                                        class="overflow-x-auto border-t border-slate-100 dark:border-white/10"
+                                                                    >
+                                                                        <table
+                                                                            class="min-w-[720px] text-left text-sm"
+                                                                        >
+                                                                            <thead
+                                                                                class="border-b border-slate-100 bg-slate-50 text-[11px] tracking-wide text-slate-500 uppercase dark:border-white/10 dark:bg-white/5 dark:text-slate-400"
+                                                                            >
+                                                                                <tr>
+                                                                                    <th class="px-3 py-3">
+                                                                                        Category
+                                                                                    </th>
+                                                                                    <th class="px-3 py-3">
+                                                                                        Result
+                                                                                        /
+                                                                                        Score
+                                                                                    </th>
+                                                                                    <th class="px-3 py-3">
+                                                                                        Date
+                                                                                        Tested
+                                                                                    </th>
+                                                                                    <th class="px-3 py-3">
+                                                                                        Status
+                                                                                    </th>
+                                                                                </tr>
+                                                                            </thead>
+                                                                            <tbody
+                                                                                class="divide-y divide-slate-100 dark:divide-white/10"
+                                                                            >
+                                                                                <tr
+                                                                                    v-for="row in componentGroup.rows"
+                                                                                    :key="row.id"
+                                                                                    class="text-slate-600 dark:text-slate-300"
+                                                                                >
+                                                                                    <td class="px-3 py-3 text-slate-900 dark:text-white">
+                                                                                        <div>
+                                                                                            <p>
+                                                                                                {{
+                                                                                                    row.category
+                                                                                                }}
+                                                                                            </p>
+                                                                                            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                                                                                {{
+                                                                                                    row.testType
+                                                                                                }}
+                                                                                            </p>
+                                                                                        </div>
+                                                                                    </td>
+                                                                                    <td class="px-3 py-3">
+                                                                                        {{
+                                                                                            row.result
+                                                                                        }}
+                                                                                        <span
+                                                                                            v-if="
+                                                                                                row.rating &&
+                                                                                                row.rating !==
+                                                                                                    '-'
+                                                                                            "
+                                                                                            class="text-slate-500 dark:text-slate-400"
+                                                                                        >
+                                                                                            ({{
+                                                                                                row.rating
+                                                                                            }})
+                                                                                        </span>
+                                                                                    </td>
+                                                                                    <td class="px-3 py-3">
+                                                                                        {{
+                                                                                            row.dateTested
+                                                                                        }}
+                                                                                    </td>
+                                                                                    <td class="px-3 py-3">
+                                                                                        <span
+                                                                                            class="inline-flex rounded-full px-2 py-1 text-[11px]"
+                                                                                            :class="
+                                                                                                row.status ===
+                                                                                                'completed'
+                                                                                                    ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20'
+                                                                                                    : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20'
+                                                                                            "
+                                                                                        >
+                                                                                            {{
+                                                                                                row.status ===
+                                                                                                'completed'
+                                                                                                    ? 'Completed'
+                                                                                                    : 'Draft'
+                                                                                            }}
+                                                                                        </span>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            </tbody>
+                                                                        </table>
+                                                                    </div>
+                                                                </section>
+                                                            </div>
+                                                        </section>
+                                                        <div
+                                                            v-if="
+                                                                pftAnalyticsTimelineGroups.length ===
+                                                                0
+                                                            "
+                                                            class="rounded-lg border border-dashed border-slate-200 px-3 py-8 text-center text-sm text-slate-500 dark:border-white/10 dark:text-slate-400"
+                                                        >
+                                                            No saved fitness
+                                                            test results yet.
+                                                        </div>
+                                                    </div>
+                                                </section>
+                                            </div>
+                                        </aside>
+                                    </div>
+
+                                    <div
                                         v-if="
                                             pftDrawerOpen &&
+                                            physicalFitness.canFillUp &&
                                             selectedPftTestType &&
                                             selectedPftTerm
                                         "
@@ -2390,13 +3992,13 @@ watch(editMode, (val) => {
                                                 >
                                                     <div class="min-w-0">
                                                         <p
-                                                            class="text-[11px] font-bold tracking-wide text-emerald-700 uppercase dark:text-emerald-300"
+                                                            class="text-[11px] font-light tracking-wide text-emerald-700 uppercase dark:text-emerald-300"
                                                         >
                                                             Physical Fitness
                                                             Test
                                                         </p>
                                                         <h3
-                                                            class="mt-1 text-lg font-black text-slate-950 dark:text-white"
+                                                            class="mt-1 text-lg font-light text-slate-950 dark:text-white"
                                                         >
                                                             <span
                                                                 >Physical
@@ -2405,7 +4007,7 @@ watch(editMode, (val) => {
                                                             >
                                                         </h3>
                                                         <p
-                                                            class="text-xs font-semibold text-slate-500 dark:text-slate-400"
+                                                            class="text-xs font-light text-slate-500 dark:text-slate-400"
                                                         >
                                                             AY
                                                             {{
@@ -2445,14 +4047,14 @@ watch(editMode, (val) => {
                                                         >
                                                             <div>
                                                                 <p
-                                                                    class="text-sm font-black text-slate-950 dark:text-white"
+                                                                    class="text-sm font-light text-slate-950 dark:text-white"
                                                                 >
                                                                     Physical
                                                                     Fitness
                                                                     Progress
                                                                 </p>
                                                                 <p
-                                                                    class="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400"
+                                                                    class="mt-1 text-xs font-light text-slate-500 dark:text-slate-400"
                                                                 >
                                                                     {{
                                                                         selectedPftTermCompletedCount
@@ -2472,14 +4074,14 @@ watch(editMode, (val) => {
                                                                 class="text-left sm:text-right"
                                                             >
                                                                 <p
-                                                                    class="text-2xl font-black text-emerald-700 dark:text-emerald-300"
+                                                                    class="text-2xl font-light text-emerald-700 dark:text-emerald-300"
                                                                 >
                                                                     {{
                                                                         selectedPftTermCompletionPercent
                                                                     }}%
                                                                 </p>
                                                                 <p
-                                                                    class="text-[11px] font-bold tracking-wide text-slate-500 uppercase dark:text-slate-400"
+                                                                    class="text-[11px] font-light tracking-wide text-slate-500 uppercase dark:text-slate-400"
                                                                 >
                                                                     Complete
                                                                 </p>
@@ -2509,12 +4111,12 @@ watch(editMode, (val) => {
                                                                 class="mb-3 flex items-center justify-between"
                                                             >
                                                                 <h4
-                                                                    class="text-xs font-black tracking-wide text-slate-500 uppercase dark:text-slate-400"
+                                                                    class="text-xs font-light tracking-wide text-slate-500 uppercase dark:text-slate-400"
                                                                 >
                                                                     Components
                                                                 </h4>
                                                                 <span
-                                                                    class="text-xs font-bold text-slate-400"
+                                                                    class="text-xs font-light text-slate-400"
                                                                 >
                                                                     {{
                                                                         physicalFitness
@@ -2553,14 +4155,14 @@ watch(editMode, (val) => {
                                                                     "
                                                                 >
                                                                     <span
-                                                                        class="block text-sm font-black"
+                                                                        class="block text-sm font-light"
                                                                     >
                                                                         {{
                                                                             component.name
                                                                         }}
                                                                     </span>
                                                                     <span
-                                                                        class="mt-1 block text-xs font-semibold opacity-80"
+                                                                        class="mt-1 block text-xs font-light opacity-80"
                                                                     >
                                                                         {{
                                                                             pftComponentCompletedCount(
@@ -2588,13 +4190,13 @@ watch(editMode, (val) => {
                                                             >
                                                                 <div>
                                                                     <h4
-                                                                        class="text-xs font-black tracking-wide text-slate-500 uppercase dark:text-slate-400"
+                                                                        class="text-xs font-light tracking-wide text-slate-500 uppercase dark:text-slate-400"
                                                                     >
                                                                         Categories
                                                                         & Tests
                                                                     </h4>
                                                                     <p
-                                                                        class="text-sm font-black text-slate-950 dark:text-white"
+                                                                        class="text-sm font-light text-slate-950 dark:text-white"
                                                                     >
                                                                         {{
                                                                             selectedPftComponent?.name
@@ -2615,7 +4217,7 @@ watch(editMode, (val) => {
                                                                 >
                                                                     <button
                                                                         type="button"
-                                                                        class="group mb-2 inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-black tracking-wide text-slate-500 uppercase transition-colors duration-200 hover:text-emerald-600 focus:outline-none dark:text-slate-400 dark:hover:text-emerald-400"
+                                                                        class="group mb-2 inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-light tracking-wide text-slate-500 uppercase transition-colors duration-200 hover:text-emerald-600 focus:outline-none dark:text-slate-400 dark:hover:text-emerald-400"
                                                                         @click="
                                                                             openCategoryDetailsModal(
                                                                                 category,
@@ -2632,52 +4234,34 @@ watch(editMode, (val) => {
                                                                     <div
                                                                         class="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 dark:divide-white/10 dark:border-white/10"
                                                                     >
-                                                                        <button
+                                                                        <div
                                                                             v-for="testType in category.test_types"
                                                                             :key="
                                                                                 testType.id
                                                                             "
-                                                                            type="button"
-                                                                            class="flex w-full items-center gap-3 px-3 py-3 text-left transition focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                                                                            class="flex w-full items-center gap-2 px-3 py-3 transition"
                                                                             :class="
                                                                                 selectedPftTestTypeId ===
                                                                                 testType.id
                                                                                     ? 'border-l-4 border-l-emerald-500 bg-emerald-50 shadow-sm dark:bg-emerald-500/10'
                                                                                     : 'bg-white hover:bg-slate-50 dark:bg-slate-950 dark:hover:bg-white/5'
                                                                             "
-                                                                            :aria-label="`Select ${testType.name} test`"
-                                                                            @click="
-                                                                                selectPftTestType(
-                                                                                    selectedPftComponent!,
-                                                                                    category,
-                                                                                    testType,
-                                                                                )
-                                                                            "
                                                                         >
-                                                                            <div
-                                                                                class="flex size-7 shrink-0 items-center justify-center rounded-full"
-                                                                                :class="
-                                                                                    pftTestStatus(
-                                                                                        pftRowForTest(
-                                                                                            selectedPftTerm.term_id,
-                                                                                            testType.id,
-                                                                                        ),
-                                                                                    ) ===
-                                                                                    'Completed'
-                                                                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                                                                                        : pftTestStatus(
-                                                                                                pftRowForTest(
-                                                                                                    selectedPftTerm.term_id,
-                                                                                                    testType.id,
-                                                                                                ),
-                                                                                            ) ===
-                                                                                            'Draft'
-                                                                                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
-                                                                                          : 'bg-slate-100 text-slate-400 dark:bg-white/10 dark:text-slate-500'
+                                                                            <button
+                                                                                type="button"
+                                                                                class="flex min-w-0 flex-1 items-center gap-3 text-left focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                                                                                :aria-label="`Select ${testType.name} test`"
+                                                                                @click="
+                                                                                    selectPftTestType(
+                                                                                        selectedPftComponent!,
+                                                                                        category,
+                                                                                        testType,
+                                                                                    )
                                                                                 "
                                                                             >
-                                                                                <CheckCircle2
-                                                                                    v-if="
+                                                                                <div
+                                                                                    class="flex size-7 shrink-0 items-center justify-center rounded-full"
+                                                                                    :class="
                                                                                         pftTestStatus(
                                                                                             pftRowForTest(
                                                                                                 selectedPftTerm.term_id,
@@ -2685,51 +4269,100 @@ watch(editMode, (val) => {
                                                                                             ),
                                                                                         ) ===
                                                                                         'Completed'
+                                                                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                                                                                            : pftTestStatus(
+                                                                                                    pftRowForTest(
+                                                                                                        selectedPftTerm.term_id,
+                                                                                                        testType.id,
+                                                                                                    ),
+                                                                                                ) ===
+                                                                                                'Draft'
+                                                                                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
+                                                                                              : 'bg-slate-100 text-slate-400 dark:bg-white/10 dark:text-slate-500'
                                                                                     "
-                                                                                    class="size-4"
-                                                                                />
-                                                                                <Clock3
-                                                                                    v-else-if="
-                                                                                        pftTestStatus(
-                                                                                            pftRowForTest(
-                                                                                                selectedPftTerm.term_id,
-                                                                                                testType.id,
-                                                                                            ),
-                                                                                        ) ===
-                                                                                        'Draft'
-                                                                                    "
-                                                                                    class="size-4"
-                                                                                />
-                                                                                <Circle
-                                                                                    v-else
-                                                                                    class="size-4"
-                                                                                />
-                                                                            </div>
+                                                                                >
+                                                                                    <CheckCircle2
+                                                                                        v-if="
+                                                                                            pftTestStatus(
+                                                                                                pftRowForTest(
+                                                                                                    selectedPftTerm.term_id,
+                                                                                                    testType.id,
+                                                                                                ),
+                                                                                            ) ===
+                                                                                            'Completed'
+                                                                                        "
+                                                                                        class="size-4"
+                                                                                    />
+                                                                                    <Clock3
+                                                                                        v-else-if="
+                                                                                            pftTestStatus(
+                                                                                                pftRowForTest(
+                                                                                                    selectedPftTerm.term_id,
+                                                                                                    testType.id,
+                                                                                                ),
+                                                                                            ) ===
+                                                                                            'Draft'
+                                                                                        "
+                                                                                        class="size-4"
+                                                                                    />
+                                                                                    <Circle
+                                                                                        v-else
+                                                                                        class="size-4"
+                                                                                    />
+                                                                                </div>
 
-                                                                            <div
-                                                                                class="min-w-0 flex-1"
+                                                                                <div
+                                                                                    class="min-w-0 flex-1"
+                                                                                >
+                                                                                    <p
+                                                                                        class="truncate text-sm font-light text-slate-950 dark:text-white"
+                                                                                    >
+                                                                                        {{
+                                                                                            testType.name
+                                                                                        }}
+                                                                                    </p>
+                                                                                    <p
+                                                                                        class="text-xs font-light text-slate-500 dark:text-slate-400"
+                                                                                    >
+                                                                                        {{
+                                                                                            pftTestStatus(
+                                                                                                pftRowForTest(
+                                                                                                    selectedPftTerm.term_id,
+                                                                                                    testType.id,
+                                                                                                ),
+                                                                                            )
+                                                                                        }}
+                                                                                    </p>
+                                                                                </div>
+                                                                            </button>
+
+                                                                            <Button
+                                                                                v-if="
+                                                                                    pftTestStatus(
+                                                                                        pftRowForTest(
+                                                                                            selectedPftTerm.term_id,
+                                                                                            testType.id,
+                                                                                        ),
+                                                                                    ) ===
+                                                                                    'Completed'
+                                                                                "
+                                                                                type="button"
+                                                                                variant="outline"
+                                                                                size="sm"
+                                                                                class="h-8 shrink-0 text-xs font-light"
+                                                                                @click.stop="
+                                                                                    openPftSummary(
+                                                                                        pftRowForTest(
+                                                                                            selectedPftTerm.term_id,
+                                                                                            testType.id,
+                                                                                        ),
+                                                                                    )
+                                                                                "
                                                                             >
-                                                                                <p
-                                                                                    class="truncate text-sm font-black text-slate-950 dark:text-white"
-                                                                                >
-                                                                                    {{
-                                                                                        testType.name
-                                                                                    }}
-                                                                                </p>
-                                                                                <p
-                                                                                    class="text-xs font-semibold text-slate-500 dark:text-slate-400"
-                                                                                >
-                                                                                    {{
-                                                                                        pftTestStatus(
-                                                                                            pftRowForTest(
-                                                                                                selectedPftTerm.term_id,
-                                                                                                testType.id,
-                                                                                            ),
-                                                                                        )
-                                                                                    }}
-                                                                                </p>
-                                                                            </div>
-                                                                        </button>
+                                                                                View
+                                                                                Summary
+                                                                            </Button>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -4682,7 +6315,350 @@ watch(editMode, (val) => {
         </DialogContent>
     </Dialog>
 
-    <Dialog :open="pftFormModalOpen" @update:open="pftFormModalOpen = $event">
+    <div
+        v-if="pftTermSummaryModalOpen"
+        class="fixed inset-0 z-50 flex justify-end bg-slate-950/40 backdrop-blur-[2px]"
+        @click.self="pftTermSummaryModalOpen = false"
+    >
+        <aside
+            class="flex h-full w-full max-w-4xl flex-col bg-white shadow-2xl dark:bg-slate-950"
+        >
+            <div
+                class="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 dark:border-white/10"
+            >
+                <div class="min-w-0 font-light">
+                    <p
+                        class="text-[11px] tracking-wide text-emerald-700 uppercase dark:text-emerald-300"
+                    >
+                        Physical Fitness Test
+                    </p>
+                    <h3 class="mt-1 text-lg text-slate-950 dark:text-white">
+                        Summary
+                    </h3>
+                    <p
+                        v-if="selectedPftSummaryTerm"
+                        class="text-xs text-slate-500 dark:text-slate-400"
+                    >
+                        AY {{ selectedPftSummaryTerm.school_year }} ·
+                        {{ selectedPftSummaryTerm.semester }} · Term ID
+                        {{ selectedPftSummaryTerm.term_id }}
+                    </p>
+                </div>
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    class="h-9 font-light"
+                    @click="pftTermSummaryModalOpen = false"
+                >
+                    Close
+                </Button>
+            </div>
+
+            <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 font-light">
+                <div
+                    class="mb-4 rounded-lg border border-emerald-100 bg-emerald-50/70 p-4 dark:border-emerald-500/20 dark:bg-emerald-500/10"
+                >
+                    <div
+                        class="grid gap-3 text-sm sm:grid-cols-3 dark:text-slate-200"
+                    >
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">
+                                Completed Tests
+                            </p>
+                            <p class="mt-1 text-xl text-emerald-700 dark:text-emerald-300">
+                                {{ pftTermSummaryRows.length }}
+                            </p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">
+                                Components
+                            </p>
+                            <p class="mt-1 text-xl text-emerald-700 dark:text-emerald-300">
+                                {{ pftTermSummaryGroups.length }}
+                            </p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">
+                                Status
+                            </p>
+                            <p class="mt-1 text-xl text-emerald-700 dark:text-emerald-300">
+                                Complete
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <section
+                        v-for="group in pftTermSummaryGroups"
+                        :key="group.component.id"
+                        class="overflow-hidden rounded-lg border border-slate-200 dark:border-white/10"
+                    >
+                        <button
+                            type="button"
+                            class="flex w-full items-center justify-between gap-3 bg-slate-50 px-4 py-3 text-left transition hover:bg-emerald-50 focus:ring-2 focus:ring-emerald-500 focus:outline-none dark:bg-white/5 dark:hover:bg-emerald-500/10"
+                            :aria-expanded="
+                                openPftSummaryComponentIds.includes(
+                                    group.component.id,
+                                )
+                            "
+                            @click="
+                                togglePftSummaryComponent(group.component.id)
+                            "
+                        >
+                            <span class="min-w-0">
+                                <span
+                                    class="block truncate text-sm text-slate-950 dark:text-white"
+                                >
+                                    {{ group.component.name }}
+                                </span>
+                                <span
+                                    class="mt-1 block text-xs text-slate-500 dark:text-slate-400"
+                                >
+                                    {{ group.rows.length }} saved result{{
+                                        group.rows.length === 1 ? '' : 's'
+                                    }}
+                                </span>
+                            </span>
+                            <ChevronDown
+                                class="size-4 shrink-0 text-slate-400 transition-transform"
+                                :class="
+                                    openPftSummaryComponentIds.includes(
+                                        group.component.id,
+                                    )
+                                        ? 'rotate-180'
+                                        : ''
+                                "
+                            />
+                        </button>
+
+                        <div
+                            v-if="
+                                openPftSummaryComponentIds.includes(
+                                    group.component.id,
+                                )
+                            "
+                            class="divide-y divide-slate-100 dark:divide-white/10"
+                        >
+                            <article
+                                v-for="row in group.rows"
+                                :key="row.key"
+                                class="p-4"
+                            >
+                                <div
+                                    class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+                                >
+                                    <div class="min-w-0">
+                                        <p
+                                            class="truncate text-sm text-slate-950 dark:text-white"
+                                        >
+                                            {{ row.testType.name }}
+                                        </p>
+                                        <p
+                                            class="mt-1 text-xs text-slate-500 dark:text-slate-400"
+                                        >
+                                            {{ row.category.name }}
+                                        </p>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        class="h-8 shrink-0 text-xs font-light"
+                                        @click="openPftSummary(row)"
+                                    >
+                                        View Details
+                                    </Button>
+                                </div>
+
+                                <dl
+                                    class="mt-3 grid gap-3 text-xs sm:grid-cols-2"
+                                >
+                                    <div>
+                                        <dt
+                                            class="text-slate-500 dark:text-slate-400"
+                                        >
+                                            Tested at
+                                        </dt>
+                                        <dd
+                                            class="text-slate-900 dark:text-white"
+                                        >
+                                            {{
+                                                formatDate(
+                                                    row.result?.tested_at ??
+                                                        undefined,
+                                                )
+                                            }}
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt
+                                            class="text-slate-500 dark:text-slate-400"
+                                        >
+                                            Interpretation
+                                        </dt>
+                                        <dd
+                                            class="text-slate-900 dark:text-white"
+                                        >
+                                            {{ pftResultInterpretation(row) }}
+                                        </dd>
+                                    </div>
+                                    <div
+                                        v-for="field in row.testType.configurations"
+                                        :key="`${row.key}:${field.id}`"
+                                    >
+                                        <dt
+                                            class="text-slate-500 dark:text-slate-400"
+                                        >
+                                            {{ field.field_label }}
+                                        </dt>
+                                        <dd
+                                            class="text-slate-900 dark:text-white"
+                                        >
+                                            {{
+                                                pftResultValue(
+                                                    row.result?.results_json[
+                                                        field.field_name
+                                                    ],
+                                                )
+                                            }}
+                                        </dd>
+                                    </div>
+                                </dl>
+                            </article>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <Dialog
+        :open="pftSummaryModalOpen"
+        @update:open="pftSummaryModalOpen = $event"
+    >
+        <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-[560px]">
+            <DialogHeader>
+                <DialogTitle>{{
+                    selectedPftSummaryRow?.testType.name
+                }}</DialogTitle>
+                <DialogDescription>
+                    Summary of the saved physical fitness test result.
+                </DialogDescription>
+            </DialogHeader>
+
+            <div
+                v-if="selectedPftSummaryRow?.result"
+                class="space-y-4 py-4 font-light"
+            >
+                <div
+                    class="grid gap-3 rounded-lg border border-emerald-100 bg-emerald-50/70 p-4 text-xs dark:border-emerald-500/20 dark:bg-emerald-500/10"
+                >
+                    <div class="grid gap-1 sm:grid-cols-[120px_1fr]">
+                        <span class="text-slate-500 dark:text-slate-400"
+                            >Term</span
+                        >
+                        <span class="text-slate-900 dark:text-white">
+                            AY
+                            {{ selectedPftSummaryRow.term.school_year }} ·
+                            {{ selectedPftSummaryRow.term.semester }} · Term ID
+                            {{ selectedPftSummaryRow.term.term_id }}
+                        </span>
+                    </div>
+                    <div class="grid gap-1 sm:grid-cols-[120px_1fr]">
+                        <span class="text-slate-500 dark:text-slate-400"
+                            >Component</span
+                        >
+                        <span class="text-slate-900 dark:text-white">
+                            {{ selectedPftSummaryRow.component.name }}
+                        </span>
+                    </div>
+                    <div class="grid gap-1 sm:grid-cols-[120px_1fr]">
+                        <span class="text-slate-500 dark:text-slate-400"
+                            >Category</span
+                        >
+                        <span class="text-slate-900 dark:text-white">
+                            {{ selectedPftSummaryRow.category.name }}
+                        </span>
+                    </div>
+                    <div class="grid gap-1 sm:grid-cols-[120px_1fr]">
+                        <span class="text-slate-500 dark:text-slate-400"
+                            >Tested at</span
+                        >
+                        <span class="text-slate-900 dark:text-white">
+                            {{
+                                formatDate(
+                                    selectedPftSummaryRow.result.tested_at ??
+                                        undefined,
+                                )
+                            }}
+                        </span>
+                    </div>
+                    <div class="grid gap-1 sm:grid-cols-[120px_1fr]">
+                        <span class="text-slate-500 dark:text-slate-400">
+                            Interpretation
+                        </span>
+                        <span class="text-slate-900 dark:text-white">
+                            {{
+                                pftResultInterpretation(
+                                    selectedPftSummaryRow,
+                                )
+                            }}
+                        </span>
+                    </div>
+                </div>
+
+                <div
+                    class="overflow-hidden rounded-lg border border-slate-200 dark:border-white/10"
+                >
+                    <div
+                        v-for="field in pftSummaryFields"
+                        :key="field.label"
+                        class="grid gap-1 border-b border-slate-100 px-4 py-3 text-sm last:border-b-0 sm:grid-cols-[160px_1fr] dark:border-white/10"
+                    >
+                        <span class="text-slate-500 dark:text-slate-400">
+                            {{ field.label }}
+                        </span>
+                        <span class="text-slate-900 dark:text-white">
+                            {{ field.value }}
+                        </span>
+                    </div>
+                    <div
+                        class="grid gap-1 border-t border-slate-100 px-4 py-3 text-sm sm:grid-cols-[160px_1fr] dark:border-white/10"
+                    >
+                        <span class="text-slate-500 dark:text-slate-400">
+                            Remarks
+                        </span>
+                        <span class="text-slate-900 dark:text-white">
+                            {{
+                                pftResultValue(
+                                    selectedPftSummaryRow.result.remarks,
+                                )
+                            }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <DialogFooter>
+                <Button
+                    type="button"
+                    variant="outline"
+                    class="font-light"
+                    @click="pftSummaryModalOpen = false"
+                >
+                    Close
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+    <Dialog
+        v-if="physicalFitness.canFillUp"
+        :open="pftFormModalOpen"
+        @update:open="pftFormModalOpen = $event"
+    >
         <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-[500px]">
             <DialogHeader>
                 <DialogTitle>{{ selectedPftTestType?.name }}</DialogTitle>
@@ -4691,7 +6667,7 @@ watch(editMode, (val) => {
                 </DialogDescription>
             </DialogHeader>
 
-            <form @submit.prevent="submitPftResult">
+            <form @submit.prevent="submitPftResult(false)">
                 <input v-model="pftForm.term_id" type="hidden" />
 
                 <div class="grid gap-4 py-4">
@@ -4699,7 +6675,7 @@ watch(editMode, (val) => {
                         <label
                             v-for="field in selectedPftTestType?.configurations"
                             :key="field.id"
-                            class="grid gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300"
+                            class="grid gap-1.5 text-xs font-light text-slate-600 dark:text-slate-300"
                             :class="
                                 field.field_type === 'textarea'
                                     ? 'sm:col-span-2'
@@ -4777,7 +6753,7 @@ watch(editMode, (val) => {
                             />
                             <span
                                 v-if="field.help_text"
-                                class="text-[10px] font-medium text-slate-400"
+                                class="text-[10px] font-light text-slate-400"
                                 >{{ field.help_text }}</span
                             >
                         </label>
@@ -4787,7 +6763,7 @@ watch(editMode, (val) => {
                         class="grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2 dark:border-white/10"
                     >
                         <label
-                            class="grid gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300"
+                            class="grid gap-1.5 text-xs font-light text-slate-600 dark:text-slate-300"
                         >
                             Tested at
                             <input
@@ -4797,7 +6773,7 @@ watch(editMode, (val) => {
                             />
                         </label>
                         <label
-                            class="grid gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300"
+                            class="grid gap-1.5 text-xs font-light text-slate-600 dark:text-slate-300"
                         >
                             Remarks
                             <input
@@ -4831,9 +6807,11 @@ watch(editMode, (val) => {
                             type="button"
                             variant="outline"
                             :disabled="
-                                pftForm.processing || !physicalFitness.canSubmit
+                                pftForm.processing ||
+                                !physicalFitness.canSubmit ||
+                                !physicalFitness.canFillUp
                             "
-                            @click="submitPftResult"
+                            @click="submitPftResult(true)"
                         >
                             Save Draft
                         </Button>
@@ -4841,7 +6819,9 @@ watch(editMode, (val) => {
                             type="submit"
                             class="bg-emerald-600 text-white hover:bg-emerald-700"
                             :disabled="
-                                pftForm.processing || !physicalFitness.canSubmit
+                                pftForm.processing ||
+                                !physicalFitness.canSubmit ||
+                                !physicalFitness.canFillUp
                             "
                         >
                             {{

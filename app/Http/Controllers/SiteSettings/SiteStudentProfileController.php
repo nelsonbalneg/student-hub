@@ -4,8 +4,10 @@ namespace App\Http\Controllers\SiteSettings;
 
 use App\Http\Controllers\Controller;
 use App\Models\Achievement;
+use App\Models\SiteSetting;
 use App\Models\Training;
 use App\Models\User;
+use App\Services\PhysicalFitnessPermissionService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,7 +20,10 @@ class SiteStudentProfileController extends Controller
     {
         ($request->user()->can('site-settings.student-profile.view') || $request->user()->can('site-settings.view')) || abort(403);
 
-        $activeTab = $request->string('tab')->value() === 'trainings' ? 'trainings' : 'awards';
+        $requestedTab = $request->string('tab')->value();
+        $activeTab = in_array($requestedTab, ['awards', 'trainings', 'physical-fitness'], true)
+            ? $requestedTab
+            : 'awards';
         $search = trim($request->string('search')->value());
 
         return Inertia::render('SiteSettings/StudentProfile/Index', [
@@ -29,10 +34,26 @@ class SiteStudentProfileController extends Controller
             'students' => $this->studentOptions($search),
             'awards' => $this->awardPaginator($search),
             'trainings' => $this->trainingPaginator($search),
+            'physicalFitnessSetting' => [
+                'permission' => SiteSetting::query()
+                    ->where('key', PhysicalFitnessPermissionService::SETTING_KEY)
+                    ->value('value') ?? PhysicalFitnessPermissionService::PERMISSION_PE_PATHFIT_ONLY,
+                'options' => [
+                    [
+                        'label' => 'PE/PATHFIT Students Only',
+                        'value' => PhysicalFitnessPermissionService::PERMISSION_PE_PATHFIT_ONLY,
+                    ],
+                    [
+                        'label' => 'All Students',
+                        'value' => PhysicalFitnessPermissionService::PERMISSION_ALL_STUDENTS,
+                    ],
+                ],
+            ],
             'can' => [
                 'create' => $request->user()->can('site-settings.student-profile.create'),
                 'update' => $request->user()->can('site-settings.student-profile.update'),
                 'delete' => $request->user()->can('site-settings.student-profile.delete'),
+                'managePhysicalFitnessPermission' => $request->user()->can('pft.permission.manage'),
             ],
         ]);
     }
@@ -48,7 +69,7 @@ class SiteStudentProfileController extends Controller
 
     public function updateAward(Request $request, Achievement $achievement): RedirectResponse
     {
-        $request->user()->can('site-settings.student-profile.update') || abort(403);
+        $request->user()->can('pft.permission.manage') || abort(403);
 
         $achievement->update($this->validateAward($request));
 
@@ -89,6 +110,33 @@ class SiteStudentProfileController extends Controller
         $training->delete();
 
         return $this->toIndex('trainings', 'Training deleted successfully.');
+    }
+
+    public function updatePhysicalFitnessPermission(Request $request): RedirectResponse
+    {
+        $request->user()->can('site-settings.student-profile.update') || abort(403);
+
+        $validated = $request->validate([
+            'permission' => [
+                'required',
+                'string',
+                'in:'.implode(',', [
+                    PhysicalFitnessPermissionService::PERMISSION_PE_PATHFIT_ONLY,
+                    PhysicalFitnessPermissionService::PERMISSION_ALL_STUDENTS,
+                ]),
+            ],
+        ]);
+
+        SiteSetting::query()->updateOrCreate(
+            ['key' => PhysicalFitnessPermissionService::SETTING_KEY],
+            [
+                'value' => $validated['permission'],
+                'type' => 'string',
+                'updated_by' => $request->user()->id,
+            ],
+        );
+
+        return $this->toIndex('physical-fitness', 'Physical Fitness permission updated successfully.');
     }
 
     /**

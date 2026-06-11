@@ -707,6 +707,81 @@ class AcademicApiService
         }
     }
 
+    public function registrationFromAllForStudentTerm(?string $studentNo, int|string|null $termId, int|string|null $tenantId = 1): array
+    {
+        if (blank($studentNo)) {
+            return [
+                'data' => null,
+                'error' => 'No student number is linked to your SSO account.',
+            ];
+        }
+
+        if (blank($termId)) {
+            return [
+                'data' => null,
+                'error' => 'No active academic term is available right now.',
+            ];
+        }
+
+        $tenantId = blank($tenantId) ? 1 : $tenantId;
+        $endpoint = 'Registrations/get-all-registrations/'.rawurlencode($studentNo);
+
+        try {
+            Log::info('Loading all student registrations for term context', [
+                'student_no' => $studentNo,
+                'term_id' => $termId,
+                'tenant_id' => $tenantId,
+                'url' => $this->urlFor($endpoint),
+            ]);
+
+            $response = $this->client()
+                ->retry(2, 200)
+                ->get($endpoint, [
+                    'tenantId' => $tenantId,
+                ]);
+
+            if ($response->status() === 404) {
+                return [
+                    'data' => null,
+                    'error' => null,
+                ];
+            }
+
+            $response->throw();
+
+            $registration = collect($this->listFromPayload($response->json()))
+                ->first(function (array $registration) use ($termId): bool {
+                    $registrationTermId = $this->valueFrom($registration, [
+                        'termId',
+                        'term_id',
+                        'term.termId',
+                        'term.term_id',
+                    ]);
+
+                    return filled($registrationTermId) && (string) $registrationTermId === (string) $termId;
+                });
+
+            return [
+                'data' => $registration ?: null,
+                'error' => null,
+            ];
+        } catch (Throwable $exception) {
+            Log::warning('Unable to load all student registrations for term context', [
+                'student_no' => $studentNo,
+                'term_id' => $termId,
+                'tenant_id' => $tenantId,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+                'url' => $this->urlFor($endpoint),
+            ]);
+
+            return [
+                'data' => null,
+                'error' => 'Unable to load your registration record right now.',
+            ];
+        }
+    }
+
     public function facultyEvaluations(?int $campusId, ?int $termId, ?string $studentNo): array
     {
         $activeTerm = null;
