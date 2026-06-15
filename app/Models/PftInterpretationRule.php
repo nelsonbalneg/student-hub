@@ -12,9 +12,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'pft_test_type_id',
     'field_name',
     'label',
+    'classification',
+    'interpretation',
+    'suggested_intervention',
     'min_value',
     'max_value',
     'color',
+    'color_class',
     'sort_order',
     'is_active',
 ])]

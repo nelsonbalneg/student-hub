@@ -133,42 +133,505 @@ class PftResultController extends Controller
         ]);
     }
 
-    public function analytics(Request $request): JsonResponse
+    public function analyticsPage(Request $request): InertiaResponse
     {
-        $filters = $this->filters($request);
-        if (! $this->hasRequiredResultFilters($filters)) {
-            return response()->json($this->emptyAnalytics());
-        }
+        $filters = $this->analyticsFilters($request);
 
-        $query = $this->filteredQuery($filters);
-        $rows = (clone $query)->get();
-        $interpretationAnalytics = $this->interpretationAnalytics($rows);
+        return Inertia::render('Reporting/PftAnalytics', [
+            'filters' => $filters,
+            'selectedOptions' => $this->selectedOptions($filters),
+            'pageSizeOptions' => self::PAGE_SIZES,
+            'canExport' => $request->user()->can('reporting.export'),
+        ]);
+    }
+
+    public function analyticsData(Request $request): JsonResponse
+    {
+        $filters = $this->analyticsFilters($request);
+        $query = $this->filteredAnalyticsQuery($filters);
+
+        // Calculate executive stats
+        $totalStudentsTested = (clone $query)->distinct('user_id')->count('user_id');
+        $totalComponents = \App\Models\PftComponent::active()->count();
+        $totalTestTypes = \App\Models\PftTestType::active()->count();
+        $totalCampuses = (clone $query)->whereNotNull('campus_id')->distinct('campus_id')->count('campus_id');
+        $totalColleges = (clone $query)->whereNotNull('college_id')->distinct('college_id')->count('college_id');
+        $totalSections = (clone $query)->whereNotNull('section_id')->distinct('section_id')->count('section_id');
+
+        $studentsIntervention = (clone $query)
+            ->whereIn('color_class', ['red', 'rose', 'orange', 'amber', 'needs improvement', 'poor', 'obese', 'underweight'])
+            ->distinct('user_id')
+            ->count('user_id');
+
+        $studentsTarget = (clone $query)
+            ->whereIn('color_class', ['emerald', 'green', 'lime', 'blue', 'normal', 'good', 'excellent', 'very good'])
+            ->distinct('user_id')
+            ->count('user_id');
+
+        // Campuses List
+        $campuses = (clone $query)
+            ->selectRaw('campus_id, COUNT(DISTINCT user_id) as total_students, COUNT(*) as total_results')
+            ->groupBy('campus_id')
+            ->get()
+            ->map(fn ($row) => [
+                'id' => $row->campus_id,
+                'name' => $row->campus_id,
+                'total_students' => (int) $row->total_students,
+                'total_results' => (int) $row->total_results,
+            ]);
+
+        // Rules & Stats
+        $rules = \App\Models\PftInterpretationRule::active()->with('testType.category.component')->get();
+        $classificationStats = (clone $query)
+            ->selectRaw('pft_test_type_id, classification, COUNT(DISTINCT user_id) as total')
+            ->groupBy('pft_test_type_id', 'classification')
+            ->get()
+            ->groupBy(fn ($row) => $row->pft_test_type_id . '::' . $row->classification);
+
+        $classifications = $rules->map(function ($rule) use ($classificationStats, $query) {
+            $key = $rule->pft_test_type_id . '::' . ($rule->classification ?: $rule->label);
+            $count = isset($classificationStats[$key]) ? (int) $classificationStats[$key]->first()->total : 0;
+            
+            $testTypeTotal = (clone $query)
+                ->where('pft_test_type_id', $rule->pft_test_type_id)
+                ->distinct('user_id')
+                ->count('user_id');
+                
+            $percentage = $testTypeTotal > 0 ? round(($count / $testTypeTotal) * 100, 1) : 0;
+
+            return [
+                'id' => $rule->id,
+                'test_type_id' => $rule->pft_test_type_id,
+                'test_type' => $rule->testType?->name,
+                'component' => $rule->testType?->category?->component?->name,
+                'classification' => $rule->classification ?: $rule->label,
+                'interpretation' => $rule->interpretation,
+                'suggested_intervention' => $rule->suggested_intervention,
+                'color_class' => $rule->color_class ?: $rule->color,
+                'student_count' => $count,
+                'percentage' => $percentage,
+            ];
+        });
+
+        // Interventions (Priority List)
+        $interventions = $classifications
+            ->filter(fn ($item) => filled($item['suggested_intervention']) && $item['student_count'] > 0)
+            ->map(function ($item) {
+                $priority = 'Normal';
+                $priorityWeight = 0;
+                $color = strtolower($item['color_class']);
+                if (in_array($color, ['red', 'rose', 'poor', 'obese', 'underweight'])) {
+                    $priority = 'High';
+                    $priorityWeight = 3;
+                } elseif (in_array($color, ['orange', 'needs improvement'])) {
+                    $priority = 'Medium';
+                    $priorityWeight = 2;
+                } elseif (in_array($color, ['amber', 'yellow', 'fair', 'average'])) {
+                    $priority = 'Low';
+                    $priorityWeight = 1;
+                }
+
+                return [
+                    'classification' => $item['classification'],
+                    'test_type' => $item['test_type'],
+                    'component' => $item['component'],
+                    'suggested_intervention' => $item['suggested_intervention'],
+                    'student_count' => $item['student_count'],
+                    'percentage' => $item['percentage'],
+                    'priority' => $priority,
+                    'priority_weight' => $priorityWeight,
+                    'color_class' => $item['color_class'],
+                ];
+            })
+            ->sortByDesc('priority_weight')
+            ->values();
+
+        // Components List
+        $components = \App\Models\PftComponent::active()
+            ->with(['categories.testTypes'])
+            ->orderBy('sort_order')
+            ->get()
+            ->map(function ($comp) use ($query) {
+                $compResults = (clone $query)
+                    ->whereHas('testType.category', fn ($q) => $q->where('pft_component_id', $comp->id))
+                    ->get();
+                    
+                $classifications = $compResults->groupBy('classification')
+                    ->map(fn ($group) => $group->count());
+
+                $totalStudents = (clone $query)
+                    ->whereHas('testType.category', fn ($q) => $q->where('pft_component_id', $comp->id))
+                    ->distinct('user_id')
+                    ->count('user_id');
+
+                $categories = $comp->categories->map(function ($cat) use ($query) {
+                    $catResults = (clone $query)
+                        ->whereHas('testType', fn ($q) => $q->where('pft_category_id', $cat->id))
+                        ->get();
+                        
+                    $catClassifications = $catResults->groupBy('classification')
+                        ->map(fn ($group) => $group->count());
+
+                    $catStudents = (clone $query)
+                        ->whereHas('testType', fn ($q) => $q->where('pft_category_id', $cat->id))
+                        ->distinct('user_id')
+                        ->count('user_id');
+
+                    $testTypes = $cat->testTypes->map(function ($type) use ($query) {
+                        $typeResults = (clone $query)
+                            ->where('pft_test_type_id', $type->id)
+                            ->get();
+                            
+                        $typeClassifications = $typeResults->groupBy('classification')
+                            ->map(fn ($group) => $group->count());
+
+                        return [
+                            'id' => $type->id,
+                            'name' => $type->name,
+                            'total_results' => $typeResults->count(),
+                            'classifications' => $typeClassifications,
+                        ];
+                    });
+
+                    return [
+                        'id' => $cat->id,
+                        'name' => $cat->name,
+                        'total_results' => $catResults->count(),
+                        'total_students' => $catStudents,
+                        'classifications' => $catClassifications,
+                        'test_types' => $testTypes,
+                    ];
+                });
+
+                return [
+                    'id' => $comp->id,
+                    'name' => $comp->name,
+                    'total_results' => $compResults->count(),
+                    'total_students' => $totalStudents,
+                    'classifications' => $classifications,
+                    'categories' => $categories,
+                ];
+            });
+
+        // Test Types List
+        $testTypes = \App\Models\PftTestType::active()
+            ->with('category.component')
+            ->get()
+            ->map(function ($type) use ($query) {
+                $typeResults = (clone $query)
+                    ->where('pft_test_type_id', $type->id)
+                    ->get();
+                    
+                $classifications = $typeResults->groupBy('classification')
+                    ->map(fn ($group) => $group->count());
+
+                return [
+                    'id' => $type->id,
+                    'name' => $type->name,
+                    'component_id' => $type->category?->pft_component_id,
+                    'total_results' => $typeResults->count(),
+                    'classifications' => $classifications,
+                ];
+            });
+
+        // College Comparison (Grouped Bar Chart data)
+        $collegeComparison = (clone $query)
+            ->selectRaw('college_id, AVG(CASE
+                WHEN color_class IN (\'emerald\', \'green\', \'excellent\') THEN 100
+                WHEN color_class IN (\'lime\', \'very good\', \'good\') THEN 80
+                WHEN color_class IN (\'blue\', \'normal\', \'fair\') THEN 60
+                WHEN color_class IN (\'amber\', \'average\') THEN 50
+                WHEN color_class IN (\'orange\', \'needs improvement\') THEN 40
+                WHEN color_class IN (\'red\', \'rose\', \'poor\', \'obese\', \'underweight\') THEN 20
+                ELSE 50
+            END) as score')
+            ->whereNotNull('college_id')
+            ->groupBy('college_id')
+            ->get()
+            ->map(fn ($row) => [
+                'college' => $row->college_id,
+                'score' => round((float) $row->score, 1),
+            ]);
+
+        // Section Comparison (Grouped Bar Chart data)
+        $sectionComparison = (clone $query)
+            ->selectRaw('section_name, section_id, AVG(CASE
+                WHEN color_class IN (\'emerald\', \'green\', \'excellent\') THEN 100
+                WHEN color_class IN (\'lime\', \'very good\', \'good\') THEN 80
+                WHEN color_class IN (\'blue\', \'normal\', \'fair\') THEN 60
+                WHEN color_class IN (\'amber\', \'average\') THEN 50
+                WHEN color_class IN (\'orange\', \'needs improvement\') THEN 40
+                WHEN color_class IN (\'red\', \'rose\', \'poor\', \'obese\', \'underweight\') THEN 20
+                ELSE 50
+            END) as score')
+            ->whereNotNull('section_id')
+            ->groupBy('section_name', 'section_id')
+            ->limit(15)
+            ->get()
+            ->map(fn ($row) => [
+                'section' => $row->section_name ?: $row->section_id,
+                'score' => round((float) $row->score, 1),
+            ]);
+
+        // Term Trends (Line Chart data)
+        $termTrends = (clone $query)
+            ->selectRaw('term_id, AVG(CASE
+                WHEN color_class IN (\'emerald\', \'green\', \'excellent\') THEN 100
+                WHEN color_class IN (\'lime\', \'very good\', \'good\') THEN 80
+                WHEN color_class IN (\'blue\', \'normal\', \'fair\') THEN 60
+                WHEN color_class IN (\'amber\', \'average\') THEN 50
+                WHEN color_class IN (\'orange\', \'needs improvement\') THEN 40
+                WHEN color_class IN (\'red\', \'rose\', \'poor\', \'obese\', \'underweight\') THEN 20
+                ELSE 50
+            END) as score')
+            ->groupBy('term_id')
+            ->orderBy('term_id')
+            ->get()
+            ->map(fn ($row) => [
+                'term' => $row->term_id,
+                'score' => round((float) $row->score, 1),
+            ]);
+
+        // Component Radar Chart data
+        $componentRadar = (clone $query)
+            ->join('pft_test_types', 'pft_test_types.id', '=', 'student_pft_results.pft_test_type_id')
+            ->join('pft_categories', 'pft_categories.id', '=', 'pft_test_types.pft_category_id')
+            ->join('pft_components', 'pft_components.id', '=', 'pft_categories.pft_component_id')
+            ->selectRaw('pft_components.name as component')
+            ->selectRaw('AVG(CASE
+                WHEN color_class IN (\'emerald\', \'green\', \'excellent\') THEN 100
+                WHEN color_class IN (\'lime\', \'very good\', \'good\') THEN 80
+                WHEN color_class IN (\'blue\', \'normal\', \'fair\') THEN 60
+                WHEN color_class IN (\'amber\', \'average\') THEN 50
+                WHEN color_class IN (\'orange\', \'needs improvement\') THEN 40
+                WHEN color_class IN (\'red\', \'rose\', \'poor\', \'obese\', \'underweight\') THEN 20
+                ELSE 50
+            END) as score')
+            ->groupBy('pft_components.name')
+            ->get()
+            ->map(fn ($row) => [
+                'component' => $row->component,
+                'score' => round((float) $row->score, 1),
+            ]);
+
+        // Classification Distributions (Overall Bar Chart data)
+        $classificationsDist = (clone $query)
+            ->selectRaw('classification, color_class, COUNT(DISTINCT user_id) as total')
+            ->whereNotNull('classification')
+            ->groupBy('classification', 'color_class')
+            ->orderByDesc('total')
+            ->get()
+            ->map(fn ($row) => [
+                'classification' => $row->classification,
+                'color_class' => $row->color_class,
+                'total' => (int) $row->total,
+            ]);
+
+        // Component Performance Distribution (Stacked Bar Chart data)
+        $componentPerformance = (clone $query)
+            ->join('pft_test_types', 'pft_test_types.id', '=', 'student_pft_results.pft_test_type_id')
+            ->join('pft_categories', 'pft_categories.id', '=', 'pft_test_types.pft_category_id')
+            ->join('pft_components', 'pft_components.id', '=', 'pft_categories.pft_component_id')
+            ->selectRaw('pft_components.name as component, classification, COUNT(DISTINCT user_id) as total')
+            ->whereNotNull('classification')
+            ->groupBy('pft_components.name', 'classification')
+            ->get()
+            ->map(fn ($row) => [
+                'component' => $row->component,
+                'classification' => $row->classification,
+                'total' => (int) $row->total,
+            ]);
 
         return response()->json([
-            'stats' => [
-                'total' => $rows->count(),
-                'completed' => $rows->where('status', 'completed')->count(),
-                'draft' => $rows->where('status', 'draft')->count(),
-                'interpreted' => $interpretationAnalytics['interpreted'],
-                'unclassified' => $interpretationAnalytics['unclassified'],
-                'test_types' => $rows->pluck('pft_test_type_id')->unique()->count(),
-                'students' => $rows
-                    ->map(fn (StudentPftResult $row): string => $this->groupKey((int) $row->user_id, (string) $row->term_id))
-                    ->unique()
-                    ->count(),
-                'sections' => $rows->pluck('section_id')->filter()->unique()->count(),
+            'campuses' => $campuses,
+            'components' => $components,
+            'test_types' => $testTypes,
+            'classifications' => $classifications,
+            'interventions' => $interventions,
+            'students' => [],
+            'executive_stats' => [
+                'total_students' => $totalStudentsTested,
+                'total_components' => $totalComponents,
+                'total_test_types' => $totalTestTypes,
+                'total_campuses' => $totalCampuses,
+                'total_colleges' => $totalColleges,
+                'total_sections' => $totalSections,
+                'requiring_intervention' => $studentsIntervention,
+                'target_performance' => $studentsTarget,
             ],
-            'interpretations' => $interpretationAnalytics['distribution'],
-            'componentInterpretations' => $interpretationAnalytics['components'],
-            'testTypeInterpretations' => $interpretationAnalytics['test_types'],
-            'hierarchy' => $this->hierarchyAnalytics($rows),
-            'status' => $this->groupCounts(clone $query, 'status', 'status'),
-            'testTypes' => $this->testTypeCounts(clone $query),
-            'campuses' => $this->groupCounts(clone $query, 'campus_id', 'campus'),
-            'colleges' => $this->groupCounts(clone $query, 'college_id', 'college'),
-            'yearLevels' => $this->groupCounts(clone $query, 'year_level_id', 'year_level'),
-            'bmi' => $this->bmiAnalytics(clone $query),
+            'college_comparison' => $collegeComparison,
+            'section_comparison' => $sectionComparison,
+            'term_trends' => $termTrends,
+            'component_radar' => $componentRadar,
+            'overall_distribution' => $classificationsDist,
+            'component_distribution' => $componentPerformance,
         ]);
+    }
+
+    public function analyticsDrilldown(Request $request): JsonResponse
+    {
+        $filters = $this->analyticsFilters($request);
+        $classification = $request->input('classification');
+        
+        $query = $this->filteredAnalyticsQuery($filters)
+            ->with(['user', 'testType.category.component'])
+            ->when($classification, fn ($q, $v) => $q->where('student_pft_results.classification', $v));
+            
+        $search = $request->input('search.value') ?? $request->input('search');
+        if (filled($search)) {
+            $search = addcslashes((string) $search, '%_\\');
+            $query->where(function (Builder $query) use ($search): void {
+                $query->whereHas('user', function (Builder $query) use ($search): void {
+                    $query->where('name', 'like', "%{$search}%")
+                        ->orWhere('student_no', 'like', "%{$search}%");
+                })
+                ->orWhere('student_pft_results.section_name', 'like', "%{$search}%")
+                ->orWhere('student_pft_results.remarks', 'like', "%{$search}%")
+                ->orWhere('student_pft_results.classification', 'like', "%{$search}%");
+            });
+        }
+        
+        $recordsFiltered = $query->count();
+        
+        $start = max($request->integer('start', 0), 0);
+        $length = $request->integer('length', 10);
+        if ($length === -1) {
+            $length = 500;
+        }
+        
+        $columnIndex = $request->integer('order.0.column', 0);
+        $direction = $request->input('order.0.dir') === 'asc' ? 'asc' : 'desc';
+        
+        if ($columnIndex === 1) {
+            $query->join('users', 'users.id', '=', 'student_pft_results.user_id')
+                ->select('student_pft_results.*')
+                ->orderBy('users.name', $direction);
+        } else {
+            $query->orderBy('student_pft_results.tested_at', $direction)
+                ->orderBy('student_pft_results.id', 'desc');
+        }
+        
+        $rows = $query->skip($start)->take($length)->get();
+        
+        $data = $rows->map(function ($row) {
+            $results = json_decode($row->getRawOriginal('results_json'), true) ?? [];
+            $rawLines = collect($results)
+                ->except(['interpretation', 'interpretation_color'])
+                ->map(fn ($val, $key) => Str::headline((string)$key) . ': ' . $val)
+                ->implode(', ');
+
+            return [
+                'student_no' => $row->user?->student_no,
+                'student_name' => $row->user?->name,
+                'campus' => $row->campus_id,
+                'college' => $row->college_id,
+                'section' => $row->section_name ?: $row->section_id,
+                'year_level' => $row->year_level_id,
+                'component' => $row->testType?->category?->component?->name,
+                'test_type' => $row->testType?->name,
+                'raw_result' => $rawLines,
+                'classification' => $row->classification,
+                'remarks' => $row->remarks,
+                'test_date' => $row->tested_at?->toDateString(),
+            ];
+        });
+        
+        return response()->json([
+            'draw' => $request->integer('draw'),
+            'recordsTotal' => StudentPftResult::count(),
+            'recordsFiltered' => $recordsFiltered,
+            'data' => $data,
+        ]);
+    }
+
+    public function exportDrilldownExcel(Request $request): StreamedResponse
+    {
+        $filters = $this->analyticsFilters($request);
+        $classification = $request->input('classification');
+        
+        $rows = $this->filteredAnalyticsQuery($filters)
+            ->with(['user', 'testType.category.component'])
+            ->when($classification, fn ($q, $v) => $q->where('student_pft_results.classification', $v))
+            ->orderBy('student_pft_results.tested_at', 'desc')
+            ->get();
+            
+        $filename = 'pft-drilldown-export-'.now()->format('Ymd-His').'.csv';
+        
+        return ResponseFactory::streamDownload(function () use ($rows): void {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, [
+                'Student Number',
+                'Student Name',
+                'Campus',
+                'College',
+                'Section',
+                'Year Level',
+                'Component',
+                'Test Type',
+                'Raw Result',
+                'Classification',
+                'Remarks',
+                'Test Date',
+            ]);
+            
+            foreach ($rows as $row) {
+                $results = json_decode($row->getRawOriginal('results_json'), true) ?? [];
+                $rawLines = collect($results)
+                    ->except(['interpretation', 'interpretation_color'])
+                    ->map(fn ($val, $key) => Str::headline((string)$key) . ': ' . $val)
+                    ->implode(', ');
+                    
+                fputcsv($handle, [
+                    $row->user?->student_no,
+                    $row->user?->name,
+                    $row->campus_id,
+                    $row->college_id,
+                    $row->section_name ?: $row->section_id,
+                    $row->year_level_id,
+                    $row->testType?->category?->component?->name,
+                    $row->testType?->name,
+                    $rawLines,
+                    $row->classification,
+                    $row->remarks,
+                    $row->tested_at?->toDateString(),
+                ]);
+            }
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function analyticsFilters(Request $request): array
+    {
+        $validated = $request->validate([
+            'campus_id' => ['nullable', 'string'],
+            'term_id' => ['nullable', 'string'],
+            'college_id' => ['nullable', 'string'],
+            'section_id' => ['nullable', 'string'],
+            'component_id' => ['nullable', 'integer'],
+            'test_type_id' => ['nullable', 'integer'],
+            'year_level_id' => ['nullable', 'string'],
+            'sex' => ['nullable', 'string'],
+        ]);
+
+        return array_filter($validated, fn ($value): bool => filled($value));
+    }
+
+    private function filteredAnalyticsQuery(array $filters): Builder
+    {
+        return StudentPftResult::query()
+            ->when($filters['campus_id'] ?? null, fn ($q, $v) => $q->where('student_pft_results.campus_id', $v))
+            ->when($filters['term_id'] ?? null, fn ($q, $v) => $q->where('student_pft_results.term_id', $v))
+            ->when($filters['college_id'] ?? null, fn ($q, $v) => $q->where('student_pft_results.college_id', $v))
+            ->when($filters['section_id'] ?? null, fn ($q, $v) => $q->where('student_pft_results.section_id', $v))
+            ->when($filters['year_level_id'] ?? null, fn ($q, $v) => $q->where('student_pft_results.year_level_id', $v))
+            ->when($filters['sex'] ?? null, fn ($q, $v) => $q->where('student_pft_results.sex', $v))
+            ->when($filters['test_type_id'] ?? null, fn ($q, $v) => $q->where('student_pft_results.pft_test_type_id', $v))
+            ->when($filters['component_id'] ?? null, fn ($q, $v) => $q->whereHas('testType.category', fn ($sq) => $sq->where('pft_component_id', $v)));
     }
 
     public function exportExcel(Request $request): StreamedResponse
@@ -1393,5 +1856,40 @@ class PftResultController extends Controller
                 ['label' => 'Obese', 'value' => $values->filter(fn (float $value): bool => $value >= 30)->count()],
             ],
         ];
+    }
+
+    public function exportAnalyticsPdf(Request $request): Response
+    {
+        $filters = $this->filters($request);
+        abort_unless($this->hasRequiredResultFilters($filters), 422, 'Campus and Academic Term are required.');
+
+        $query = $this->filteredQuery($filters);
+        $rows = $query->get();
+        $hierarchy = $this->hierarchyAnalytics($rows);
+        $labels = $this->drawerLabels($filters);
+        $interpretationAnalytics = $this->interpretationAnalytics($rows);
+
+        $html = view('pdf.reporting-pft-analytics', [
+            'filters' => $filters,
+            'labels' => $labels,
+            'hierarchy' => $hierarchy,
+            'interpretationAnalytics' => $interpretationAnalytics,
+            'generatedAt' => now(),
+        ])->render();
+
+        $pdf = Browsershot::html($html)
+            ->format('A4')
+            ->portrait()
+            ->margins(12, 12, 12, 12)
+            ->showBackground()
+            ->noSandbox()
+            ->pdf();
+
+        $filename = 'pft-analytics-'.$filters['term_id'].'-'.now()->format('Ymd-His').'.pdf';
+
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
+        ]);
     }
 }

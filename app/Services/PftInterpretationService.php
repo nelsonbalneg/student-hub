@@ -49,7 +49,11 @@ class PftInterpretationService
 
             return [
                 'label' => $rule->label,
+                'classification' => $rule->classification ?: $rule->label,
+                'interpretation' => $rule->interpretation,
+                'suggested_intervention' => $rule->suggested_intervention,
                 'color' => $rule->color,
+                'color_class' => $rule->color_class ?: $rule->color,
                 'field_name' => $rule->field_name,
                 'rule_id' => $rule->id,
             ];

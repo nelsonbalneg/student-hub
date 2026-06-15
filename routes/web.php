@@ -177,7 +177,12 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
         ->group(function () {
             Route::get('/', 'index')->name('index');
             Route::get('/data', 'data')->name('data');
-            Route::get('/analytics', 'analytics')->name('analytics');
+            Route::get('/analytics', 'analyticsPage')->name('analytics');
+            Route::get('/analytics/data', 'analyticsData')->name('analytics-data');
+            Route::get('/analytics/drilldown', 'analyticsDrilldown')->name('analytics-drilldown');
+            Route::get('/analytics/export/drilldown-excel', 'exportDrilldownExcel')
+                ->middleware('can:reporting.export')
+                ->name('export-drilldown-excel');
             Route::prefix('filter')->name('filter.')->group(function () {
                 Route::get('/campuses', 'filterCampuses')->name('campuses');
                 Route::get('/terms', 'filterTerms')->name('terms');
@@ -191,6 +196,9 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
             Route::get('/export/pdf', 'exportPdf')
                 ->middleware('can:reporting.export')
                 ->name('export-pdf');
+            Route::get('/export/analytics-pdf', 'exportAnalyticsPdf')
+                ->middleware('can:reporting.export')
+                ->name('export-analytics-pdf');
         });
 
     Route::prefix('admin/registrar')

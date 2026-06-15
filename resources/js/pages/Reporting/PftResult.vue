@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 import type { ApexOptions } from 'apexcharts';
 import {
     Activity,
@@ -24,6 +24,7 @@ import {
     data as pftData,
     exportExcel as pftExportExcel,
     exportPdf as pftExportPdf,
+    exportAnalyticsPdf as pftExportAnalyticsPdf,
     index as pftIndex,
 } from '@/routes/admin/reporting/pft-result';
 import {
@@ -703,6 +704,41 @@ const exportPdfUrl = computed(() =>
         ? pftExportPdf.url({ query: routeQuery() })
         : '#',
 );
+const exportAnalyticsPdfUrl = computed(() =>
+    requiredFiltersSelected.value
+        ? pftExportAnalyticsPdf.url({ query: routeQuery() })
+        : '#',
+);
+const analyticsPdfPreviewOpen = ref(false);
+
+const getSparklineOptions = (labels: string[]) => ({
+    chart: {
+        sparkline: { enabled: true },
+        animations: { enabled: true },
+    },
+    stroke: { curve: 'smooth' as const, width: 2 },
+    fill: {
+        type: 'gradient',
+        gradient: {
+            shadeIntensity: 1,
+            opacityFrom: 0.4,
+            opacityTo: 0.05,
+            stops: [0, 100],
+        },
+    },
+    colors: ['#059669'],
+    labels: labels.length ? labels : ['None'],
+    tooltip: {
+        fixed: { enabled: false },
+        x: { show: true },
+        y: {
+            title: {
+                formatter: () => 'Results: ',
+            },
+        },
+        marker: { show: true },
+    },
+});
 
 const chartOptions = (labels: string[], colors: string[]): ApexOptions => ({
     chart: {
@@ -714,14 +750,13 @@ const chartOptions = (labels: string[], colors: string[]): ApexOptions => ({
     colors,
     dataLabels: { enabled: false },
     labels,
-    legend: { position: 'bottom', fontSize: '11px' },
+    legend: { position: 'bottom' as const, fontSize: '11px' },
     stroke: { width: 2 },
     xaxis: { categories: labels },
     yaxis: {
         labels: { formatter: (value: number) => String(Math.round(value)) },
     },
     grid: { borderColor: '#e2e8f0' },
-    tooltip: { theme: false },
 });
 
 const interpretationColor = (color?: string) =>
@@ -805,10 +840,6 @@ const fitnessProfileRadarSeries = computed(() => [
         name: activeRow.value?.radar_profile.currentLabel ?? 'Student',
         data: activeRow.value?.radar_profile.current ?? [],
     },
-    {
-        name: activeRow.value?.radar_profile.previousLabel ?? 'Term Average',
-        data: activeRow.value?.radar_profile.previous ?? [],
-    },
 ]);
 
 onMounted(() => {
@@ -838,28 +869,36 @@ onMounted(() => {
                     and analytics.
                 </p>
             </div>
-            <div v-if="canExport" class="flex flex-wrap gap-2">
-                <a
-                    class="report-btn"
-                    :class="{
-                        'pointer-events-none opacity-50':
-                            !requiredFiltersSelected,
-                    }"
-                    :href="exportExcelUrl"
+            <div class="flex flex-wrap gap-2">
+                <Link
+                    class="report-btn bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-none flex items-center gap-1.5 hover:opacity-90 transition-opacity"
+                    href="/admin/reporting/pft-result/analytics"
                 >
-                    <Download class="h-3.5 w-3.5" />Excel
-                </a>
-                <a
-                    class="report-btn-primary"
-                    :class="{
-                        'pointer-events-none opacity-50':
-                            !requiredFiltersSelected,
-                    }"
-                    :href="exportPdfUrl"
-                    target="_blank"
-                >
-                    <FileDown class="h-3.5 w-3.5" />PDF
-                </a>
+                    <BarChart3 class="h-3.5 w-3.5 text-emerald-500" />View Analytics
+                </Link>
+                <div v-if="canExport" class="flex flex-wrap gap-2">
+                    <a
+                        class="report-btn"
+                        :class="{
+                            'pointer-events-none opacity-50':
+                                !requiredFiltersSelected,
+                        }"
+                        :href="exportExcelUrl"
+                    >
+                        <Download class="h-3.5 w-3.5" />Excel
+                    </a>
+                    <a
+                        class="report-btn-primary"
+                        :class="{
+                            'pointer-events-none opacity-50':
+                                !requiredFiltersSelected,
+                        }"
+                        :href="exportPdfUrl"
+                        target="_blank"
+                    >
+                        <FileDown class="h-3.5 w-3.5" />PDF
+                    </a>
+                </div>
             </div>
         </div>
 
@@ -1022,7 +1061,7 @@ onMounted(() => {
             class="report-card rounded-lg border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950"
         >
             <div
-                class="mb-3 flex flex-col gap-1 md:flex-row md:items-center md:justify-between"
+                class="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
             >
                 <div>
                     <h2 class="report-heading">
@@ -1032,9 +1071,20 @@ onMounted(() => {
                         {{ analyticsScopeLabel }}
                     </p>
                 </div>
-                <span class="drawer-pill w-fit">
-                    {{ analytics?.hierarchy.length ?? 0 }} components
-                </span>
+                <div class="flex items-center gap-2">
+                    <button
+                        v-if="canExport"
+                        class="report-btn-primary py-1.5 px-3 text-xs flex items-center gap-1.5 shrink-0"
+                        :disabled="!requiredFiltersSelected"
+                        :class="{ 'opacity-50 pointer-events-none': !requiredFiltersSelected }"
+                        @click="analyticsPdfPreviewOpen = true"
+                    >
+                        <FileDown class="h-3.5 w-3.5" />Export
+                    </button>
+                    <span class="drawer-pill w-fit">
+                        {{ analytics?.hierarchy.length ?? 0 }} components
+                    </span>
+                </div>
             </div>
 
             <div
@@ -1080,15 +1130,25 @@ onMounted(() => {
                         </span>
                     </button>
 
-                    <div class="hierarchy-distribution">
-                        <span
-                            v-for="item in component.interpretations"
-                            :key="`${component.label}-${item.label}`"
-                            :style="interpretationBadgeStyle(item.color)"
-                        >
-                            {{ item.label }}
-                            <b>{{ item.value }}</b>
-                        </span>
+                    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mt-2">
+                        <div class="hierarchy-distribution flex-1">
+                            <span
+                                v-for="item in component.interpretations"
+                                :key="`${component.label}-${item.label}`"
+                                :style="interpretationBadgeStyle(item.color)"
+                            >
+                                {{ item.label }}
+                                <b>{{ item.value }}</b>
+                            </span>
+                        </div>
+                        <div v-if="component.interpretations.length" class="w-48 h-10 shrink-0">
+                            <VueApexCharts
+                                type="area"
+                                height="40"
+                                :options="getSparklineOptions(component.interpretations.map(i => i.label))"
+                                :series="[{ name: 'Results', data: component.interpretations.map(i => i.value) }]"
+                            />
+                        </div>
                     </div>
 
                     <div
@@ -1147,15 +1207,25 @@ onMounted(() => {
                                 </span>
                             </button>
 
-                            <div class="hierarchy-distribution">
-                                <span
-                                    v-for="item in category.interpretations"
-                                    :key="`${component.label}-${category.label}-${item.label}`"
-                                    :style="interpretationBadgeStyle(item.color)"
-                                >
-                                    {{ item.label }}
-                                    <b>{{ item.value }}</b>
-                                </span>
+                             <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mt-2">
+                                <div class="hierarchy-distribution flex-1">
+                                    <span
+                                        v-for="item in category.interpretations"
+                                        :key="`${component.label}-${category.label}-${item.label}`"
+                                        :style="interpretationBadgeStyle(item.color)"
+                                    >
+                                        {{ item.label }}
+                                        <b>{{ item.value }}</b>
+                                    </span>
+                                </div>
+                                <div v-if="category.interpretations.length" class="w-48 h-10 shrink-0">
+                                    <VueApexCharts
+                                        type="area"
+                                        height="40"
+                                        :options="getSparklineOptions(category.interpretations.map(i => i.label))"
+                                        :series="[{ name: 'Results', data: category.interpretations.map(i => i.value) }]"
+                                    />
+                                </div>
                             </div>
 
                             <div
@@ -1181,19 +1251,29 @@ onMounted(() => {
                                             {{ testType.students }} students
                                         </small>
                                     </div>
-                                    <div class="hierarchy-distribution">
-                                        <span
-                                            v-for="item in testType.interpretations"
-                                            :key="`${component.label}-${category.label}-${testType.label}-${item.label}`"
-                                            :style="
-                                                interpretationBadgeStyle(
-                                                    item.color,
-                                                )
-                                            "
-                                        >
-                                            {{ item.label }}
-                                            <b>{{ item.value }}</b>
-                                        </span>
+                                     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mt-2">
+                                        <div class="hierarchy-distribution flex-1">
+                                            <span
+                                                v-for="item in testType.interpretations"
+                                                :key="`${component.label}-${category.label}-${testType.label}-${item.label}`"
+                                                :style="
+                                                    interpretationBadgeStyle(
+                                                        item.color,
+                                                    )
+                                                "
+                                            >
+                                                {{ item.label }}
+                                                <b>{{ item.value }}</b>
+                                            </span>
+                                        </div>
+                                        <div v-if="testType.interpretations.length" class="w-36 h-8 shrink-0">
+                                            <VueApexCharts
+                                                type="area"
+                                                height="32"
+                                                :options="getSparklineOptions(testType.interpretations.map(i => i.label))"
+                                                :series="[{ name: 'Results', data: testType.interpretations.map(i => i.value) }]"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1574,62 +1654,7 @@ onMounted(() => {
                         </p>
                     </section>
 
-                    <section class="drawer-analytics-panel">
-                        <div class="mb-3 flex items-center justify-between">
-                            <h4 class="report-heading">
-                                Student vs Term Interpretation
-                            </h4>
-                            <span class="drawer-pill">By test type</span>
-                        </div>
-                        <div
-                            v-if="interpretationComparisonGroups.length"
-                            class="grid gap-3 xl:grid-cols-2"
-                        >
-                            <article
-                                v-for="group in interpretationComparisonGroups"
-                                :key="group.component"
-                                class="drawer-component-card"
-                            >
-                                <h5
-                                    class="mb-3 text-sm font-bold text-slate-900 dark:text-white"
-                                >
-                                    {{ group.component }}
-                                </h5>
-                                <div class="grid gap-2">
-                                    <div
-                                        v-for="item in group.items"
-                                        :key="item.label"
-                                        class="drawer-progress-row"
-                                    >
-                                        <span>{{ item.label }}</span>
-                                        <strong>
-                                            {{ item.student_label }}
-                                        </strong>
-                                        <div
-                                            class="col-span-full flex flex-wrap gap-1 pt-1"
-                                        >
-                                            <span
-                                                v-for="termItem in item.term_distribution"
-                                                :key="`${item.label}-${termItem.label}`"
-                                                class="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-500 dark:bg-slate-900 dark:text-slate-300"
-                                                :style="
-                                                    interpretationBadgeStyle(
-                                                        termItem.color,
-                                                    )
-                                                "
-                                            >
-                                                {{ termItem.label }}:
-                                                {{ termItem.value }}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </article>
-                        </div>
-                        <p v-else class="drawer-empty-chart">
-                            No interpreted comparison data.
-                        </p>
-                    </section>
+
 
                     <section
                         v-for="group in activeComponentGroups"
@@ -1729,6 +1754,60 @@ onMounted(() => {
                     </p>
                 </div>
             </aside>
+        </div>
+
+        <!-- PDF Export Preview Modal -->
+        <div
+            v-if="analyticsPdfPreviewOpen"
+            class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-xs"
+            @click.self="analyticsPdfPreviewOpen = false"
+        >
+            <div
+                class="flex h-[90vh] w-full max-w-5xl flex-col rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-950 overflow-hidden"
+            >
+                <div
+                    class="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-slate-900"
+                >
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900 dark:text-white">
+                            PFT Analytics PDF Report Preview
+                        </h3>
+                        <p class="text-xs text-slate-500">
+                            Pre-rendering report using Browsershot
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <a
+                            :href="exportAnalyticsPdfUrl"
+                            download
+                            class="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white hover:bg-emerald-700 transition"
+                        >
+                            <Download class="h-3.5 w-3.5" /> Download PDF
+                        </a>
+                        <button
+                            type="button"
+                            class="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
+                            @click="analyticsPdfPreviewOpen = false"
+                        >
+                            <X class="h-3.5 w-3.5" /> Close
+                        </button>
+                    </div>
+                </div>
+                <div class="flex-1 bg-slate-100 dark:bg-slate-950 relative">
+                    <iframe
+                        v-if="exportAnalyticsPdfUrl !== '#'"
+                        :src="exportAnalyticsPdfUrl"
+                        class="w-full h-full border-none bg-white"
+                    ></iframe>
+                    <div
+                        v-else
+                        class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 gap-2 bg-slate-50 dark:bg-slate-950"
+                    >
+                        <Loader2 class="h-8 w-8 animate-spin text-emerald-600" />
+                        <span class="text-xs">Preparing PDF preview...</span>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </template>

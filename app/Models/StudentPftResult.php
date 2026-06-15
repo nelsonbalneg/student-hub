@@ -20,6 +20,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'results_json',
     'remarks',
     'tested_at',
+    'sex',
+    'classification',
+    'interpretation',
+    'suggested_intervention',
+    'color_class',
     'created_by',
     'updated_by',
 ])]

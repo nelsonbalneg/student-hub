@@ -153,7 +153,7 @@ class StudentPftResultController extends Controller
         $academicContext = $this->academicContext($request, $academicApi, $termId);
 
         try {
-            $result = DB::transaction(function () use ($request, $testType, $validated, $results, $termId, $isDraft, $academicContext): StudentPftResult {
+            $result = DB::transaction(function () use ($request, $testType, $validated, $results, $termId, $isDraft, $academicContext, $interpretation): StudentPftResult {
                 return StudentPftResult::query()->updateOrCreate(
                     [
                         'user_id' => $request->user()->id,
@@ -166,6 +166,10 @@ class StudentPftResultController extends Controller
                         'results_json' => $results,
                         'remarks' => $validated['remarks'] ?? ($results['remarks'] ?? null),
                         'tested_at' => $validated['tested_at'] ?? ($results['date_tested'] ?? null),
+                        'classification' => $interpretation ? ($interpretation['classification'] ?? $interpretation['label']) : null,
+                        'interpretation' => $interpretation ? ($interpretation['interpretation'] ?? null) : null,
+                        'suggested_intervention' => $interpretation ? ($interpretation['suggested_intervention'] ?? null) : null,
+                        'color_class' => $interpretation ? ($interpretation['color_class'] ?? $interpretation['color'] ?? null) : null,
                         'created_by' => $request->user()->id,
                         'updated_by' => $request->user()->id,
                     ],
@@ -215,6 +219,16 @@ class StudentPftResultController extends Controller
             ]);
         }
 
+        $sex = null;
+        try {
+            if ($studentNo) {
+                $profileResult = $academicApi->profileForStudent($studentNo, $tenantId);
+                $sex = $profileResult['data']['gender'] ?? null;
+            }
+        } catch (Throwable $e) {
+            Log::warning('PFT result sex lookup failed: ' . $e->getMessage());
+        }
+
         $context = [
             'college_id' => $this->stringValue($registration, [
                 'collegeId',
@@ -255,6 +269,7 @@ class StudentPftResultController extends Controller
                 'class_section',
             ]),
             'tenant_id' => $tenantId,
+            'sex' => $sex,
         ];
 
         Log::info('PFT result academic context resolved.', [
