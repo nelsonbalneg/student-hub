@@ -1,0 +1,1397 @@
+<?php
+
+namespace App\Http\Controllers\Admin\Reporting;
+
+use App\Http\Controllers\Controller;
+use App\Models\PftTestType;
+use App\Models\SiteAcademicTerm;
+use App\Models\SiteCampus;
+use App\Models\StudentPftResult;
+use App\Services\AcademicApiService;
+use App\Services\PftInterpretationService;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Response as ResponseFactory;
+use Illuminate\Support\Str;
+use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
+use Spatie\Browsershot\Browsershot;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+
+class PftResultController extends Controller
+{
+    private const PAGE_SIZES = [10, 25, 50, 100];
+
+    /**
+     * @var array<int, string>
+     */
+    private const ORDER_COLUMNS = [
+        1 => 'student_name',
+        2 => 'term_id',
+        3 => 'campus_id',
+        4 => 'college_id',
+        5 => 'section_id',
+        6 => 'section_name',
+        7 => 'year_level_id',
+        8 => 'test_count',
+        9 => 'latest_tested_at',
+        10 => 'latest_created_at',
+    ];
+
+    public function __construct(
+        private readonly AcademicApiService $academicApi,
+        private readonly PftInterpretationService $interpretationService,
+    ) {}
+
+    public function index(Request $request): InertiaResponse
+    {
+        $filters = $this->filters($request, false);
+
+        return Inertia::render('Reporting/PftResult', [
+            'filters' => $filters,
+            'selectedOptions' => $this->selectedOptions($filters),
+            'pageSizeOptions' => self::PAGE_SIZES,
+            'canExport' => $request->user()->can('reporting.export'),
+        ]);
+    }
+
+    public function data(Request $request): JsonResponse
+    {
+        $filters = $this->filters($request);
+        if (! $this->hasRequiredResultFilters($filters)) {
+            return response()->json([
+                'draw' => $request->integer('draw'),
+                'recordsTotal' => 0,
+                'recordsFiltered' => 0,
+                'data' => [],
+            ]);
+        }
+
+        $baseQuery = $this->filteredQuery($filters);
+        $recordsTotal = StudentPftResult::query()
+            ->where('campus_id', $filters['campus_id'])
+            ->where('term_id', $filters['term_id'])
+            ->select('user_id', 'term_id')
+            ->groupBy('user_id', 'term_id')
+            ->get()
+            ->count();
+
+        $query = clone $baseQuery;
+        $this->applySearch($query, $request->input('search.value'));
+        $recordsFiltered = $this->groupedCount(clone $query);
+
+        $start = max($request->integer('start'), 0);
+        $length = $this->dataTablesLength($request);
+
+        $groupRows = $this->groupedQuery($query);
+        $this->applyGroupedOrdering($groupRows, $request);
+
+        $groups = $groupRows
+            ->skip($start)
+            ->take($length)
+            ->get();
+
+        $latestRows = StudentPftResult::query()
+            ->with([
+                'testType.category.component',
+                'testType.interpretationRules' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('id'),
+                'user:id,name,email,student_no',
+            ])
+            ->whereIn('id', $groups->pluck('latest_id')->filter()->values())
+            ->get()
+            ->keyBy('id');
+
+        $details = $this->detailsForGroups($latestRows->values());
+
+        $labels = $this->drawerLabels($filters);
+        $termComparison = $this->termComparison($filters);
+
+        $rows = $groups
+            ->map(function ($group, int $index) use ($latestRows, $details, $labels, $termComparison, $start): array {
+                $latest = $latestRows->get($group->latest_id);
+
+                return $this->groupedTableRow(
+                    $latest,
+                    $details->get($this->groupKey((int) $group->user_id, (string) $group->term_id), collect()),
+                    $start + $index + 1,
+                    (int) $group->test_count,
+                    $labels,
+                    $termComparison,
+                );
+            })
+            ->filter()
+            ->values();
+
+        return response()->json([
+            'draw' => $request->integer('draw'),
+            'recordsTotal' => $recordsTotal,
+            'recordsFiltered' => $recordsFiltered,
+            'data' => $rows,
+        ]);
+    }
+
+    public function analytics(Request $request): JsonResponse
+    {
+        $filters = $this->filters($request);
+        if (! $this->hasRequiredResultFilters($filters)) {
+            return response()->json($this->emptyAnalytics());
+        }
+
+        $query = $this->filteredQuery($filters);
+        $rows = (clone $query)->get();
+        $interpretationAnalytics = $this->interpretationAnalytics($rows);
+
+        return response()->json([
+            'stats' => [
+                'total' => $rows->count(),
+                'completed' => $rows->where('status', 'completed')->count(),
+                'draft' => $rows->where('status', 'draft')->count(),
+                'interpreted' => $interpretationAnalytics['interpreted'],
+                'unclassified' => $interpretationAnalytics['unclassified'],
+                'test_types' => $rows->pluck('pft_test_type_id')->unique()->count(),
+                'students' => $rows
+                    ->map(fn (StudentPftResult $row): string => $this->groupKey((int) $row->user_id, (string) $row->term_id))
+                    ->unique()
+                    ->count(),
+                'sections' => $rows->pluck('section_id')->filter()->unique()->count(),
+            ],
+            'interpretations' => $interpretationAnalytics['distribution'],
+            'componentInterpretations' => $interpretationAnalytics['components'],
+            'testTypeInterpretations' => $interpretationAnalytics['test_types'],
+            'hierarchy' => $this->hierarchyAnalytics($rows),
+            'status' => $this->groupCounts(clone $query, 'status', 'status'),
+            'testTypes' => $this->testTypeCounts(clone $query),
+            'campuses' => $this->groupCounts(clone $query, 'campus_id', 'campus'),
+            'colleges' => $this->groupCounts(clone $query, 'college_id', 'college'),
+            'yearLevels' => $this->groupCounts(clone $query, 'year_level_id', 'year_level'),
+            'bmi' => $this->bmiAnalytics(clone $query),
+        ]);
+    }
+
+    public function exportExcel(Request $request): StreamedResponse
+    {
+        $filters = $this->filters($request);
+        abort_unless($this->hasRequiredResultFilters($filters), 422, 'Campus and Academic Term are required.');
+
+        $rows = $this->filteredQuery($filters)
+            ->orderByDesc('tested_at')
+            ->orderByDesc('id')
+            ->get();
+
+        $filename = 'pft-results-'.$filters['term_id'].'-'.now()->format('Ymd-His').'.csv';
+
+        return ResponseFactory::streamDownload(function () use ($rows): void {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, [
+                '#',
+                'Tested Date',
+                'Term',
+                'Campus',
+                'College',
+                'Section ID',
+                'Section Name',
+                'Year Level',
+                'PFT Test Type',
+                'Results',
+                'Remarks',
+                'Status',
+                'Created At',
+            ]);
+
+            foreach ($rows as $index => $row) {
+                fputcsv($handle, $this->exportRow($row, $index + 1));
+            }
+
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    public function exportPdf(Request $request): Response
+    {
+        $filters = $this->filters($request);
+        abort_unless($this->hasRequiredResultFilters($filters), 422, 'Campus and Academic Term are required.');
+
+        $rows = $this->filteredQuery($filters)
+            ->orderByDesc('tested_at')
+            ->orderByDesc('id')
+            ->limit(1000)
+            ->get()
+            ->map(fn (StudentPftResult $row, int $index): array => $this->tableRow($row, $index + 1));
+
+        $html = view('pdf.reporting-pft-result', [
+            'filters' => $filters,
+            'rows' => $rows,
+            'generatedAt' => now(),
+        ])->render();
+
+        $pdf = Browsershot::html($html)
+            ->format('A4')
+            ->landscape()
+            ->margins(8, 8, 8, 8)
+            ->showBackground()
+            ->noSandbox()
+            ->pdf();
+
+        $filename = 'pft-results-'.$filters['term_id'].'-'.now()->format('Ymd-His').'.pdf';
+
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
+        ]);
+    }
+
+    public function filterCampuses(Request $request): JsonResponse
+    {
+        $validated = $this->select2Filters($request, [
+            'q' => ['nullable', 'string'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $query = SiteCampus::query()
+            ->select(['id', 'real_campus_id', 'campus_name'])
+            ->when($validated['q'] ?? null, function (Builder $query, string $search): void {
+                $search = addcslashes($search, '%_\\');
+                $query->where(function (Builder $query) use ($search): void {
+                    $query->where('campus_name', 'like', "%{$search}%")
+                        ->orWhere('real_campus_id', 'like', "%{$search}%");
+                });
+            })
+            ->orderBy('campus_name');
+
+        return $this->select2FromQuery($query, $validated['page'] ?? 1, fn (SiteCampus $campus): array => [
+            'id' => (string) ($campus->real_campus_id ?: $campus->id),
+            'text' => trim(($campus->real_campus_id ? "{$campus->real_campus_id} - " : '').$campus->campus_name),
+        ]);
+    }
+
+    public function filterTerms(Request $request): JsonResponse
+    {
+        $validated = $this->select2Filters($request, [
+            'campus_id' => ['required', 'string'],
+            'q' => ['nullable', 'string'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $campus = $this->campusFor((string) $validated['campus_id']);
+        abort_unless($campus, 404);
+
+        $query = SiteAcademicTerm::query()
+            ->where('site_campus_id', $campus->id)
+            ->whereNotNull('term_id')
+            ->when($validated['q'] ?? null, function (Builder $query, string $search): void {
+                $search = addcslashes($search, '%_\\');
+                $query->where(function (Builder $query) use ($search): void {
+                    $query->where('term_id', 'like', "%{$search}%")
+                        ->orWhere('school_year', 'like', "%{$search}%")
+                        ->orWhere('semester', 'like', "%{$search}%")
+                        ->orWhere('status', 'like', "%{$search}%");
+                });
+            })
+            ->orderByDesc('start_date')
+            ->orderByDesc('id');
+
+        return $this->select2FromQuery($query, $validated['page'] ?? 1, fn (SiteAcademicTerm $term): array => [
+            'id' => (string) $term->term_id,
+            'text' => $this->termLabel((string) $term->term_id, $term),
+        ]);
+    }
+
+    public function filterColleges(Request $request): JsonResponse
+    {
+        $validated = $this->select2Filters($request, [
+            'campus_id' => ['required', 'string'],
+            'q' => ['nullable', 'string'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $tenantId = $request->user()?->tenant_id;
+        $colleges = collect($this->academicApi->getColleges($tenantId)['data'] ?? [])
+            ->filter(fn (array $college): bool => (string) ($college['campusId'] ?? '') === (string) $validated['campus_id'])
+            ->when($validated['q'] ?? null, function (Collection $collection, string $search): Collection {
+                return $collection->filter(function (array $college) use ($search): bool {
+                    $label = $this->collegeLabel($college);
+
+                    return Str::contains(Str::lower($label), Str::lower($search));
+                });
+            })
+            ->sortBy(fn (array $college): string => $this->collegeLabel($college))
+            ->values();
+
+        return $this->select2FromCollection($colleges, $validated['page'] ?? 1, fn (array $college): array => [
+            'id' => (string) ($college['collegeId'] ?? ''),
+            'text' => $this->collegeLabel($college),
+        ]);
+    }
+
+    public function filterSections(Request $request): JsonResponse
+    {
+        $validated = $this->select2Filters($request, [
+            'campus_id' => ['required', 'string'],
+            'term_id' => ['required', 'string'],
+            'college_id' => ['required', 'string'],
+            'q' => ['nullable', 'string'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $query = StudentPftResult::query()
+            ->select('section_id', 'section_name')
+            ->where('campus_id', $validated['campus_id'])
+            ->where('term_id', $validated['term_id'])
+            ->where('college_id', $validated['college_id'])
+            ->whereNotNull('section_id')
+            ->when($validated['q'] ?? null, function (Builder $query, string $search): void {
+                $search = addcslashes($search, '%_\\');
+                $query->where(function (Builder $query) use ($search): void {
+                    $query->where('section_id', 'like', "%{$search}%")
+                        ->orWhere('section_name', 'like', "%{$search}%");
+                });
+            })
+            ->groupBy('section_id', 'section_name')
+            ->orderBy('section_name')
+            ->orderBy('section_id');
+
+        return $this->select2FromQuery($query, $validated['page'] ?? 1, fn (StudentPftResult $row): array => [
+            'id' => (string) $row->section_id,
+            'text' => filled($row->section_name)
+                ? "{$row->section_id} - {$row->section_name}"
+                : (string) $row->section_id,
+        ]);
+    }
+
+    public function filterPftTestTypes(Request $request): JsonResponse
+    {
+        $validated = $this->select2Filters($request, [
+            'campus_id' => ['nullable', 'string'],
+            'term_id' => ['nullable', 'string'],
+            'college_id' => ['nullable', 'string'],
+            'section_id' => ['nullable', 'string'],
+            'q' => ['nullable', 'string'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $query = PftTestType::query()
+            ->whereHas('results', fn (Builder $query) => $this->applyOptionFilters($query, $validated))
+            ->when($validated['q'] ?? null, function (Builder $query, string $search): void {
+                $search = addcslashes($search, '%_\\');
+                $query->where('name', 'like', "%{$search}%");
+            })
+            ->orderBy('name');
+
+        return $this->select2FromQuery($query, $validated['page'] ?? 1, fn (PftTestType $type): array => [
+            'id' => (string) $type->id,
+            'text' => $type->name,
+        ]);
+    }
+
+    /**
+     * @return array{campus_id?: string|null, term_id?: string|null, college_id?: string|null, section_id?: string|null, test_type_id?: string|null}
+     */
+    private function filters(Request $request, bool $requireTerm = true): array
+    {
+        $validated = $request->validate([
+            'campus_id' => [$requireTerm ? 'required' : 'nullable', 'string'],
+            'term_id' => [$requireTerm ? 'required' : 'nullable', 'string'],
+            'college_id' => ['nullable', 'string'],
+            'section_id' => ['nullable', 'string'],
+            'test_type_id' => ['nullable', 'integer'],
+        ]);
+
+        return array_filter($validated, fn ($value): bool => filled($value));
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     */
+    private function filteredQuery(array $filters): Builder
+    {
+        return StudentPftResult::query()
+            ->with([
+                'testType.category.component',
+                'testType.interpretationRules' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('id'),
+                'user:id,name,email,student_no',
+            ])
+            ->when($filters['term_id'] ?? null, fn (Builder $query, string $termId) => $query->where('student_pft_results.term_id', $termId))
+            ->when($filters['campus_id'] ?? null, fn (Builder $query, string $campusId) => $query->where('student_pft_results.campus_id', $campusId))
+            ->when($filters['college_id'] ?? null, fn (Builder $query, string $collegeId) => $query->where('student_pft_results.college_id', $collegeId))
+            ->when($filters['section_id'] ?? null, fn (Builder $query, string $sectionId) => $query->where('student_pft_results.section_id', $sectionId))
+            ->when($filters['test_type_id'] ?? null, fn (Builder $query, string|int $testTypeId) => $query->where('student_pft_results.pft_test_type_id', $testTypeId));
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     */
+    private function hasRequiredResultFilters(array $filters): bool
+    {
+        return filled($filters['campus_id'] ?? null) && filled($filters['term_id'] ?? null);
+    }
+
+    private function applySearch(Builder $query, mixed $search): void
+    {
+        if (blank($search)) {
+            return;
+        }
+
+        $search = addcslashes((string) $search, '%_\\');
+
+        $query->where(function (Builder $query) use ($search): void {
+            $query
+                ->where('student_pft_results.term_id', 'like', "%{$search}%")
+                ->orWhere('student_pft_results.campus_id', 'like', "%{$search}%")
+                ->orWhere('student_pft_results.college_id', 'like', "%{$search}%")
+                ->orWhere('student_pft_results.section_id', 'like', "%{$search}%")
+                ->orWhere('student_pft_results.section_name', 'like', "%{$search}%")
+                ->orWhere('student_pft_results.year_level_id', 'like', "%{$search}%")
+                ->orWhere('student_pft_results.remarks', 'like', "%{$search}%")
+                ->orWhere('student_pft_results.status', 'like', "%{$search}%")
+                ->orWhereHas('user', function (Builder $query) use ($search): void {
+                    $query->where('name', 'like', "%{$search}%")
+                        ->orWhere('student_no', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%");
+                })
+                ->orWhereHas('testType', fn (Builder $query) => $query->where('name', 'like', "%{$search}%"));
+        });
+    }
+
+    private function groupedCount(Builder $query): int
+    {
+        return $query
+            ->withoutEagerLoads()
+            ->select('user_id', 'term_id')
+            ->groupBy('user_id', 'term_id')
+            ->get()
+            ->count();
+    }
+
+    private function groupedQuery(Builder $query): Builder
+    {
+        return $query
+            ->withoutEagerLoads()
+            ->leftJoin('users', 'users.id', '=', 'student_pft_results.user_id')
+            ->selectRaw('student_pft_results.user_id')
+            ->selectRaw('student_pft_results.term_id')
+            ->selectRaw('MAX(student_pft_results.id) as latest_id')
+            ->selectRaw('COUNT(*) as test_count')
+            ->selectRaw('MAX(student_pft_results.tested_at) as latest_tested_at')
+            ->selectRaw('MAX(student_pft_results.created_at) as latest_created_at')
+            ->selectRaw('MAX(student_pft_results.campus_id) as campus_id')
+            ->selectRaw('MAX(student_pft_results.college_id) as college_id')
+            ->selectRaw('MAX(student_pft_results.section_id) as section_id')
+            ->selectRaw('MAX(student_pft_results.section_name) as section_name')
+            ->selectRaw('MAX(student_pft_results.year_level_id) as year_level_id')
+            ->selectRaw('MAX(users.name) as student_name')
+            ->selectRaw('MAX(users.student_no) as student_no')
+            ->groupBy('student_pft_results.user_id', 'student_pft_results.term_id');
+    }
+
+    private function applyGroupedOrdering(Builder $query, Request $request): void
+    {
+        $columnIndex = $request->integer('order.0.column', 1);
+        $direction = $request->input('order.0.dir') === 'asc' ? 'asc' : 'desc';
+        $column = self::ORDER_COLUMNS[$columnIndex] ?? 'latest_tested_at';
+
+        $query->orderBy($column, $direction)->orderByDesc('latest_id');
+    }
+
+    private function applyOrdering(Builder $query, Request $request): void
+    {
+        $columnIndex = $request->integer('order.0.column', 1);
+        $direction = $request->input('order.0.dir') === 'asc' ? 'asc' : 'desc';
+        $column = self::ORDER_COLUMNS[$columnIndex] ?? 'tested_at';
+
+        if ($column === 'pft_test_types.name') {
+            $query
+                ->leftJoin('pft_test_types', 'pft_test_types.id', '=', 'student_pft_results.pft_test_type_id')
+                ->select('student_pft_results.*')
+                ->orderBy('pft_test_types.name', $direction);
+
+            return;
+        }
+
+        $query->orderBy($column, $direction)->orderByDesc('id');
+    }
+
+    private function dataTablesLength(Request $request): int
+    {
+        $length = $request->integer('length', 10);
+
+        if ($length === -1) {
+            return 500;
+        }
+
+        return in_array($length, self::PAGE_SIZES, true) ? $length : 10;
+    }
+
+    private function tableRow(StudentPftResult $row, int $number): array
+    {
+        return [
+            'number' => $number,
+            'tested_date' => $row->tested_at?->toDateString(),
+            'term' => $row->term_id,
+            'campus' => $row->campus_id,
+            'college' => $row->college_id,
+            'section_id' => $row->section_id,
+            'section_name' => $row->section_name,
+            'year_level' => $row->year_level_id,
+            'pft_test_type' => $row->testType?->name,
+            'results' => $this->resultLines($row),
+            'remarks' => $row->remarks,
+            'status' => Str::headline((string) $row->status),
+            'created_at' => $row->created_at?->toDateTimeString(),
+        ];
+    }
+
+    private function groupedTableRow(?StudentPftResult $row, Collection $details, int $number, int $testCount, array $labels, array $termComparison): array
+    {
+        if (! $row) {
+            return [];
+        }
+
+        return [
+            'number' => $number,
+            'user_id' => $row->user_id,
+            'student_name' => $row->user?->name ?? 'User #'.$row->user_id,
+            'student_no' => $row->user?->student_no,
+            'student_email' => $row->user?->email,
+            'term' => $row->term_id,
+            'term_label' => $labels['term'] ?? $row->term_id,
+            'campus' => $row->campus_id,
+            'campus_label' => $labels['campus'] ?? $row->campus_id,
+            'college' => $row->college_id,
+            'college_label' => $labels['colleges'][(string) $row->college_id] ?? $row->college_id,
+            'section_id' => $row->section_id,
+            'section_name' => $row->section_name,
+            'year_level' => $row->year_level_id,
+            'test_count' => $testCount,
+            'latest_tested_date' => $row->tested_at?->toDateString(),
+            'latest_created_at' => $row->created_at?->toDateTimeString(),
+            'details' => $details->map(fn (StudentPftResult $detail): array => $this->detailRow($detail))->values(),
+            'current_analytics' => $this->currentDrawerAnalytics($details),
+            'term_comparison' => $termComparison,
+            'result_comparisons' => $this->resultComparisons($details, $termComparison['result_averages'] ?? []),
+            'interpretation_comparisons' => $this->interpretationComparisons($details, $termComparison['interpretation_by_test_type'] ?? []),
+            'radar_profile' => $this->radarProfile($details, $termComparison['normalized_scores'] ?? []),
+        ];
+    }
+
+    private function drawerLabels(array $filters): array
+    {
+        $labels = [
+            'campus' => null,
+            'term' => null,
+            'colleges' => [],
+        ];
+
+        $campus = $this->campusFor((string) ($filters['campus_id'] ?? ''));
+        if ($campus) {
+            $labels['campus'] = $campus->campus_name;
+
+            $term = SiteAcademicTerm::query()
+                ->where('site_campus_id', $campus->id)
+                ->where('term_id', $filters['term_id'] ?? null)
+                ->first();
+
+            if ($term) {
+                $labels['term'] = $this->termLabel((string) $term->term_id, $term);
+            }
+        }
+
+        $labels['colleges'] = collect($this->academicApi->getColleges(auth()->user()?->tenant_id)['data'] ?? [])
+            ->filter(fn (array $college): bool => (string) ($college['campusId'] ?? '') === (string) ($filters['campus_id'] ?? ''))
+            ->mapWithKeys(fn (array $college): array => [
+                (string) ($college['collegeId'] ?? '') => $this->collegeLabel($college),
+            ])
+            ->filter()
+            ->all();
+
+        return $labels;
+    }
+
+    private function detailRow(StudentPftResult $row): array
+    {
+        return [
+            'id' => $row->id,
+            'tested_date' => $row->tested_at?->toDateString(),
+            'pft_test_type' => $row->testType?->name,
+            'category' => $row->testType?->category?->name,
+            'component' => $row->testType?->category?->component?->name,
+            'results' => $this->resultLines($row),
+            'interpretation' => $this->resultInterpretation($row),
+            'remarks' => $row->remarks,
+            'status' => Str::headline((string) $row->status),
+            'created_at' => $row->created_at?->toDateTimeString(),
+        ];
+    }
+
+    private function detailsForGroups(Collection $latestRows): Collection
+    {
+        if ($latestRows->isEmpty()) {
+            return collect();
+        }
+
+        $pairs = $latestRows
+            ->map(fn (StudentPftResult $row): array => [
+                'user_id' => $row->user_id,
+                'term_id' => $row->term_id,
+            ])
+            ->unique(fn (array $pair): string => $this->groupKey((int) $pair['user_id'], (string) $pair['term_id']))
+            ->values();
+
+        $details = StudentPftResult::query()
+            ->with([
+                'testType.category.component',
+                'testType.interpretationRules' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('id'),
+            ])
+            ->where(function (Builder $query) use ($pairs): void {
+                $pairs->each(function (array $pair) use ($query): void {
+                    $query->orWhere(function (Builder $query) use ($pair): void {
+                        $query
+                            ->where('user_id', $pair['user_id'])
+                            ->where('term_id', $pair['term_id']);
+                    });
+                });
+            })
+            ->orderByDesc('tested_at')
+            ->orderByDesc('created_at')
+            ->get();
+
+        return $details->groupBy(fn (StudentPftResult $row): string => $this->groupKey((int) $row->user_id, (string) $row->term_id));
+    }
+
+    private function groupKey(int $userId, string $termId): string
+    {
+        return $userId.'|'.$termId;
+    }
+
+    private function currentDrawerAnalytics(Collection $details): array
+    {
+        $interpretationAnalytics = $this->interpretationAnalytics($details);
+
+        return [
+            'total_tests' => $details->count(),
+            'completed' => $details->where('status', 'completed')->count(),
+            'draft' => $details->where('status', 'draft')->count(),
+            'numeric_tests' => $details->filter(fn (StudentPftResult $row): bool => $this->primaryNumericResult($row) !== null)->count(),
+            'interpreted' => $interpretationAnalytics['interpreted'],
+            'unclassified' => $interpretationAnalytics['unclassified'],
+            'interpretations' => $interpretationAnalytics['distribution'],
+            'component_interpretations' => $interpretationAnalytics['components'],
+            'components' => $details
+                ->groupBy(fn (StudentPftResult $row): string => $row->testType?->category?->component?->name ?? 'Uncategorized')
+                ->map(fn (Collection $rows, string $component): array => [
+                    'label' => $component,
+                    'value' => $rows->count(),
+                ])
+                ->values()
+                ->all(),
+            'bmi' => $this->averageBmi($details),
+        ];
+    }
+
+    private function resultComparisons(Collection $details, array $termAverages): array
+    {
+        return $details
+            ->map(function (StudentPftResult $row) use ($termAverages): ?array {
+                $value = $this->primaryNumericResult($row);
+                if ($value === null) {
+                    return null;
+                }
+
+                $testType = $row->testType?->name ?? 'PFT Test';
+                $termAverage = $termAverages[$testType] ?? null;
+
+                return [
+                    'label' => $testType,
+                    'component' => $row->testType?->category?->component?->name ?? 'Uncategorized',
+                    'category' => $row->testType?->category?->name ?? 'Uncategorized',
+                    'student_value' => round($value, 2),
+                    'term_average' => $termAverage,
+                    'difference' => $termAverage === null ? null : round($value - (float) $termAverage, 2),
+                    'unit' => $row->testType?->unit,
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    private function interpretationComparisons(Collection $details, array $termDistributionByTestType): array
+    {
+        return $details
+            ->map(function (StudentPftResult $row) use ($termDistributionByTestType): array {
+                $interpretation = $this->resultInterpretation($row);
+                $testType = $row->testType?->name ?? 'PFT Test';
+                $termDistribution = $termDistributionByTestType[$testType] ?? [];
+
+                return [
+                    'label' => $testType,
+                    'component' => $row->testType?->category?->component?->name ?? 'Uncategorized',
+                    'category' => $row->testType?->category?->name ?? 'Uncategorized',
+                    'student_label' => $interpretation['label'] ?? 'Unclassified',
+                    'student_color' => $interpretation['color'] ?? 'slate',
+                    'term_distribution' => $termDistribution,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function interpretationAnalytics(Collection $rows): array
+    {
+        $classifiedRows = $rows->map(fn (StudentPftResult $row): array => [
+            'row' => $row,
+            'interpretation' => $this->resultInterpretation($row),
+        ]);
+
+        $interpreted = $classifiedRows->filter(fn (array $item): bool => $item['interpretation'] !== null)->count();
+
+        return [
+            'interpreted' => $interpreted,
+            'unclassified' => $rows->count() - $interpreted,
+            'distribution' => $this->interpretationDistribution($classifiedRows),
+            'components' => $this->componentInterpretationDistribution($classifiedRows),
+            'test_types' => $this->testTypeInterpretationSummary($classifiedRows),
+            'by_test_type' => $classifiedRows
+                ->groupBy(fn (array $item): string => $item['row']->testType?->name ?? 'PFT Test')
+                ->map(fn (Collection $items): array => $this->interpretationDistribution($items))
+                ->all(),
+        ];
+    }
+
+    private function interpretationDistribution(Collection $classifiedRows): array
+    {
+        return $classifiedRows
+            ->groupBy(fn (array $item): string => $item['interpretation']['label'] ?? 'Unclassified')
+            ->map(function (Collection $items, string $label): array {
+                $interpretation = $items->first()['interpretation'] ?? null;
+
+                return [
+                    'label' => $label,
+                    'value' => $items->count(),
+                    'color' => $interpretation['color'] ?? 'slate',
+                ];
+            })
+            ->sortByDesc('value')
+            ->values()
+            ->all();
+    }
+
+    private function componentInterpretationDistribution(Collection $classifiedRows): array
+    {
+        return $classifiedRows
+            ->groupBy(fn (array $item): string => $item['row']->testType?->category?->component?->name ?? 'Uncategorized')
+            ->map(function (Collection $items, string $component): array {
+                $distribution = $this->interpretationDistribution($items);
+                $dominant = $distribution[0] ?? ['label' => 'Unclassified', 'value' => 0, 'color' => 'slate'];
+
+                return [
+                    'label' => $component,
+                    'value' => $items->count(),
+                    'dominant_label' => $dominant['label'],
+                    'dominant_color' => $dominant['color'],
+                    'interpretations' => $distribution,
+                ];
+            })
+            ->sortByDesc('value')
+            ->values()
+            ->all();
+    }
+
+    private function testTypeInterpretationSummary(Collection $classifiedRows): array
+    {
+        return $classifiedRows
+            ->groupBy(fn (array $item): string => $item['row']->testType?->name ?? 'PFT Test')
+            ->map(function (Collection $items, string $testType): array {
+                $distribution = $this->interpretationDistribution($items);
+                $dominant = $distribution[0] ?? ['label' => 'Unclassified', 'value' => 0, 'color' => 'slate'];
+
+                return [
+                    'label' => $testType,
+                    'value' => $items->count(),
+                    'dominant_label' => $dominant['label'],
+                    'dominant_color' => $dominant['color'],
+                    'interpretations' => $distribution,
+                ];
+            })
+            ->sortByDesc('value')
+            ->take(10)
+            ->values()
+            ->all();
+    }
+
+    private function hierarchyAnalytics(Collection $rows): array
+    {
+        $classifiedRows = $rows->map(fn (StudentPftResult $row): array => [
+            'row' => $row,
+            'interpretation' => $this->resultInterpretation($row),
+        ]);
+
+        return $classifiedRows
+            ->groupBy(fn (array $item): string => $item['row']->testType?->category?->component?->name ?? 'Uncategorized')
+            ->map(function (Collection $componentRows, string $component): array {
+                return [
+                    'label' => $component,
+                    'value' => $componentRows->count(),
+                    'students' => $this->studentCountForClassifiedRows($componentRows),
+                    'interpretations' => $this->interpretationDistribution($componentRows),
+                    'categories' => $componentRows
+                        ->groupBy(fn (array $item): string => $item['row']->testType?->category?->name ?? 'Uncategorized')
+                        ->map(function (Collection $categoryRows, string $category): array {
+                            return [
+                                'label' => $category,
+                                'value' => $categoryRows->count(),
+                                'students' => $this->studentCountForClassifiedRows($categoryRows),
+                                'interpretations' => $this->interpretationDistribution($categoryRows),
+                                'test_types' => $categoryRows
+                                    ->groupBy(fn (array $item): string => $item['row']->testType?->name ?? 'PFT Test')
+                                    ->map(function (Collection $testTypeRows, string $testType): array {
+                                        return [
+                                            'label' => $testType,
+                                            'value' => $testTypeRows->count(),
+                                            'students' => $this->studentCountForClassifiedRows($testTypeRows),
+                                            'interpretations' => $this->interpretationDistribution($testTypeRows),
+                                        ];
+                                    })
+                                    ->sortBy('label')
+                                    ->values()
+                                    ->all(),
+                            ];
+                        })
+                        ->sortBy('label')
+                        ->values()
+                        ->all(),
+                ];
+            })
+            ->sortBy('label')
+            ->values()
+            ->all();
+    }
+
+    private function studentCountForClassifiedRows(Collection $classifiedRows): int
+    {
+        return $classifiedRows
+            ->map(fn (array $item): string => $this->groupKey((int) $item['row']->user_id, (string) $item['row']->term_id))
+            ->unique()
+            ->count();
+    }
+
+    private function resultInterpretation(StudentPftResult $row): ?array
+    {
+        if (! $row->testType) {
+            return null;
+        }
+
+        $results = json_decode($row->getRawOriginal('results_json'), true) ?? [];
+
+        return $this->interpretationService->interpret($row->testType, $results);
+    }
+
+    private function averageBmi(Collection $rows): ?float
+    {
+        $values = $rows
+            ->map(function (StudentPftResult $row): ?float {
+                $data = json_decode($row->getRawOriginal('results_json'), true) ?? [];
+                $value = $data['bmi'] ?? null;
+
+                return is_numeric($value) ? (float) $value : null;
+            })
+            ->filter()
+            ->values();
+
+        return $values->isEmpty() ? null : round((float) $values->avg(), 2);
+    }
+
+    private function termComparison(array $filters): array
+    {
+        if (! $this->hasRequiredResultFilters($filters)) {
+            return [
+                'total_tests' => 0,
+                'students' => 0,
+                'completed' => 0,
+                'draft' => 0,
+                'numeric_tests' => 0,
+                'interpreted' => 0,
+                'unclassified' => 0,
+                'components' => [],
+                'test_types' => [],
+                'interpretations' => [],
+                'component_interpretations' => [],
+                'interpretation_by_test_type' => [],
+                'bmi_average' => null,
+                'result_averages' => [],
+                'normalized_scores' => [],
+            ];
+        }
+
+        $rows = $this->filteredQuery($filters)->get();
+        $interpretationAnalytics = $this->interpretationAnalytics($rows);
+
+        return [
+            'total_tests' => $rows->count(),
+            'students' => $rows
+                ->map(fn (StudentPftResult $row): string => $this->groupKey((int) $row->user_id, (string) $row->term_id))
+                ->unique()
+                ->count(),
+            'completed' => $rows->where('status', 'completed')->count(),
+            'draft' => $rows->where('status', 'draft')->count(),
+            'numeric_tests' => $rows->filter(fn (StudentPftResult $row): bool => $this->primaryNumericResult($row) !== null)->count(),
+            'interpreted' => $interpretationAnalytics['interpreted'],
+            'unclassified' => $interpretationAnalytics['unclassified'],
+            'components' => $rows
+                ->groupBy(fn (StudentPftResult $row): string => $row->testType?->category?->component?->name ?? 'Uncategorized')
+                ->map(fn (Collection $rows, string $component): array => [
+                    'label' => $component,
+                    'value' => $rows->count(),
+                ])
+                ->sortByDesc('value')
+                ->values()
+                ->all(),
+            'test_types' => $rows
+                ->groupBy(fn (StudentPftResult $row): string => $row->testType?->name ?? 'PFT Test')
+                ->map(fn (Collection $rows, string $testType): array => [
+                    'label' => $testType,
+                    'value' => $rows->count(),
+                ])
+                ->sortByDesc('value')
+                ->take(8)
+                ->values()
+                ->all(),
+            'interpretations' => $interpretationAnalytics['distribution'],
+            'component_interpretations' => $interpretationAnalytics['components'],
+            'interpretation_by_test_type' => $interpretationAnalytics['by_test_type'],
+            'bmi_average' => $this->averageBmi($rows),
+            'result_averages' => $rows
+                ->groupBy(fn (StudentPftResult $row): string => $row->testType?->name ?? 'PFT Test')
+                ->map(function (Collection $rows): ?float {
+                    $values = $rows
+                        ->map(fn (StudentPftResult $row): ?float => $this->primaryNumericResult($row))
+                        ->filter()
+                        ->values();
+
+                    return $values->isEmpty() ? null : round((float) $values->avg(), 2);
+                })
+                ->filter(fn (?float $value): bool => $value !== null)
+                ->all(),
+            'normalized_scores' => $this->normalizedScores($rows),
+        ];
+    }
+
+    private function normalizedScores(Collection $rows): array
+    {
+        return $rows
+            ->map(function (StudentPftResult $row): ?array {
+                $interpretation = $this->resultInterpretation($row);
+                if (! $interpretation) {
+                    return null;
+                }
+
+                return [
+                    'test_type_id' => $row->pft_test_type_id,
+                    'test_type' => $row->testType?->name ?? 'PFT Test',
+                    'category' => $row->testType?->category?->name ?? 'Uncategorized',
+                    'interpretation' => $interpretation['label'],
+                    'color' => $interpretation['color'],
+                    'score' => $this->interpretationScore($interpretation),
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    private function radarProfile(Collection $details, array $interpretationScores): array
+    {
+        $studentScores = $details
+            ->map(function (StudentPftResult $row): ?array {
+                $interpretation = $this->resultInterpretation($row);
+                if (! $interpretation) {
+                    return null;
+                }
+
+                return [
+                    'category' => $row->testType?->category?->name ?? 'Uncategorized',
+                    'score' => $this->interpretationScore($interpretation),
+                ];
+            })
+            ->filter()
+            ->values();
+
+        $termScores = collect($interpretationScores);
+        $axes = $termScores
+            ->pluck('category')
+            ->merge($studentScores->pluck('category'))
+            ->unique()
+            ->values();
+
+        return [
+            'labels' => $axes->all(),
+            'currentLabel' => 'Student',
+            'previousLabel' => 'Term Average',
+            'current' => $axes
+                ->map(fn (string $axis): int => (int) round($studentScores->where('category', $axis)->avg('score')))
+                ->all(),
+            'previous' => $axes
+                ->map(fn (string $axis): int => (int) round($termScores->where('category', $axis)->avg('score')))
+                ->all(),
+        ];
+    }
+
+    private function interpretationScore(array $interpretation): int
+    {
+        return match ($interpretation['color'] ?? null) {
+            'emerald', 'green' => 100,
+            'lime' => 80,
+            'amber' => 55,
+            'orange' => 40,
+            'red', 'rose' => 20,
+            default => 50,
+        };
+    }
+
+    private function primaryNumericResult(StudentPftResult $row): ?float
+    {
+        $data = json_decode($row->getRawOriginal('results_json'), true) ?? [];
+
+        foreach (['score', 'bmi', 'value', 'result'] as $key) {
+            if (isset($data[$key]) && is_numeric($data[$key])) {
+                return (float) $data[$key];
+            }
+        }
+
+        foreach ($data as $value) {
+            if (is_numeric($value)) {
+                return (float) $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function exportRow(StudentPftResult $row, int $number): array
+    {
+        $tableRow = $this->tableRow($row, $number);
+
+        return [
+            $tableRow['number'],
+            $tableRow['tested_date'],
+            $tableRow['term'],
+            $tableRow['campus'],
+            $tableRow['college'],
+            $tableRow['section_id'],
+            $tableRow['section_name'],
+            $tableRow['year_level'],
+            $tableRow['pft_test_type'],
+            collect($tableRow['results'])->map(fn (array $line): string => "{$line['label']}: {$line['value']}")->implode("\n"),
+            $tableRow['remarks'],
+            $tableRow['status'],
+            $tableRow['created_at'],
+        ];
+    }
+
+    /**
+     * @return array<int, array{key: string, label: string, value: string}>
+     */
+    private function resultLines(StudentPftResult $row): array
+    {
+        $data = json_decode($row->getRawOriginal('results_json'), true) ?? [];
+
+        return collect($data)
+            ->map(fn (mixed $value, string|int $key): array => [
+                'key' => (string) $key,
+                'label' => Str::headline((string) $key),
+                'value' => $this->formatResultValue($value),
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function formatResultValue(mixed $value): string
+    {
+        if (is_bool($value)) {
+            return $value ? 'Yes' : 'No';
+        }
+
+        if (is_scalar($value) || $value === null) {
+            return filled($value) ? (string) $value : '-';
+        }
+
+        return json_encode($value, JSON_UNESCAPED_SLASHES) ?: '-';
+    }
+
+    private function termLabel(string $termId, ?SiteAcademicTerm $term): string
+    {
+        if (! $term) {
+            return $termId;
+        }
+
+        $status = $term->status ? " ({$term->status})" : '';
+
+        return trim("{$term->school_year} {$term->semester}{$status}") ?: $termId;
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     */
+    private function applyOptionFilters(Builder $query, array $filters): void
+    {
+        $query
+            ->when($filters['term_id'] ?? null, fn (Builder $query, string $termId) => $query->where('term_id', $termId))
+            ->when($filters['campus_id'] ?? null, fn (Builder $query, string $campusId) => $query->where('campus_id', $campusId))
+            ->when($filters['college_id'] ?? null, fn (Builder $query, string $collegeId) => $query->where('college_id', $collegeId))
+            ->when($filters['section_id'] ?? null, fn (Builder $query, string $sectionId) => $query->where('section_id', $sectionId));
+    }
+
+    private function emptyAnalytics(): array
+    {
+        return [
+            'stats' => [
+                'total' => 0,
+                'completed' => 0,
+                'draft' => 0,
+                'interpreted' => 0,
+                'unclassified' => 0,
+                'test_types' => 0,
+                'students' => 0,
+                'sections' => 0,
+            ],
+            'interpretations' => [],
+            'componentInterpretations' => [],
+            'testTypeInterpretations' => [],
+            'hierarchy' => [],
+            'status' => [],
+            'testTypes' => [],
+            'campuses' => [],
+            'colleges' => [],
+            'yearLevels' => [],
+            'bmi' => [
+                'average' => null,
+                'distribution' => [
+                    ['label' => 'Underweight', 'value' => 0],
+                    ['label' => 'Normal', 'value' => 0],
+                    ['label' => 'Overweight', 'value' => 0],
+                    ['label' => 'Obese', 'value' => 0],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $rules
+     * @return array<string, mixed>
+     */
+    private function select2Filters(Request $request, array $rules): array
+    {
+        return $request->validate($rules);
+    }
+
+    private function select2FromQuery(Builder $query, int $page, callable $mapper): JsonResponse
+    {
+        $perPage = 20;
+        $items = $query
+            ->skip((max($page, 1) - 1) * $perPage)
+            ->take($perPage + 1)
+            ->get();
+
+        return response()->json([
+            'results' => $items->take($perPage)->map($mapper)->values(),
+            'pagination' => [
+                'more' => $items->count() > $perPage,
+            ],
+        ]);
+    }
+
+    private function select2FromCollection(Collection $collection, int $page, callable $mapper): JsonResponse
+    {
+        $perPage = 20;
+        $offset = (max($page, 1) - 1) * $perPage;
+        $items = $collection->slice($offset)->take($perPage + 1)->values();
+
+        return response()->json([
+            'results' => $items->take($perPage)->map($mapper)->filter(fn (array $item): bool => filled($item['id']))->values(),
+            'pagination' => [
+                'more' => $items->count() > $perPage,
+            ],
+        ]);
+    }
+
+    private function campusFor(string $campusId): ?SiteCampus
+    {
+        return SiteCampus::query()
+            ->where('real_campus_id', $campusId)
+            ->orWhere('id', $campusId)
+            ->first(['id', 'real_campus_id', 'campus_name']);
+    }
+
+    private function collegeLabel(array $college): string
+    {
+        $code = trim((string) ($college['collegeCode'] ?? ''));
+        $name = trim((string) ($college['collegeName'] ?? ''));
+
+        return trim($code.' - '.$name, ' -') ?: (string) ($college['collegeId'] ?? 'College');
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     * @return array<string, array{id: string, text: string}|null>
+     */
+    private function selectedOptions(array $filters): array
+    {
+        return [
+            'campus' => $this->selectedCampus($filters['campus_id'] ?? null),
+            'term' => $this->selectedTerm($filters['campus_id'] ?? null, $filters['term_id'] ?? null),
+            'college' => $this->selectedCollege($filters['campus_id'] ?? null, $filters['college_id'] ?? null),
+            'section' => $this->selectedSection($filters),
+            'testType' => $this->selectedTestType($filters['test_type_id'] ?? null),
+        ];
+    }
+
+    private function selectedCampus(?string $campusId): ?array
+    {
+        if (blank($campusId)) {
+            return null;
+        }
+
+        $campus = $this->campusFor($campusId);
+
+        return $campus ? [
+            'id' => (string) ($campus->real_campus_id ?: $campus->id),
+            'text' => trim(($campus->real_campus_id ? "{$campus->real_campus_id} - " : '').$campus->campus_name),
+        ] : null;
+    }
+
+    private function selectedTerm(?string $campusId, ?string $termId): ?array
+    {
+        if (blank($campusId) || blank($termId)) {
+            return null;
+        }
+
+        $campus = $this->campusFor($campusId);
+        if (! $campus) {
+            return null;
+        }
+
+        $term = SiteAcademicTerm::query()
+            ->where('site_campus_id', $campus->id)
+            ->where('term_id', $termId)
+            ->first();
+
+        return $term ? [
+            'id' => (string) $term->term_id,
+            'text' => $this->termLabel((string) $term->term_id, $term),
+        ] : null;
+    }
+
+    private function selectedCollege(?string $campusId, ?string $collegeId): ?array
+    {
+        if (blank($campusId) || blank($collegeId)) {
+            return null;
+        }
+
+        $college = collect($this->academicApi->getColleges(auth()->user()?->tenant_id)['data'] ?? [])
+            ->first(fn (array $college): bool => (string) ($college['campusId'] ?? '') === (string) $campusId
+                && (string) ($college['collegeId'] ?? '') === (string) $collegeId);
+
+        return $college ? [
+            'id' => (string) $collegeId,
+            'text' => $this->collegeLabel($college),
+        ] : null;
+    }
+
+    private function selectedSection(array $filters): ?array
+    {
+        if (blank($filters['campus_id'] ?? null) || blank($filters['term_id'] ?? null) || blank($filters['college_id'] ?? null) || blank($filters['section_id'] ?? null)) {
+            return null;
+        }
+
+        $row = StudentPftResult::query()
+            ->where('campus_id', $filters['campus_id'])
+            ->where('term_id', $filters['term_id'])
+            ->where('college_id', $filters['college_id'])
+            ->where('section_id', $filters['section_id'])
+            ->first(['section_id', 'section_name']);
+
+        return $row ? [
+            'id' => (string) $row->section_id,
+            'text' => filled($row->section_name) ? "{$row->section_id} - {$row->section_name}" : (string) $row->section_id,
+        ] : null;
+    }
+
+    private function selectedTestType(string|int|null $testTypeId): ?array
+    {
+        if (blank($testTypeId)) {
+            return null;
+        }
+
+        $testType = PftTestType::query()->find($testTypeId, ['id', 'name']);
+
+        return $testType ? [
+            'id' => (string) $testType->id,
+            'text' => $testType->name,
+        ] : null;
+    }
+
+    private function groupCounts(Builder $query, string $column, string $label): array
+    {
+        return $query
+            ->withoutEagerLoads()
+            ->selectRaw("{$column} as label, COUNT(*) as total")
+            ->whereNotNull($column)
+            ->groupBy($column)
+            ->orderByDesc('total')
+            ->limit(10)
+            ->get()
+            ->map(fn ($row): array => [
+                'label' => Str::headline((string) ($row->label ?: $label)),
+                'value' => (int) $row->total,
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function testTypeCounts(Builder $query): array
+    {
+        return $query
+            ->withoutEagerLoads()
+            ->join('pft_test_types', 'pft_test_types.id', '=', 'student_pft_results.pft_test_type_id')
+            ->selectRaw('pft_test_types.name as label, COUNT(*) as total')
+            ->groupBy('pft_test_types.name')
+            ->orderByDesc('total')
+            ->limit(10)
+            ->get()
+            ->map(fn ($row): array => [
+                'label' => (string) $row->label,
+                'value' => (int) $row->total,
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function bmiAnalytics(Builder $query): array
+    {
+        $values = $query
+            ->withoutEagerLoads()
+            ->get(['results_json'])
+            ->map(function (StudentPftResult $row): ?float {
+                $data = json_decode($row->getRawOriginal('results_json'), true) ?? [];
+                $value = $data['bmi'] ?? null;
+
+                return is_numeric($value) ? (float) $value : null;
+            })
+            ->filter()
+            ->values();
+
+        return [
+            'average' => $values->isEmpty() ? null : round((float) $values->avg(), 2),
+            'distribution' => [
+                ['label' => 'Underweight', 'value' => $values->filter(fn (float $value): bool => $value < 18.5)->count()],
+                ['label' => 'Normal', 'value' => $values->filter(fn (float $value): bool => $value >= 18.5 && $value < 25)->count()],
+                ['label' => 'Overweight', 'value' => $values->filter(fn (float $value): bool => $value >= 25 && $value < 30)->count()],
+                ['label' => 'Obese', 'value' => $values->filter(fn (float $value): bool => $value >= 30)->count()],
+            ],
+        ];
+    }
+}

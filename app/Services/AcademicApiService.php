@@ -391,6 +391,62 @@ class AcademicApiService
         ];
     }
 
+    public function getColleges(int|string|null $tenantId): array
+    {
+        if (blank($tenantId)) {
+            return [
+                'data' => [],
+                'error' => 'No tenant ID is linked to your account.',
+            ];
+        }
+
+        $endpoint = 'College/list';
+
+        try {
+            $response = $this->client()
+                ->retry(2, 200)
+                ->get($endpoint, [
+                    'tenantId' => $tenantId,
+                ]);
+
+            if (! $response->successful()) {
+                Log::warning('Unable to load colleges', [
+                    'tenant_id' => $tenantId,
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                    'url' => $this->urlFor($endpoint),
+                ]);
+
+                return [
+                    'data' => [],
+                    'error' => 'Unable to load colleges right now.',
+                ];
+            }
+
+            $colleges = collect($this->listFromPayload($response->json()))
+                ->filter(fn (array $college): bool => (bool) ($college['inactive'] ?? false) === false)
+                ->values()
+                ->all();
+
+            return [
+                'data' => $colleges,
+                'error' => null,
+            ];
+        } catch (Throwable $exception) {
+            Log::warning('Unable to load colleges', [
+                'tenant_id' => $tenantId,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+                'url' => $this->urlFor($endpoint),
+            ]);
+
+            return [
+                'data' => [],
+                'error' => 'Unable to load colleges right now.',
+            ];
+        }
+    }
+
     public function gradeReportForStudent(?string $studentNo, ?string $tenantId): array
     {
         if (blank($studentNo)) {

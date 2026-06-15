@@ -74,6 +74,7 @@ class StudentProfileController extends Controller
                         'categories' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('name'),
                         'categories.testTypes' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('name'),
                         'categories.testTypes.configurations' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('field_label'),
+                        'categories.testTypes.interpretationRules' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('id'),
                     ])
                     ->orderBy('sort_order')
                     ->orderBy('name')

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PftCategory;
 use App\Models\PftComponent;
 use App\Models\PftConfiguration;
+use App\Models\PftInterpretationRule;
 use App\Models\PftTestType;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -196,6 +197,33 @@ class PhysicalFitnessConfigurationController extends Controller
         return back()->with('success', 'PFT field removed or deactivated.');
     }
 
+    public function storeInterpretationRule(Request $request): RedirectResponse
+    {
+        $request->user()->can('pft.configuration.create') || abort(403);
+
+        DB::transaction(fn () => PftInterpretationRule::query()->create($this->validateInterpretationRule($request)));
+
+        return back()->with('success', 'PFT interpretation rule created.');
+    }
+
+    public function updateInterpretationRule(Request $request, PftInterpretationRule $rule): RedirectResponse
+    {
+        $request->user()->can('pft.configuration.update') || abort(403);
+
+        DB::transaction(fn () => $rule->update($this->validateInterpretationRule($request)));
+
+        return back()->with('success', 'PFT interpretation rule updated.');
+    }
+
+    public function destroyInterpretationRule(Request $request, PftInterpretationRule $rule): RedirectResponse
+    {
+        $request->user()->can('pft.configuration.delete') || abort(403);
+
+        DB::transaction(fn () => $rule->delete());
+
+        return back()->with('success', 'PFT interpretation rule deleted.');
+    }
+
     private function validateComponent(Request $request, ?PftComponent $component = null): array
     {
         return $request->validate([
@@ -259,6 +287,25 @@ class PhysicalFitnessConfigurationController extends Controller
         return $validated;
     }
 
+    private function validateInterpretationRule(Request $request): array
+    {
+        $request->merge([
+            'min_value' => blank($request->input('min_value')) ? null : $request->input('min_value'),
+            'max_value' => blank($request->input('max_value')) ? null : $request->input('max_value'),
+        ]);
+
+        return $request->validate([
+            'pft_test_type_id' => ['required', 'exists:pft_test_types,id'],
+            'field_name' => ['required', 'string', 'max:255'],
+            'label' => ['required', 'string', 'max:255'],
+            'min_value' => ['nullable', 'numeric'],
+            'max_value' => ['nullable', 'numeric'],
+            'color' => ['nullable', 'string', 'max:255'],
+            'sort_order' => ['nullable', 'integer', 'min:0'],
+            'is_active' => ['boolean'],
+        ]);
+    }
+
     private function configurationTree(bool $includeInactive = false): array
     {
         return PftComponent::query()
@@ -266,6 +313,7 @@ class PhysicalFitnessConfigurationController extends Controller
                 'categories' => fn ($query) => $query->when(! $includeInactive, fn ($query) => $query->active())->orderBy('sort_order')->orderBy('name'),
                 'categories.testTypes' => fn ($query) => $query->when(! $includeInactive, fn ($query) => $query->active())->withCount('results')->orderBy('sort_order')->orderBy('name'),
                 'categories.testTypes.configurations' => fn ($query) => $query->when(! $includeInactive, fn ($query) => $query->active())->orderBy('sort_order')->orderBy('field_label'),
+                'categories.testTypes.interpretationRules' => fn ($query) => $query->when(! $includeInactive, fn ($query) => $query->active())->orderBy('sort_order')->orderBy('id'),
             ])
             ->when(! $includeInactive, fn ($query) => $query->active())
             ->orderBy('sort_order')

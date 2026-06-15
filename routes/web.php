@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\ReferenceLookupController;
 use App\Http\Controllers\Admin\RegistrarController;
+use App\Http\Controllers\Admin\Reporting\PftResultController;
 use App\Http\Controllers\AnnouncementCategoryController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\AuditLogController;
@@ -169,6 +170,29 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                 ->name('carbon-footprint.index');
         });
 
+    Route::prefix('admin/reporting/pft-result')
+        ->name('admin.reporting.pft-result.')
+        ->controller(PftResultController::class)
+        ->middleware('can:reporting.pft_result.view')
+        ->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/data', 'data')->name('data');
+            Route::get('/analytics', 'analytics')->name('analytics');
+            Route::prefix('filter')->name('filter.')->group(function () {
+                Route::get('/campuses', 'filterCampuses')->name('campuses');
+                Route::get('/terms', 'filterTerms')->name('terms');
+                Route::get('/colleges', 'filterColleges')->name('colleges');
+                Route::get('/sections', 'filterSections')->name('sections');
+                Route::get('/pft-test-types', 'filterPftTestTypes')->name('pft-test-types');
+            });
+            Route::get('/export/excel', 'exportExcel')
+                ->middleware('can:reporting.export')
+                ->name('export-excel');
+            Route::get('/export/pdf', 'exportPdf')
+                ->middleware('can:reporting.export')
+                ->name('export-pdf');
+        });
+
     Route::prefix('admin/registrar')
         ->name('admin.registrar.')
         ->controller(RegistrarController::class)
@@ -180,6 +204,9 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
             Route::get('report-of-grades', 'reportOfGrades')
                 ->middleware('can:registrar.report-of-grades.view')
                 ->name('report-of-grades.index');
+            Route::get('report-of-grades/curriculum/print', 'printCurriculum')
+                ->middleware('can:registrar.report-of-grades.view')
+                ->name('report-of-grades.curriculum.print');
             Route::post('report-of-grades/search', 'searchReportOfGrades')
                 ->middleware('can:registrar.report-of-grades.view')
                 ->name('report-of-grades.search');
@@ -517,6 +544,9 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                     Route::post('fields', 'storeConfiguration')->middleware('can:pft.configuration.create')->name('fields.store');
                     Route::patch('fields/{configuration}', 'updateConfiguration')->middleware('can:pft.configuration.update')->name('fields.update');
                     Route::delete('fields/{configuration}', 'destroyConfiguration')->middleware('can:pft.configuration.delete')->name('fields.destroy');
+                    Route::post('interpretation-rules', 'storeInterpretationRule')->middleware('can:pft.configuration.create')->name('interpretation-rules.store');
+                    Route::patch('interpretation-rules/{rule}', 'updateInterpretationRule')->middleware('can:pft.configuration.update')->name('interpretation-rules.update');
+                    Route::delete('interpretation-rules/{rule}', 'destroyInterpretationRule')->middleware('can:pft.configuration.delete')->name('interpretation-rules.destroy');
                 });
 
             Route::get('sar', fn () => Inertia::render('SiteSettings/Placeholder', ['title' => 'SAR']))->name('sar');

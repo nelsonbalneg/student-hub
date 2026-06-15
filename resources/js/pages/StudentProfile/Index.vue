@@ -25,9 +25,16 @@ import {
     Trophy,
     User,
     Users,
-    ChartColumnIncreasing
+    ChartColumnIncreasing,
 } from 'lucide-vue-next';
-import { computed, defineAsyncComponent, nextTick, onMounted, ref, watch } from 'vue';
+import {
+    computed,
+    defineAsyncComponent,
+    nextTick,
+    onMounted,
+    ref,
+    watch,
+} from 'vue';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -43,7 +50,6 @@ import { Label } from '@/components/ui/label';
 import * as achievementsRoutes from '@/routes/achievements';
 import * as pftRoutes from '@/routes/student-profile/physical-fitness';
 import * as trainingsRoutes from '@/routes/trainings';
-
 
 const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
 
@@ -114,6 +120,16 @@ type PftConfiguration = {
     is_required: boolean;
 };
 
+type PftInterpretationRule = {
+    id: number;
+    field_name: string;
+    label: string;
+    min_value: number | null;
+    max_value: number | null;
+    color: string | null;
+    is_active: boolean;
+};
+
 type PftTestType = {
     id: number;
     name: string;
@@ -121,6 +137,7 @@ type PftTestType = {
     description: string | null;
     unit: string | null;
     configurations: PftConfiguration[];
+    interpretation_rules: PftInterpretationRule[];
 };
 
 type PftCategory = {
@@ -400,10 +417,10 @@ const activeTabDescription = computed(() =>
 const selectedPftComponentId = ref(
     props.physicalFitness.components[0]?.id ?? null,
 );
-const selectedPftCategoryId = ref(
+const selectedPftCategoryId = ref<number | null>(
     props.physicalFitness.components[0]?.categories[0]?.id ?? null,
 );
-const selectedPftTestTypeId = ref(
+const selectedPftTestTypeId = ref<number | null>(
     props.physicalFitness.components[0]?.categories[0]?.test_types[0]?.id ??
         null,
 );
@@ -454,34 +471,15 @@ const activePftTerm = computed(
 );
 
 watch(selectedPftComponentId, () => {
-    const hasSelectedCategory = selectedPftComponent.value?.categories.some(
-        (category) => category.id === selectedPftCategoryId.value,
-    );
-
-    if (!hasSelectedCategory) {
-        selectedPftCategoryId.value =
-            selectedPftComponent.value?.categories[0]?.id ?? null;
-    }
-
-    const hasSelectedTestType = selectedPftCategory.value?.test_types.some(
-        (testType) => testType.id === selectedPftTestTypeId.value,
-    );
-
-    if (!hasSelectedTestType) {
-        selectedPftTestTypeId.value =
-            selectedPftCategory.value?.test_types[0]?.id ?? null;
-    }
+    selectedPftCategoryId.value =
+        selectedPftComponent.value?.categories[0]?.id ?? null;
+    selectedPftTestTypeId.value =
+        selectedPftCategory.value?.test_types[0]?.id ?? null;
 });
 
 watch(selectedPftCategoryId, () => {
-    const hasSelectedTestType = selectedPftCategory.value?.test_types.some(
-        (testType) => testType.id === selectedPftTestTypeId.value,
-    );
-
-    if (!hasSelectedTestType) {
-        selectedPftTestTypeId.value =
-            selectedPftCategory.value?.test_types[0]?.id ?? null;
-    }
+    selectedPftTestTypeId.value =
+        selectedPftCategory.value?.test_types[0]?.id ?? null;
 });
 
 const pftResultKey = (termId?: string | null, testTypeId?: number | null) =>
@@ -535,12 +533,11 @@ const pftRowIsDraft = (row?: PftRequirementRow | null) => {
 const pftRowIsCompleted = (row?: PftRequirementRow | null) =>
     Boolean(row?.result) && !pftRowIsDraft(row);
 
-const totalPftPendingCount = computed(
-    () =>
-        props.physicalFitness.canFillUp
-            ? pftRequirementRows.value.filter((row) => !pftRowIsCompleted(row))
-                  .length
-            : 0,
+const totalPftPendingCount = computed(() =>
+    props.physicalFitness.canFillUp
+        ? pftRequirementRows.value.filter((row) => !pftRowIsCompleted(row))
+              .length
+        : 0,
 );
 
 const selectedPftTermCompletedCount = computed(
@@ -600,17 +597,11 @@ const pftComponentCompletedCount = (component: PftComponent) =>
     );
 
 const hasPftDraftInput = computed(() => {
-    const hasResultValue = Object.values(pftForm.results).some((value) => {
+    return Object.values(pftForm.results).some((value) => {
         if (value === null || value === undefined) return false;
         if (typeof value === 'boolean') return value;
         return String(value).trim() !== '';
     });
-
-    return (
-        hasResultValue ||
-        pftForm.remarks.trim() !== '' ||
-        pftForm.tested_at.trim() !== ''
-    );
 });
 
 const pftTestStatus = (row?: (typeof pftRequirementRows.value)[number]) => {
@@ -671,7 +662,6 @@ const openPftTermDrawer = (term: PftTerm) => {
     });
 };
 
-const pftFormModalOpen = ref(false);
 const pftSummaryModalOpen = ref(false);
 const pftTermSummaryModalOpen = ref(false);
 const selectedPftSummaryRow = ref<PftRequirementRow | null>(null);
@@ -793,11 +783,12 @@ const pftResultInterpretation = (row?: PftRequirementRow | null) => {
 };
 
 const togglePftSummaryComponent = (componentId: number) => {
-    openPftSummaryComponentIds.value = openPftSummaryComponentIds.value.includes(
-        componentId,
-    )
-        ? openPftSummaryComponentIds.value.filter((id) => id !== componentId)
-        : [...openPftSummaryComponentIds.value, componentId];
+    openPftSummaryComponentIds.value =
+        openPftSummaryComponentIds.value.includes(componentId)
+            ? openPftSummaryComponentIds.value.filter(
+                  (id) => id !== componentId,
+              )
+            : [...openPftSummaryComponentIds.value, componentId];
 };
 
 const pftAnalyticsRows = computed(() => pftRequirementRows.value);
@@ -1007,7 +998,7 @@ const pftAnalyticsCompletionOptions = computed(() => ({
     chart: { toolbar: { show: false } },
     labels: ['Completed', 'Pending'],
     colors: ['#059669', '#f59e0b'],
-    legend: { position: 'bottom' },
+    legend: { position: 'bottom' as const },
     dataLabels: { enabled: true },
 }));
 
@@ -1075,7 +1066,7 @@ const pftAnalyticsComparisonSeries = computed(() => [
 const pftAnalyticsComparisonOptions = computed(() => ({
     chart: { toolbar: { show: false } },
     colors: ['#059669'],
-    stroke: { curve: 'smooth', width: 3 },
+    stroke: { curve: 'smooth' as const, width: 3 },
     markers: { size: 4 },
     dataLabels: { enabled: false },
     xaxis: {
@@ -1088,7 +1079,9 @@ const pftAnalyticsComparisonOptions = computed(() => ({
 
 const pftAnalyticsRadarSeries = computed(() => [
     {
-        name: pftAnalyticsData.value?.radarData?.currentLabel ?? 'Current Semester',
+        name:
+            pftAnalyticsData.value?.radarData?.currentLabel ??
+            'Current Semester',
         data: pftAnalyticsData.value?.radarData?.current ?? [],
     },
     {
@@ -1204,7 +1197,10 @@ const loadPftAnalytics = async () => {
     pftAnalyticsError.value = null;
 
     try {
-        const endpoint = new URL(pftRoutes.analytics.url(), window.location.origin);
+        const endpoint = new URL(
+            pftRoutes.analytics.url(),
+            window.location.origin,
+        );
         const filters = {
             term_id: pftAnalyticsFilterTermId.value,
             component_id: pftAnalyticsFilterComponentId.value,
@@ -1259,22 +1255,7 @@ const closePftAnalyticsDrawer = () => {
     pftAnalyticsDrawerOpen.value = false;
 };
 
-const selectPftTestType = (
-    component: PftComponent,
-    category: PftCategory,
-    testType: PftTestType,
-) => {
-    if (!props.physicalFitness.canFillUp) return;
 
-    selectedPftComponentId.value = component.id;
-    selectedPftCategoryId.value = category.id;
-    selectedPftTestTypeId.value = testType.id;
-
-    nextTick(() => {
-        loadPftResult();
-        pftFormModalOpen.value = true;
-    });
-};
 
 const openPftSummary = (row?: PftRequirementRow) => {
     if (!row?.result) return;
@@ -1294,15 +1275,11 @@ const openPftTermSummary = (term: PftTerm) => {
 
 const pftForm = useForm<{
     term_id: string;
-    results: Record<string, unknown>;
-    remarks: string;
-    tested_at: string;
+    results: Record<string, any>;
     is_draft: boolean;
 }>({
     term_id: '',
     results: {},
-    remarks: '',
-    tested_at: '',
     is_draft: false,
 });
 
@@ -1310,15 +1287,37 @@ const loadPftResult = () => {
     pftForm.term_id = selectedPftTermId.value ?? '';
     const result = pftResultFor(selectedPftTestTypeId.value);
     pftForm.results = { ...(result?.results_json ?? {}) };
-    pftForm.remarks = result?.remarks ?? '';
-    pftForm.tested_at = result?.tested_at
-        ? String(result.tested_at).slice(0, 10)
-        : '';
     pftForm.is_draft = false;
 };
 
 watch(selectedPftTestTypeId, loadPftResult, { immediate: true });
 watch(selectedPftTermId, loadPftResult);
+
+const interpretPftResults = (
+    testType: PftTestType | null | undefined,
+    results: Record<string, any>,
+) => {
+    for (const rule of testType?.interpretation_rules ?? []) {
+        const rawValue = results[rule.field_name];
+        const value = Number(rawValue);
+
+        if (!Number.isFinite(value)) {
+            continue;
+        }
+
+        if (rule.min_value !== null && value < Number(rule.min_value)) {
+            continue;
+        }
+
+        if (rule.max_value !== null && value > Number(rule.max_value)) {
+            continue;
+        }
+
+        return rule;
+    }
+
+    return null;
+};
 
 watch(
     () => [pftForm.results.height, pftForm.results.weight],
@@ -1332,21 +1331,14 @@ watch(
                     (w / (heightInMeters * heightInMeters)).toFixed(2),
                 );
                 pftForm.results.bmi = bmiVal;
-
-                let interpretation = '';
-                if (bmiVal < 18.5) {
-                    interpretation = 'Underweight';
-                } else if (bmiVal < 25.0) {
-                    interpretation = 'Normal';
-                } else if (bmiVal < 30.0) {
-                    interpretation = 'Overweight';
-                } else {
-                    interpretation = 'Obese';
-                }
-                pftForm.remarks = interpretation;
+                pftForm.results.remarks =
+                    interpretPftResults(selectedPftTestType.value, {
+                        ...pftForm.results,
+                        bmi: bmiVal,
+                    })?.label ?? '';
             } else {
                 pftForm.results.bmi = '';
-                pftForm.remarks = '';
+                pftForm.results.remarks = '';
             }
         }
     },
@@ -1368,7 +1360,6 @@ const submitPftResult = (isDraft = false) => {
         preserveScroll: true,
         preserveState: true,
         onSuccess: () => {
-            pftFormModalOpen.value = false;
             pftForm.is_draft = false;
         },
         onError: (errors) => {
@@ -2992,11 +2983,11 @@ watch(editMode, (val) => {
                                                 type="button"
                                                 variant="outline"
                                                 class="h-9 border-emerald-200 bg-white px-4 text-xs font-light text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/30 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
-                                                @click="
-                                                    openPftAnalyticsDrawer
-                                                "
+                                                @click="openPftAnalyticsDrawer"
                                             >
-                                             <ChartColumnIncreasing class="mr-2 h-4 w-4" />
+                                                <ChartColumnIncreasing
+                                                    class="mr-2 h-4 w-4"
+                                                />
                                                 View My Analytics
                                             </Button>
                                         </div>
@@ -3242,9 +3233,7 @@ watch(editMode, (val) => {
                                                                     term.termId
                                                                 "
                                                             >
-                                                                {{
-                                                                    term.label
-                                                                }}
+                                                                {{ term.label }}
                                                             </option>
                                                         </select>
                                                     </div>
@@ -3465,9 +3454,7 @@ watch(editMode, (val) => {
                                                     </div>
                                                 </section>
 
-                                                <section
-                                                    class="mt-6 space-y-3"
-                                                >
+                                                <section class="mt-6 space-y-3">
                                                     <div>
                                                         <p
                                                             class="text-sm text-slate-950 dark:text-white"
@@ -3723,10 +3710,9 @@ watch(editMode, (val) => {
                                                         <p
                                                             class="text-xs text-slate-500 dark:text-slate-400"
                                                         >
-                                                            Newest saved
-                                                            records across your
-                                                            fitness test
-                                                            requirements.
+                                                            Newest saved records
+                                                            across your fitness
+                                                            test requirements.
                                                         </p>
                                                     </div>
                                                     <div class="space-y-3">
@@ -3822,12 +3808,16 @@ watch(editMode, (val) => {
                                                                         "
                                                                     >
                                                                         <div>
-                                                                            <p class="text-sm text-slate-950 dark:text-white">
+                                                                            <p
+                                                                                class="text-sm text-slate-950 dark:text-white"
+                                                                            >
                                                                                 {{
                                                                                     componentGroup.name
                                                                                 }}
                                                                             </p>
-                                                                            <p class="text-xs text-slate-500 dark:text-slate-400">
+                                                                            <p
+                                                                                class="text-xs text-slate-500 dark:text-slate-400"
+                                                                            >
                                                                                 {{
                                                                                     componentGroup
                                                                                         .rows
@@ -3869,19 +3859,27 @@ watch(editMode, (val) => {
                                                                                 class="border-b border-slate-100 bg-slate-50 text-[11px] tracking-wide text-slate-500 uppercase dark:border-white/10 dark:bg-white/5 dark:text-slate-400"
                                                                             >
                                                                                 <tr>
-                                                                                    <th class="px-3 py-3">
+                                                                                    <th
+                                                                                        class="px-3 py-3"
+                                                                                    >
                                                                                         Category
                                                                                     </th>
-                                                                                    <th class="px-3 py-3">
+                                                                                    <th
+                                                                                        class="px-3 py-3"
+                                                                                    >
                                                                                         Result
                                                                                         /
                                                                                         Score
                                                                                     </th>
-                                                                                    <th class="px-3 py-3">
+                                                                                    <th
+                                                                                        class="px-3 py-3"
+                                                                                    >
                                                                                         Date
                                                                                         Tested
                                                                                     </th>
-                                                                                    <th class="px-3 py-3">
+                                                                                    <th
+                                                                                        class="px-3 py-3"
+                                                                                    >
                                                                                         Status
                                                                                     </th>
                                                                                 </tr>
@@ -3891,24 +3889,32 @@ watch(editMode, (val) => {
                                                                             >
                                                                                 <tr
                                                                                     v-for="row in componentGroup.rows"
-                                                                                    :key="row.id"
+                                                                                    :key="
+                                                                                        row.id
+                                                                                    "
                                                                                     class="text-slate-600 dark:text-slate-300"
                                                                                 >
-                                                                                    <td class="px-3 py-3 text-slate-900 dark:text-white">
+                                                                                    <td
+                                                                                        class="px-3 py-3 text-slate-900 dark:text-white"
+                                                                                    >
                                                                                         <div>
                                                                                             <p>
                                                                                                 {{
                                                                                                     row.category
                                                                                                 }}
                                                                                             </p>
-                                                                                            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                                                                            <p
+                                                                                                class="mt-1 text-xs text-slate-500 dark:text-slate-400"
+                                                                                            >
                                                                                                 {{
                                                                                                     row.testType
                                                                                                 }}
                                                                                             </p>
                                                                                         </div>
                                                                                     </td>
-                                                                                    <td class="px-3 py-3">
+                                                                                    <td
+                                                                                        class="px-3 py-3"
+                                                                                    >
                                                                                         {{
                                                                                             row.result
                                                                                         }}
@@ -3925,12 +3931,16 @@ watch(editMode, (val) => {
                                                                                             }})
                                                                                         </span>
                                                                                     </td>
-                                                                                    <td class="px-3 py-3">
+                                                                                    <td
+                                                                                        class="px-3 py-3"
+                                                                                    >
                                                                                         {{
                                                                                             row.dateTested
                                                                                         }}
                                                                                     </td>
-                                                                                    <td class="px-3 py-3">
+                                                                                    <td
+                                                                                        class="px-3 py-3"
+                                                                                    >
                                                                                         <span
                                                                                             class="inline-flex rounded-full px-2 py-1 text-[11px]"
                                                                                             :class="
@@ -4101,10 +4111,11 @@ watch(editMode, (val) => {
                                                     </div>
 
                                                     <div
-                                                        class="mb-5 grid min-h-[640px] overflow-hidden rounded-lg border border-slate-200 bg-white lg:grid-cols-[30%_70%] dark:border-white/10 dark:bg-slate-950"
+                                                        class="mb-5 grid min-h-[640px] overflow-hidden rounded-lg border border-slate-200 bg-white xl:grid-cols-2 2xl:grid-cols-[240px_240px_260px_minmax(0,1fr)] dark:border-white/10 dark:bg-slate-950"
                                                     >
+                                                        <!-- Column 1: Components -->
                                                         <section
-                                                            class="border-b border-slate-100 p-4 lg:border-r lg:border-b-0 dark:border-white/10"
+                                                            class="p-4 border-b border-slate-100 2xl:border-b-0 2xl:border-r dark:border-white/10 overflow-y-auto"
                                                             aria-label="Physical fitness components"
                                                         >
                                                             <div
@@ -4181,190 +4192,321 @@ watch(editMode, (val) => {
                                                             </div>
                                                         </section>
 
+                                                        <!-- Column 2: Categories -->
                                                         <section
-                                                            class="min-h-0 overflow-y-auto border-b border-slate-100 p-4 lg:border-b-0 dark:border-white/10"
-                                                            aria-label="Physical fitness categories and tests"
+                                                            class="p-4 border-b border-slate-100 2xl:border-b-0 2xl:border-r dark:border-white/10 overflow-y-auto"
+                                                            aria-label="Physical fitness categories"
                                                         >
                                                             <div
                                                                 class="mb-3 flex items-center justify-between"
                                                             >
-                                                                <div>
-                                                                    <h4
-                                                                        class="text-xs font-light tracking-wide text-slate-500 uppercase dark:text-slate-400"
-                                                                    >
-                                                                        Categories
-                                                                        & Tests
-                                                                    </h4>
-                                                                    <p
-                                                                        class="text-sm font-light text-slate-950 dark:text-white"
-                                                                    >
-                                                                        {{
-                                                                            selectedPftComponent?.name
-                                                                        }}
-                                                                    </p>
-                                                                </div>
+                                                                <h4
+                                                                    class="text-xs font-light tracking-wide text-slate-500 uppercase dark:text-slate-400"
+                                                                >
+                                                                    Categories
+                                                                </h4>
+                                                                <span
+                                                                    class="text-xs font-light text-slate-400"
+                                                                >
+                                                                    {{
+                                                                        selectedPftComponent?.categories?.length ?? 0
+                                                                    }}
+                                                                </span>
                                                             </div>
-
                                                             <div
-                                                                class="space-y-5"
+                                                                class="flex gap-2 overflow-x-auto pb-1 lg:block lg:space-y-2 lg:overflow-visible lg:pb-0"
                                                             >
                                                                 <div
-                                                                    v-for="category in selectedPftComponent?.categories ??
-                                                                    []"
-                                                                    :key="
-                                                                        category.id
+                                                                    v-for="category in selectedPftComponent?.categories ?? []"
+                                                                    :key="category.id"
+                                                                    class="flex items-center justify-between rounded-lg p-1 transition lg:mb-2"
+                                                                    :class="
+                                                                        selectedPftCategoryId === category.id
+                                                                            ? 'bg-emerald-600 text-white shadow-sm'
+                                                                            : 'bg-slate-50 text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200'
                                                                     "
                                                                 >
                                                                     <button
                                                                         type="button"
-                                                                        class="group mb-2 inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-light tracking-wide text-slate-500 uppercase transition-colors duration-200 hover:text-emerald-600 focus:outline-none dark:text-slate-400 dark:hover:text-emerald-400"
-                                                                        @click="
-                                                                            openCategoryDetailsModal(
-                                                                                category,
-                                                                            )
-                                                                        "
+                                                                        class="flex-1 px-2 py-2 text-left text-sm font-light focus:outline-none"
+                                                                        @click="selectedPftCategoryId = category.id"
                                                                     >
-                                                                        <span>{{
-                                                                            category.name
-                                                                        }}</span>
-                                                                        <Info
-                                                                            class="size-3 text-slate-400 transition-colors group-hover:text-emerald-600 dark:text-slate-500 dark:group-hover:text-emerald-400"
-                                                                        />
+                                                                        {{ category.name }}
                                                                     </button>
-                                                                    <div
-                                                                        class="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 dark:divide-white/10 dark:border-white/10"
+                                                                    <button
+                                                                        type="button"
+                                                                        class="px-2 focus:outline-none opacity-60 hover:opacity-100"
+                                                                        @click="openCategoryDetailsModal(category)"
                                                                     >
+                                                                        <Info class="size-3.5" />
+                                                                    </button>
+                                                                </div>
+                                                                <div
+                                                                    v-if="(selectedPftComponent?.categories ?? []).length === 0"
+                                                                    class="text-xs text-slate-400 dark:text-slate-500 p-2"
+                                                                >
+                                                                    No categories configured.
+                                                                </div>
+                                                            </div>
+                                                        </section>
+
+                                                        <!-- Column 3: Test Types -->
+                                                        <section
+                                                            class="p-4 border-b border-slate-100 2xl:border-b-0 2xl:border-r dark:border-white/10 overflow-y-auto"
+                                                            aria-label="Physical fitness test types"
+                                                        >
+                                                            <div
+                                                                class="mb-3 flex items-center justify-between"
+                                                            >
+                                                                <h4
+                                                                    class="text-xs font-light tracking-wide text-slate-500 uppercase dark:text-slate-400"
+                                                                >
+                                                                    Test Types
+                                                                </h4>
+                                                                <span
+                                                                    class="text-xs font-light text-slate-400"
+                                                                >
+                                                                    {{
+                                                                        selectedPftCategory?.test_types?.length ?? 0
+                                                                    }}
+                                                                </span>
+                                                            </div>
+                                                            <div
+                                                                class="flex gap-2 overflow-x-auto pb-1 lg:block lg:space-y-2 lg:overflow-visible lg:pb-0"
+                                                            >
+                                                                <button
+                                                                    v-for="testType in selectedPftCategory?.test_types ?? []"
+                                                                    :key="testType.id"
+                                                                    type="button"
+                                                                    class="min-w-48 w-full rounded-lg px-3 py-3 text-left transition focus:ring-2 focus:ring-emerald-500 focus:outline-none lg:min-w-0"
+                                                                    :class="
+                                                                        selectedPftTestTypeId === testType.id
+                                                                            ? 'bg-emerald-600 text-white shadow-sm'
+                                                                            : 'bg-slate-50 text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200'
+                                                                    "
+                                                                    @click="selectedPftTestTypeId = testType.id"
+                                                                >
+                                                                    <div class="flex items-center gap-2">
                                                                         <div
-                                                                            v-for="testType in category.test_types"
-                                                                            :key="
-                                                                                testType.id
-                                                                            "
-                                                                            class="flex w-full items-center gap-2 px-3 py-3 transition"
+                                                                            class="flex size-6 shrink-0 items-center justify-center rounded-full"
                                                                             :class="
-                                                                                selectedPftTestTypeId ===
-                                                                                testType.id
-                                                                                    ? 'border-l-4 border-l-emerald-500 bg-emerald-50 shadow-sm dark:bg-emerald-500/10'
-                                                                                    : 'bg-white hover:bg-slate-50 dark:bg-slate-950 dark:hover:bg-white/5'
-                                                                            "
-                                                                        >
-                                                                            <button
-                                                                                type="button"
-                                                                                class="flex min-w-0 flex-1 items-center gap-3 text-left focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                                                                                :aria-label="`Select ${testType.name} test`"
-                                                                                @click="
-                                                                                    selectPftTestType(
-                                                                                        selectedPftComponent!,
-                                                                                        category,
-                                                                                        testType,
-                                                                                    )
-                                                                                "
-                                                                            >
-                                                                                <div
-                                                                                    class="flex size-7 shrink-0 items-center justify-center rounded-full"
-                                                                                    :class="
-                                                                                        pftTestStatus(
+                                                                                selectedPftTestTypeId === testType.id
+                                                                                    ? 'bg-white/20 text-white'
+                                                                                    : pftTestStatus(
+                                                                                          pftRowForTest(
+                                                                                              selectedPftTerm.term_id,
+                                                                                              testType.id,
+                                                                                          ),
+                                                                                      ) === 'Completed'
+                                                                                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                                                                                      : pftTestStatus(
                                                                                             pftRowForTest(
                                                                                                 selectedPftTerm.term_id,
                                                                                                 testType.id,
                                                                                             ),
-                                                                                        ) ===
-                                                                                        'Completed'
-                                                                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                                                                                            : pftTestStatus(
-                                                                                                    pftRowForTest(
-                                                                                                        selectedPftTerm.term_id,
-                                                                                                        testType.id,
-                                                                                                    ),
-                                                                                                ) ===
-                                                                                                'Draft'
-                                                                                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
-                                                                                              : 'bg-slate-100 text-slate-400 dark:bg-white/10 dark:text-slate-500'
-                                                                                    "
-                                                                                >
-                                                                                    <CheckCircle2
-                                                                                        v-if="
-                                                                                            pftTestStatus(
-                                                                                                pftRowForTest(
-                                                                                                    selectedPftTerm.term_id,
-                                                                                                    testType.id,
-                                                                                                ),
-                                                                                            ) ===
-                                                                                            'Completed'
-                                                                                        "
-                                                                                        class="size-4"
-                                                                                    />
-                                                                                    <Clock3
-                                                                                        v-else-if="
-                                                                                            pftTestStatus(
-                                                                                                pftRowForTest(
-                                                                                                    selectedPftTerm.term_id,
-                                                                                                    testType.id,
-                                                                                                ),
-                                                                                            ) ===
-                                                                                            'Draft'
-                                                                                        "
-                                                                                        class="size-4"
-                                                                                    />
-                                                                                    <Circle
-                                                                                        v-else
-                                                                                        class="size-4"
-                                                                                    />
-                                                                                </div>
-
-                                                                                <div
-                                                                                    class="min-w-0 flex-1"
-                                                                                >
-                                                                                    <p
-                                                                                        class="truncate text-sm font-light text-slate-950 dark:text-white"
-                                                                                    >
-                                                                                        {{
-                                                                                            testType.name
-                                                                                        }}
-                                                                                    </p>
-                                                                                    <p
-                                                                                        class="text-xs font-light text-slate-500 dark:text-slate-400"
-                                                                                    >
-                                                                                        {{
-                                                                                            pftTestStatus(
-                                                                                                pftRowForTest(
-                                                                                                    selectedPftTerm.term_id,
-                                                                                                    testType.id,
-                                                                                                ),
-                                                                                            )
-                                                                                        }}
-                                                                                    </p>
-                                                                                </div>
-                                                                            </button>
-
-                                                                            <Button
+                                                                                        ) === 'Draft'
+                                                                                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
+                                                                                        : 'bg-slate-100 text-slate-400 dark:bg-white/10 dark:text-slate-500'
+                                                                            "
+                                                                        >
+                                                                            <CheckCircle2
                                                                                 v-if="
                                                                                     pftTestStatus(
                                                                                         pftRowForTest(
                                                                                             selectedPftTerm.term_id,
                                                                                             testType.id,
                                                                                         ),
-                                                                                    ) ===
-                                                                                    'Completed'
+                                                                                    ) === 'Completed'
                                                                                 "
-                                                                                type="button"
-                                                                                variant="outline"
-                                                                                size="sm"
-                                                                                class="h-8 shrink-0 text-xs font-light"
-                                                                                @click.stop="
-                                                                                    openPftSummary(
+                                                                                class="size-3.5"
+                                                                            />
+                                                                            <Clock3
+                                                                                v-else-if="
+                                                                                    pftTestStatus(
+                                                                                        pftRowForTest(
+                                                                                            selectedPftTerm.term_id,
+                                                                                            testType.id,
+                                                                                        ),
+                                                                                    ) === 'Draft'
+                                                                                "
+                                                                                class="size-3.5"
+                                                                            />
+                                                                            <Circle
+                                                                                v-else
+                                                                                class="size-3.5"
+                                                                            />
+                                                                        </div>
+                                                                        <div class="min-w-0 flex-1">
+                                                                            <span class="block text-sm font-light truncate">
+                                                                                {{ testType.name }}
+                                                                            </span>
+                                                                            <span
+                                                                                class="block text-[10px] opacity-80"
+                                                                                :class="
+                                                                                    selectedPftTestTypeId === testType.id
+                                                                                        ? 'text-white'
+                                                                                        : 'text-slate-500 dark:text-slate-400'
+                                                                                "
+                                                                            >
+                                                                                {{
+                                                                                    pftTestStatus(
                                                                                         pftRowForTest(
                                                                                             selectedPftTerm.term_id,
                                                                                             testType.id,
                                                                                         ),
                                                                                     )
-                                                                                "
-                                                                            >
-                                                                                View
-                                                                                Summary
-                                                                            </Button>
+                                                                                }}
+                                                                            </span>
                                                                         </div>
                                                                     </div>
+                                                                </button>
+                                                                <div
+                                                                    v-if="(selectedPftCategory?.test_types ?? []).length === 0"
+                                                                    class="text-xs text-slate-400 dark:text-slate-500 p-2"
+                                                                >
+                                                                    No test types configured.
                                                                 </div>
+                                                            </div>
+                                                        </section>
+
+                                                        <!-- Column 4: Configurations (Form) -->
+                                                        <section
+                                                            class="p-4 overflow-y-auto"
+                                                            aria-label="Physical fitness configurations"
+                                                        >
+                                                            <div v-if="selectedPftTestType" class="flex flex-col h-full">
+                                                                <div class="mb-4">
+                                                                    <h4 class="text-xs font-light tracking-wide text-slate-500 uppercase dark:text-slate-400">
+                                                                        Configurations ({{ selectedPftTestType.name }})
+                                                                    </h4>
+                                                                    <p class="text-sm font-light text-slate-900 dark:text-white mt-1">
+                                                                        Fill up the scores and remarks.
+                                                                    </p>
+                                                                </div>
+
+                                                                <form @submit.prevent="submitPftResult(false)" class="flex-1 flex flex-col justify-between">
+                                                                    <input v-model="pftForm.term_id" type="hidden" />
+
+                                                                    <div class="space-y-4">
+                                                                        <div class="grid gap-3 sm:grid-cols-2">
+                                                                            <label
+                                                                                v-for="field in selectedPftTestType?.configurations"
+                                                                                :key="field.id"
+                                                                                class="grid gap-1.5 text-xs font-light text-slate-600 dark:text-slate-300"
+                                                                                :class="
+                                                                                    field.field_type === 'textarea'
+                                                                                        ? 'sm:col-span-2'
+                                                                                        : ''
+                                                                                "
+                                                                            >
+                                                                                {{ field.field_label }}
+                                                                                <span v-if="field.is_required" class="text-red-500">*</span>
+
+                                                                                <textarea
+                                                                                    v-if="field.field_type === 'textarea'"
+                                                                                    v-model="pftForm.results[field.field_name]"
+                                                                                    class="pft-profile-input min-h-20"
+                                                                                    :placeholder="field.placeholder ?? ''"
+                                                                                />
+
+                                                                                <select
+                                                                                    v-else-if="
+                                                                                        ['select', 'radio'].includes(
+                                                                                            field.field_type,
+                                                                                        )
+                                                                                    "
+                                                                                    v-model="pftForm.results[field.field_name]"
+                                                                                    class="pft-profile-input"
+                                                                                >
+                                                                                    <option value="">Select</option>
+                                                                                    <option
+                                                                                        v-for="option in field.options ?? []"
+                                                                                        :key="option"
+                                                                                        :value="option"
+                                                                                    >
+                                                                                        {{ option }}
+                                                                                    </option>
+                                                                                </select>
+
+                                                                                <label
+                                                                                    v-else-if="field.field_type === 'checkbox'"
+                                                                                    class="flex h-10 items-center gap-2 rounded-md border border-slate-200 px-3 dark:border-white/10"
+                                                                                >
+                                                                                    <input
+                                                                                        v-model="pftForm.results[field.field_name]"
+                                                                                        type="checkbox"
+                                                                                        class="accent-emerald-600"
+                                                                                    />
+                                                                                    Checked
+                                                                                </label>
+
+                                                                                <input
+                                                                                    v-else
+                                                                                    v-model="pftForm.results[field.field_name]"
+                                                                                    class="pft-profile-input"
+                                                                                    :type="
+                                                                                        field.field_type === 'decimal'
+                                                                                            ? 'number'
+                                                                                            : field.field_type
+                                                                                    "
+                                                                                    :step="
+                                                                                        field.field_type === 'decimal'
+                                                                                            ? '0.01'
+                                                                                            : undefined
+                                                                                    "
+                                                                                    :placeholder="field.placeholder ?? ''"
+                                                                                    :readonly="
+                                                                                        selectedPftTestType?.slug === 'bmi-test' &&
+                                                                                        field.field_name === 'bmi'
+                                                                                    "
+                                                                                    :class="
+                                                                                        selectedPftTestType?.slug === 'bmi-test' &&
+                                                                                        field.field_name === 'bmi'
+                                                                                            ? 'cursor-not-allowed bg-slate-100 opacity-80 dark:bg-slate-900'
+                                                                                            : ''
+                                                                                    "
+                                                                                />
+                                                                                <span
+                                                                                    v-if="field.help_text"
+                                                                                    class="text-[10px] font-light text-slate-400"
+                                                                                    >{{ field.help_text }}</span
+                                                                                >
+                                                                            </label>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div class="flex items-center justify-end gap-2 border-t border-slate-100 pt-4 mt-6 dark:border-white/10">
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            :disabled="
+                                                                                pftForm.processing ||
+                                                                                !physicalFitness.canSubmit ||
+                                                                                !physicalFitness.canFillUp
+                                                                            "
+                                                                            @click="submitPftResult(true)"
+                                                                        >
+                                                                            Save Draft
+                                                                        </Button>
+                                                                        <Button
+                                                                            type="submit"
+                                                                            class="bg-emerald-600 text-white hover:bg-emerald-700"
+                                                                            :disabled="
+                                                                                pftForm.processing ||
+                                                                                !physicalFitness.canSubmit ||
+                                                                                !physicalFitness.canFillUp
+                                                                            "
+                                                                        >
+                                                                            {{
+                                                                                pftForm.processing ? 'Saving...' : 'Save Result'
+                                                                            }}
+                                                                        </Button>
+                                                                    </div>
+                                                                </form>
+                                                            </div>
+                                                            <div v-else class="flex h-full flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-12">
+                                                                <Info class="size-8 mb-2" />
+                                                                <p class="text-sm font-light">Select a test type to fill up results.</p>
                                                             </div>
                                                         </section>
                                                     </div>
@@ -6363,26 +6505,38 @@ watch(editMode, (val) => {
                         class="grid gap-3 text-sm sm:grid-cols-3 dark:text-slate-200"
                     >
                         <div>
-                            <p class="text-xs text-slate-500 dark:text-slate-400">
+                            <p
+                                class="text-xs text-slate-500 dark:text-slate-400"
+                            >
                                 Completed Tests
                             </p>
-                            <p class="mt-1 text-xl text-emerald-700 dark:text-emerald-300">
+                            <p
+                                class="mt-1 text-xl text-emerald-700 dark:text-emerald-300"
+                            >
                                 {{ pftTermSummaryRows.length }}
                             </p>
                         </div>
                         <div>
-                            <p class="text-xs text-slate-500 dark:text-slate-400">
+                            <p
+                                class="text-xs text-slate-500 dark:text-slate-400"
+                            >
                                 Components
                             </p>
-                            <p class="mt-1 text-xl text-emerald-700 dark:text-emerald-300">
+                            <p
+                                class="mt-1 text-xl text-emerald-700 dark:text-emerald-300"
+                            >
                                 {{ pftTermSummaryGroups.length }}
                             </p>
                         </div>
                         <div>
-                            <p class="text-xs text-slate-500 dark:text-slate-400">
+                            <p
+                                class="text-xs text-slate-500 dark:text-slate-400"
+                            >
                                 Status
                             </p>
-                            <p class="mt-1 text-xl text-emerald-700 dark:text-emerald-300">
+                            <p
+                                class="mt-1 text-xl text-emerald-700 dark:text-emerald-300"
+                            >
                                 Complete
                             </p>
                         </div>
@@ -6505,7 +6659,8 @@ watch(editMode, (val) => {
                                         </dd>
                                     </div>
                                     <div
-                                        v-for="field in row.testType.configurations"
+                                        v-for="field in row.testType
+                                            .configurations"
                                         :key="`${row.key}:${field.id}`"
                                     >
                                         <dt
@@ -6600,11 +6755,7 @@ watch(editMode, (val) => {
                             Interpretation
                         </span>
                         <span class="text-slate-900 dark:text-white">
-                            {{
-                                pftResultInterpretation(
-                                    selectedPftSummaryRow,
-                                )
-                            }}
+                            {{ pftResultInterpretation(selectedPftSummaryRow) }}
                         </span>
                     </div>
                 </div>
@@ -6652,187 +6803,7 @@ watch(editMode, (val) => {
                 </Button>
             </DialogFooter>
         </DialogContent>
-    </Dialog>
-
-    <Dialog
-        v-if="physicalFitness.canFillUp"
-        :open="pftFormModalOpen"
-        @update:open="pftFormModalOpen = $event"
-    >
-        <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-[500px]">
-            <DialogHeader>
-                <DialogTitle>{{ selectedPftTestType?.name }}</DialogTitle>
-                <DialogDescription>
-                    Fill up the physical fitness test scores and remarks.
-                </DialogDescription>
-            </DialogHeader>
-
-            <form @submit.prevent="submitPftResult(false)">
-                <input v-model="pftForm.term_id" type="hidden" />
-
-                <div class="grid gap-4 py-4">
-                    <div class="grid gap-3 sm:grid-cols-2">
-                        <label
-                            v-for="field in selectedPftTestType?.configurations"
-                            :key="field.id"
-                            class="grid gap-1.5 text-xs font-light text-slate-600 dark:text-slate-300"
-                            :class="
-                                field.field_type === 'textarea'
-                                    ? 'sm:col-span-2'
-                                    : ''
-                            "
-                        >
-                            {{ field.field_label }}
-                            <span v-if="field.is_required" class="text-red-500"
-                                >*</span
-                            >
-
-                            <textarea
-                                v-if="field.field_type === 'textarea'"
-                                v-model="pftForm.results[field.field_name]"
-                                class="pft-profile-input min-h-20"
-                                :placeholder="field.placeholder ?? ''"
-                            />
-
-                            <select
-                                v-else-if="
-                                    ['select', 'radio'].includes(
-                                        field.field_type,
-                                    )
-                                "
-                                v-model="pftForm.results[field.field_name]"
-                                class="pft-profile-input"
-                            >
-                                <option value="">Select</option>
-                                <option
-                                    v-for="option in field.options ?? []"
-                                    :key="option"
-                                    :value="option"
-                                >
-                                    {{ option }}
-                                </option>
-                            </select>
-
-                            <label
-                                v-else-if="field.field_type === 'checkbox'"
-                                class="flex h-10 items-center gap-2 rounded-md border border-slate-200 px-3 dark:border-white/10"
-                            >
-                                <input
-                                    v-model="pftForm.results[field.field_name]"
-                                    type="checkbox"
-                                    class="accent-emerald-600"
-                                />
-                                Checked
-                            </label>
-
-                            <input
-                                v-else
-                                v-model="pftForm.results[field.field_name]"
-                                class="pft-profile-input"
-                                :type="
-                                    field.field_type === 'decimal'
-                                        ? 'number'
-                                        : field.field_type
-                                "
-                                :step="
-                                    field.field_type === 'decimal'
-                                        ? '0.01'
-                                        : undefined
-                                "
-                                :placeholder="field.placeholder ?? ''"
-                                :readonly="
-                                    selectedPftTestType?.slug === 'bmi-test' &&
-                                    field.field_name === 'bmi'
-                                "
-                                :class="
-                                    selectedPftTestType?.slug === 'bmi-test' &&
-                                    field.field_name === 'bmi'
-                                        ? 'cursor-not-allowed bg-slate-100 opacity-80 dark:bg-slate-900'
-                                        : ''
-                                "
-                            />
-                            <span
-                                v-if="field.help_text"
-                                class="text-[10px] font-light text-slate-400"
-                                >{{ field.help_text }}</span
-                            >
-                        </label>
-                    </div>
-
-                    <div
-                        class="grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2 dark:border-white/10"
-                    >
-                        <label
-                            class="grid gap-1.5 text-xs font-light text-slate-600 dark:text-slate-300"
-                        >
-                            Tested at
-                            <input
-                                v-model="pftForm.tested_at"
-                                class="pft-profile-input"
-                                type="date"
-                            />
-                        </label>
-                        <label
-                            class="grid gap-1.5 text-xs font-light text-slate-600 dark:text-slate-300"
-                        >
-                            Remarks
-                            <input
-                                v-model="pftForm.remarks"
-                                class="pft-profile-input"
-                                :readonly="
-                                    selectedPftTestType?.slug === 'bmi-test'
-                                "
-                                :class="
-                                    selectedPftTestType?.slug === 'bmi-test'
-                                        ? 'cursor-not-allowed bg-slate-100 opacity-80 dark:bg-slate-900'
-                                        : ''
-                                "
-                            />
-                        </label>
-                    </div>
-                </div>
-
-                <DialogFooter
-                    class="border-t border-slate-100 pt-4 dark:border-white/10"
-                >
-                    <Button
-                        type="button"
-                        variant="outline"
-                        @click="pftFormModalOpen = false"
-                    >
-                        Cancel
-                    </Button>
-                    <div class="flex gap-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            :disabled="
-                                pftForm.processing ||
-                                !physicalFitness.canSubmit ||
-                                !physicalFitness.canFillUp
-                            "
-                            @click="submitPftResult(true)"
-                        >
-                            Save Draft
-                        </Button>
-                        <Button
-                            type="submit"
-                            class="bg-emerald-600 text-white hover:bg-emerald-700"
-                            :disabled="
-                                pftForm.processing ||
-                                !physicalFitness.canSubmit ||
-                                !physicalFitness.canFillUp
-                            "
-                        >
-                            {{
-                                pftForm.processing ? 'Saving...' : 'Save Result'
-                            }}
-                        </Button>
-                    </div>
-                </DialogFooter>
-            </form>
-        </DialogContent>
-    </Dialog>
+      </Dialog>
 </template>
 
 <style>

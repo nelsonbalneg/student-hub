@@ -90,6 +90,7 @@ class RolesAndPermissionsSeeder extends Seeder
             ['module' => 'Reports', 'name' => 'reports.view'],
             ['module' => 'Reporting', 'name' => 'reporting.view'],
             ['module' => 'Reporting', 'name' => 'reporting.overview.view'],
+            ['module' => 'Reporting', 'name' => 'reporting.pft_result.view'],
             ['module' => 'Reporting', 'name' => 'reporting.audit_logs.view'],
             ['module' => 'Reporting', 'name' => 'reporting.carbon_footprint.view'],
             ['module' => 'Reporting', 'name' => 'reporting.carbon_footprint.user_view'],

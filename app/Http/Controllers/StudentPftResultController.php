@@ -7,6 +7,7 @@ use App\Models\SiteAcademicTerm;
 use App\Models\StudentPftResult;
 use App\Services\AcademicApiService;
 use App\Services\PftAnalyticsService;
+use App\Services\PftInterpretationService;
 use App\Services\PhysicalFitnessPermissionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
@@ -41,6 +42,7 @@ class StudentPftResultController extends Controller
         PftTestType $testType,
         PhysicalFitnessPermissionService $permission,
         AcademicApiService $academicApi,
+        PftInterpretationService $interpretationService,
     ): RedirectResponse
     {
         $request->user()->can('pft.submit') || abort(403);
@@ -53,6 +55,7 @@ class StudentPftResultController extends Controller
         $testType->load([
             'category.component',
             'configurations' => fn ($query) => $query->active()->orderBy('sort_order'),
+            'interpretationRules' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('id'),
         ]);
 
         abort_unless($testType->is_active && $testType->category?->is_active !== false, 404);
@@ -130,19 +133,14 @@ class StudentPftResultController extends Controller
                 $bmiValue = round($weight / ($heightInMeters * $heightInMeters), 2);
                 $results['bmi'] = $bmiValue;
 
-                if ($bmiValue < 18.5) {
-                    $interpretation = 'Underweight';
-                } elseif ($bmiValue < 25.0) {
-                    $interpretation = 'Normal';
-                } elseif ($bmiValue < 30.0) {
-                    $interpretation = 'Overweight';
-                } else {
-                    $interpretation = 'Obese';
-                }
-
-                $validated['remarks'] = $interpretation;
-                $results['remarks'] = $interpretation;
             }
+        }
+
+        $interpretation = $interpretationService->interpret($testType, $results);
+        if ($interpretation) {
+            $validated['remarks'] = $interpretation['label'];
+            $results['interpretation'] = $interpretation['label'];
+            $results['interpretation_color'] = $interpretation['color'];
         }
 
         Log::info('PFT result save payload normalized.', [

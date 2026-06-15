@@ -21,7 +21,7 @@ import {
     FileText,
     Building2,
     Leaf,
-    ServerCog,
+    Dumbbell,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
@@ -320,6 +320,12 @@ const siteAdministrationNavItems: NavItem[] = [
                 permission: 'reporting.overview.view',
             },
             {
+                title: 'PFT Result',
+                href: '/admin/reporting/pft-result',
+                icon: Dumbbell,
+                permission: 'reporting.pft_result.view',
+            },
+            {
                 title: 'Audit Logs',
                 href: '/admin/reporting/audit-logs',
                 icon: FileText,
@@ -420,28 +426,34 @@ const registrarNavItems: NavItem[] = [
         items: [
             {
                 title: 'Student Profile',
-                href: '/admin/registrar/student-profile',
-                icon: User,
-                permission: 'registrar.student-profile.view',
-            },
-            {
-                title: 'Report of Grades',
                 href: '/admin/registrar/report-of-grades',
-                icon: GraduationCap,
-                permission: 'registrar.report-of-grades.view',
+                icon: User,
+                permission: [
+                    'registrar.student-profile.view',
+                    'registrar.report-of-grades.view',
+                    'registrar.tag-graduating-student.view',
+                ],
             },
-            {
-                title: 'Tag Graduating Student',
-                href: '/admin/registrar/tag-graduating-student',
-                icon: ClipboardCheck,
-                permission: 'registrar.tag-graduating-student.view',
-            },
+            // {
+            //     title: 'Report of Grades',
+            //     href: '/admin/registrar/report-of-grades',
+            //     icon: GraduationCap,
+            //     permission: 'registrar.report-of-grades.view',
+            // },
+            // {
+            //     title: 'Tag Graduating Student',
+            //     href: '/admin/registrar/tag-graduating-student',
+            //     icon: ClipboardCheck,
+            //     permission: 'registrar.tag-graduating-student.view',
+            // },
         ],
     },
 ];
 
 const visibleOverviewNavItems = computed(() => visibleItems(overviewNavItems));
-const visibleRegistrarNavItems = computed(() => visibleItems(registrarNavItems));
+const visibleRegistrarNavItems = computed(() =>
+    visibleItems(registrarNavItems),
+);
 const visibleSiteAdministrationNavItems = computed(() =>
     visibleItems(siteAdministrationNavItems),
 );
