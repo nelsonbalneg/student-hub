@@ -1,3 +1,12 @@
+@php
+    $logoSrc = null;
+    $logoPath = $logoPath ?? null;
+
+    if ($logoPath && is_file($logoPath)) {
+        $mimeType = mime_content_type($logoPath) ?: 'image/png';
+        $logoSrc = 'data:'.$mimeType.';base64,'.base64_encode(file_get_contents($logoPath));
+    }
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -21,12 +30,39 @@
         }
         .sheet {
             width: 100%;
+            position: relative;
+            z-index: 1;
         }
         .header {
             border-bottom: 2px solid #0f766e;
             padding-bottom: 12px;
             margin-bottom: 16px;
             text-align: center;
+            position: relative;
+            min-height: 72px;
+        }
+        .report-logo {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 58px;
+            height: 58px;
+            object-fit: contain;
+        }
+        .report-logo-placeholder {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 58px;
+            height: 58px;
+            border: 1px solid #99f6e4;
+            border-radius: 999px;
+            color: #0f766e;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 700;
         }
         .republic {
             font-size: 10px;
@@ -148,6 +184,28 @@
             border: 1px solid transparent;
             text-transform: uppercase;
             white-space: nowrap;
+        }
+        .college-section-title {
+            margin: 18px 0 8px;
+            padding: 8px 10px;
+            background: #ecfdf5;
+            border: 1px solid #99f6e4;
+            border-left: 4px solid #0f766e;
+            border-radius: 6px;
+            color: #0f766e;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            page-break-after: avoid;
+        }
+        .college-section-title span {
+            float: right;
+            color: #475569;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: none;
+            letter-spacing: 0;
         }
         .footer {
             margin-top: 30px;
@@ -284,11 +342,55 @@
             grid-template-columns: 70px 1fr 50px !important;
             margin-bottom: 3px;
         }
+        .watermark-grid {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-auto-rows: 90px;
+            gap: 18px 8px;
+            align-content: start;
+            padding: 30px 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        .watermark-grid span {
+            color: #0f172a;
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            opacity: 0.045;
+            text-align: center;
+            text-transform: uppercase;
+            transform: rotate(-28deg);
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
+    @php
+        $campusLabel = $labels['campus'] ?? ($filters['campus_id'] ?? 'All Campuses');
+        $termLabel = $labels['term'] ?? ($filters['term_id'] ?? 'All Terms');
+        $collegeId = $filters['college_id'] ?? null;
+        $sectionId = $filters['section_id'] ?? null;
+        $collegeLabel = filled($collegeId)
+            ? ($labels['colleges'][(string) $collegeId] ?? $collegeId)
+            : 'All Colleges';
+        $sectionLabel = filled($sectionId) ? $sectionId : 'All Sections';
+    @endphp
+    <div class="watermark-grid" aria-hidden="true">
+        @for ($i = 0; $i < 45; $i++)
+            <span>CONFIDENTIAL</span>
+        @endfor
+    </div>
     <div class="sheet">
         <header class="header">
+            @if ($logoSrc)
+                <img src="{{ $logoSrc }}" alt="Report logo" class="report-logo">
+            @else
+                <div class="report-logo-placeholder">LOGO</div>
+            @endif
             <div class="republic">Republic of the Philippines</div>
             <div class="university">University of Southern Mindanao</div>
             <div class="campus">Kabacan, Cotabato</div>
@@ -301,22 +403,22 @@
             <div class="meta-item">
                 <span class="meta-label">Campus</span>
                 <span>:</span>
-                <span class="meta-value">{{ $labels['campus'] ?? $filters['campus_id'] }}</span>
+                <span class="meta-value">{{ $campusLabel }}</span>
             </div>
             <div class="meta-item">
                 <span class="meta-label">Academic Term</span>
                 <span>:</span>
-                <span class="meta-value">{{ $labels['term'] ?? $filters['term_id'] }}</span>
+                <span class="meta-value">{{ $termLabel }}</span>
             </div>
             <div class="meta-item">
                 <span class="meta-label">College</span>
                 <span>:</span>
-                <span class="meta-value">{{ $labels['colleges'][$filters['college_id']] ?? $filters['college_id'] ?? 'All Colleges' }}</span>
+                <span class="meta-value">{{ $collegeLabel }}</span>
             </div>
             <div class="meta-item">
                 <span class="meta-label">Section</span>
                 <span>:</span>
-                <span class="meta-value">{{ $filters['section_id'] ?? 'All Sections' }}</span>
+                <span class="meta-value">{{ $sectionLabel }}</span>
             </div>
             <div class="meta-item" style="grid-column: span 2;">
                 <span class="meta-label">Generated At</span>
@@ -325,51 +427,39 @@
             </div>
         </section>
 
-        <table class="report-table">
-            <thead>
-                <tr>
-                    <th style="text-align: left;">Metric / Test Name</th>
-                    <th class="text-right" style="width: 110px;">Total Results</th>
-                    <th class="text-right" style="width: 100px;">Students</th>
-                    <th style="text-align: left;">Interpretation Distribution Breakdown</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse ($hierarchy as $component)
-                    <!-- Component Row -->
-                    <tr class="component-row">
-                        <td>{{ $component['label'] }}</td>
-                        <td class="text-right">{{ $component['value'] }}</td>
-                        <td class="text-right">{{ $component['students'] }}</td>
-                        <td>
-                            <div class="distribution-bar">
-                                @foreach ($component['interpretations'] as $item)
-                                    @php
-                                        $color = $item['color'] ?? 'slate';
-                                        $hex = [
-                                            'emerald' => '#059669', 'green' => '#16a34a', 'lime' => '#65a30d',
-                                            'amber' => '#f59e0b', 'orange' => '#f97316', 'red' => '#ef4444',
-                                            'rose' => '#e11d48', 'slate' => '#64748b', 'blue' => '#2563eb',
-                                            'violet' => '#7c3aed'
-                                        ][$color] ?? '#64748b';
-                                    @endphp
-                                    <span class="badge" style="color: {{ $hex }}; border-color: {{ $hex }}44; background: {{ $hex }}14;">
-                                        {{ $item['label'] }}: {{ $item['value'] }}
-                                    </span>
-                                @endforeach
-                            </div>
-                        </td>
-                    </tr>
+        @php
+            $hierarchyGroups = filled($collegeId)
+                ? [['label' => null, 'results' => null, 'students' => null, 'hierarchy' => $hierarchy]]
+                : ($collegeGroups ?? []);
+        @endphp
 
-                    @foreach ($component['categories'] as $category)
-                        <!-- Category Row -->
-                        <tr class="category-row">
-                            <td class="indent-1">{{ $category['label'] }}</td>
-                            <td class="text-right">{{ $category['value'] }}</td>
-                            <td class="text-right">{{ $category['students'] }}</td>
+        @forelse ($hierarchyGroups as $group)
+            @if (filled($group['label'] ?? null))
+                <div class="college-section-title">
+                    {{ $group['label'] }}
+                    <span>{{ $group['results'] ?? 0 }} results &middot; {{ $group['students'] ?? 0 }} students</span>
+                </div>
+            @endif
+
+            <table class="report-table">
+                <thead>
+                    <tr>
+                        <th style="text-align: left;">Metric / Test Name</th>
+                        <th class="text-right" style="width: 110px;">Total Results</th>
+                        <th class="text-right" style="width: 100px;">Students</th>
+                        <th style="text-align: left;">Interpretation Distribution Breakdown</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($group['hierarchy'] as $component)
+                        <!-- Component Row -->
+                        <tr class="component-row">
+                            <td>{{ $component['label'] }}</td>
+                            <td class="text-right">{{ $component['value'] }}</td>
+                            <td class="text-right">{{ $component['students'] }}</td>
                             <td>
                                 <div class="distribution-bar">
-                                    @foreach ($category['interpretations'] as $item)
+                                    @foreach ($component['interpretations'] as $item)
                                         @php
                                             $color = $item['color'] ?? 'slate';
                                             $hex = [
@@ -387,15 +477,15 @@
                             </td>
                         </tr>
 
-                        @foreach ($category['test_types'] as $testType)
-                            <!-- Test Type Row -->
-                            <tr class="test-type-row">
-                                <td class="indent-2">{{ $testType['label'] }}</td>
-                                <td class="text-right text-muted">{{ $testType['value'] }}</td>
-                                <td class="text-right text-muted">{{ $testType['students'] }}</td>
+                        @foreach ($component['categories'] as $category)
+                            <!-- Category Row -->
+                            <tr class="category-row">
+                                <td class="indent-1">{{ $category['label'] }}</td>
+                                <td class="text-right">{{ $category['value'] }}</td>
+                                <td class="text-right">{{ $category['students'] }}</td>
                                 <td>
                                     <div class="distribution-bar">
-                                        @foreach ($testType['interpretations'] as $item)
+                                        @foreach ($category['interpretations'] as $item)
                                             @php
                                                 $color = $item['color'] ?? 'slate';
                                                 $hex = [
@@ -405,29 +495,71 @@
                                                     'violet' => '#7c3aed'
                                                 ][$color] ?? '#64748b';
                                             @endphp
-                                            <span class="badge" style="color: {{ $hex }}; border-color: {{ $hex }}44; background: {{ $hex }}14; font-size: 7.5px; padding: 1px 4px;">
+                                            <span class="badge" style="color: {{ $hex }}; border-color: {{ $hex }}44; background: {{ $hex }}14;">
                                                 {{ $item['label'] }}: {{ $item['value'] }}
                                             </span>
                                         @endforeach
                                     </div>
                                 </td>
                             </tr>
+
+                            @foreach ($category['test_types'] as $testType)
+                                <!-- Test Type Row -->
+                                <tr class="test-type-row">
+                                    <td class="indent-2">{{ $testType['label'] }}</td>
+                                    <td class="text-right text-muted">{{ $testType['value'] }}</td>
+                                    <td class="text-right text-muted">{{ $testType['students'] }}</td>
+                                    <td>
+                                        <div class="distribution-bar">
+                                            @foreach ($testType['interpretations'] as $item)
+                                                @php
+                                                    $color = $item['color'] ?? 'slate';
+                                                    $hex = [
+                                                        'emerald' => '#059669', 'green' => '#16a34a', 'lime' => '#65a30d',
+                                                        'amber' => '#f59e0b', 'orange' => '#f97316', 'red' => '#ef4444',
+                                                        'rose' => '#e11d48', 'slate' => '#64748b', 'blue' => '#2563eb',
+                                                        'violet' => '#7c3aed'
+                                                    ][$color] ?? '#64748b';
+                                                @endphp
+                                                <span class="badge" style="color: {{ $hex }}; border-color: {{ $hex }}44; background: {{ $hex }}14; font-size: 7.5px; padding: 1px 4px;">
+                                                    {{ $item['label'] }}: {{ $item['value'] }}
+                                                </span>
+                                            @endforeach
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforeach
                         @endforeach
-                    @endforeach
-                @empty
+                    @empty
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: #64748b; padding: 30px;">
+                                No component analytics available for this college.
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        @empty
+            <table class="report-table">
+                <tbody>
                     <tr>
                         <td colspan="4" style="text-align: center; color: #64748b; padding: 30px;">
                             No component analytics available for the selected filters.
                         </td>
                     </tr>
-                @endforelse
-            </tbody>
-        </table>
+                </tbody>
+            </table>
+        @endforelse
 
         <!-- PAGE 2: Charts (Page Break) -->
         <div class="page-break"></div>
         
         <header class="header">
+            @if ($logoSrc)
+                <img src="{{ $logoSrc }}" alt="Report logo" class="report-logo">
+            @else
+                <div class="report-logo-placeholder">LOGO</div>
+            @endif
             <div class="republic">Republic of the Philippines</div>
             <div class="university">University of Southern Mindanao</div>
             <div class="campus">Kabacan, Cotabato</div>
@@ -594,7 +726,7 @@
         </div>
 
         <footer class="footer">
-            STUDENT HUB SYSTEM &copy; {{ date('Y') }} &middot; Confidential Report
+            University of Southern Mindanao &middot; Kabacan, Cotabato &middot; Confidential Report
         </footer>
     </div>
 </body>

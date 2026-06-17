@@ -4,8 +4,6 @@ import type { ApexOptions } from 'apexcharts';
 import {
     Activity,
     BarChart3,
-    ChevronDown,
-    ChevronRight,
     Download,
     Dumbbell,
     FileDown,
@@ -20,11 +18,9 @@ import {
 import { computed, defineComponent, h, onMounted, ref, watch } from 'vue';
 import VueApexCharts from 'vue3-apexcharts';
 import {
-    analytics as pftAnalytics,
     data as pftData,
     exportExcel as pftExportExcel,
     exportPdf as pftExportPdf,
-    exportAnalyticsPdf as pftExportAnalyticsPdf,
     index as pftIndex,
 } from '@/routes/admin/reporting/pft-result';
 import {
@@ -96,26 +92,6 @@ type ComponentInterpretationGroup = {
     dominant_color: string;
     interpretations: AnalyticsGroup[];
 };
-type HierarchyTestType = {
-    label: string;
-    value: number;
-    students: number;
-    interpretations: AnalyticsGroup[];
-};
-type HierarchyCategory = {
-    label: string;
-    value: number;
-    students: number;
-    interpretations: AnalyticsGroup[];
-    test_types: HierarchyTestType[];
-};
-type HierarchyComponent = {
-    label: string;
-    value: number;
-    students: number;
-    interpretations: AnalyticsGroup[];
-    categories: HierarchyCategory[];
-};
 type DrawerAnalytics = {
     total_tests: number;
     completed: number;
@@ -172,30 +148,12 @@ type InterpretationComparison = {
     student_color: string;
     term_distribution: AnalyticsGroup[];
 };
-type Analytics = {
-    stats: {
-        total: number;
-        completed: number;
-        draft: number;
-        interpreted: number;
-        unclassified: number;
-        test_types: number;
-        students: number;
-        sections: number;
-    };
-    interpretations: AnalyticsGroup[];
-    componentInterpretations: ComponentInterpretationGroup[];
-    testTypeInterpretations: ComponentInterpretationGroup[];
-    hierarchy: HierarchyComponent[];
-    status: AnalyticsGroup[];
-    testTypes: AnalyticsGroup[];
-    campuses: AnalyticsGroup[];
-    colleges: AnalyticsGroup[];
-    yearLevels: AnalyticsGroup[];
-    bmi: {
-        average: number | null;
-        distribution: AnalyticsGroup[];
-    };
+type TableSummary = {
+    total: number;
+    interpreted: number;
+    unclassified: number;
+    test_types: number;
+    students: number;
 };
 
 const props = defineProps<{
@@ -411,12 +369,15 @@ const orderDirection = ref<'asc' | 'desc'>('desc');
 const rows = ref<PftRow[]>([]);
 const recordsFiltered = ref(0);
 const recordsTotal = ref(0);
-const analytics = ref<Analytics | null>(null);
+const tableSummary = ref<TableSummary>({
+    total: 0,
+    interpreted: 0,
+    unclassified: 0,
+    test_types: 0,
+    students: 0,
+});
 const tableLoading = ref(false);
-const analyticsLoading = ref(false);
 const activeRow = ref<PftRow | null>(null);
-const openHierarchyComponents = ref<string[]>([]);
-const openHierarchyCategories = ref<string[]>([]);
 const activeComponentGroups = computed<ComponentGroup[]>(() => {
     if (!activeRow.value) {
         return [];
@@ -466,36 +427,6 @@ const filterEndpoints = {
 const requiredFiltersSelected = computed(() =>
     Boolean(campusId.value && termId.value),
 );
-const analyticsScopeLabel = computed(() => {
-    if (selectedSection.value?.text) {
-        return `Section: ${selectedSection.value.text}`;
-    }
-
-    if (selectedCollege.value?.text) {
-        return `College: ${selectedCollege.value.text}`;
-    }
-
-    return 'Selected campus and term';
-});
-
-const hierarchyCategoryKey = (component: string, category: string) =>
-    `${component}::${category}`;
-
-const toggleHierarchyComponent = (component: string) => {
-    openHierarchyComponents.value = openHierarchyComponents.value.includes(
-        component,
-    )
-        ? openHierarchyComponents.value.filter((item) => item !== component)
-        : [...openHierarchyComponents.value, component];
-};
-
-const toggleHierarchyCategory = (component: string, category: string) => {
-    const key = hierarchyCategoryKey(component, category);
-    openHierarchyCategories.value = openHierarchyCategories.value.includes(key)
-        ? openHierarchyCategories.value.filter((item) => item !== key)
-        : [...openHierarchyCategories.value, key];
-};
-
 const routeQuery = (includeTable = false): QueryParams => {
     const base: QueryParams = {
         campus_id: campusId.value,
@@ -523,59 +454,17 @@ const updateBrowserUrl = () => {
     window.history.replaceState({}, '', `${url.pathname}${url.search}`);
 };
 
-const emptyAnalytics = (): Analytics => ({
-    stats: {
-        total: 0,
-        completed: 0,
-        draft: 0,
-        interpreted: 0,
-        unclassified: 0,
-        test_types: 0,
-        students: 0,
-        sections: 0,
-    },
-    interpretations: [],
-    componentInterpretations: [],
-    testTypeInterpretations: [],
-    hierarchy: [],
-    status: [],
-    testTypes: [],
-    campuses: [],
-    colleges: [],
-    yearLevels: [],
-    bmi: {
-        average: null,
-        distribution: [
-            { label: 'Underweight', value: 0 },
-            { label: 'Normal', value: 0 },
-            { label: 'Overweight', value: 0 },
-            { label: 'Obese', value: 0 },
-        ],
-    },
-});
-
 const clearResults = () => {
     rows.value = [];
     recordsFiltered.value = 0;
     recordsTotal.value = 0;
-    analytics.value = emptyAnalytics();
-    openHierarchyComponents.value = [];
-    openHierarchyCategories.value = [];
-};
-
-const fetchAnalytics = async () => {
-    if (!requiredFiltersSelected.value) {
-        clearResults();
-
-        return;
-    }
-
-    analyticsLoading.value = true;
-    const response = await fetch(pftAnalytics.url({ query: routeQuery() }), {
-        headers: { Accept: 'application/json' },
-    });
-    analytics.value = await response.json();
-    analyticsLoading.value = false;
+    tableSummary.value = {
+        total: 0,
+        interpreted: 0,
+        unclassified: 0,
+        test_types: 0,
+        students: 0,
+    };
 };
 
 const fetchTable = async () => {
@@ -594,12 +483,13 @@ const fetchTable = async () => {
     rows.value = payload.data ?? [];
     recordsTotal.value = payload.recordsTotal ?? 0;
     recordsFiltered.value = payload.recordsFiltered ?? 0;
+    tableSummary.value = payload.summary ?? tableSummary.value;
     tableLoading.value = false;
 };
 
 const reloadAll = async () => {
     updateBrowserUrl();
-    await Promise.all([fetchAnalytics(), fetchTable()]);
+    await fetchTable();
 };
 
 const resetPageAndReload = () => {
@@ -648,8 +538,6 @@ const resetFilters = () => {
     selectedSection.value = null;
     search.value = '';
     activeRow.value = null;
-    openHierarchyComponents.value = [];
-    openHierarchyCategories.value = [];
     start.value = 0;
     void reloadAll();
 };
@@ -704,129 +592,6 @@ const exportPdfUrl = computed(() =>
         ? pftExportPdf.url({ query: routeQuery() })
         : '#',
 );
-const exportAnalyticsPdfUrl = computed(() =>
-    requiredFiltersSelected.value
-        ? pftExportAnalyticsPdf.url({ query: routeQuery() })
-        : '#',
-);
-const analyticsPdfPreviewOpen = ref(false);
-
-const getSparklineOptions = (labels: string[]) => ({
-    chart: {
-        sparkline: { enabled: true },
-        animations: { enabled: true },
-    },
-    stroke: { curve: 'smooth' as const, width: 2 },
-    fill: {
-        type: 'gradient',
-        gradient: {
-            shadeIntensity: 1,
-            opacityFrom: 0.4,
-            opacityTo: 0.05,
-            stops: [0, 100],
-        },
-    },
-    colors: ['#059669'],
-    labels: labels.length ? labels : ['None'],
-    tooltip: {
-        fixed: { enabled: false },
-        x: { show: true },
-        y: {
-            title: {
-                formatter: () => 'Results: ',
-            },
-        },
-        marker: { show: true },
-    },
-});
-
-const chartOptions = (labels: string[], colors: string[]): ApexOptions => ({
-    chart: {
-        toolbar: { show: false },
-        fontFamily: 'Instrument Sans, sans-serif',
-        foreColor: '#64748b',
-        background: 'transparent',
-    },
-    colors,
-    dataLabels: { enabled: false },
-    labels,
-    legend: { position: 'bottom' as const, fontSize: '11px' },
-    stroke: { width: 2 },
-    xaxis: { categories: labels },
-    yaxis: {
-        labels: { formatter: (value: number) => String(Math.round(value)) },
-    },
-    grid: { borderColor: '#e2e8f0' },
-});
-
-const interpretationColor = (color?: string) =>
-    ({
-        emerald: '#059669',
-        green: '#16a34a',
-        lime: '#65a30d',
-        amber: '#f59e0b',
-        orange: '#f97316',
-        red: '#ef4444',
-        rose: '#e11d48',
-        slate: '#64748b',
-        blue: '#2563eb',
-        violet: '#7c3aed',
-    })[color ?? 'slate'] ?? '#64748b';
-
-const interpretationBadgeStyle = (color?: string) => {
-    const accent = interpretationColor(color);
-
-    return {
-        '--interpretation-accent': accent,
-        '--interpretation-bg': `${accent}14`,
-        '--interpretation-border': `${accent}55`,
-        color: accent,
-        borderColor: `${accent}55`,
-        backgroundColor: `${accent}14`,
-    };
-};
-
-const interpretationChartOptions = computed(() =>
-    chartOptions(
-        analytics.value?.interpretations.map((item) => item.label) ?? [],
-        analytics.value?.interpretations.map((item) =>
-            interpretationColor(item.color),
-        ) ?? ['#64748b'],
-    ),
-);
-const interpretationSeries = computed(
-    () => analytics.value?.interpretations.map((item) => item.value) ?? [],
-);
-const testTypeChartOptions = computed(() =>
-    chartOptions(
-        analytics.value?.testTypeInterpretations.map((item) => item.label) ??
-            [],
-        ['#059669'],
-    ),
-);
-const testTypeSeries = computed(() => [
-    {
-        name: 'Interpreted Results',
-        data:
-            analytics.value?.testTypeInterpretations.map(
-                (item) => item.value,
-            ) ?? [],
-    },
-]);
-const componentInterpretationChartOptions = computed(() =>
-    chartOptions(
-        analytics.value?.componentInterpretations.map((item) => item.label) ??
-            [],
-        analytics.value?.componentInterpretations.map((item) =>
-            interpretationColor(item.dominant_color),
-        ) ?? ['#64748b'],
-    ),
-);
-const componentInterpretationSeries = computed(
-    () =>
-        analytics.value?.componentInterpretations.map((item) => item.value) ??
-        [],
-);
 
 const fitnessProfileRadarOptions = computed<ApexOptions>(() => ({
     chart: { toolbar: { show: false }, background: 'transparent' },
@@ -843,8 +608,6 @@ const fitnessProfileRadarSeries = computed(() => [
 ]);
 
 onMounted(() => {
-    analytics.value = emptyAnalytics();
-
     if (requiredFiltersSelected.value) {
         void reloadAll();
     }
@@ -871,10 +634,11 @@ onMounted(() => {
             </div>
             <div class="flex flex-wrap gap-2">
                 <Link
-                    class="report-btn bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-none flex items-center gap-1.5 hover:opacity-90 transition-opacity"
+                    class="report-btn flex items-center gap-1.5 border-none bg-slate-900 text-white transition-opacity hover:opacity-90 dark:bg-white dark:text-slate-900"
                     href="/admin/reporting/pft-result/analytics"
                 >
-                    <BarChart3 class="h-3.5 w-3.5 text-emerald-500" />View Analytics
+                    <BarChart3 class="h-3.5 w-3.5 text-emerald-500" />View
+                    Analytics
                 </Link>
                 <div v-if="canExport" class="flex flex-wrap gap-2">
                     <a
@@ -940,351 +704,31 @@ onMounted(() => {
                 <Table2 class="stat-icon text-emerald-600" /><span
                     >Results</span
                 >
-                <strong>{{ analytics?.stats.total ?? 0 }}</strong>
+                <strong>{{ tableSummary.total }}</strong>
             </div>
             <div class="stat-card">
                 <Activity class="stat-icon text-emerald-600" /><span
                     >Interpreted</span
                 >
-                <strong>{{ analytics?.stats.interpreted ?? 0 }}</strong>
+                <strong>{{ tableSummary.interpreted }}</strong>
             </div>
             <div class="stat-card">
                 <Layers class="stat-icon text-amber-600" /><span
                     >Unclassified</span
                 >
-                <strong>{{ analytics?.stats.unclassified ?? 0 }}</strong>
+                <strong>{{ tableSummary.unclassified }}</strong>
             </div>
             <div class="stat-card">
                 <Dumbbell class="stat-icon text-violet-600" /><span
                     >Test Types</span
                 >
-                <strong>{{ analytics?.stats.test_types ?? 0 }}</strong>
+                <strong>{{ tableSummary.test_types }}</strong>
             </div>
             <div class="stat-card">
                 <Users class="stat-icon text-rose-600" /><span>Students</span>
-                <strong>{{ analytics?.stats.students ?? 0 }}</strong>
+                <strong>{{ tableSummary.students }}</strong>
             </div>
         </div>
-
-        <div class="grid gap-4 xl:grid-cols-3">
-            <section
-                class="report-card rounded-lg border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950"
-            >
-                <div class="mb-2 flex items-center justify-between">
-                    <h2 class="report-heading">Interpretation Distribution</h2>
-                    <span
-                        v-if="analyticsLoading"
-                        class="text-[11px] font-semibold text-emerald-600"
-                        >Loading</span
-                    >
-                </div>
-                <VueApexCharts
-                    height="240"
-                    type="donut"
-                    :options="interpretationChartOptions"
-                    :series="interpretationSeries"
-                />
-            </section>
-            <section
-                class="report-card rounded-lg border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950"
-            >
-                <h2 class="report-heading">Test Types by Interpretation</h2>
-                <VueApexCharts
-                    height="240"
-                    type="bar"
-                    :options="testTypeChartOptions"
-                    :series="testTypeSeries"
-                />
-            </section>
-            <section
-                class="report-card rounded-lg border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950"
-            >
-                <div class="mb-2 flex items-center justify-between">
-                    <h2 class="report-heading">Component Interpretation Mix</h2>
-                    <span class="text-[11px] font-bold text-slate-500"
-                        >{{ analytics?.componentInterpretations.length ?? 0 }}
-                        components</span
-                    >
-                </div>
-                <VueApexCharts
-                    height="240"
-                    type="donut"
-                    :options="componentInterpretationChartOptions"
-                    :series="componentInterpretationSeries"
-                />
-            </section>
-        </div>
-
-        <section
-            class="report-card rounded-lg border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950"
-        >
-            <h2 class="report-heading mb-3">Interpretation Summary</h2>
-            <div class="grid gap-3 lg:grid-cols-3">
-                <div class="mini-list interpretation-list">
-                    <strong>Overall Interpretation</strong>
-                    <span
-                        v-for="item in analytics?.interpretations ?? []"
-                        :key="item.label"
-                        :style="interpretationBadgeStyle(item.color)"
-                    >
-                        {{ item.label }} <b>{{ item.value }}</b>
-                    </span>
-                </div>
-                <div class="mini-list interpretation-list">
-                    <strong>Components</strong>
-                    <span
-                        v-for="item in analytics?.componentInterpretations ??
-                        []"
-                        :key="item.label"
-                        :style="interpretationBadgeStyle(item.dominant_color)"
-                    >
-                        {{ item.label }}
-                        <b>{{ item.dominant_label }} ({{ item.value }})</b>
-                    </span>
-                </div>
-                <div class="mini-list interpretation-list">
-                    <strong>Test Types</strong>
-                    <span
-                        v-for="item in analytics?.testTypeInterpretations ??
-                        []"
-                        :key="item.label"
-                        :style="interpretationBadgeStyle(item.dominant_color)"
-                    >
-                        {{ item.label }}
-                        <b>{{ item.dominant_label }}</b>
-                    </span>
-                </div>
-            </div>
-        </section>
-
-        <section
-            class="report-card rounded-lg border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950"
-        >
-            <div
-                class="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
-            >
-                <div>
-                    <h2 class="report-heading">
-                        Component, Category, and Test Type Analytics
-                    </h2>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">
-                        {{ analyticsScopeLabel }}
-                    </p>
-                </div>
-                <div class="flex items-center gap-2">
-                    <button
-                        v-if="canExport"
-                        class="report-btn-primary py-1.5 px-3 text-xs flex items-center gap-1.5 shrink-0"
-                        :disabled="!requiredFiltersSelected"
-                        :class="{ 'opacity-50 pointer-events-none': !requiredFiltersSelected }"
-                        @click="analyticsPdfPreviewOpen = true"
-                    >
-                        <FileDown class="h-3.5 w-3.5" />Export
-                    </button>
-                    <span class="drawer-pill w-fit">
-                        {{ analytics?.hierarchy.length ?? 0 }} components
-                    </span>
-                </div>
-            </div>
-
-            <div
-                v-if="analytics?.hierarchy.length"
-                class="grid gap-3"
-            >
-                <article
-                    v-for="component in analytics.hierarchy"
-                    :key="component.label"
-                    class="hierarchy-card"
-                >
-                    <button
-                        class="hierarchy-toggle"
-                        type="button"
-                        @click="toggleHierarchyComponent(component.label)"
-                    >
-                        <span class="min-w-0">
-                            <strong>{{ component.label }}</strong>
-                            <small>
-                                {{ component.value }} results ·
-                                {{ component.students }} students
-                            </small>
-                        </span>
-                        <span class="hierarchy-chevron">
-                            <ChevronDown
-                                v-if="
-                                    openHierarchyComponents.includes(
-                                        component.label,
-                                    )
-                                "
-                                class="h-4 w-4"
-                            />
-                            <ChevronRight v-else class="h-4 w-4" />
-                            <small>
-                                {{
-                                    openHierarchyComponents.includes(
-                                        component.label,
-                                    )
-                                        ? 'Collapse'
-                                        : 'Expand'
-                                }}
-                            </small>
-                        </span>
-                    </button>
-
-                    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mt-2">
-                        <div class="hierarchy-distribution flex-1">
-                            <span
-                                v-for="item in component.interpretations"
-                                :key="`${component.label}-${item.label}`"
-                                :style="interpretationBadgeStyle(item.color)"
-                            >
-                                {{ item.label }}
-                                <b>{{ item.value }}</b>
-                            </span>
-                        </div>
-                        <div v-if="component.interpretations.length" class="w-48 h-10 shrink-0">
-                            <VueApexCharts
-                                type="area"
-                                height="40"
-                                :options="getSparklineOptions(component.interpretations.map(i => i.label))"
-                                :series="[{ name: 'Results', data: component.interpretations.map(i => i.value) }]"
-                            />
-                        </div>
-                    </div>
-
-                    <div
-                        v-if="
-                            openHierarchyComponents.includes(component.label)
-                        "
-                        class="mt-3 grid gap-2"
-                    >
-                        <section
-                            v-for="category in component.categories"
-                            :key="category.label"
-                            class="hierarchy-category"
-                        >
-                            <button
-                                class="hierarchy-toggle hierarchy-toggle-sm"
-                                type="button"
-                                @click="
-                                    toggleHierarchyCategory(
-                                        component.label,
-                                        category.label,
-                                    )
-                                "
-                            >
-                                <span class="min-w-0">
-                                    <strong>{{ category.label }}</strong>
-                                    <small>
-                                        {{ category.value }} results ·
-                                        {{ category.students }} students
-                                    </small>
-                                </span>
-                                <span class="hierarchy-chevron">
-                                    <ChevronDown
-                                        v-if="
-                                            openHierarchyCategories.includes(
-                                                hierarchyCategoryKey(
-                                                    component.label,
-                                                    category.label,
-                                                ),
-                                            )
-                                        "
-                                        class="h-4 w-4"
-                                    />
-                                    <ChevronRight v-else class="h-4 w-4" />
-                                    <small>
-                                        {{
-                                            openHierarchyCategories.includes(
-                                                hierarchyCategoryKey(
-                                                    component.label,
-                                                    category.label,
-                                                ),
-                                            )
-                                                ? 'Collapse'
-                                                : 'Expand'
-                                        }}
-                                    </small>
-                                </span>
-                            </button>
-
-                             <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mt-2">
-                                <div class="hierarchy-distribution flex-1">
-                                    <span
-                                        v-for="item in category.interpretations"
-                                        :key="`${component.label}-${category.label}-${item.label}`"
-                                        :style="interpretationBadgeStyle(item.color)"
-                                    >
-                                        {{ item.label }}
-                                        <b>{{ item.value }}</b>
-                                    </span>
-                                </div>
-                                <div v-if="category.interpretations.length" class="w-48 h-10 shrink-0">
-                                    <VueApexCharts
-                                        type="area"
-                                        height="40"
-                                        :options="getSparklineOptions(category.interpretations.map(i => i.label))"
-                                        :series="[{ name: 'Results', data: category.interpretations.map(i => i.value) }]"
-                                    />
-                                </div>
-                            </div>
-
-                            <div
-                                v-if="
-                                    openHierarchyCategories.includes(
-                                        hierarchyCategoryKey(
-                                            component.label,
-                                            category.label,
-                                        ),
-                                    )
-                                "
-                                class="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3"
-                            >
-                                <div
-                                    v-for="testType in category.test_types"
-                                    :key="testType.label"
-                                    class="hierarchy-test"
-                                >
-                                    <div>
-                                        <strong>{{ testType.label }}</strong>
-                                        <small>
-                                            {{ testType.value }} results ·
-                                            {{ testType.students }} students
-                                        </small>
-                                    </div>
-                                     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mt-2">
-                                        <div class="hierarchy-distribution flex-1">
-                                            <span
-                                                v-for="item in testType.interpretations"
-                                                :key="`${component.label}-${category.label}-${testType.label}-${item.label}`"
-                                                :style="
-                                                    interpretationBadgeStyle(
-                                                        item.color,
-                                                    )
-                                                "
-                                            >
-                                                {{ item.label }}
-                                                <b>{{ item.value }}</b>
-                                            </span>
-                                        </div>
-                                        <div v-if="testType.interpretations.length" class="w-36 h-8 shrink-0">
-                                            <VueApexCharts
-                                                type="area"
-                                                height="32"
-                                                :options="getSparklineOptions(testType.interpretations.map(i => i.label))"
-                                                :series="[{ name: 'Results', data: testType.interpretations.map(i => i.value) }]"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-                    </div>
-                </article>
-            </div>
-            <p v-else class="drawer-empty-chart">
-                No component analytics for the selected filters.
-            </p>
-        </section>
 
         <section
             class="report-card overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
@@ -1591,71 +1035,6 @@ onMounted(() => {
                         </div>
                     </section>
 
-                    <section class="drawer-analytics-panel">
-                        <div class="mb-3 flex items-center justify-between">
-                            <h4 class="report-heading">
-                                Interpretation Summary
-                            </h4>
-                            <span class="drawer-pill">Current student</span>
-                        </div>
-                        <div
-                            v-if="
-                                activeRow.current_analytics
-                                    .component_interpretations.length
-                            "
-                            class="grid gap-3 xl:grid-cols-2"
-                        >
-                            <article
-                                v-for="group in activeRow.current_analytics
-                                    .component_interpretations"
-                                :key="group.label"
-                                class="drawer-component-card"
-                            >
-                                <div
-                                    class="mb-3 flex items-start justify-between gap-3"
-                                >
-                                    <div>
-                                        <h5
-                                            class="text-sm font-bold text-slate-900 dark:text-white"
-                                        >
-                                            {{ group.label }}
-                                        </h5>
-                                        <p class="text-xs text-slate-500">
-                                            Dominant interpretation
-                                        </p>
-                                    </div>
-                                    <div class="text-right text-xs">
-                                        <strong
-                                            class="block text-lg text-emerald-700 dark:text-emerald-300"
-                                        >
-                                            {{ group.dominant_label }}
-                                        </strong>
-                                        <span class="text-slate-500">
-                                            {{ group.value }} results
-                                        </span>
-                                    </div>
-                                </div>
-                                <div class="grid gap-2">
-                                    <div
-                                        v-for="item in group.interpretations"
-                                        :key="item.label"
-                                        class="drawer-result-row"
-                                    >
-                                        <span>{{ item.label }}</span>
-                                        <strong>
-                                            {{ item.value }}
-                                        </strong>
-                                    </div>
-                                </div>
-                            </article>
-                        </div>
-                        <p v-else class="drawer-empty-chart">
-                            No interpreted result data.
-                        </p>
-                    </section>
-
-
-
                     <section
                         v-for="group in activeComponentGroups"
                         :key="group.component"
@@ -1754,60 +1133,6 @@ onMounted(() => {
                     </p>
                 </div>
             </aside>
-        </div>
-
-        <!-- PDF Export Preview Modal -->
-        <div
-            v-if="analyticsPdfPreviewOpen"
-            class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-xs"
-            @click.self="analyticsPdfPreviewOpen = false"
-        >
-            <div
-                class="flex h-[90vh] w-full max-w-5xl flex-col rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-950 overflow-hidden"
-            >
-                <div
-                    class="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-slate-900"
-                >
-                    <div>
-                        <h3 class="text-sm font-bold text-slate-900 dark:text-white">
-                            PFT Analytics PDF Report Preview
-                        </h3>
-                        <p class="text-xs text-slate-500">
-                            Pre-rendering report using Browsershot
-                        </p>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <a
-                            :href="exportAnalyticsPdfUrl"
-                            download
-                            class="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white hover:bg-emerald-700 transition"
-                        >
-                            <Download class="h-3.5 w-3.5" /> Download PDF
-                        </a>
-                        <button
-                            type="button"
-                            class="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
-                            @click="analyticsPdfPreviewOpen = false"
-                        >
-                            <X class="h-3.5 w-3.5" /> Close
-                        </button>
-                    </div>
-                </div>
-                <div class="flex-1 bg-slate-100 dark:bg-slate-950 relative">
-                    <iframe
-                        v-if="exportAnalyticsPdfUrl !== '#'"
-                        :src="exportAnalyticsPdfUrl"
-                        class="w-full h-full border-none bg-white"
-                    ></iframe>
-                    <div
-                        v-else
-                        class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 gap-2 bg-slate-50 dark:bg-slate-950"
-                    >
-                        <Loader2 class="h-8 w-8 animate-spin text-emerald-600" />
-                        <span class="text-xs">Preparing PDF preview...</span>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 </template>

@@ -82,6 +82,7 @@ class PftResultController extends Controller
         $query = clone $baseQuery;
         $this->applySearch($query, $request->input('search.value'));
         $recordsFiltered = $this->groupedCount(clone $query);
+        $summary = $this->tableSummary(clone $query);
 
         $start = max($request->integer('start'), 0);
         $length = $this->dataTablesLength($request);
@@ -129,6 +130,7 @@ class PftResultController extends Controller
             'draw' => $request->integer('draw'),
             'recordsTotal' => $recordsTotal,
             'recordsFiltered' => $recordsFiltered,
+            'summary' => $summary,
             'data' => $rows,
         ]);
     }
@@ -149,6 +151,7 @@ class PftResultController extends Controller
     {
         $filters = $this->analyticsFilters($request);
         $query = $this->filteredAnalyticsQuery($filters);
+        $labels = $this->drawerLabels($filters);
 
         // Calculate executive stats
         $totalStudentsTested = (clone $query)->distinct('user_id')->count('user_id');
@@ -442,6 +445,10 @@ class PftResultController extends Controller
                 'total' => (int) $row->total,
             ]);
 
+        $collegeComponentProfiles = blank($filters['college_id'] ?? null)
+            ? $this->collegeComponentProfiles($query->get(), $labels['colleges'] ?? [])
+            : [];
+
         return response()->json([
             'campuses' => $campuses,
             'components' => $components,
@@ -465,6 +472,7 @@ class PftResultController extends Controller
             'component_radar' => $componentRadar,
             'overall_distribution' => $classificationsDist,
             'component_distribution' => $componentPerformance,
+            'college_component_profiles' => $collegeComponentProfiles,
         ]);
     }
 
@@ -472,11 +480,12 @@ class PftResultController extends Controller
     {
         $filters = $this->analyticsFilters($request);
         $classification = $request->input('classification');
-        
+        $labels = $this->drilldownLabels();
+
         $query = $this->filteredAnalyticsQuery($filters)
             ->with(['user', 'testType.category.component'])
             ->when($classification, fn ($q, $v) => $q->where('student_pft_results.classification', $v));
-            
+
         $search = $request->input('search.value') ?? $request->input('search');
         if (filled($search)) {
             $search = addcslashes((string) $search, '%_\\');
@@ -490,74 +499,98 @@ class PftResultController extends Controller
                 ->orWhere('student_pft_results.classification', 'like', "%{$search}%");
             });
         }
-        
-        $recordsFiltered = $query->count();
-        
-        $start = max($request->integer('start', 0), 0);
-        $length = $request->integer('length', 10);
-        if ($length === -1) {
-            $length = 500;
-        }
-        
-        $columnIndex = $request->integer('order.0.column', 0);
-        $direction = $request->input('order.0.dir') === 'asc' ? 'asc' : 'desc';
-        
-        if ($columnIndex === 1) {
-            $query->join('users', 'users.id', '=', 'student_pft_results.user_id')
-                ->select('student_pft_results.*')
-                ->orderBy('users.name', $direction);
-        } else {
-            $query->orderBy('student_pft_results.tested_at', $direction)
-                ->orderBy('student_pft_results.id', 'desc');
-        }
-        
-        $rows = $query->skip($start)->take($length)->get();
-        
-        $data = $rows->map(function ($row) {
-            $results = json_decode($row->getRawOriginal('results_json'), true) ?? [];
-            $rawLines = collect($results)
-                ->except(['interpretation', 'interpretation_color'])
-                ->map(fn ($val, $key) => Str::headline((string)$key) . ': ' . $val)
-                ->implode(', ');
 
-            return [
-                'student_no' => $row->user?->student_no,
-                'student_name' => $row->user?->name,
-                'campus' => $row->campus_id,
-                'college' => $row->college_id,
-                'section' => $row->section_name ?: $row->section_id,
-                'year_level' => $row->year_level_id,
-                'component' => $row->testType?->category?->component?->name,
-                'test_type' => $row->testType?->name,
-                'raw_result' => $rawLines,
-                'classification' => $row->classification,
-                'remarks' => $row->remarks,
-                'test_date' => $row->tested_at?->toDateString(),
-            ];
-        });
-        
-        return response()->json([
-            'draw' => $request->integer('draw'),
-            'recordsTotal' => StudentPftResult::count(),
-            'recordsFiltered' => $recordsFiltered,
-            'data' => $data,
-        ]);
+        $recordsFiltered = $query->count();
+
+        if ($request->boolean('report')) {
+            $start = max($request->integer('start', 0), 0);
+            $length = $request->integer('length', 10);
+            if ($length === -1) {
+                $length = 500;
+            }
+
+            $columnIndex = $request->integer('order.0.column', 0);
+            $direction = $request->input('order.0.dir') === 'asc' ? 'asc' : 'desc';
+
+            if ($columnIndex === 1) {
+                $query->join('users', 'users.id', '=', 'student_pft_results.user_id')
+                    ->select('student_pft_results.*')
+                    ->orderBy('users.name', $direction);
+            } else {
+                $query->orderBy('student_pft_results.campus_id')
+                    ->orderBy('student_pft_results.college_id')
+                    ->orderBy('student_pft_results.user_id')
+                    ->orderBy('student_pft_results.tested_at', $direction)
+                    ->orderBy('student_pft_results.id', 'desc');
+            }
+
+            $rows = $query->get();
+            $data = $rows->map(fn (StudentPftResult $row): array => $this->drilldownRowPayload($row, $labels));
+
+            return response()->json([
+                'draw' => $request->integer('draw'),
+                'recordsTotal' => StudentPftResult::count(),
+                'recordsFiltered' => $recordsFiltered,
+                'data' => $data,
+            ]);
+        }
+
+        $nodeLevel = (string) $request->input('node_level', 'campus');
+
+        return match ($nodeLevel) {
+            'college' => response()->json([
+                'level' => 'college',
+                'data' => $this->collegeDrilldownNodes(
+                    $query,
+                    $labels,
+                    (string) $request->input('campus_id', ''),
+                ),
+            ]),
+            'student' => response()->json([
+                'level' => 'student',
+                'data' => $this->studentDrilldownNodes(
+                    $query,
+                    $labels,
+                    (string) $request->input('campus_id', ''),
+                    (string) $request->input('college_id', ''),
+                ),
+            ]),
+            'detail' => response()->json([
+                'level' => 'detail',
+                'data' => $this->studentDetailRows(
+                    $query,
+                    $labels,
+                    (string) $request->input('campus_id', ''),
+                    (string) $request->input('college_id', ''),
+                    (string) $request->input('user_id', ''),
+                ),
+            ]),
+            default => response()->json([
+                'level' => 'campus',
+                'recordsFiltered' => $recordsFiltered,
+                'data' => $this->campusDrilldownNodes($query, $labels),
+            ]),
+        };
     }
 
     public function exportDrilldownExcel(Request $request): StreamedResponse
     {
         $filters = $this->analyticsFilters($request);
         $classification = $request->input('classification');
+        $labels = $this->drilldownLabels();
         
         $rows = $this->filteredAnalyticsQuery($filters)
             ->with(['user', 'testType.category.component'])
             ->when($classification, fn ($q, $v) => $q->where('student_pft_results.classification', $v))
+            ->orderBy('student_pft_results.campus_id')
+            ->orderBy('student_pft_results.college_id')
+            ->orderBy('student_pft_results.user_id')
             ->orderBy('student_pft_results.tested_at', 'desc')
             ->get();
             
         $filename = 'pft-drilldown-export-'.now()->format('Ymd-His').'.csv';
         
-        return ResponseFactory::streamDownload(function () use ($rows): void {
+        return ResponseFactory::streamDownload(function () use ($rows, $labels): void {
             $handle = fopen('php://output', 'w');
             fputcsv($handle, [
                 'Student Number',
@@ -575,25 +608,21 @@ class PftResultController extends Controller
             ]);
             
             foreach ($rows as $row) {
-                $results = json_decode($row->getRawOriginal('results_json'), true) ?? [];
-                $rawLines = collect($results)
-                    ->except(['interpretation', 'interpretation_color'])
-                    ->map(fn ($val, $key) => Str::headline((string)$key) . ': ' . $val)
-                    ->implode(', ');
-                    
+                $payload = $this->drilldownRowPayload($row, $labels);
+
                 fputcsv($handle, [
-                    $row->user?->student_no,
-                    $row->user?->name,
-                    $row->campus_id,
-                    $row->college_id,
-                    $row->section_name ?: $row->section_id,
-                    $row->year_level_id,
-                    $row->testType?->category?->component?->name,
-                    $row->testType?->name,
-                    $rawLines,
-                    $row->classification,
-                    $row->remarks,
-                    $row->tested_at?->toDateString(),
+                    $payload['student_no'],
+                    $payload['student_name'],
+                    $payload['campus_name'],
+                    $payload['college_name'],
+                    $payload['section'],
+                    $payload['year_level'],
+                    $payload['component'],
+                    $payload['test_type'],
+                    $payload['raw_result'],
+                    $payload['classification'],
+                    $payload['remarks'],
+                    $payload['test_date'],
                 ]);
             }
             fclose($handle);
@@ -1072,6 +1101,199 @@ class PftResultController extends Controller
             ->all();
 
         return $labels;
+    }
+
+    private function drilldownLabels(): array
+    {
+        $campuses = SiteCampus::query()
+            ->select(['id', 'real_campus_id', 'campus_name'])
+            ->get()
+            ->flatMap(function (SiteCampus $campus): array {
+                $label = $campus->campus_name;
+                $keys = [
+                    (string) $campus->id,
+                ];
+
+                if (filled($campus->real_campus_id)) {
+                    $keys[] = (string) $campus->real_campus_id;
+                }
+
+                return collect($keys)
+                    ->filter()
+                    ->mapWithKeys(fn (string $key): array => [$key => $label])
+                    ->all();
+            })
+            ->all();
+
+        $colleges = collect($this->academicApi->getColleges(auth()->user()?->tenant_id)['data'] ?? [])
+            ->mapWithKeys(fn (array $college): array => [
+                (string) ($college['collegeId'] ?? '') => $this->collegeLabel($college),
+            ])
+            ->filter()
+            ->all();
+
+        return [
+            'campuses' => $campuses,
+            'colleges' => $colleges,
+        ];
+    }
+
+    /**
+     * @return array<int, array{id: string, key: string, campus_id: string, campus_name: string, total_students: int, total_results: int}>
+     */
+    private function campusDrilldownNodes(Builder $query, array $labels): array
+    {
+        return (clone $query)
+            ->withoutEagerLoads()
+            ->selectRaw('student_pft_results.campus_id as campus_id')
+            ->selectRaw('COUNT(*) as total_results')
+            ->selectRaw('COUNT(DISTINCT student_pft_results.user_id) as total_students')
+            ->groupBy('student_pft_results.campus_id')
+            ->orderBy('student_pft_results.campus_id')
+            ->get()
+            ->map(function ($row) use ($labels): array {
+                $campusId = (string) ($row->campus_id ?? 'unassigned');
+
+                return [
+                    'id' => $campusId,
+                    'key' => $campusId,
+                    'campus_id' => $campusId,
+                    'campus_name' => $labels['campuses'][$campusId] ?? ($campusId === 'unassigned' ? 'Unassigned Campus' : $campusId),
+                    'total_students' => (int) $row->total_students,
+                    'total_results' => (int) $row->total_results,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{id: string, key: string, campus_id: string, campus_name: string, college_id: string, college_name: string, total_students: int, total_results: int}>
+     */
+    private function collegeDrilldownNodes(Builder $query, array $labels, string $campusId): array
+    {
+        return (clone $query)
+            ->withoutEagerLoads()
+            ->when(filled($campusId), fn (Builder $query) => $query->where('student_pft_results.campus_id', $campusId))
+            ->selectRaw('student_pft_results.campus_id as campus_id')
+            ->selectRaw('student_pft_results.college_id as college_id')
+            ->selectRaw('COUNT(*) as total_results')
+            ->selectRaw('COUNT(DISTINCT student_pft_results.user_id) as total_students')
+            ->groupBy('student_pft_results.campus_id', 'student_pft_results.college_id')
+            ->orderBy('student_pft_results.college_id')
+            ->get()
+            ->map(function ($row) use ($labels): array {
+                $campusId = (string) ($row->campus_id ?? 'unassigned');
+                $collegeId = (string) ($row->college_id ?? 'unassigned');
+
+                return [
+                    'id' => $campusId.'::'.$collegeId,
+                    'key' => $campusId.'::'.$collegeId,
+                    'campus_id' => $campusId,
+                    'campus_name' => $labels['campuses'][$campusId] ?? ($campusId === 'unassigned' ? 'Unassigned Campus' : $campusId),
+                    'college_id' => $collegeId,
+                    'college_name' => $labels['colleges'][$collegeId] ?? ($collegeId === 'unassigned' ? 'Unassigned College' : $collegeId),
+                    'total_students' => (int) $row->total_students,
+                    'total_results' => (int) $row->total_results,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{id: string, key: string, campus_id: string, campus_name: string, college_id: string, college_name: string, user_id: int, student_key: string, student_no: string|null, student_name: string, section: string, year_level: string, total_results: int}>
+     */
+    private function studentDrilldownNodes(Builder $query, array $labels, string $campusId, string $collegeId): array
+    {
+        return (clone $query)
+            ->withoutEagerLoads()
+            ->with('user:id,name,student_no')
+            ->when(filled($campusId), fn (Builder $query) => $query->where('student_pft_results.campus_id', $campusId))
+            ->when(filled($collegeId), fn (Builder $query) => $query->where('student_pft_results.college_id', $collegeId))
+            ->selectRaw('student_pft_results.campus_id as campus_id')
+            ->selectRaw('student_pft_results.college_id as college_id')
+            ->selectRaw('student_pft_results.user_id as user_id')
+            ->selectRaw('MAX(student_pft_results.section_name) as section_name')
+            ->selectRaw('MAX(student_pft_results.section_id) as section_id')
+            ->selectRaw('MAX(student_pft_results.year_level_id) as year_level_id')
+            ->selectRaw('COUNT(*) as total_results')
+            ->groupBy('student_pft_results.campus_id', 'student_pft_results.college_id', 'student_pft_results.user_id')
+            ->orderByDesc('total_results')
+            ->orderBy('student_pft_results.user_id')
+            ->get()
+            ->map(function ($row) use ($labels): array {
+                $campusId = (string) ($row->campus_id ?? 'unassigned');
+                $collegeId = (string) ($row->college_id ?? 'unassigned');
+                $studentKey = (string) $row->user_id;
+
+                return [
+                    'id' => $campusId.'::'.$collegeId.'::'.$studentKey,
+                    'key' => $campusId.'::'.$collegeId.'::'.$studentKey,
+                    'campus_id' => $campusId,
+                    'campus_name' => $labels['campuses'][$campusId] ?? ($campusId === 'unassigned' ? 'Unassigned Campus' : $campusId),
+                    'college_id' => $collegeId,
+                    'college_name' => $labels['colleges'][$collegeId] ?? ($collegeId === 'unassigned' ? 'Unassigned College' : $collegeId),
+                    'user_id' => (int) $row->user_id,
+                    'student_key' => $studentKey,
+                    'student_no' => $row->user?->student_no,
+                    'student_name' => $row->user?->name ?? ('User #'.(string) $row->user_id),
+                    'section' => (string) ($row->section_name ?: $row->section_id ?: '-'),
+                    'year_level' => (string) ($row->year_level_id ?: '-'),
+                    'total_results' => (int) $row->total_results,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function studentDetailRows(Builder $query, array $labels, string $campusId, string $collegeId, string $userId): array
+    {
+        return (clone $query)
+            ->when(filled($campusId), fn (Builder $query) => $query->where('student_pft_results.campus_id', $campusId))
+            ->when(filled($collegeId), fn (Builder $query) => $query->where('student_pft_results.college_id', $collegeId))
+            ->when(filled($userId), fn (Builder $query) => $query->where('student_pft_results.user_id', $userId))
+            ->orderByDesc('student_pft_results.tested_at')
+            ->orderByDesc('student_pft_results.id')
+            ->get()
+            ->map(fn (StudentPftResult $row): array => $this->drilldownRowPayload($row, $labels))
+            ->values()
+            ->all();
+    }
+
+    private function drilldownRowPayload(StudentPftResult $row, array $labels): array
+    {
+        $campusName = $labels['campuses'][(string) $row->campus_id] ?? ($row->campus_id ?: 'Unassigned Campus');
+        $collegeName = $labels['colleges'][(string) $row->college_id] ?? ($row->college_id ?: 'Unassigned College');
+        $results = json_decode($row->getRawOriginal('results_json'), true) ?? [];
+        $rawLines = collect($results)
+            ->except(['interpretation', 'interpretation_color'])
+            ->map(fn ($val, $key) => Str::headline((string) $key) . ': ' . $val)
+            ->implode(', ');
+
+        return [
+            'user_id' => $row->user_id,
+            'student_no' => $row->user?->student_no,
+            'student_name' => $row->user?->name,
+            'campus_id' => $row->campus_id,
+            'campus' => $campusName,
+            'campus_name' => $campusName,
+            'college_id' => $row->college_id,
+            'college' => $collegeName,
+            'college_name' => $collegeName,
+            'section' => $row->section_name ?: $row->section_id,
+            'year_level' => $row->year_level_id,
+            'component' => $row->testType?->category?->component?->name,
+            'test_type' => $row->testType?->name,
+            'raw_result' => $rawLines,
+            'classification' => $row->classification,
+            'remarks' => $row->remarks,
+            'test_date' => $row->tested_at?->toDateString(),
+            'student_key' => $this->groupKey((int) $row->user_id, (string) $row->term_id),
+        ];
     }
 
     private function detailRow(StudentPftResult $row): array
@@ -1608,6 +1830,25 @@ class PftResultController extends Controller
             ->when($filters['section_id'] ?? null, fn (Builder $query, string $sectionId) => $query->where('section_id', $sectionId));
     }
 
+    private function tableSummary(Builder $query): array
+    {
+        $summary = $query
+            ->selectRaw('COUNT(*) as total')
+            ->selectRaw('SUM(CASE WHEN classification IS NOT NULL THEN 1 ELSE 0 END) as interpreted')
+            ->selectRaw('SUM(CASE WHEN classification IS NULL THEN 1 ELSE 0 END) as unclassified')
+            ->selectRaw('COUNT(DISTINCT pft_test_type_id) as test_types')
+            ->selectRaw('COUNT(DISTINCT user_id) as students')
+            ->first();
+
+        return [
+            'total' => (int) ($summary->total ?? 0),
+            'interpreted' => (int) ($summary->interpreted ?? 0),
+            'unclassified' => (int) ($summary->unclassified ?? 0),
+            'test_types' => (int) ($summary->test_types ?? 0),
+            'students' => (int) ($summary->students ?? 0),
+        ];
+    }
+
     private function emptyAnalytics(): array
     {
         return [
@@ -1686,7 +1927,24 @@ class PftResultController extends Controller
         return SiteCampus::query()
             ->where('real_campus_id', $campusId)
             ->orWhere('id', $campusId)
-            ->first(['id', 'real_campus_id', 'campus_name']);
+            ->first(['id', 'real_campus_id', 'campus_name', 'campus_logo_path']);
+    }
+
+    private function reportLogoPath(array $filters): ?string
+    {
+        $campus = $this->campusFor((string) ($filters['campus_id'] ?? ''));
+
+        if ($campus?->campus_logo_path) {
+            $logoPath = public_path('storage/'.$campus->campus_logo_path);
+
+            if (is_file($logoPath)) {
+                return $logoPath;
+            }
+        }
+
+        $fallbackPath = public_path('favicon.png');
+
+        return is_file($fallbackPath) ? $fallbackPath : null;
     }
 
     private function collegeLabel(array $college): string
@@ -1868,12 +2126,17 @@ class PftResultController extends Controller
         $hierarchy = $this->hierarchyAnalytics($rows);
         $labels = $this->drawerLabels($filters);
         $interpretationAnalytics = $this->interpretationAnalytics($rows);
+        $collegeGroups = blank($filters['college_id'] ?? null)
+            ? $this->collegeHierarchyGroups($rows, $labels)
+            : [];
 
         $html = view('pdf.reporting-pft-analytics', [
             'filters' => $filters,
             'labels' => $labels,
             'hierarchy' => $hierarchy,
+            'collegeGroups' => $collegeGroups,
             'interpretationAnalytics' => $interpretationAnalytics,
+            'logoPath' => $this->reportLogoPath($filters),
             'generatedAt' => now(),
         ])->render();
 
@@ -1891,5 +2154,51 @@ class PftResultController extends Controller
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'inline; filename="'.$filename.'"',
         ]);
+    }
+
+    private function collegeHierarchyGroups(Collection $rows, array $labels): array
+    {
+        return $rows
+            ->groupBy(fn (StudentPftResult $row): string => filled($row->college_id) ? (string) $row->college_id : 'unassigned')
+            ->map(function (Collection $collegeRows, string $collegeId) use ($labels): array {
+                return [
+                    'id' => $collegeId === 'unassigned' ? null : $collegeId,
+                    'label' => $collegeId === 'unassigned'
+                        ? 'Unassigned College'
+                        : ($labels['colleges'][$collegeId] ?? $collegeId),
+                    'results' => $collegeRows->count(),
+                    'students' => $collegeRows
+                        ->map(fn (StudentPftResult $row): string => $this->groupKey((int) $row->user_id, (string) $row->term_id))
+                        ->unique()
+                        ->count(),
+                    'hierarchy' => $this->hierarchyAnalytics($collegeRows),
+                ];
+            })
+            ->sortBy('label')
+            ->values()
+            ->all();
+    }
+
+    private function collegeComponentProfiles(Collection $rows, array $collegeLabels): array
+    {
+        return $rows
+            ->groupBy(fn (StudentPftResult $row): string => filled($row->college_id) ? (string) $row->college_id : 'unassigned')
+            ->map(function (Collection $collegeRows, string $collegeId) use ($collegeLabels): array {
+                return [
+                    'id' => $collegeId,
+                    'label' => $collegeId === 'unassigned'
+                        ? 'Unassigned College'
+                        : ($collegeLabels[$collegeId] ?? $collegeId),
+                    'results' => $collegeRows->count(),
+                    'students' => $collegeRows
+                        ->map(fn (StudentPftResult $row): string => $this->groupKey((int) $row->user_id, (string) $row->term_id))
+                        ->unique()
+                        ->count(),
+                    'hierarchy' => $this->hierarchyAnalytics($collegeRows),
+                ];
+            })
+            ->sortBy('label')
+            ->values()
+            ->all();
     }
 }
