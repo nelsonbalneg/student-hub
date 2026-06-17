@@ -12,7 +12,7 @@ import {
     Trash2,
     X,
 } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import InputError from '@/components/InputError.vue';
 
 type Permission = {
@@ -25,6 +25,7 @@ type Permission = {
 type RolePermission = Pick<Permission, 'id' | 'name'>;
 type Role = {
     id: number;
+    selection_token: string;
     name: string;
     users_count?: number;
     permissions: RolePermission[];
@@ -47,6 +48,8 @@ const props = defineProps<{
         deletePermission: boolean;
     };
 }>();
+
+const ACTIVE_ROLE_KEY = 'user_management_active_role_token';
 
 defineOptions({
     layout: {
@@ -86,6 +89,46 @@ const roleForm = useForm({
 const permissionForm = useForm({
     name: '',
     module: '',
+});
+
+onMounted(() => {
+    const url = new URL(window.location.href);
+    const activeRoleToken = activeRole.value?.selection_token;
+
+    if (url.searchParams.has('roleId') && activeRoleToken) {
+        url.searchParams.set('roleId', activeRoleToken);
+        window.history.replaceState(window.history.state, '', url);
+        window.localStorage.setItem(ACTIVE_ROLE_KEY, activeRoleToken);
+
+        return;
+    }
+
+    const savedRoleToken = window.localStorage.getItem(ACTIVE_ROLE_KEY);
+
+    if (savedRoleToken) {
+        url.searchParams.set('roleId', savedRoleToken);
+        window.location.replace(url);
+    }
+});
+
+watch(activeRoleId, (roleId) => {
+    if (roleId === null || typeof window === 'undefined') {
+        return;
+    }
+
+    const roleToken = props.roles.find(
+        (role) => role.id === roleId,
+    )?.selection_token;
+
+    if (!roleToken) {
+        return;
+    }
+
+    window.localStorage.setItem(ACTIVE_ROLE_KEY, roleToken);
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('roleId', roleToken);
+    window.history.replaceState(window.history.state, '', url);
 });
 
 watch(activeRole, (role) => {

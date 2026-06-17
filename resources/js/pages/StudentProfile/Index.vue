@@ -203,6 +203,7 @@ const props = defineProps<{
         components: PftComponent[];
         results: Record<string, PftResult>;
         terms: PftTerm[];
+        canView: boolean;
         canSubmit: boolean;
         canFillUp: boolean;
     };
@@ -211,7 +212,7 @@ const props = defineProps<{
 const PROFILE_TAB_KEY = 'student_profile_active_tab';
 const activeTab = ref('personal');
 
-const tabs = [
+const baseTabs = [
     { id: 'personal', label: 'Personal', icon: User },
     { id: 'academic', label: 'Academic', icon: GraduationCap },
     { id: 'family', label: 'Family', icon: Users },
@@ -227,8 +228,15 @@ const tabs = [
     },
 ];
 
+const tabs = computed(() =>
+    baseTabs.filter(
+        (tab) =>
+            tab.id !== 'physical-fitness-test' || props.physicalFitness.canView,
+    ),
+);
+
 const isValidTab = (tab: string | null) =>
-    Boolean(tab && tabs.some((item) => item.id === tab));
+    Boolean(tab && tabs.value.some((item) => item.id === tab));
 
 const setActiveTab = (tab: string) => {
     if (!isValidTab(tab)) return;
@@ -1255,8 +1263,6 @@ const closePftAnalyticsDrawer = () => {
     pftAnalyticsDrawerOpen.value = false;
 };
 
-
-
 const openPftSummary = (row?: PftRequirementRow) => {
     if (!row?.result) return;
 
@@ -1904,6 +1910,11 @@ onMounted(() => {
 
     loadRefs();
     if (editMode.value) loadDraft();
+});
+watch(tabs, () => {
+    if (!isValidTab(activeTab.value)) {
+        setActiveTab('personal');
+    }
 });
 watch(activeTab, (tab) => {
     if (typeof window !== 'undefined' && isValidTab(tab)) {
@@ -4115,7 +4126,7 @@ watch(editMode, (val) => {
                                                     >
                                                         <!-- Column 1: Components -->
                                                         <section
-                                                            class="p-4 border-b border-slate-100 2xl:border-b-0 2xl:border-r dark:border-white/10 overflow-y-auto"
+                                                            class="overflow-y-auto border-b border-slate-100 p-4 2xl:border-r 2xl:border-b-0 dark:border-white/10"
                                                             aria-label="Physical fitness components"
                                                         >
                                                             <div
@@ -4194,7 +4205,7 @@ watch(editMode, (val) => {
 
                                                         <!-- Column 2: Categories -->
                                                         <section
-                                                            class="p-4 border-b border-slate-100 2xl:border-b-0 2xl:border-r dark:border-white/10 overflow-y-auto"
+                                                            class="overflow-y-auto border-b border-slate-100 p-4 2xl:border-r 2xl:border-b-0 dark:border-white/10"
                                                             aria-label="Physical fitness categories"
                                                         >
                                                             <div
@@ -4209,7 +4220,10 @@ watch(editMode, (val) => {
                                                                     class="text-xs font-light text-slate-400"
                                                                 >
                                                                     {{
-                                                                        selectedPftComponent?.categories?.length ?? 0
+                                                                        selectedPftComponent
+                                                                            ?.categories
+                                                                            ?.length ??
+                                                                        0
                                                                     }}
                                                                 </span>
                                                             </div>
@@ -4217,11 +4231,15 @@ watch(editMode, (val) => {
                                                                 class="flex gap-2 overflow-x-auto pb-1 lg:block lg:space-y-2 lg:overflow-visible lg:pb-0"
                                                             >
                                                                 <div
-                                                                    v-for="category in selectedPftComponent?.categories ?? []"
-                                                                    :key="category.id"
+                                                                    v-for="category in selectedPftComponent?.categories ??
+                                                                    []"
+                                                                    :key="
+                                                                        category.id
+                                                                    "
                                                                     class="flex items-center justify-between rounded-lg p-1 transition lg:mb-2"
                                                                     :class="
-                                                                        selectedPftCategoryId === category.id
+                                                                        selectedPftCategoryId ===
+                                                                        category.id
                                                                             ? 'bg-emerald-600 text-white shadow-sm'
                                                                             : 'bg-slate-50 text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200'
                                                                     "
@@ -4229,30 +4247,50 @@ watch(editMode, (val) => {
                                                                     <button
                                                                         type="button"
                                                                         class="flex-1 px-2 py-2 text-left text-sm font-light focus:outline-none"
-                                                                        @click="selectedPftCategoryId = category.id"
+                                                                        @click="
+                                                                            selectedPftCategoryId =
+                                                                                category.id
+                                                                        "
                                                                     >
-                                                                        {{ category.name }}
+                                                                        {{
+                                                                            category.name
+                                                                        }}
                                                                     </button>
                                                                     <button
                                                                         type="button"
-                                                                        class="px-2 focus:outline-none opacity-60 hover:opacity-100"
-                                                                        @click="openCategoryDetailsModal(category)"
+                                                                        class="px-2 opacity-60 hover:opacity-100 focus:outline-none"
+                                                                        @click="
+                                                                            openCategoryDetailsModal(
+                                                                                category,
+                                                                            )
+                                                                        "
                                                                     >
-                                                                        <Info class="size-3.5" />
+                                                                        <Info
+                                                                            class="size-3.5"
+                                                                        />
                                                                     </button>
                                                                 </div>
                                                                 <div
-                                                                    v-if="(selectedPftComponent?.categories ?? []).length === 0"
-                                                                    class="text-xs text-slate-400 dark:text-slate-500 p-2"
+                                                                    v-if="
+                                                                        (
+                                                                            selectedPftComponent?.categories ??
+                                                                            []
+                                                                        )
+                                                                            .length ===
+                                                                        0
+                                                                    "
+                                                                    class="p-2 text-xs text-slate-400 dark:text-slate-500"
                                                                 >
-                                                                    No categories configured.
+                                                                    No
+                                                                    categories
+                                                                    configured.
                                                                 </div>
                                                             </div>
                                                         </section>
 
                                                         <!-- Column 3: Test Types -->
                                                         <section
-                                                            class="p-4 border-b border-slate-100 2xl:border-b-0 2xl:border-r dark:border-white/10 overflow-y-auto"
+                                                            class="overflow-y-auto border-b border-slate-100 p-4 2xl:border-r 2xl:border-b-0 dark:border-white/10"
                                                             aria-label="Physical fitness test types"
                                                         >
                                                             <div
@@ -4267,7 +4305,10 @@ watch(editMode, (val) => {
                                                                     class="text-xs font-light text-slate-400"
                                                                 >
                                                                     {{
-                                                                        selectedPftCategory?.test_types?.length ?? 0
+                                                                        selectedPftCategory
+                                                                            ?.test_types
+                                                                            ?.length ??
+                                                                        0
                                                                     }}
                                                                 </span>
                                                             </div>
@@ -4275,36 +4316,48 @@ watch(editMode, (val) => {
                                                                 class="flex gap-2 overflow-x-auto pb-1 lg:block lg:space-y-2 lg:overflow-visible lg:pb-0"
                                                             >
                                                                 <button
-                                                                    v-for="testType in selectedPftCategory?.test_types ?? []"
-                                                                    :key="testType.id"
+                                                                    v-for="testType in selectedPftCategory?.test_types ??
+                                                                    []"
+                                                                    :key="
+                                                                        testType.id
+                                                                    "
                                                                     type="button"
-                                                                    class="min-w-48 w-full rounded-lg px-3 py-3 text-left transition focus:ring-2 focus:ring-emerald-500 focus:outline-none lg:min-w-0"
+                                                                    class="w-full min-w-48 rounded-lg px-3 py-3 text-left transition focus:ring-2 focus:ring-emerald-500 focus:outline-none lg:min-w-0"
                                                                     :class="
-                                                                        selectedPftTestTypeId === testType.id
+                                                                        selectedPftTestTypeId ===
+                                                                        testType.id
                                                                             ? 'bg-emerald-600 text-white shadow-sm'
                                                                             : 'bg-slate-50 text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200'
                                                                     "
-                                                                    @click="selectedPftTestTypeId = testType.id"
+                                                                    @click="
+                                                                        selectedPftTestTypeId =
+                                                                            testType.id
+                                                                    "
                                                                 >
-                                                                    <div class="flex items-center gap-2">
+                                                                    <div
+                                                                        class="flex items-center gap-2"
+                                                                    >
                                                                         <div
                                                                             class="flex size-6 shrink-0 items-center justify-center rounded-full"
                                                                             :class="
-                                                                                selectedPftTestTypeId === testType.id
+                                                                                selectedPftTestTypeId ===
+                                                                                testType.id
                                                                                     ? 'bg-white/20 text-white'
                                                                                     : pftTestStatus(
-                                                                                          pftRowForTest(
-                                                                                              selectedPftTerm.term_id,
-                                                                                              testType.id,
-                                                                                          ),
-                                                                                      ) === 'Completed'
-                                                                                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                                                                                      : pftTestStatus(
                                                                                             pftRowForTest(
                                                                                                 selectedPftTerm.term_id,
                                                                                                 testType.id,
                                                                                             ),
-                                                                                        ) === 'Draft'
+                                                                                        ) ===
+                                                                                        'Completed'
+                                                                                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                                                                                      : pftTestStatus(
+                                                                                              pftRowForTest(
+                                                                                                  selectedPftTerm.term_id,
+                                                                                                  testType.id,
+                                                                                              ),
+                                                                                          ) ===
+                                                                                          'Draft'
                                                                                         ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
                                                                                         : 'bg-slate-100 text-slate-400 dark:bg-white/10 dark:text-slate-500'
                                                                             "
@@ -4316,7 +4369,8 @@ watch(editMode, (val) => {
                                                                                             selectedPftTerm.term_id,
                                                                                             testType.id,
                                                                                         ),
-                                                                                    ) === 'Completed'
+                                                                                    ) ===
+                                                                                    'Completed'
                                                                                 "
                                                                                 class="size-3.5"
                                                                             />
@@ -4327,7 +4381,8 @@ watch(editMode, (val) => {
                                                                                             selectedPftTerm.term_id,
                                                                                             testType.id,
                                                                                         ),
-                                                                                    ) === 'Draft'
+                                                                                    ) ===
+                                                                                    'Draft'
                                                                                 "
                                                                                 class="size-3.5"
                                                                             />
@@ -4336,14 +4391,21 @@ watch(editMode, (val) => {
                                                                                 class="size-3.5"
                                                                             />
                                                                         </div>
-                                                                        <div class="min-w-0 flex-1">
-                                                                            <span class="block text-sm font-light truncate">
-                                                                                {{ testType.name }}
+                                                                        <div
+                                                                            class="min-w-0 flex-1"
+                                                                        >
+                                                                            <span
+                                                                                class="block truncate text-sm font-light"
+                                                                            >
+                                                                                {{
+                                                                                    testType.name
+                                                                                }}
                                                                             </span>
                                                                             <span
                                                                                 class="block text-[10px] opacity-80"
                                                                                 :class="
-                                                                                    selectedPftTestTypeId === testType.id
+                                                                                    selectedPftTestTypeId ===
+                                                                                    testType.id
                                                                                         ? 'text-white'
                                                                                         : 'text-slate-500 dark:text-slate-400'
                                                                                 "
@@ -4361,79 +4423,174 @@ watch(editMode, (val) => {
                                                                     </div>
                                                                 </button>
                                                                 <div
-                                                                    v-if="(selectedPftCategory?.test_types ?? []).length === 0"
-                                                                    class="text-xs text-slate-400 dark:text-slate-500 p-2"
+                                                                    v-if="
+                                                                        (
+                                                                            selectedPftCategory?.test_types ??
+                                                                            []
+                                                                        )
+                                                                            .length ===
+                                                                        0
+                                                                    "
+                                                                    class="p-2 text-xs text-slate-400 dark:text-slate-500"
                                                                 >
-                                                                    No test types configured.
+                                                                    No test
+                                                                    types
+                                                                    configured.
                                                                 </div>
                                                             </div>
                                                         </section>
 
                                                         <!-- Column 4: Configurations (Form) -->
                                                         <section
-                                                            class="p-4 overflow-y-auto"
+                                                            class="overflow-y-auto p-4"
                                                             aria-label="Physical fitness configurations"
                                                         >
-                                                            <div v-if="selectedPftTestType" class="flex flex-col h-full">
-                                                                <div class="mb-4">
-                                                                    <h4 class="text-xs font-light tracking-wide text-slate-500 uppercase dark:text-slate-400">
-                                                                        Configurations ({{ selectedPftTestType.name }})
+                                                            <div
+                                                                v-if="
+                                                                    selectedPftTestType
+                                                                "
+                                                                class="flex h-full flex-col"
+                                                            >
+                                                                <div
+                                                                    class="mb-4"
+                                                                >
+                                                                    <h4
+                                                                        class="text-xs font-light tracking-wide text-slate-500 uppercase dark:text-slate-400"
+                                                                    >
+                                                                        Configurations
+                                                                        ({{
+                                                                            selectedPftTestType.name
+                                                                        }})
                                                                     </h4>
-                                                                    <p class="text-sm font-light text-slate-900 dark:text-white mt-1">
-                                                                        Fill up the scores and remarks.
+                                                                    <p
+                                                                        class="mt-1 text-sm font-light text-slate-900 dark:text-white"
+                                                                    >
+                                                                        Fill up
+                                                                        the
+                                                                        scores
+                                                                        and
+                                                                        remarks.
                                                                     </p>
                                                                 </div>
 
-                                                                <form @submit.prevent="submitPftResult(false)" class="flex-1 flex flex-col justify-between">
-                                                                    <input v-model="pftForm.term_id" type="hidden" />
+                                                                <form
+                                                                    @submit.prevent="
+                                                                        submitPftResult(
+                                                                            false,
+                                                                        )
+                                                                    "
+                                                                    class="flex flex-1 flex-col justify-between"
+                                                                >
+                                                                    <input
+                                                                        v-model="
+                                                                            pftForm.term_id
+                                                                        "
+                                                                        type="hidden"
+                                                                    />
 
-                                                                    <div class="space-y-4">
-                                                                        <div class="grid gap-3 sm:grid-cols-2">
+                                                                    <div
+                                                                        class="space-y-4"
+                                                                    >
+                                                                        <div
+                                                                            class="grid gap-3 sm:grid-cols-2"
+                                                                        >
                                                                             <label
                                                                                 v-for="field in selectedPftTestType?.configurations"
-                                                                                :key="field.id"
+                                                                                :key="
+                                                                                    field.id
+                                                                                "
                                                                                 class="grid gap-1.5 text-xs font-light text-slate-600 dark:text-slate-300"
                                                                                 :class="
-                                                                                    field.field_type === 'textarea'
+                                                                                    field.field_type ===
+                                                                                    'textarea'
                                                                                         ? 'sm:col-span-2'
                                                                                         : ''
                                                                                 "
                                                                             >
-                                                                                {{ field.field_label }}
-                                                                                <span v-if="field.is_required" class="text-red-500">*</span>
+                                                                                {{
+                                                                                    field.field_label
+                                                                                }}
+                                                                                <span
+                                                                                    v-if="
+                                                                                        field.is_required
+                                                                                    "
+                                                                                    class="text-red-500"
+                                                                                    >*</span
+                                                                                >
 
                                                                                 <textarea
-                                                                                    v-if="field.field_type === 'textarea'"
-                                                                                    v-model="pftForm.results[field.field_name]"
+                                                                                    v-if="
+                                                                                        field.field_type ===
+                                                                                        'textarea'
+                                                                                    "
+                                                                                    v-model="
+                                                                                        pftForm
+                                                                                            .results[
+                                                                                            field
+                                                                                                .field_name
+                                                                                        ]
+                                                                                    "
                                                                                     class="pft-profile-input min-h-20"
-                                                                                    :placeholder="field.placeholder ?? ''"
+                                                                                    :placeholder="
+                                                                                        field.placeholder ??
+                                                                                        ''
+                                                                                    "
                                                                                 />
 
                                                                                 <select
                                                                                     v-else-if="
-                                                                                        ['select', 'radio'].includes(
+                                                                                        [
+                                                                                            'select',
+                                                                                            'radio',
+                                                                                        ].includes(
                                                                                             field.field_type,
                                                                                         )
                                                                                     "
-                                                                                    v-model="pftForm.results[field.field_name]"
+                                                                                    v-model="
+                                                                                        pftForm
+                                                                                            .results[
+                                                                                            field
+                                                                                                .field_name
+                                                                                        ]
+                                                                                    "
                                                                                     class="pft-profile-input"
                                                                                 >
-                                                                                    <option value="">Select</option>
                                                                                     <option
-                                                                                        v-for="option in field.options ?? []"
-                                                                                        :key="option"
-                                                                                        :value="option"
+                                                                                        value=""
                                                                                     >
-                                                                                        {{ option }}
+                                                                                        Select
+                                                                                    </option>
+                                                                                    <option
+                                                                                        v-for="option in field.options ??
+                                                                                        []"
+                                                                                        :key="
+                                                                                            option
+                                                                                        "
+                                                                                        :value="
+                                                                                            option
+                                                                                        "
+                                                                                    >
+                                                                                        {{
+                                                                                            option
+                                                                                        }}
                                                                                     </option>
                                                                                 </select>
 
                                                                                 <label
-                                                                                    v-else-if="field.field_type === 'checkbox'"
+                                                                                    v-else-if="
+                                                                                        field.field_type ===
+                                                                                        'checkbox'
+                                                                                    "
                                                                                     class="flex h-10 items-center gap-2 rounded-md border border-slate-200 px-3 dark:border-white/10"
                                                                                 >
                                                                                     <input
-                                                                                        v-model="pftForm.results[field.field_name]"
+                                                                                        v-model="
+                                                                                            pftForm
+                                                                                                .results[
+                                                                                                field
+                                                                                                    .field_name
+                                                                                            ]
+                                                                                        "
                                                                                         type="checkbox"
                                                                                         class="accent-emerald-600"
                                                                                     />
@@ -4442,40 +4599,61 @@ watch(editMode, (val) => {
 
                                                                                 <input
                                                                                     v-else
-                                                                                    v-model="pftForm.results[field.field_name]"
+                                                                                    v-model="
+                                                                                        pftForm
+                                                                                            .results[
+                                                                                            field
+                                                                                                .field_name
+                                                                                        ]
+                                                                                    "
                                                                                     class="pft-profile-input"
                                                                                     :type="
-                                                                                        field.field_type === 'decimal'
+                                                                                        field.field_type ===
+                                                                                        'decimal'
                                                                                             ? 'number'
                                                                                             : field.field_type
                                                                                     "
                                                                                     :step="
-                                                                                        field.field_type === 'decimal'
+                                                                                        field.field_type ===
+                                                                                        'decimal'
                                                                                             ? '0.01'
                                                                                             : undefined
                                                                                     "
-                                                                                    :placeholder="field.placeholder ?? ''"
+                                                                                    :placeholder="
+                                                                                        field.placeholder ??
+                                                                                        ''
+                                                                                    "
                                                                                     :readonly="
-                                                                                        selectedPftTestType?.slug === 'bmi-test' &&
-                                                                                        field.field_name === 'bmi'
+                                                                                        selectedPftTestType?.slug ===
+                                                                                            'bmi-test' &&
+                                                                                        field.field_name ===
+                                                                                            'bmi'
                                                                                     "
                                                                                     :class="
-                                                                                        selectedPftTestType?.slug === 'bmi-test' &&
-                                                                                        field.field_name === 'bmi'
+                                                                                        selectedPftTestType?.slug ===
+                                                                                            'bmi-test' &&
+                                                                                        field.field_name ===
+                                                                                            'bmi'
                                                                                             ? 'cursor-not-allowed bg-slate-100 opacity-80 dark:bg-slate-900'
                                                                                             : ''
                                                                                     "
                                                                                 />
                                                                                 <span
-                                                                                    v-if="field.help_text"
+                                                                                    v-if="
+                                                                                        field.help_text
+                                                                                    "
                                                                                     class="text-[10px] font-light text-slate-400"
-                                                                                    >{{ field.help_text }}</span
+                                                                                    >{{
+                                                                                        field.help_text
+                                                                                    }}</span
                                                                                 >
                                                                             </label>
                                                                         </div>
                                                                     </div>
 
-                                                                    <div class="flex items-center justify-end gap-2 border-t border-slate-100 pt-4 mt-6 dark:border-white/10">
+                                                                    <div
+                                                                        class="mt-6 flex items-center justify-end gap-2 border-t border-slate-100 pt-4 dark:border-white/10"
+                                                                    >
                                                                         <Button
                                                                             type="button"
                                                                             variant="outline"
@@ -4484,9 +4662,14 @@ watch(editMode, (val) => {
                                                                                 !physicalFitness.canSubmit ||
                                                                                 !physicalFitness.canFillUp
                                                                             "
-                                                                            @click="submitPftResult(true)"
+                                                                            @click="
+                                                                                submitPftResult(
+                                                                                    true,
+                                                                                )
+                                                                            "
                                                                         >
-                                                                            Save Draft
+                                                                            Save
+                                                                            Draft
                                                                         </Button>
                                                                         <Button
                                                                             type="submit"
@@ -4498,15 +4681,29 @@ watch(editMode, (val) => {
                                                                             "
                                                                         >
                                                                             {{
-                                                                                pftForm.processing ? 'Saving...' : 'Save Result'
+                                                                                pftForm.processing
+                                                                                    ? 'Saving...'
+                                                                                    : 'Save Result'
                                                                             }}
                                                                         </Button>
                                                                     </div>
                                                                 </form>
                                                             </div>
-                                                            <div v-else class="flex h-full flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-12">
-                                                                <Info class="size-8 mb-2" />
-                                                                <p class="text-sm font-light">Select a test type to fill up results.</p>
+                                                            <div
+                                                                v-else
+                                                                class="flex h-full flex-col items-center justify-center py-12 text-slate-400 dark:text-slate-500"
+                                                            >
+                                                                <Info
+                                                                    class="mb-2 size-8"
+                                                                />
+                                                                <p
+                                                                    class="text-sm font-light"
+                                                                >
+                                                                    Select a
+                                                                    test type to
+                                                                    fill up
+                                                                    results.
+                                                                </p>
                                                             </div>
                                                         </section>
                                                     </div>
@@ -6803,7 +7000,7 @@ watch(editMode, (val) => {
                 </Button>
             </DialogFooter>
         </DialogContent>
-      </Dialog>
+    </Dialog>
 </template>
 
 <style>

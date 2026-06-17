@@ -23,7 +23,7 @@ class StudentPftResultController extends Controller
 {
     public function analytics(Request $request, PftAnalyticsService $analytics): JsonResponse
     {
-        $request->user()->can('student-profile.view') || abort(403);
+        $request->user()->can('pft.view') || abort(403);
 
         $filters = $request->validate([
             'term_id' => ['nullable', 'string'],

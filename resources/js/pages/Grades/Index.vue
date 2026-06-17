@@ -202,7 +202,9 @@ const isActiveTermGroup = (group: TermGroup) =>
     String(group.termId) === String(props.active_term_id);
 
 const showPhysicalFitnessShortcut = (group: TermGroup, row: GradeRecord) =>
-    isActiveTermGroup(group) && isPhysicalFitnessSubject(row);
+    can('pft.view') &&
+    isActiveTermGroup(group) &&
+    isPhysicalFitnessSubject(row);
 
 const openPhysicalFitnessTest = () => {
     window.location.href = '/student-profile#physical-fitness-test';

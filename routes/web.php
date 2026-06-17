@@ -126,7 +126,7 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
         ->middleware('can:student-profile.view')
         ->name('student-profile.update');
     Route::get('student-profile/physical-fitness/analytics', [StudentPftResultController::class, 'analytics'])
-        ->middleware('can:student-profile.view')
+        ->middleware(['can:student-profile.view', 'can:pft.view'])
         ->name('student-profile.physical-fitness.analytics');
     Route::post('student-profile/physical-fitness/{testType}', [StudentPftResultController::class, 'store'])
         ->middleware('can:pft.submit')

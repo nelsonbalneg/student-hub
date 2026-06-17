@@ -695,10 +695,10 @@ const confirmDelete = () => {
             @click.self="closeModal"
         >
             <div
-                class="w-full max-w-lg rounded-lg border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-950"
+                class="flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900 shadow-2xl dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"
             >
                 <div
-                    class="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10"
+                    class="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50/80 px-5 py-4 dark:border-white/10 dark:bg-white/[0.03]"
                 >
                     <div>
                         <h2
@@ -729,7 +729,7 @@ const confirmDelete = () => {
 
                 <form
                     v-if="modalMode === 'award'"
-                    class="space-y-4 p-5"
+                    class="min-h-0 flex-1 space-y-4 overflow-y-auto bg-white p-5 dark:bg-slate-950"
                     @submit.prevent="submitAward"
                 >
                     <label class="form-field">
@@ -803,7 +803,7 @@ const confirmDelete = () => {
 
                 <form
                     v-else
-                    class="space-y-4 p-5"
+                    class="min-h-0 flex-1 space-y-4 overflow-y-auto bg-white p-5 dark:bg-slate-950"
                     @submit.prevent="submitTraining"
                 >
                     <label class="form-field">
@@ -938,7 +938,7 @@ const confirmDelete = () => {
 @reference "tailwindcss";
 
 .action-button {
-    @apply inline-flex size-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300;
+    @apply inline-flex size-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-500/30 focus-visible:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:shadow-none dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300;
 }
 
 .form-field {
@@ -950,7 +950,12 @@ const confirmDelete = () => {
 }
 
 .form-input {
-    @apply min-h-9 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-white/10 dark:bg-slate-900 dark:text-white dark:focus:ring-emerald-500/20;
+    @apply min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm transition outline-none placeholder:text-slate-400 hover:border-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:border-white/10 dark:bg-slate-900 dark:text-white dark:shadow-none dark:hover:border-white/20 dark:focus:ring-emerald-500/20;
+    color-scheme: light;
+}
+
+:global(.dark) .form-input {
+    color-scheme: dark;
 }
 
 .primary-button {
@@ -958,6 +963,6 @@ const confirmDelete = () => {
 }
 
 .secondary-button {
-    @apply inline-flex h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-xs font-bold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5;
+    @apply inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-slate-400/30 focus-visible:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:shadow-none dark:hover:bg-white/5;
 }
 </style>

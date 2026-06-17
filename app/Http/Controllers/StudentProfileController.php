@@ -29,9 +29,12 @@ class StudentProfileController extends Controller
         $studentNo = $this->academicApi->studentNumberFor($user);
         $tenantId = blank($user->tenant_id) ? null : (string) $user->tenant_id;
         $campusId = $user->campus_id;
-        $canFillUpPft = $this->pftPermission->canFillUp($user);
+        $canViewPft = $user->can('pft.view');
+        $canSubmitPft = $canViewPft && $user->can('pft.submit');
+        $canFillUpPft = $canSubmitPft && $this->pftPermission->canFillUp($user);
         $savedPftTermIds = StudentPftResult::query()
             ->where('user_id', $user->id)
+            ->when(! $canViewPft, fn ($query) => $query->whereRaw('1 = 0'))
             ->when(! $canFillUpPft, fn ($query) => $query->where('status', 'completed'))
             ->whereNotNull('term_id')
             ->pluck('term_id')
@@ -70,6 +73,7 @@ class StudentProfileController extends Controller
             'physicalFitness' => [
                 'components' => PftComponent::query()
                     ->active()
+                    ->when(! $canViewPft, fn ($query) => $query->whereRaw('1 = 0'))
                     ->with([
                         'categories' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('name'),
                         'categories.testTypes' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('name'),
@@ -81,6 +85,7 @@ class StudentProfileController extends Controller
                     ->get(),
                 'results' => StudentPftResult::query()
                     ->where('user_id', $user->id)
+                    ->when(! $canViewPft, fn ($query) => $query->whereRaw('1 = 0'))
                     ->when(! $canFillUpPft, fn ($query) => $query->where('status', 'completed'))
                     ->when(
                         $pftTermIds !== [],
@@ -90,7 +95,8 @@ class StudentProfileController extends Controller
                     ->get()
                     ->keyBy(fn (StudentPftResult $result): string => "{$result->term_id}:{$result->pft_test_type_id}"),
                 'terms' => $pftTerms,
-                'canSubmit' => $user->can('pft.submit'),
+                'canView' => $canViewPft,
+                'canSubmit' => $canSubmitPft,
                 'canFillUp' => $canFillUpPft,
             ],
         ]);

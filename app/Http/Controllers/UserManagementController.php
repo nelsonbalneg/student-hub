@@ -21,10 +21,12 @@ use App\Models\ClearanceUpdateOffice;
 use App\Models\Office;
 use App\Models\StudentSemesterClearance;
 use App\Models\User;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
@@ -86,6 +88,7 @@ class UserManagementController extends Controller
                 ->get()
                 ->map(fn (Role $role): array => [
                     'id' => $role->id,
+                    'selection_token' => Crypt::encryptString((string) $role->id),
                     'name' => $role->name,
                     'users_count' => $role->users_count ?? 0,
                     'permissions' => $role->permissions->map(fn (Permission $permission): array => [
@@ -96,7 +99,9 @@ class UserManagementController extends Controller
                 ->values()
             : collect();
 
-        $selectedRoleId = $request->integer('roleId') ?: $roles->first()['id'] ?? null;
+        $selectedRoleId = $this->decryptRoleId($request->query('roleId'))
+            ?? $roles->first()['id']
+            ?? null;
 
         if ($selectedRoleId && ! $roles->contains('id', $selectedRoleId)) {
             $selectedRoleId = $roles->first()['id'] ?? null;
@@ -117,6 +122,21 @@ class UserManagementController extends Controller
                 'deletePermission' => $request->user()->can('permissions.delete'),
             ],
         ]);
+    }
+
+    private function decryptRoleId(mixed $encryptedRoleId): ?int
+    {
+        if (! is_string($encryptedRoleId) || blank($encryptedRoleId)) {
+            return null;
+        }
+
+        try {
+            $roleId = Crypt::decryptString($encryptedRoleId);
+
+            return ctype_digit($roleId) ? (int) $roleId : null;
+        } catch (DecryptException) {
+            return null;
+        }
     }
 
     public function storeUser(StoreUserRequest $request): RedirectResponse
