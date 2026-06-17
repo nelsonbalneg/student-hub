@@ -32,6 +32,7 @@ use Spatie\Permission\Traits\HasRoles;
     'tenant_id',
     'campus_id',
     'campus_name',
+    'gender',
     'student_no',
     'employee_no',
     'two_factor_confirmed_at',

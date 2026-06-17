@@ -746,6 +746,8 @@ class PftResultController extends Controller
 
         $query = SiteCampus::query()
             ->select(['id', 'real_campus_id', 'campus_name'])
+            ->whereNotNull('real_campus_id')
+            ->where('real_campus_id', '<>', '')
             ->when($validated['q'] ?? null, function (Builder $query, string $search): void {
                 $search = addcslashes($search, '%_\\');
                 $query->where(function (Builder $query) use ($search): void {
@@ -756,7 +758,7 @@ class PftResultController extends Controller
             ->orderBy('campus_name');
 
         return $this->select2FromQuery($query, $validated['page'] ?? 1, fn (SiteCampus $campus): array => [
-            'id' => (string) ($campus->real_campus_id ?: $campus->id),
+            'id' => (string) $campus->real_campus_id,
             'text' => trim(($campus->real_campus_id ? "{$campus->real_campus_id} - " : '').$campus->campus_name),
         ]);
     }
@@ -1108,20 +1110,14 @@ class PftResultController extends Controller
         $campuses = SiteCampus::query()
             ->select(['id', 'real_campus_id', 'campus_name'])
             ->get()
-            ->flatMap(function (SiteCampus $campus): array {
+            ->mapWithKeys(function (SiteCampus $campus): array {
                 $label = $campus->campus_name;
-                $keys = [
-                    (string) $campus->id,
-                ];
 
-                if (filled($campus->real_campus_id)) {
-                    $keys[] = (string) $campus->real_campus_id;
+                if (blank($campus->real_campus_id)) {
+                    return [];
                 }
 
-                return collect($keys)
-                    ->filter()
-                    ->mapWithKeys(fn (string $key): array => [$key => $label])
-                    ->all();
+                return [(string) $campus->real_campus_id => $label];
             })
             ->all();
 
@@ -1926,7 +1922,6 @@ class PftResultController extends Controller
     {
         return SiteCampus::query()
             ->where('real_campus_id', $campusId)
-            ->orWhere('id', $campusId)
             ->first(['id', 'real_campus_id', 'campus_name', 'campus_logo_path']);
     }
 
@@ -1979,7 +1974,7 @@ class PftResultController extends Controller
         $campus = $this->campusFor($campusId);
 
         return $campus ? [
-            'id' => (string) ($campus->real_campus_id ?: $campus->id),
+            'id' => (string) $campus->real_campus_id,
             'text' => trim(($campus->real_campus_id ? "{$campus->real_campus_id} - " : '').$campus->campus_name),
         ] : null;
     }

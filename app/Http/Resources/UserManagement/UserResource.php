@@ -34,6 +34,7 @@ class UserResource extends JsonResource
             'tenant_id' => $this->tenant_id,
             'campus_id' => $this->campus_id,
             'campus_name' => $this->campus_name,
+            'gender' => $this->gender,
             'student_no' => $this->student_no,
             'employee_no' => $this->employee_no,
             'two_factor_confirmed_at' => $this->two_factor_confirmed_at?->format('Y-m-d\TH:i'),
