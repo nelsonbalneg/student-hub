@@ -20,6 +20,7 @@ import {
     X,
 } from 'lucide-vue-next';
 import { computed, onUnmounted, ref, watch } from 'vue';
+import { toast } from 'vue-sonner';
 
 type Student = {
     id: number;
@@ -65,6 +66,7 @@ type TrainingRecord = {
 };
 
 type PhysicalFitnessSetting = {
+    enabled: boolean;
     permission: string;
     options: Array<{
         label: string;
@@ -77,7 +79,6 @@ const props = defineProps<{
     filters: {
         search: string;
     };
-    students: Student[];
     awards: Paginator<AwardRecord>;
     trainings: Paginator<TrainingRecord>;
     physicalFitnessSetting: PhysicalFitnessSetting;
@@ -99,6 +100,11 @@ const awardStudentResults = ref<Student[]>([]);
 const selectedAwardStudent = ref<Student | null>(null);
 const isSearchingAwardStudents = ref(false);
 const awardStudentSearchError = ref('');
+const trainingStudentSearch = ref('');
+const trainingStudentResults = ref<Student[]>([]);
+const selectedTrainingStudent = ref<Student | null>(null);
+const isSearchingTrainingStudents = ref(false);
+const trainingStudentSearchError = ref('');
 const deleteTarget = ref<{
     type: 'award' | 'training';
     id: number;
@@ -123,6 +129,7 @@ const trainingForm = useForm({
 });
 
 const physicalFitnessForm = useForm({
+    enabled: props.physicalFitnessSetting.enabled,
     permission: props.physicalFitnessSetting.permission,
 });
 
@@ -138,6 +145,35 @@ const submitPhysicalFitnessPermission = () => {
     physicalFitnessForm.patch(physicalFitnessPermissionRoutes.update.url(), {
         preserveScroll: true,
         preserveState: true,
+        onSuccess: () => {
+            toast.success('Physical Fitness settings updated successfully.');
+        },
+        onError: () => {
+            toast.error(
+                'Unable to save Physical Fitness settings. Please try again.',
+            );
+        },
+    });
+};
+
+const togglePhysicalFitnessShortcut = () => {
+    const previousValue = physicalFitnessForm.enabled;
+    physicalFitnessForm.enabled = !previousValue;
+
+    physicalFitnessForm.patch(physicalFitnessPermissionRoutes.update.url(), {
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => {
+            toast.success(
+                `Physical Fitness button ${physicalFitnessForm.enabled ? 'enabled' : 'disabled'} in Grades.`,
+            );
+        },
+        onError: () => {
+            physicalFitnessForm.enabled = previousValue;
+            toast.error(
+                'Unable to update the Physical Fitness button. Please try again.',
+            );
+        },
     });
 };
 
@@ -159,6 +195,8 @@ const studentLabel = (student?: Student | null) => {
 
 let awardStudentSearchTimeout: ReturnType<typeof setTimeout> | undefined;
 let awardStudentSearchAbort: AbortController | null = null;
+let trainingStudentSearchTimeout: ReturnType<typeof setTimeout> | undefined;
+let trainingStudentSearchAbort: AbortController | null = null;
 
 const searchAwardStudents = async () => {
     const query = awardStudentSearch.value.trim();
@@ -226,9 +264,77 @@ const selectAwardStudent = (student: Student) => {
     awardStudentSearchError.value = '';
 };
 
+const searchTrainingStudents = async () => {
+    const query = trainingStudentSearch.value.trim();
+
+    trainingStudentSearchError.value = '';
+
+    if (query.length < 2 || editingTraining.value) {
+        trainingStudentResults.value = [];
+        isSearchingTrainingStudents.value = false;
+        return;
+    }
+
+    trainingStudentSearchAbort?.abort();
+    const controller = new AbortController();
+    trainingStudentSearchAbort = controller;
+    isSearchingTrainingStudents.value = true;
+
+    try {
+        const response = await fetch(
+            studentRoutes.search.url({ query: { search: query } }),
+            {
+                headers: { Accept: 'application/json' },
+                signal: controller.signal,
+            },
+        );
+
+        if (!response.ok) {
+            throw new Error('Unable to search students.');
+        }
+
+        trainingStudentResults.value = await response.json();
+    } catch (error) {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+            trainingStudentSearchError.value =
+                'Student search is unavailable right now.';
+            trainingStudentResults.value = [];
+        }
+    } finally {
+        if (trainingStudentSearchAbort === controller) {
+            isSearchingTrainingStudents.value = false;
+        }
+    }
+};
+
+watch(trainingStudentSearch, (value) => {
+    if (
+        selectedTrainingStudent.value &&
+        value === studentLabel(selectedTrainingStudent.value)
+    ) {
+        return;
+    }
+
+    selectedTrainingStudent.value = null;
+    trainingForm.user_id = '';
+    clearTimeout(trainingStudentSearchTimeout);
+    trainingStudentSearchTimeout = setTimeout(searchTrainingStudents, 300);
+});
+
+const selectTrainingStudent = (student: Student) => {
+    trainingStudentSearchAbort?.abort();
+    selectedTrainingStudent.value = student;
+    trainingForm.user_id = String(student.id);
+    trainingStudentSearch.value = studentLabel(student);
+    trainingStudentResults.value = [];
+    trainingStudentSearchError.value = '';
+};
+
 const closeModal = () => {
     clearTimeout(awardStudentSearchTimeout);
     awardStudentSearchAbort?.abort();
+    clearTimeout(trainingStudentSearchTimeout);
+    trainingStudentSearchAbort?.abort();
     modalMode.value = null;
     editingAward.value = null;
     editingTraining.value = null;
@@ -237,6 +343,11 @@ const closeModal = () => {
     selectedAwardStudent.value = null;
     isSearchingAwardStudents.value = false;
     awardStudentSearchError.value = '';
+    trainingStudentSearch.value = '';
+    trainingStudentResults.value = [];
+    selectedTrainingStudent.value = null;
+    isSearchingTrainingStudents.value = false;
+    trainingStudentSearchError.value = '';
     awardForm.reset();
     awardForm.clearErrors();
     trainingForm.reset();
@@ -259,10 +370,15 @@ const openAwardModal = (record: AwardRecord | null = null) => {
 onUnmounted(() => {
     clearTimeout(awardStudentSearchTimeout);
     awardStudentSearchAbort?.abort();
+    clearTimeout(trainingStudentSearchTimeout);
+    trainingStudentSearchAbort?.abort();
 });
 
 const openTrainingModal = (record: TrainingRecord | null = null) => {
     editingTraining.value = record;
+    selectedTrainingStudent.value = record?.user ?? null;
+    trainingStudentSearch.value = record ? studentLabel(record.user) : '';
+    trainingStudentResults.value = [];
     trainingForm.user_id = record ? String(record.user_id) : '';
     trainingForm.title = record?.title ?? '';
     trainingForm.date_from = record?.date_from ?? '';
@@ -474,8 +590,53 @@ const confirmDelete = () => {
                         <div
                             class="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]"
                         >
+                            <div
+                                class="flex items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950"
+                            >
+                                <div>
+                                    <p
+                                        class="text-sm font-bold text-slate-950 dark:text-white"
+                                    >
+                                        Show in Grades
+                                    </p>
+                                    <p class="mt-1 text-xs text-slate-500">
+                                        Display the Physical Fitness Test button
+                                        beside eligible subjects for students
+                                        with permission.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    role="switch"
+                                    :aria-checked="physicalFitnessForm.enabled"
+                                    :disabled="
+                                        !can.managePhysicalFitnessPermission ||
+                                        physicalFitnessForm.processing
+                                    "
+                                    class="relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                                    :class="
+                                        physicalFitnessForm.enabled
+                                            ? 'bg-emerald-600'
+                                            : 'bg-slate-300 dark:bg-slate-700'
+                                    "
+                                    @click="togglePhysicalFitnessShortcut"
+                                >
+                                    <span
+                                        class="absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow-sm transition-transform"
+                                        :class="
+                                            physicalFitnessForm.enabled
+                                                ? 'translate-x-5'
+                                                : 'translate-x-0'
+                                        "
+                                    />
+                                    <span class="sr-only">
+                                        Toggle Physical Fitness button in Grades
+                                    </span>
+                                </button>
+                            </div>
+
                             <p
-                                class="text-sm font-bold text-slate-950 dark:text-white"
+                                class="text-sm font-bold text-slate-950 dark:text-white mt-3.5"
                             >
                                 PFT Fill-up Permission
                             </p>
@@ -833,7 +994,7 @@ const confirmDelete = () => {
                             />
                             <input
                                 v-model="awardStudentSearch"
-                                class="form-input pr-10 pl-9"
+                                class="form-input student-search-input"
                                 placeholder="Search by student number, name, or email"
                                 autocomplete="off"
                             />
@@ -962,19 +1123,83 @@ const confirmDelete = () => {
                 >
                     <label class="form-field">
                         <span>Student</span>
-                        <select
-                            v-model="trainingForm.user_id"
-                            class="form-input"
-                        >
-                            <option value="">Select student</option>
-                            <option
-                                v-for="student in students"
-                                :key="student.id"
-                                :value="String(student.id)"
+                        <input
+                            v-if="editingTraining"
+                            :value="studentLabel(editingTraining.user)"
+                            class="form-input cursor-not-allowed opacity-70"
+                            disabled
+                        />
+                        <div v-else class="relative">
+                            <Search
+                                class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                            />
+                            <input
+                                v-model="trainingStudentSearch"
+                                class="form-input student-search-input"
+                                placeholder="Search by student number, name, or email"
+                                autocomplete="off"
+                            />
+                            <LoaderCircle
+                                v-if="isSearchingTrainingStudents"
+                                class="absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-emerald-600"
+                            />
+
+                            <div
+                                v-if="
+                                    !selectedTrainingStudent &&
+                                    (trainingStudentResults.length > 0 ||
+                                        (trainingStudentSearch.trim().length >=
+                                            2 &&
+                                            !isSearchingTrainingStudents))
+                                "
+                                class="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-xl"
                             >
-                                {{ studentLabel(student) }}
-                            </option>
-                        </select>
+                                <button
+                                    v-for="student in trainingStudentResults"
+                                    :key="student.id"
+                                    type="button"
+                                    class="flex w-full flex-col rounded-md px-3 py-2 text-left transition hover:bg-accent"
+                                    @mousedown.prevent="
+                                        selectTrainingStudent(student)
+                                    "
+                                >
+                                    <span class="text-sm font-semibold">
+                                        {{ student.name }}
+                                    </span>
+                                    <span
+                                        class="text-xs font-medium text-muted-foreground"
+                                    >
+                                        {{
+                                            [student.student_no, student.email]
+                                                .filter(Boolean)
+                                                .join(' · ')
+                                        }}
+                                    </span>
+                                </button>
+                                <p
+                                    v-if="
+                                        trainingStudentResults.length === 0 &&
+                                        !trainingStudentSearchError
+                                    "
+                                    class="px-3 py-5 text-center text-xs text-muted-foreground"
+                                >
+                                    No matching students found.
+                                </p>
+                            </div>
+                        </div>
+                        <small v-if="trainingStudentSearchError">
+                            {{ trainingStudentSearchError }}
+                        </small>
+                        <small
+                            v-else-if="
+                                !editingTraining &&
+                                trainingStudentSearch.length > 0 &&
+                                trainingStudentSearch.length < 2
+                            "
+                            class="student-search-hint"
+                        >
+                            Enter at least 2 characters to search.
+                        </small>
                         <small v-if="trainingForm.errors.user_id">{{
                             trainingForm.errors.user_id
                         }}</small>
@@ -1123,6 +1348,11 @@ const confirmDelete = () => {
     background-color: var(--background);
     color: var(--foreground);
     color-scheme: light;
+}
+
+.student-search-input {
+    padding-right: 2.5rem;
+    padding-left: 2.5rem;
 }
 
 .form-input::placeholder {

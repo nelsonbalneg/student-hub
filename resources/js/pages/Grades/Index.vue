@@ -112,6 +112,7 @@ const props = defineProps<{
         | 'missing_context'
         | null;
     active_term_id: string | number | null;
+    physical_fitness_shortcut_enabled: boolean;
 }>();
 
 const expandedTerms = ref<Record<string, boolean>>({});
@@ -167,7 +168,13 @@ const pick = (row: GradeRecord, keys: string[]): string => {
 };
 
 const rowSubjectCode = (row: GradeRecord) =>
-    pick(row, ['courseCode', 'course_code', 'subjectCode', 'subject_code', 'code']);
+    pick(row, [
+        'courseCode',
+        'course_code',
+        'subjectCode',
+        'subject_code',
+        'code',
+    ]);
 
 const rowSubjectDescription = (row: GradeRecord) =>
     pick(row, [
@@ -202,6 +209,7 @@ const isActiveTermGroup = (group: TermGroup) =>
     String(group.termId) === String(props.active_term_id);
 
 const showPhysicalFitnessShortcut = (group: TermGroup, row: GradeRecord) =>
+    props.physical_fitness_shortcut_enabled &&
     can('pft.view') &&
     isActiveTermGroup(group) &&
     isPhysicalFitnessSubject(row);

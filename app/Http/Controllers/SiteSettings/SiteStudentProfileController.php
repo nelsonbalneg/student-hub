@@ -17,6 +17,10 @@ use Inertia\Response;
 
 class SiteStudentProfileController extends Controller
 {
+    public function __construct(
+        private readonly PhysicalFitnessPermissionService $physicalFitnessPermission,
+    ) {}
+
     public function index(Request $request): Response
     {
         ($request->user()->can('site-settings.student-profile.view') || $request->user()->can('site-settings.view')) || abort(403);
@@ -32,10 +36,10 @@ class SiteStudentProfileController extends Controller
             'filters' => [
                 'search' => $search,
             ],
-            'students' => $this->studentOptions($search),
             'awards' => $this->awardPaginator($search),
             'trainings' => $this->trainingPaginator($search),
             'physicalFitnessSetting' => [
+                'enabled' => $this->physicalFitnessPermission->gradesShortcutEnabled(),
                 'permission' => SiteSetting::query()
                     ->where('key', PhysicalFitnessPermissionService::SETTING_KEY)
                     ->value('value') ?? PhysicalFitnessPermissionService::PERMISSION_PE_PATHFIT_ONLY,
@@ -143,7 +147,7 @@ class SiteStudentProfileController extends Controller
     {
         $request->user()->can('site-settings.student-profile.update') || abort(403);
 
-        $training->update($this->validateTraining($request));
+        $training->update($this->validateTraining($request, includeStudent: false));
 
         return $this->toIndex('trainings', 'Training updated successfully.');
     }
@@ -159,9 +163,8 @@ class SiteStudentProfileController extends Controller
 
     public function updatePhysicalFitnessPermission(Request $request): RedirectResponse
     {
-        $request->user()->can('site-settings.student-profile.update') || abort(403);
-
         $validated = $request->validate([
+            'enabled' => ['required', 'boolean'],
             'permission' => [
                 'required',
                 'string',
@@ -181,38 +184,16 @@ class SiteStudentProfileController extends Controller
             ],
         );
 
-        return $this->toIndex('physical-fitness', 'Physical Fitness permission updated successfully.');
-    }
+        SiteSetting::query()->updateOrCreate(
+            ['key' => PhysicalFitnessPermissionService::SHORTCUT_ENABLED_SETTING_KEY],
+            [
+                'value' => $validated['enabled'] ? '1' : '0',
+                'type' => 'boolean',
+                'updated_by' => $request->user()->id,
+            ],
+        );
 
-    /**
-     * @return array<int, array{id: int, name: string, email: string|null, student_no: string|null}>
-     */
-    private function studentOptions(string $search): array
-    {
-        return User::query()
-            ->select(['id', 'name', 'email', 'student_no'])
-            ->where(function ($query): void {
-                $query->where('user_type', 'Student')
-                    ->orWhereNotNull('student_no')
-                    ->orWhereHas('roles', fn ($roleQuery) => $roleQuery->where('name', 'Student'));
-            })
-            ->when($search !== '', function ($query) use ($search): void {
-                $query->where(function ($inner) use ($search): void {
-                    $inner->where('name', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%")
-                        ->orWhere('student_no', 'like', "%{$search}%");
-                });
-            })
-            ->orderBy('name')
-            ->limit(50)
-            ->get()
-            ->map(fn (User $user): array => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'student_no' => $user->student_no,
-            ])
-            ->all();
+        return to_route('site-settings.student-profile.index', ['tab' => 'physical-fitness']);
     }
 
     private function awardPaginator(string $search): LengthAwarePaginator
@@ -271,12 +252,12 @@ class SiteStudentProfileController extends Controller
     }
 
     /**
-     * @return array{user_id: int, title: string, date_from: string, date_to?: string|null, venue?: string|null, organizer?: string|null}
+     * @return array{user_id?: int, title: string, date_from: string, date_to?: string|null, venue?: string|null, organizer?: string|null}
      */
-    private function validateTraining(Request $request): array
+    private function validateTraining(Request $request, bool $includeStudent = true): array
     {
         return $request->validate([
-            'user_id' => ['required', 'integer', 'exists:users,id'],
+            ...($includeStudent ? ['user_id' => ['required', 'integer', 'exists:users,id']] : []),
             'title' => ['required', 'string', 'max:255'],
             'date_from' => ['required', 'date'],
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],

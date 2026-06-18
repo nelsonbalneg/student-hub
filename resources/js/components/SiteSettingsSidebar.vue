@@ -51,6 +51,7 @@ const tabs = [
         href: '/admin/site-settings/evaluation',
         icon: ClipboardCheck,
         description: 'Academic evaluation settings',
+        permission: 'evaluation.templates.view',
     },
     {
         name: 'CCD Cares',

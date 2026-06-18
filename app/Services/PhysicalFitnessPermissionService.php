@@ -12,6 +12,8 @@ class PhysicalFitnessPermissionService
 {
     public const SETTING_KEY = 'pft_fillup_permission';
 
+    public const SHORTCUT_ENABLED_SETTING_KEY = 'pft_grades_shortcut_enabled';
+
     public const PERMISSION_PE_PATHFIT_ONLY = 'pe_pathfit_only';
 
     public const PERMISSION_ALL_STUDENTS = 'all_students';
@@ -30,6 +32,16 @@ class PhysicalFitnessPermissionService
         return in_array($value, [self::PERMISSION_PE_PATHFIT_ONLY, self::PERMISSION_ALL_STUDENTS], true)
             ? $value
             : self::PERMISSION_PE_PATHFIT_ONLY;
+    }
+
+    public function gradesShortcutEnabled(): bool
+    {
+        return filter_var(
+            SiteSetting::query()
+                ->where('key', self::SHORTCUT_ENABLED_SETTING_KEY)
+                ->value('value') ?? false,
+            FILTER_VALIDATE_BOOL,
+        );
     }
 
     public function canFillUp(User $student): bool

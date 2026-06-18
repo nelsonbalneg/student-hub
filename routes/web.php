@@ -26,6 +26,7 @@ use App\Http\Controllers\LegalDocumentController;
 use App\Http\Controllers\LegalPublicController;
 use App\Http\Controllers\MyCarbonFootprintController;
 use App\Http\Controllers\ReportingOverviewController;
+use App\Http\Controllers\SiteSettings\EvaluationTemplateController;
 use App\Http\Controllers\SiteSettings\PhysicalFitnessConfigurationController;
 use App\Http\Controllers\SiteSettings\SiteAcademicTermController;
 use App\Http\Controllers\SiteSettings\SiteBrandingController;
@@ -513,8 +514,33 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                     Route::delete('terms/{term}', [SiteAcademicTermController::class, 'destroy'])->name('terms.destroy');
                 });
 
+            Route::prefix('evaluation')
+                ->name('evaluation.')
+                ->controller(EvaluationTemplateController::class)
+                ->group(function () {
+                    Route::get('/', 'index')->name('index');
+                    Route::post('templates', 'storeTemplate')->name('templates.store');
+                    Route::patch('templates/{template}', 'updateTemplate')->name('templates.update');
+                    Route::delete('templates/{template}', 'destroyTemplate')->name('templates.destroy');
+                    Route::post('categories', 'storeCategory')->name('categories.store');
+                    Route::patch('categories/reorder', 'reorderCategories')->name('categories.reorder');
+                    Route::patch('categories/{category}', 'updateCategory')->name('categories.update');
+                    Route::delete('categories/{category}', 'destroyCategory')->name('categories.destroy');
+                    Route::post('statements', 'storeStatement')->name('statements.store');
+                    Route::patch('statements/reorder', 'reorderStatements')->name('statements.reorder');
+                    Route::patch('statements/{statement}', 'updateStatement')->name('statements.update');
+                    Route::delete('statements/{statement}', 'destroyStatement')->name('statements.destroy');
+                    Route::post('scales', 'storeScale')->name('scales.store');
+                    Route::patch('scales/reorder', 'reorderScales')->name('scales.reorder');
+                    Route::patch('scales/{scale}', 'updateScale')->name('scales.update');
+                    Route::delete('scales/{scale}', 'destroyScale')->name('scales.destroy');
+                    Route::post('choices', 'storeChoice')->name('choices.store');
+                    Route::patch('choices/reorder', 'reorderChoices')->name('choices.reorder');
+                    Route::patch('choices/{choice}', 'updateChoice')->name('choices.update');
+                    Route::delete('choices/{choice}', 'destroyChoice')->name('choices.destroy');
+                });
+
             // Placeholder routes for new tabs
-            Route::get('evaluation', fn () => Inertia::render('SiteSettings/Placeholder', ['title' => 'Evaluation']))->name('evaluation');
             Route::get('ccd-cares', fn () => Inertia::render('SiteSettings/Placeholder', ['title' => 'CCD Cares']))->name('ccd-cares');
 
             Route::get('grade-viewing', [SiteGradeViewingController::class, 'index'])->name('grade-viewing.index');

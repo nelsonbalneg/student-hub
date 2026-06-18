@@ -7,6 +7,7 @@ use App\Models\SiteCampus;
 use App\Services\AcademicApiService;
 use App\Services\GetActiveAcademicTermService;
 use App\Services\GradeComputationService;
+use App\Services\PhysicalFitnessPermissionService;
 use App\Services\StudentEvaluationApiService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,7 +23,8 @@ class GradesController extends Controller
         private readonly AcademicApiService $academicApi,
         private readonly StudentEvaluationApiService $evaluationApi,
         private readonly GetActiveAcademicTermService $activeTermService,
-        private readonly GradeComputationService $gradeComputation
+        private readonly GradeComputationService $gradeComputation,
+        private readonly PhysicalFitnessPermissionService $physicalFitnessPermission,
     ) {}
 
     public function __invoke(Request $request): Response
@@ -224,6 +226,7 @@ class GradesController extends Controller
             'evaluation_error' => $evaluationError,
             'evaluation_error_type' => $evaluationErrorType,
             'active_term_id' => $activeTermId,
+            'physical_fitness_shortcut_enabled' => $this->physicalFitnessPermission->gradesShortcutEnabled(),
         ]);
     }
 
