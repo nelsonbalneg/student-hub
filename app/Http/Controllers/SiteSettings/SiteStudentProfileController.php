@@ -9,6 +9,7 @@ use App\Models\Training;
 use App\Models\User;
 use App\Services\PhysicalFitnessPermissionService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -69,11 +70,55 @@ class SiteStudentProfileController extends Controller
 
     public function updateAward(Request $request, Achievement $achievement): RedirectResponse
     {
-        $request->user()->can('pft.permission.manage') || abort(403);
+        $request->user()->can('site-settings.student-profile.update') || abort(403);
 
-        $achievement->update($this->validateAward($request));
+        $achievement->update($this->validateAward($request, includeStudent: false));
 
         return $this->toIndex('awards', 'Award updated successfully.');
+    }
+
+    public function searchStudents(Request $request): JsonResponse
+    {
+        ($request->user()->can('site-settings.student-profile.create')
+            || $request->user()->can('site-settings.student-profile.update')) || abort(403);
+
+        $search = trim($request->string('search')->value());
+
+        if (mb_strlen($search) < 2) {
+            return response()->json([]);
+        }
+
+        $terms = collect(preg_split('/\s+/', $search))
+            ->filter()
+            ->take(3)
+            ->values();
+
+        $students = User::query()
+            ->select(['id', 'name', 'email', 'student_no'])
+            ->whereNotNull('student_no')
+            ->where(function ($query) use ($search, $terms): void {
+                $query->where('student_no', 'like', $search.'%')
+                    ->orWhere('email', 'like', $search.'%')
+                    ->orWhere('name', 'like', $search.'%');
+
+                foreach ($terms as $term) {
+                    $query->orWhere('name', 'like', $term.'%');
+                }
+            })
+            ->orderByRaw(
+                'CASE
+                    WHEN student_no LIKE ? THEN 0
+                    WHEN email LIKE ? THEN 1
+                    WHEN name LIKE ? THEN 2
+                    ELSE 3
+                END',
+                [$search.'%', $search.'%', $search.'%'],
+            )
+            ->orderBy('name')
+            ->limit(20)
+            ->get();
+
+        return response()->json($students);
     }
 
     public function destroyAward(Request $request, Achievement $achievement): RedirectResponse
@@ -212,12 +257,12 @@ class SiteStudentProfileController extends Controller
     }
 
     /**
-     * @return array{user_id: int, title: string, date_received: string, awarder?: string|null, description?: string|null}
+     * @return array{user_id?: int, title: string, date_received: string, awarder?: string|null, description?: string|null}
      */
-    private function validateAward(Request $request): array
+    private function validateAward(Request $request, bool $includeStudent = true): array
     {
         return $request->validate([
-            'user_id' => ['required', 'integer', 'exists:users,id'],
+            ...($includeStudent ? ['user_id' => ['required', 'integer', 'exists:users,id']] : []),
             'title' => ['required', 'string', 'max:255'],
             'date_received' => ['required', 'date'],
             'awarder' => ['nullable', 'string', 'max:255'],

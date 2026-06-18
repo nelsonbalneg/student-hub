@@ -524,6 +524,8 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
             Route::patch('grade-viewing/{rule}/toggle', [SiteGradeViewingController::class, 'toggle'])->name('grade-viewing.toggle');
 
             Route::get('student-profile', [SiteStudentProfileController::class, 'index'])->name('student-profile.index');
+            Route::get('student-profile/students/search', [SiteStudentProfileController::class, 'searchStudents'])
+                ->name('student-profile.students.search');
             Route::post('student-profile/awards', [SiteStudentProfileController::class, 'storeAward'])->name('student-profile.awards.store');
             Route::patch('student-profile/awards/{achievement}', [SiteStudentProfileController::class, 'updateAward'])->name('student-profile.awards.update');
             Route::delete('student-profile/awards/{achievement}', [SiteStudentProfileController::class, 'destroyAward'])->name('student-profile.awards.destroy');

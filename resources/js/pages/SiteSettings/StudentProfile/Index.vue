@@ -4,12 +4,14 @@ import SiteSettingsLayout from '@/layouts/SiteSettingsLayout.vue';
 import { index as profileIndex } from '@/routes/site-settings/student-profile';
 import * as awardRoutes from '@/routes/site-settings/student-profile/awards';
 import * as physicalFitnessPermissionRoutes from '@/routes/site-settings/student-profile/physical-fitness-permission';
+import * as studentRoutes from '@/routes/site-settings/student-profile/students';
 import * as trainingRoutes from '@/routes/site-settings/student-profile/trainings';
 import {
     Award,
     CalendarDays,
     Dumbbell,
     Edit2,
+    LoaderCircle,
     Medal,
     Plus,
     Search,
@@ -17,7 +19,7 @@ import {
     UserRound,
     X,
 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 
 type Student = {
     id: number;
@@ -92,6 +94,11 @@ const activeTab = computed(() => props.activeTab);
 const modalMode = ref<'award' | 'training' | null>(null);
 const editingAward = ref<AwardRecord | null>(null);
 const editingTraining = ref<TrainingRecord | null>(null);
+const awardStudentSearch = ref('');
+const awardStudentResults = ref<Student[]>([]);
+const selectedAwardStudent = ref<Student | null>(null);
+const isSearchingAwardStudents = ref(false);
+const awardStudentSearchError = ref('');
 const deleteTarget = ref<{
     type: 'award' | 'training';
     id: number;
@@ -150,10 +157,86 @@ const studentLabel = (student?: Student | null) => {
     return [student.name, student.student_no].filter(Boolean).join(' - ');
 };
 
+let awardStudentSearchTimeout: ReturnType<typeof setTimeout> | undefined;
+let awardStudentSearchAbort: AbortController | null = null;
+
+const searchAwardStudents = async () => {
+    const query = awardStudentSearch.value.trim();
+
+    awardStudentSearchError.value = '';
+
+    if (query.length < 2 || editingAward.value) {
+        awardStudentResults.value = [];
+        isSearchingAwardStudents.value = false;
+        return;
+    }
+
+    awardStudentSearchAbort?.abort();
+    const controller = new AbortController();
+    awardStudentSearchAbort = controller;
+    isSearchingAwardStudents.value = true;
+
+    try {
+        const response = await fetch(
+            studentRoutes.search.url({ query: { search: query } }),
+            {
+                headers: { Accept: 'application/json' },
+                signal: controller.signal,
+            },
+        );
+
+        if (!response.ok) {
+            throw new Error('Unable to search students.');
+        }
+
+        awardStudentResults.value = await response.json();
+    } catch (error) {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+            awardStudentSearchError.value =
+                'Student search is unavailable right now.';
+            awardStudentResults.value = [];
+        }
+    } finally {
+        if (awardStudentSearchAbort === controller) {
+            isSearchingAwardStudents.value = false;
+        }
+    }
+};
+
+watch(awardStudentSearch, (value) => {
+    if (
+        selectedAwardStudent.value &&
+        value === studentLabel(selectedAwardStudent.value)
+    ) {
+        return;
+    }
+
+    selectedAwardStudent.value = null;
+    awardForm.user_id = '';
+    clearTimeout(awardStudentSearchTimeout);
+    awardStudentSearchTimeout = setTimeout(searchAwardStudents, 300);
+});
+
+const selectAwardStudent = (student: Student) => {
+    awardStudentSearchAbort?.abort();
+    selectedAwardStudent.value = student;
+    awardForm.user_id = String(student.id);
+    awardStudentSearch.value = studentLabel(student);
+    awardStudentResults.value = [];
+    awardStudentSearchError.value = '';
+};
+
 const closeModal = () => {
+    clearTimeout(awardStudentSearchTimeout);
+    awardStudentSearchAbort?.abort();
     modalMode.value = null;
     editingAward.value = null;
     editingTraining.value = null;
+    awardStudentSearch.value = '';
+    awardStudentResults.value = [];
+    selectedAwardStudent.value = null;
+    isSearchingAwardStudents.value = false;
+    awardStudentSearchError.value = '';
     awardForm.reset();
     awardForm.clearErrors();
     trainingForm.reset();
@@ -162,6 +245,9 @@ const closeModal = () => {
 
 const openAwardModal = (record: AwardRecord | null = null) => {
     editingAward.value = record;
+    selectedAwardStudent.value = record?.user ?? null;
+    awardStudentSearch.value = record ? studentLabel(record.user) : '';
+    awardStudentResults.value = [];
     awardForm.user_id = record ? String(record.user_id) : '';
     awardForm.title = record?.title ?? '';
     awardForm.date_received = record?.date_received ?? '';
@@ -169,6 +255,11 @@ const openAwardModal = (record: AwardRecord | null = null) => {
     awardForm.description = record?.description ?? '';
     modalMode.value = 'award';
 };
+
+onUnmounted(() => {
+    clearTimeout(awardStudentSearchTimeout);
+    awardStudentSearchAbort?.abort();
+});
 
 const openTrainingModal = (record: TrainingRecord | null = null) => {
     editingTraining.value = record;
@@ -326,9 +417,7 @@ const confirmDelete = () => {
                         @click="visitTab('physical-fitness')"
                     >
                         <Dumbbell class="size-4" />
-                        <span class="text-sm font-bold"
-                            >Physical Fitness</span
-                        >
+                        <span class="text-sm font-bold">Physical Fitness</span>
                     </button>
                 </aside>
 
@@ -346,8 +435,8 @@ const confirmDelete = () => {
                                     activeTab === 'physical-fitness'
                                         ? 'Physical Fitness'
                                         : activeTab === 'awards'
-                                        ? 'Award Records'
-                                        : 'Training Records'
+                                          ? 'Award Records'
+                                          : 'Training Records'
                                 }}
                             </h2>
                             <p class="text-xs text-slate-500">
@@ -362,7 +451,9 @@ const confirmDelete = () => {
                         </div>
 
                         <button
-                            v-if="can.create && activeTab !== 'physical-fitness'"
+                            v-if="
+                                can.create && activeTab !== 'physical-fitness'
+                            "
                             type="button"
                             class="inline-flex h-8 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-xs font-bold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700"
                             @click="
@@ -407,10 +498,8 @@ const confirmDelete = () => {
                                         Permission
                                     </span>
                                     <select
-                                        v-model="
-                                            physicalFitnessForm.permission
-                                        "
-                                        class="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:ring-emerald-500/20"
+                                        v-model="physicalFitnessForm.permission"
+                                        class="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 transition outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:ring-emerald-500/20"
                                     >
                                         <option
                                             v-for="option in physicalFitnessSetting.options"
@@ -695,15 +784,13 @@ const confirmDelete = () => {
             @click.self="closeModal"
         >
             <div
-                class="flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900 shadow-2xl dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"
+                class="flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-2xl"
             >
                 <div
-                    class="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50/80 px-5 py-4 dark:border-white/10 dark:bg-white/[0.03]"
+                    class="flex shrink-0 items-center justify-between border-b border-border bg-muted/50 px-5 py-4"
                 >
                     <div>
-                        <h2
-                            class="text-base font-bold text-slate-950 dark:text-white"
-                        >
+                        <h2 class="text-base font-bold text-card-foreground">
                             {{
                                 modalMode === 'award'
                                     ? editingAward
@@ -714,7 +801,7 @@ const confirmDelete = () => {
                                       : 'Add Training'
                             }}
                         </h2>
-                        <p class="text-xs text-slate-500">
+                        <p class="text-xs text-muted-foreground">
                             Select a student and complete the record details.
                         </p>
                     </div>
@@ -729,21 +816,88 @@ const confirmDelete = () => {
 
                 <form
                     v-if="modalMode === 'award'"
-                    class="min-h-0 flex-1 space-y-4 overflow-y-auto bg-white p-5 dark:bg-slate-950"
+                    class="min-h-0 flex-1 space-y-4 overflow-y-auto bg-card p-5"
                     @submit.prevent="submitAward"
                 >
                     <label class="form-field">
                         <span>Student</span>
-                        <select v-model="awardForm.user_id" class="form-input">
-                            <option value="">Select student</option>
-                            <option
-                                v-for="student in students"
-                                :key="student.id"
-                                :value="String(student.id)"
+                        <input
+                            v-if="editingAward"
+                            :value="studentLabel(editingAward.user)"
+                            class="form-input cursor-not-allowed opacity-70"
+                            disabled
+                        />
+                        <div v-else class="relative">
+                            <Search
+                                class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                            />
+                            <input
+                                v-model="awardStudentSearch"
+                                class="form-input pr-10 pl-9"
+                                placeholder="Search by student number, name, or email"
+                                autocomplete="off"
+                            />
+                            <LoaderCircle
+                                v-if="isSearchingAwardStudents"
+                                class="absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-emerald-600"
+                            />
+
+                            <div
+                                v-if="
+                                    !selectedAwardStudent &&
+                                    (awardStudentResults.length > 0 ||
+                                        (awardStudentSearch.trim().length >=
+                                            2 &&
+                                            !isSearchingAwardStudents))
+                                "
+                                class="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-xl"
                             >
-                                {{ studentLabel(student) }}
-                            </option>
-                        </select>
+                                <button
+                                    v-for="student in awardStudentResults"
+                                    :key="student.id"
+                                    type="button"
+                                    class="flex w-full flex-col rounded-md px-3 py-2 text-left transition hover:bg-accent"
+                                    @mousedown.prevent="
+                                        selectAwardStudent(student)
+                                    "
+                                >
+                                    <span class="text-sm font-semibold">
+                                        {{ student.name }}
+                                    </span>
+                                    <span
+                                        class="text-xs font-medium text-muted-foreground"
+                                    >
+                                        {{
+                                            [student.student_no, student.email]
+                                                .filter(Boolean)
+                                                .join(' · ')
+                                        }}
+                                    </span>
+                                </button>
+                                <p
+                                    v-if="
+                                        awardStudentResults.length === 0 &&
+                                        !awardStudentSearchError
+                                    "
+                                    class="px-3 py-5 text-center text-xs text-muted-foreground"
+                                >
+                                    No matching students found.
+                                </p>
+                            </div>
+                        </div>
+                        <small v-if="awardStudentSearchError">
+                            {{ awardStudentSearchError }}
+                        </small>
+                        <small
+                            v-else-if="
+                                !editingAward &&
+                                awardStudentSearch.length > 0 &&
+                                awardStudentSearch.length < 2
+                            "
+                            class="student-search-hint"
+                        >
+                            Enter at least 2 characters to search.
+                        </small>
                         <small v-if="awardForm.errors.user_id">{{
                             awardForm.errors.user_id
                         }}</small>
@@ -803,7 +957,7 @@ const confirmDelete = () => {
 
                 <form
                     v-else
-                    class="min-h-0 flex-1 space-y-4 overflow-y-auto bg-white p-5 dark:bg-slate-950"
+                    class="min-h-0 flex-1 space-y-4 overflow-y-auto bg-card p-5"
                     @submit.prevent="submitTraining"
                 >
                     <label class="form-field">
@@ -938,23 +1092,53 @@ const confirmDelete = () => {
 @reference "tailwindcss";
 
 .action-button {
-    @apply inline-flex size-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-500/30 focus-visible:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:shadow-none dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300;
+    @apply inline-flex size-8 items-center justify-center rounded-md border shadow-sm transition focus-visible:ring-2 focus-visible:ring-emerald-500/30 focus-visible:outline-none;
+    border-color: var(--border);
+    background-color: var(--card);
+    color: var(--muted-foreground);
+}
+
+.action-button:hover {
+    border-color: var(--primary);
+    background-color: color-mix(in srgb, var(--primary) 10%, var(--card));
+    color: var(--primary);
 }
 
 .form-field {
-    @apply grid gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300;
+    @apply grid gap-1.5 text-xs font-bold;
+    color: var(--muted-foreground);
 }
 
 .form-field small {
     @apply text-[11px] font-semibold text-red-600;
 }
 
+.form-field .student-search-hint {
+    color: var(--muted-foreground);
+}
+
 .form-input {
-    @apply min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm transition outline-none placeholder:text-slate-400 hover:border-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:border-white/10 dark:bg-slate-900 dark:text-white dark:shadow-none dark:hover:border-white/20 dark:focus:ring-emerald-500/20;
+    @apply min-h-10 w-full rounded-md border px-3 py-2 text-sm font-medium shadow-sm transition outline-none;
+    border-color: var(--input);
+    background-color: var(--background);
+    color: var(--foreground);
     color-scheme: light;
 }
 
-:global(.dark) .form-input {
+.form-input::placeholder {
+    color: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
+}
+
+.form-input:hover {
+    border-color: var(--muted-foreground);
+}
+
+.form-input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+:global(html.dark) .form-input {
     color-scheme: dark;
 }
 
@@ -963,6 +1147,17 @@ const confirmDelete = () => {
 }
 
 .secondary-button {
-    @apply inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-slate-400/30 focus-visible:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:shadow-none dark:hover:bg-white/5;
+    @apply inline-flex h-9 items-center justify-center rounded-md border px-4 text-xs font-bold shadow-sm transition focus-visible:ring-2 focus-visible:outline-none;
+    border-color: var(--border);
+    background-color: var(--card);
+    color: var(--card-foreground);
+}
+
+.secondary-button:hover {
+    background-color: var(--accent);
+}
+
+.secondary-button:focus-visible {
+    --tw-ring-color: color-mix(in srgb, var(--ring) 30%, transparent);
 }
 </style>
