@@ -5,8 +5,9 @@ import {
     BarChart3,
     Lightbulb,
     MessageSquareText,
+    Printer,
 } from 'lucide-vue-next';
-import { computed, defineAsyncComponent, ref } from 'vue';
+import { computed, defineAsyncComponent, nextTick, ref } from 'vue';
 import SiteSettingsLayout from '@/layouts/SiteSettingsLayout.vue';
 import {
     analytics as analyticsRoute,
@@ -155,13 +156,71 @@ const ratingMeaning = (rating: number) => {
     if (rating < 4.5) return 'Agree';
     return 'Strongly Agree';
 };
+
+const printedAt = computed(() =>
+    new Intl.DateTimeFormat('en-PH', {
+        dateStyle: 'long',
+        timeStyle: 'short',
+    }).format(new Date()),
+);
+
+const printReport = async () => {
+    const previousTitle = document.title;
+    document.title = selectedPeriodTitle.value
+        ? `${selectedPeriodTitle.value} - Site Evaluation Analytics`
+        : 'Site Evaluation Analytics';
+
+    await nextTick();
+    window.setTimeout(() => {
+        window.print();
+        document.title = previousTitle;
+    }, 150);
+};
+
+const selectedPeriodTitle = computed(() => props.selectedPeriod?.title ?? '');
 </script>
 
 <template>
     <Head title="Site Evaluation Analytics" />
 
     <SiteSettingsLayout>
-        <div class="space-y-6 p-5 sm:p-7 lg:p-10">
+        <div
+            id="site-evaluation-print-report"
+            class="space-y-6 p-5 sm:p-7 lg:p-10"
+        >
+            <div class="hidden print:block">
+                <p
+                    class="text-xs font-bold tracking-widest text-emerald-700 uppercase"
+                >
+                    University of Southern Mindanao
+                </p>
+                <h1 class="mt-1 text-2xl font-black text-slate-950">
+                    Site Evaluation Analytics Report
+                </h1>
+                <div
+                    v-if="selectedPeriod"
+                    class="mt-3 grid grid-cols-2 gap-3 border-y border-slate-300 py-3 text-xs text-slate-700"
+                >
+                    <p>
+                        <strong>Evaluation period:</strong>
+                        {{ selectedPeriod.title }}
+                    </p>
+                    <p>
+                        <strong>Template:</strong>
+                        {{ selectedPeriod.template_name }}
+                    </p>
+                    <p>
+                        <strong>Date range:</strong>
+                        {{ selectedPeriod.start_date }} -
+                        {{ selectedPeriod.end_date }}
+                    </p>
+                    <p>
+                        <strong>Generated:</strong>
+                        {{ printedAt }}
+                    </p>
+                </div>
+            </div>
+
             <header
                 class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
             >
@@ -174,35 +233,46 @@ const ratingMeaning = (rating: number) => {
                                 },
                             })
                         "
-                        class="mb-3 inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300"
+                        class="no-print mb-3 inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300"
                     >
                         <ArrowLeft class="size-3.5" />
                         Back to results
                     </Link>
-                    <div class="flex items-center gap-2">
+                    <div class="no-print flex items-center gap-2">
                         <BarChart3 class="size-6 text-emerald-600" />
                         <h1 class="text-2xl font-bold">
                             Site Evaluation Analytics
                         </h1>
                     </div>
-                    <p class="mt-1 text-sm text-slate-500">
+                    <p class="no-print mt-1 text-sm text-slate-500">
                         Visual analysis of ratings, participation, campuses, and
                         improvement priorities.
                     </p>
                 </div>
-                <select
-                    v-model="periodId"
-                    class="h-10 min-w-64 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-white/10 dark:bg-slate-900"
-                    @change="changePeriod"
-                >
-                    <option
-                        v-for="period in periods"
-                        :key="period.id"
-                        :value="period.id"
+                <div class="no-print flex flex-wrap items-center gap-2">
+                    <select
+                        v-model="periodId"
+                        class="h-10 min-w-64 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-white/10 dark:bg-slate-900"
+                        @change="changePeriod"
                     >
-                        {{ period.title }}
-                    </option>
-                </select>
+                        <option
+                            v-for="period in periods"
+                            :key="period.id"
+                            :value="period.id"
+                        >
+                            {{ period.title }}
+                        </option>
+                    </select>
+                    <button
+                        v-if="selectedPeriod && analytics"
+                        type="button"
+                        class="inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-emerald-700"
+                        @click="printReport"
+                    >
+                        <Printer class="size-4" />
+                        Print / Save PDF
+                    </button>
+                </div>
             </header>
 
             <div
@@ -213,7 +283,9 @@ const ratingMeaning = (rating: number) => {
             </div>
 
             <template v-else>
-                <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <section
+                    class="report-summary grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+                >
                     <article
                         class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-950"
                     >
@@ -268,7 +340,7 @@ const ratingMeaning = (rating: number) => {
                     respondent selected Strongly Disagree.
                 </div>
 
-                <section class="grid gap-4 xl:grid-cols-2">
+                <section class="report-charts grid gap-4 xl:grid-cols-2">
                     <article
                         class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-950"
                     >
@@ -326,7 +398,7 @@ const ratingMeaning = (rating: number) => {
                     </article>
                 </section>
 
-                <section>
+                <section class="report-insights">
                     <div class="mb-3 flex items-center gap-2">
                         <Lightbulb class="size-5 text-amber-500" />
                         <h2 class="text-base font-bold">Generated insights</h2>
@@ -354,7 +426,7 @@ const ratingMeaning = (rating: number) => {
                             query: { period_id: selectedPeriod.id },
                         })
                     "
-                    class="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-bold hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
+                    class="no-print inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-bold hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
                 >
                     <MessageSquareText class="size-4" />
                     View responses and comments
@@ -363,3 +435,76 @@ const ratingMeaning = (rating: number) => {
         </div>
     </SiteSettingsLayout>
 </template>
+
+<style>
+@media print {
+    @page {
+        size: A4 portrait;
+        margin: 12mm;
+    }
+
+    body * {
+        visibility: hidden !important;
+    }
+
+    #site-evaluation-print-report,
+    #site-evaluation-print-report * {
+        visibility: visible !important;
+    }
+
+    #site-evaluation-print-report {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        padding: 0 !important;
+        color: #0f172a !important;
+        background: #fff !important;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+
+    #site-evaluation-print-report .no-print {
+        display: none !important;
+    }
+
+    #site-evaluation-print-report > header {
+        display: none !important;
+    }
+
+    #site-evaluation-print-report article,
+    #site-evaluation-print-report .report-insights > div > article {
+        break-inside: avoid;
+        border-color: #cbd5e1 !important;
+        background: #fff !important;
+        box-shadow: none !important;
+    }
+
+    #site-evaluation-print-report .report-summary {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+    }
+
+    #site-evaluation-print-report .report-summary article {
+        padding: 12px !important;
+    }
+
+    #site-evaluation-print-report .report-charts {
+        grid-template-columns: 1fr !important;
+    }
+
+    #site-evaluation-print-report .report-charts article {
+        break-before: auto;
+        break-inside: avoid;
+    }
+
+    #site-evaluation-print-report .report-insights {
+        break-before: page;
+    }
+
+    #site-evaluation-print-report .apexcharts-canvas,
+    #site-evaluation-print-report .apexcharts-svg {
+        max-width: 100% !important;
+    }
+}
+</style>

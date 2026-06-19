@@ -34,4 +34,14 @@ class SsoCampus extends Model
 
         return filled($tenantId) ? (int) $tenantId : null;
     }
+
+    public function campusId(): ?int
+    {
+        $campusId = $this->getAttribute('campus_id')
+            ?? $this->getAttribute('campusId')
+            ?? $this->getAttribute('CampusID')
+            ?? $this->getAttribute('real_campus_id');
+
+        return filled($campusId) ? (int) $campusId : null;
+    }
 }

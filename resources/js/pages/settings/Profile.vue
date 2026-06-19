@@ -1,16 +1,44 @@
 <script setup lang="ts">
-import { Head, Link, usePage } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
+import { Building2, Loader2, MapPin } from 'lucide-vue-next';
 import { computed } from 'vue';
 import Heading from '@/components/Heading.vue';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { edit } from '@/routes/profile';
+import { assign as assignCampus } from '@/routes/profile/campus';
 import { send } from '@/routes/verification';
+
+type Campus = {
+    record_id: number;
+    name: string;
+    tenant_id: number;
+    campus_id: number;
+};
 
 type Props = {
     mustVerifyEmail: boolean;
     status?: string;
+    requiresCampusSelection: boolean;
+    campuses: Campus[];
 };
 
-defineProps<Props>();
+const props = defineProps<Props>();
 
 defineOptions({
     layout: {
@@ -25,6 +53,35 @@ defineOptions({
 
 const page = usePage();
 const user = computed(() => page.props.auth.user);
+const campusForm = useForm({
+    campus_record_id: null as number | null,
+});
+
+const selectedCampus = computed(
+    () =>
+        props.campuses.find(
+            (campus) => campus.record_id === campusForm.campus_record_id,
+        ) ?? null,
+);
+
+const selectCampusValue = computed({
+    get: () => campusForm.campus_record_id !== null ? String(campusForm.campus_record_id) : undefined,
+    set: (val) => {
+        campusForm.campus_record_id = val ? Number(val) : null;
+        campusForm.clearErrors('campus_record_id');
+    }
+});
+
+const saveCampus = () => {
+    if (!campusForm.campus_record_id) {
+        campusForm.setError('campus_record_id', 'Please select your campus.');
+        return;
+    }
+
+    campusForm.patch(assignCampus.url(), {
+        preserveScroll: true,
+    });
+};
 
 const valueOrDash = (value: unknown): string => {
     if (value === null || value === undefined || value === '') {
@@ -69,11 +126,6 @@ const accountDetails = computed(() =>
             show: true,
         },
         {
-            label: 'Tenant ID',
-            value: user.value.tenant_id,
-            show: true,
-        },
-        {
             label: 'Department',
             value: user.value.department,
             show: true,
@@ -104,6 +156,106 @@ const initials = computed(
 
 <template>
     <Head title="Profile settings" />
+
+    <Dialog :open="requiresCampusSelection">
+        <DialogContent
+            :show-close-button="false"
+            class="max-h-[92vh] overflow-hidden border-slate-200 p-0 shadow-2xl sm:max-w-xl dark:border-white/10"
+            @escape-key-down.prevent
+            @pointer-down-outside.prevent
+            @interact-outside.prevent
+        >
+            <DialogHeader class="border-b border-slate-200 px-6 py-5 text-left dark:border-white/10">
+                <div class="flex items-center gap-3">
+                    <div
+                        class="flex size-9 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400"
+                    >
+                        <Building2 class="size-5" />
+                    </div>
+                    <div>
+                        <DialogTitle class="text-lg font-bold text-slate-900 dark:text-white">
+                            Select your campus
+                        </DialogTitle>
+                    </div>
+                </div>
+                <DialogDescription class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                    Your account is missing campus information. Choose your official campus to continue.
+                </DialogDescription>
+            </DialogHeader>
+
+            <div class="max-h-[60vh] overflow-y-auto px-6 py-6 space-y-4">
+                <div v-if="campuses.length" class="space-y-2">
+                    <Label class="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        Campus
+                    </Label>
+                    <Select v-slot="slotProps" v-model="selectCampusValue">
+                        <SelectTrigger class="w-full border-slate-200 bg-white hover:bg-slate-50/50 dark:border-white/10 dark:bg-slate-950">
+                            <SelectValue placeholder="Choose your campus..." />
+                        </SelectTrigger>
+                        <SelectContent class="max-h-[300px] overflow-y-auto">
+                            <SelectItem
+                                v-for="campus in campuses"
+                                :key="campus.record_id"
+                                :value="String(campus.record_id)"
+                                class="cursor-pointer py-2.5"
+                            >
+                                {{ campus.name }}
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                <div
+                    v-else
+                    class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200"
+                >
+                    Campus options are temporarily unavailable. Please refresh
+                    the page or contact the system administrator.
+                </div>
+
+                <p
+                    v-if="campusForm.errors.campus_record_id"
+                    class="text-xs font-semibold text-red-600 dark:text-red-400"
+                >
+                    {{ campusForm.errors.campus_record_id }}
+                </p>
+            </div>
+
+            <DialogFooter
+                class="border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-white/10 dark:bg-slate-900"
+            >
+                <div class="flex w-full flex-col gap-2">
+                    <p
+                        v-if="selectedCampus"
+                        class="text-center text-xs text-slate-500 dark:text-slate-400"
+                    >
+                        Selected: {{ selectedCampus.name }}
+                    </p>
+                    <Button
+                        type="button"
+                        class="w-full bg-emerald-600 text-white hover:bg-emerald-700"
+                        :disabled="
+                            !campusForm.campus_record_id ||
+                            campusForm.processing ||
+                            campuses.length === 0
+                        "
+                        @click="saveCampus"
+                    >
+                        <Loader2
+                            v-if="campusForm.processing"
+                            class="mr-2 size-4 animate-spin"
+                        />
+                        <Building2 v-else class="mr-2 size-4" />
+                        {{
+                            campusForm.processing
+                                ? 'Saving campus...'
+                                : 'Save campus and continue'
+                        }}
+                    </Button>
+                </div>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
 
     <h1 class="sr-only">Profile settings</h1>
 

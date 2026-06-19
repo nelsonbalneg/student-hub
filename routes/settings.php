@@ -9,6 +9,8 @@ Route::middleware(['auth', 'terms.accepted'])->group(function () {
 
     Route::get('settings/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::patch('settings/profile/campus', [ProfileController::class, 'assignCampus'])
+        ->name('profile.campus.assign');
 });
 
 Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
