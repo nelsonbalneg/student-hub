@@ -12,7 +12,10 @@ class EvaluationStatementCategory extends Model
 {
     protected function casts(): array
     {
-        return ['sort_order' => 'integer'];
+        return [
+            'template_id' => 'integer',
+            'sort_order' => 'integer',
+        ];
     }
 
     public function template(): BelongsTo
@@ -23,5 +26,15 @@ class EvaluationStatementCategory extends Model
     public function statements(): HasMany
     {
         return $this->hasMany(EvaluationStatement::class, 'category_id');
+    }
+
+    public function scoringRules(): HasMany
+    {
+        return $this->hasMany(EvaluationScoringRule::class, 'category_id');
+    }
+
+    public function interpretationRanges(): HasMany
+    {
+        return $this->hasMany(EvaluationInterpretationRange::class, 'category_id');
     }
 }

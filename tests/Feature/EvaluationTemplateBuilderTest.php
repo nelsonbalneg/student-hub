@@ -8,6 +8,8 @@ test('evaluation template builder routes are registered', function () {
         ->toBe(EvaluationTemplateController::class.'@index')
         ->and(Route::getRoutes()->getByName('site-settings.evaluation.templates.store')?->methods())
         ->toContain('POST')
+        ->and(Route::getRoutes()->getByName('site-settings.evaluation.templates.clone')?->methods())
+        ->toContain('POST')
         ->and(Route::getRoutes()->getByName('site-settings.evaluation.statements.reorder')?->methods())
         ->toContain('PATCH')
         ->and(Route::getRoutes()->getByName('site-settings.evaluation.choices.destroy')?->methods())
@@ -22,6 +24,7 @@ test('evaluation template builder exposes all configuration routes', function ()
 
     expect($names)->toContain(
         'site-settings.evaluation.templates.store',
+        'site-settings.evaluation.templates.clone',
         'site-settings.evaluation.templates.update',
         'site-settings.evaluation.templates.destroy',
         'site-settings.evaluation.categories.reorder',

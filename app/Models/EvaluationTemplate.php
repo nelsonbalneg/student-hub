@@ -25,6 +25,16 @@ class EvaluationTemplate extends Model
         return $this->hasMany(EvaluationRatingScale::class, 'template_id');
     }
 
+    public function scoringRules(): HasMany
+    {
+        return $this->hasMany(EvaluationScoringRule::class, 'template_id');
+    }
+
+    public function interpretationRanges(): HasMany
+    {
+        return $this->hasMany(EvaluationInterpretationRange::class, 'template_id');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

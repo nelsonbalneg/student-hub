@@ -6,16 +6,19 @@ import {
     ChevronRight,
     CirclePlus,
     ClipboardCheck,
+    Copy,
     Edit3,
+    Eye,
     GripVertical,
     Layers3,
     Plus,
     Scale,
+    Search,
     Settings2,
     Trash2,
     X,
 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import SiteSettingsLayout from '@/layouts/SiteSettingsLayout.vue';
 import { index as evaluationIndex } from '@/routes/site-settings/evaluation';
@@ -27,17 +30,34 @@ import * as templateRoutes from '@/routes/site-settings/evaluation/templates';
 
 type Status = 'active' | 'inactive';
 type StatementType =
+    | 'likert'
+    | 'short_answer'
+    | 'long_answer'
     | 'rating_scale'
     | 'yes_no'
     | 'text_answer'
-    | 'multiple_choice';
+    | 'multiple_choice'
+    | 'checkbox'
+    | 'numeric_score';
 
 type Choice = {
     id: number;
     statement_id: number;
     choice_text: string;
     choice_value: string;
+    score_value: string | null;
     sort_order: number;
+};
+
+type StatementSettings = {
+    likert_preview_type: 'slider' | 'stars' | 'choices';
+    min_value: number | null;
+    max_value: number | null;
+    placeholder: string;
+    default_value: string;
+    remarks_required_below: number | null;
+    labels: string;
+    conditional_display: string;
 };
 
 type RatingScale = {
@@ -55,8 +75,14 @@ type Statement = {
     template_id: number;
     category_id: number | null;
     statement: string;
+    help_text: string | null;
     statement_type: StatementType;
     is_required: boolean;
+    weight: string;
+    is_visible: boolean;
+    scoring_enabled: boolean;
+    is_read_only: boolean;
+    settings_json: Partial<StatementSettings> | null;
     sort_order: number;
     status: Status;
     choices: Choice[];
@@ -103,6 +129,7 @@ const draggedCategoryId = ref<number | null>(null);
 const draggedStatementId = ref<number | null>(null);
 const draggedScaleId = ref<number | null>(null);
 const draggedChoiceId = ref<number | null>(null);
+const templateSearch = ref('');
 
 const templateForm = useForm({
     name: '',
@@ -122,8 +149,30 @@ const statementForm = useForm({
     template_id: props.selectedTemplate?.id ?? 0,
     category_id: null as number | null,
     statement: '',
-    statement_type: 'rating_scale' as StatementType,
+    help_text: '',
+    statement_type: 'likert' as StatementType,
     is_required: true,
+    weight: 0,
+    is_visible: true,
+    scoring_enabled: true,
+    is_read_only: false,
+    settings_json: {
+        likert_preview_type:
+            'slider' as StatementSettings['likert_preview_type'],
+        min_value: 1 as number | null,
+        max_value: 5 as number | null,
+        placeholder: '',
+        default_value: '',
+        remarks_required_below: null as number | null,
+        labels: 'Excellent, Very Good, Good, Fair, Poor',
+        conditional_display: '',
+    },
+    choices: [] as Array<{
+        choice_text: string;
+        choice_value: string;
+        score_value: number | null;
+        sort_order: number;
+    }>,
     sort_order: 0,
     status: 'active' as Status,
 });
@@ -141,6 +190,7 @@ const choiceForm = useForm({
     statement_id: 0,
     choice_text: '',
     choice_value: '',
+    score_value: null as number | null,
     sort_order: 0,
 });
 
@@ -150,7 +200,7 @@ const categoryGroups = computed(() => {
     const categories = props.selectedTemplate.categories.map((category) => ({
         category,
         statements: props.selectedTemplate!.statements.filter(
-            (statement) => statement.category_id === category.id,
+            (statement) => statement.category_id == category.id,
         ),
     }));
     const uncategorized = props.selectedTemplate.statements.filter(
@@ -163,6 +213,30 @@ const categoryGroups = computed(() => {
             ? [{ category: null, statements: uncategorized }]
             : []),
     ];
+});
+
+const filteredTemplates = computed(() => {
+    const query = templateSearch.value.trim().toLocaleLowerCase();
+
+    if (!query) return props.templates;
+
+    return props.templates.filter((template) =>
+        [template.name, template.description, template.status].some((value) =>
+            value?.toLocaleLowerCase().includes(query),
+        ),
+    );
+});
+
+const modalTitle = computed(() => {
+    const item = {
+        template: 'Template',
+        category: 'Section',
+        statement: 'Question',
+        scale: 'Scale',
+        choice: 'Choice',
+    }[modal.value ?? 'template'];
+
+    return `${editingId.value ? 'Edit' : 'Add'} ${item}`;
 });
 
 const closeModal = () => {
@@ -213,8 +287,37 @@ const openStatement = (statement?: Statement, categoryId?: number | null) => {
         props.selectedTemplate.categories[0]?.id ??
         null;
     statementForm.statement = statement?.statement ?? '';
-    statementForm.statement_type = statement?.statement_type ?? 'rating_scale';
+    statementForm.help_text = statement?.help_text ?? '';
+    statementForm.statement_type = statement?.statement_type ?? 'likert';
     statementForm.is_required = statement?.is_required ?? true;
+    statementForm.weight = Number(statement?.weight ?? 0);
+    statementForm.is_visible = statement?.is_visible ?? true;
+    statementForm.scoring_enabled = statement?.scoring_enabled ?? true;
+    statementForm.is_read_only = statement?.is_read_only ?? false;
+    statementForm.settings_json = {
+        likert_preview_type:
+            statement?.settings_json?.likert_preview_type ?? 'slider',
+        min_value: Number(statement?.settings_json?.min_value ?? 1),
+        max_value: Number(statement?.settings_json?.max_value ?? 5),
+        placeholder: statement?.settings_json?.placeholder ?? '',
+        default_value: String(statement?.settings_json?.default_value ?? ''),
+        remarks_required_below:
+            statement?.settings_json?.remarks_required_below == null
+                ? null
+                : Number(statement.settings_json.remarks_required_below),
+        labels:
+            statement?.settings_json?.labels ??
+            'Excellent, Very Good, Good, Fair, Poor',
+        conditional_display:
+            statement?.settings_json?.conditional_display ?? '',
+    };
+    statementForm.choices = (statement?.choices ?? []).map((choice) => ({
+        choice_text: choice.choice_text,
+        choice_value: choice.choice_value,
+        score_value:
+            choice.score_value == null ? null : Number(choice.score_value),
+        sort_order: choice.sort_order,
+    }));
     statementForm.sort_order =
         statement?.sort_order ?? props.selectedTemplate.statements.length + 1;
     statementForm.status = statement?.status ?? 'active';
@@ -241,75 +344,90 @@ const openChoice = (statement: Statement, choice?: Choice) => {
     choiceForm.statement_id = statement.id;
     choiceForm.choice_text = choice?.choice_text ?? '';
     choiceForm.choice_value = choice?.choice_value ?? '';
+    choiceForm.score_value =
+        choice?.score_value == null ? null : Number(choice.score_value);
     choiceForm.sort_order = choice?.sort_order ?? statement.choices.length + 1;
     modal.value = 'choice';
 };
 
-const submitWithToast = (
-    method: 'post' | 'patch',
-    form: typeof templateForm,
-    url: string,
-    message: string,
-) => {
-    form[method](url, {
-        preserveScroll: true,
-        onSuccess: () => {
-            closeModal();
-            toast.success(message);
-        },
-        onError: () => toast.error('Please check the highlighted fields.'),
-    });
+const formOptions = (message: string) => ({
+    preserveScroll: true,
+    onSuccess: () => {
+        closeModal();
+        toast.success(message);
+    },
+    onError: () => toast.error('Please check the highlighted fields.'),
+});
+
+const submitTemplate = () => {
+    const message = editingId.value ? 'Template updated.' : 'Template created.';
+
+    if (editingId.value) {
+        templateForm.patch(
+            templateRoutes.update.url(editingId.value),
+            formOptions(message),
+        );
+        return;
+    }
+
+    templateForm.post(templateRoutes.store.url(), formOptions(message));
 };
 
-const submitTemplate = () =>
-    submitWithToast(
-        editingId.value ? 'patch' : 'post',
-        templateForm,
-        editingId.value
-            ? templateRoutes.update.url(editingId.value)
-            : templateRoutes.store.url(),
-        editingId.value ? 'Template updated.' : 'Template created.',
-    );
+const submitCategory = () => {
+    const message = editingId.value ? 'Section updated.' : 'Section created.';
 
-const submitCategory = () =>
-    submitWithToast(
-        editingId.value ? 'patch' : 'post',
-        categoryForm as typeof templateForm,
-        editingId.value
-            ? categoryRoutes.update.url(editingId.value)
-            : categoryRoutes.store.url(),
-        editingId.value ? 'Category updated.' : 'Category created.',
-    );
+    if (editingId.value) {
+        categoryForm.patch(
+            categoryRoutes.update.url(editingId.value),
+            formOptions(message),
+        );
+        return;
+    }
 
-const submitStatement = () =>
-    submitWithToast(
-        editingId.value ? 'patch' : 'post',
-        statementForm as typeof templateForm,
-        editingId.value
-            ? statementRoutes.update.url(editingId.value)
-            : statementRoutes.store.url(),
-        editingId.value ? 'Statement updated.' : 'Statement created.',
-    );
+    categoryForm.post(categoryRoutes.store.url(), formOptions(message));
+};
 
-const submitScale = () =>
-    submitWithToast(
-        editingId.value ? 'patch' : 'post',
-        scaleForm as typeof templateForm,
-        editingId.value
-            ? scaleRoutes.update.url(editingId.value)
-            : scaleRoutes.store.url(),
-        editingId.value ? 'Scale updated.' : 'Scale created.',
-    );
+const submitStatement = () => {
+    const message = editingId.value ? 'Question updated.' : 'Question created.';
 
-const submitChoice = () =>
-    submitWithToast(
-        editingId.value ? 'patch' : 'post',
-        choiceForm as typeof templateForm,
-        editingId.value
-            ? choiceRoutes.update.url(editingId.value)
-            : choiceRoutes.store.url(),
-        editingId.value ? 'Choice updated.' : 'Choice created.',
-    );
+    if (editingId.value) {
+        statementForm.patch(
+            statementRoutes.update.url(editingId.value),
+            formOptions(message),
+        );
+        return;
+    }
+
+    statementForm.post(statementRoutes.store.url(), formOptions(message));
+};
+
+const submitScale = () => {
+    const message = editingId.value ? 'Scale updated.' : 'Scale created.';
+
+    if (editingId.value) {
+        scaleForm.patch(
+            scaleRoutes.update.url(editingId.value),
+            formOptions(message),
+        );
+        return;
+    }
+
+    scaleForm.post(scaleRoutes.store.url(), formOptions(message));
+};
+
+const submitChoice = () => {
+    const message = editingId.value ? 'Choice updated.' : 'Choice created.';
+
+    if (editingId.value) {
+        choiceForm.patch(
+            choiceRoutes.update.url(editingId.value),
+            formOptions(message),
+        );
+        return;
+    }
+
+    choiceForm.post(choiceRoutes.store.url(), formOptions(message));
+};
 
 const destroy = (url: string, message: string) => {
     if (!window.confirm('Delete this item? This action cannot be undone.')) {
@@ -335,6 +453,18 @@ const toggleTemplate = (template: TemplateSummary) => {
     );
 };
 
+const cloneTemplate = (template: TemplateSummary) => {
+    router.post(
+        templateRoutes.clone.url(template.id),
+        {},
+        {
+            preserveScroll: true,
+            onSuccess: () => toast.success('Template cloned.'),
+            onError: () => toast.error('The template could not be cloned.'),
+        },
+    );
+};
+
 const toggleCategory = (category: Category) => {
     router.patch(
         categoryRoutes.update.url(category.id),
@@ -353,8 +483,20 @@ const toggleStatement = (statement: Statement) => {
             template_id: statement.template_id,
             category_id: statement.category_id,
             statement: statement.statement,
+            help_text: statement.help_text,
             statement_type: statement.statement_type,
             is_required: statement.is_required,
+            weight: Number(statement.weight),
+            is_visible: statement.is_visible,
+            scoring_enabled: statement.scoring_enabled,
+            is_read_only: statement.is_read_only,
+            settings_json: statement.settings_json,
+            choices: statement.choices.map((choice) => ({
+                choice_text: choice.choice_text,
+                choice_value: choice.choice_value,
+                score_value: choice.score_value,
+                sort_order: choice.sort_order,
+            })),
             sort_order: statement.sort_order,
             status: statement.status === 'active' ? 'inactive' : 'active',
         },
@@ -437,6 +579,122 @@ const dropChoice = (targetId: number, statement: Statement) => {
 
 const typeLabel = (type: StatementType) =>
     props.statementTypes.find((item) => item.value === type)?.label ?? type;
+
+const optionTypes: StatementType[] = ['multiple_choice', 'checkbox', 'yes_no'];
+
+const addQuestionOption = () => {
+    const position = statementForm.choices.length + 1;
+    statementForm.choices.push({
+        choice_text: '',
+        choice_value: '',
+        score_value: null,
+        sort_order: position,
+    });
+};
+
+const removeQuestionOption = (index: number) => {
+    statementForm.choices.splice(index, 1);
+    statementForm.choices.forEach((choice, choiceIndex) => {
+        choice.sort_order = choiceIndex + 1;
+    });
+};
+
+const defaultQuestionOptions = (type: StatementType) => {
+    if (type === 'yes_no') {
+        return [
+            {
+                choice_text: 'Yes',
+                choice_value: 'yes',
+                score_value: 1,
+                sort_order: 1,
+            },
+            {
+                choice_text: 'No',
+                choice_value: 'no',
+                score_value: 0,
+                sort_order: 2,
+            },
+        ];
+    }
+
+    return ['Excellent', 'Very Good', 'Good', 'Fair', 'Poor'].map(
+        (label, index) => ({
+            choice_text: label,
+            choice_value: label.toLocaleLowerCase().replaceAll(' ', '_'),
+            score_value: 5 - index,
+            sort_order: index + 1,
+        }),
+    );
+};
+
+watch(
+    () => statementForm.statement_type,
+    (type, previousType) => {
+        statementForm.scoring_enabled = [
+            'likert',
+            'yes_no',
+            'multiple_choice',
+            'checkbox',
+            'rating_scale',
+            'numeric_score',
+        ].includes(type);
+
+        if (
+            optionTypes.includes(type) &&
+            (!statementForm.choices.length ||
+                !optionTypes.includes(previousType))
+        ) {
+            statementForm.choices = defaultQuestionOptions(type);
+        }
+    },
+);
+
+const isPreviewOpen = ref(false);
+const previewAnswers = ref<Record<number, string | number | string[] | null>>(
+    {},
+);
+
+const likertValues = (statement: Statement) => {
+    const minimum = Number(statement.settings_json?.min_value ?? 1);
+    const maximum = Number(statement.settings_json?.max_value ?? 5);
+
+    return Array.from(
+        { length: Math.max(maximum - minimum + 1, 1) },
+        (_, index) => minimum + index,
+    );
+};
+
+const likertLabel = (statement: Statement, value: number) => {
+    const labels = String(statement.settings_json?.labels ?? '')
+        .split(',')
+        .map((label) => label.trim())
+        .filter(Boolean);
+    const index = likertValues(statement).indexOf(value);
+
+    return labels[index] ?? String(value);
+};
+
+const openPreview = () => {
+    previewAnswers.value = {};
+    if (props.selectedTemplate) {
+        props.selectedTemplate.statements.forEach((statement) => {
+            previewAnswers.value[statement.id] =
+                statement.statement_type === 'checkbox'
+                    ? []
+                    : (statement.settings_json?.default_value ?? null);
+        });
+    }
+    isPreviewOpen.value = true;
+};
+
+const closePreview = () => {
+    isPreviewOpen.value = false;
+};
+
+const submitSimulated = () => {
+    toast.success('Preview completed. No responses were saved.');
+    closePreview();
+};
 </script>
 
 <template>
@@ -457,8 +715,8 @@ const typeLabel = (type: StatementType) =>
                         Dynamic Evaluation Builder
                     </h1>
                     <p class="text-sm text-slate-500">
-                        Create reusable templates, statements, rating scales,
-                        and response choices.
+                        Create reusable templates, sections, questions, rating
+                        scales, and response choices.
                     </p>
                 </div>
                 <button
@@ -488,9 +746,21 @@ const typeLabel = (type: StatementType) =>
                         <ClipboardCheck class="size-5 text-emerald-600" />
                     </div>
 
+                    <label class="relative mb-3 block">
+                        <Search
+                            class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400"
+                        />
+                        <input
+                            v-model="templateSearch"
+                            class="builder-input h-9 pl-9 text-xs"
+                            type="search"
+                            placeholder="Search templates"
+                        />
+                    </label>
+
                     <div class="space-y-2">
                         <button
-                            v-for="template in templates"
+                            v-for="template in filteredTemplates"
                             :key="template.id"
                             type="button"
                             class="w-full rounded-xl border p-3 text-left transition"
@@ -530,9 +800,9 @@ const typeLabel = (type: StatementType) =>
                                     </p>
                                     <p class="mt-2 text-[11px] text-slate-400">
                                         {{ template.categories_count }}
-                                        categories ·
+                                        sections ·
                                         {{ template.statements_count }}
-                                        statements
+                                        questions
                                     </p>
                                 </div>
                                 <ChevronRight class="size-4 text-slate-400" />
@@ -540,12 +810,22 @@ const typeLabel = (type: StatementType) =>
                         </button>
 
                         <div
-                            v-if="templates.length === 0"
+                            v-if="filteredTemplates.length === 0"
                             class="rounded-xl border border-dashed border-slate-300 p-6 text-center dark:border-white/15"
                         >
-                            <p class="text-sm font-bold">No templates yet</p>
+                            <p class="text-sm font-bold">
+                                {{
+                                    templates.length
+                                        ? 'No matching templates'
+                                        : 'No templates yet'
+                                }}
+                            </p>
                             <p class="mt-1 text-xs text-slate-500">
-                                Create the first reusable evaluation template.
+                                {{
+                                    templates.length
+                                        ? 'Try a different search term.'
+                                        : 'Create the first reusable evaluation template.'
+                                }}
                             </p>
                         </div>
                     </div>
@@ -598,6 +878,23 @@ const typeLabel = (type: StatementType) =>
                                     }}
                                 </button>
                                 <button
+                                    class="builder-secondary"
+                                    type="button"
+                                    @click="openPreview"
+                                >
+                                    <Eye class="size-4" />
+                                    Preview
+                                </button>
+                                <button
+                                    v-if="can.create"
+                                    class="builder-secondary"
+                                    type="button"
+                                    @click="cloneTemplate(selectedTemplate)"
+                                >
+                                    <Copy class="size-4" />
+                                    Clone
+                                </button>
+                                <button
                                     v-if="can.update"
                                     class="builder-secondary"
                                     type="button"
@@ -633,32 +930,22 @@ const typeLabel = (type: StatementType) =>
                             <div>
                                 <h3 class="builder-section-title">
                                     <Layers3 class="size-4 text-emerald-600" />
-                                    Statement Configuration
+                                    Sections and Questions
                                 </h3>
                                 <p class="builder-section-copy">
-                                    Group and reorder statements by category.
+                                    Add sections, then build and reorder the
+                                    questions inside each section.
                                 </p>
                             </div>
-                            <div class="flex gap-2">
-                                <button
-                                    v-if="can.create"
-                                    class="builder-secondary"
-                                    type="button"
-                                    @click="openCategory()"
-                                >
-                                    <CirclePlus class="size-4" />
-                                    Category
-                                </button>
-                                <button
-                                    v-if="can.create"
-                                    class="builder-primary"
-                                    type="button"
-                                    @click="openStatement()"
-                                >
-                                    <Plus class="size-4" />
-                                    Statement
-                                </button>
-                            </div>
+                            <button
+                                v-if="can.create"
+                                class="builder-primary"
+                                type="button"
+                                @click="openCategory()"
+                            >
+                                <CirclePlus class="size-4" />
+                                Add Section
+                            </button>
                         </div>
 
                         <div class="space-y-4 p-4">
@@ -694,7 +981,7 @@ const typeLabel = (type: StatementType) =>
                                                 <h4 class="text-sm font-bold">
                                                     {{
                                                         group.category?.name ||
-                                                        'Uncategorized'
+                                                        'General Questions'
                                                     }}
                                                 </h4>
                                                 <span
@@ -714,31 +1001,31 @@ const typeLabel = (type: StatementType) =>
                                                 {{
                                                     group.category
                                                         ?.description ||
-                                                    `${group.statements.length} statements`
+                                                    `${group.statements.length} questions`
                                                 }}
                                             </p>
                                         </div>
                                     </div>
                                     <div
-                                        v-if="group.category"
-                                        class="flex gap-1"
+                                        class="flex flex-wrap items-center gap-1"
                                     >
                                         <button
                                             v-if="can.create"
-                                            class="builder-icon"
+                                            class="builder-text-button rounded-lg border border-emerald-200 px-2.5 py-1.5 dark:border-emerald-500/20"
                                             type="button"
-                                            title="Add statement"
+                                            title="Add question"
                                             @click="
                                                 openStatement(
                                                     undefined,
-                                                    group.category.id,
+                                                    group.category?.id ?? null,
                                                 )
                                             "
                                         >
-                                            <Plus class="size-4" />
+                                            <Plus class="size-3.5" />
+                                            Add Question
                                         </button>
                                         <button
-                                            v-if="can.update"
+                                            v-if="can.update && group.category"
                                             class="builder-icon"
                                             type="button"
                                             @click="
@@ -748,7 +1035,7 @@ const typeLabel = (type: StatementType) =>
                                             <Activity class="size-4" />
                                         </button>
                                         <button
-                                            v-if="can.update"
+                                            v-if="can.update && group.category"
                                             class="builder-icon"
                                             type="button"
                                             @click="
@@ -758,7 +1045,7 @@ const typeLabel = (type: StatementType) =>
                                             <Edit3 class="size-4" />
                                         </button>
                                         <button
-                                            v-if="can.delete"
+                                            v-if="can.delete && group.category"
                                             class="builder-icon text-red-600"
                                             type="button"
                                             @click="
@@ -766,7 +1053,7 @@ const typeLabel = (type: StatementType) =>
                                                     categoryRoutes.destroy.url(
                                                         group.category.id,
                                                     ),
-                                                    'Category deleted.',
+                                                    'Section deleted.',
                                                 )
                                             "
                                         >
@@ -870,7 +1157,7 @@ const typeLabel = (type: StatementType) =>
                                                             statementRoutes.destroy.url(
                                                                 statement.id,
                                                             ),
-                                                            'Statement deleted.',
+                                                            'Question deleted.',
                                                         )
                                                     "
                                                 >
@@ -892,7 +1179,7 @@ const typeLabel = (type: StatementType) =>
                                                 <p
                                                     class="text-xs font-bold text-slate-500 uppercase"
                                                 >
-                                                    Statement rating scale
+                                                    Question rating scale
                                                 </p>
                                                 <button
                                                     v-if="can.create"
@@ -1077,7 +1364,7 @@ const typeLabel = (type: StatementType) =>
                                         v-if="group.statements.length === 0"
                                         class="rounded-lg border border-dashed border-slate-300 p-5 text-center text-xs text-slate-500 dark:border-white/15"
                                     >
-                                        No statements in this category.
+                                        Drop questions here or add a new one.
                                     </p>
                                 </div>
                             </article>
@@ -1092,8 +1379,7 @@ const typeLabel = (type: StatementType) =>
                                     Template Rating Scale
                                 </h3>
                                 <p class="builder-section-copy">
-                                    Reusable default scale for rating
-                                    statements.
+                                    Reusable default scale for rating questions.
                                 </p>
                             </div>
                             <button
@@ -1180,7 +1466,7 @@ const typeLabel = (type: StatementType) =>
                             Select or create a template
                         </h2>
                         <p class="mt-1 text-sm text-slate-500">
-                            The statement builder will appear here.
+                            The section and question builder will appear here.
                         </p>
                     </div>
                 </div>
@@ -1189,21 +1475,35 @@ const typeLabel = (type: StatementType) =>
 
         <div
             v-if="modal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"
+            class="fixed inset-0 z-50 flex bg-slate-950/55 backdrop-blur-sm"
+            :class="
+                modal === 'statement'
+                    ? 'justify-end'
+                    : 'items-center justify-center p-4'
+            "
             @click.self="closeModal"
         >
             <div
-                class="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-950"
+                class="w-full border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-950"
+                :class="
+                    modal === 'statement'
+                        ? 'flex h-full max-w-3xl flex-col overflow-hidden border-y-0 border-r-0'
+                        : 'max-h-[90vh] max-w-xl overflow-y-auto rounded-2xl'
+                "
             >
                 <div
                     class="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-white/10"
                 >
                     <div>
                         <h3 class="font-bold capitalize">
-                            {{ editingId ? 'Edit' : 'Add' }} {{ modal }}
+                            {{ modalTitle }}
                         </h3>
                         <p class="text-xs text-slate-500">
-                            Configure this evaluation builder item.
+                            {{
+                                modal === 'statement'
+                                    ? 'Configure type, scoring, visibility, and evaluator behavior.'
+                                    : 'Configure this evaluation builder item.'
+                            }}
                         </p>
                     </div>
                     <button
@@ -1259,7 +1559,7 @@ const typeLabel = (type: StatementType) =>
                     @submit.prevent="submitCategory"
                 >
                     <label class="builder-field">
-                        <span>Category name</span>
+                        <span>Section name</span>
                         <input
                             v-model="categoryForm.name"
                             class="builder-input"
@@ -1297,32 +1597,38 @@ const typeLabel = (type: StatementType) =>
                         class="builder-primary justify-center"
                         type="submit"
                     >
-                        <Check class="size-4" /> Save Category
+                        <Check class="size-4" /> Save Section
                     </button>
                 </form>
 
                 <form
                     v-else-if="modal === 'statement'"
-                    class="builder-form"
+                    class="builder-form flex-1 overflow-y-auto"
                     @submit.prevent="submitStatement"
                 >
                     <label class="builder-field">
-                        <span>Statement</span>
-                        <textarea
+                        <span>Question Label</span>
+                        <input
                             v-model="statementForm.statement"
-                            class="builder-input min-h-24"
-                            placeholder="The service was provided promptly."
+                            class="builder-input"
                         />
                         <small>{{ statementForm.errors.statement }}</small>
                     </label>
+                    <label class="builder-field">
+                        <span>Description / Help Text</span>
+                        <textarea
+                            v-model="statementForm.help_text"
+                            class="builder-input min-h-20"
+                        />
+                    </label>
                     <div class="grid gap-3 sm:grid-cols-2">
                         <label class="builder-field">
-                            <span>Category</span>
+                            <span>Section</span>
                             <select
                                 v-model="statementForm.category_id"
                                 class="builder-input"
                             >
-                                <option :value="null">Uncategorized</option>
+                                <option :value="null">General Questions</option>
                                 <option
                                     v-for="category in selectedTemplate?.categories"
                                     :key="category.id"
@@ -1333,7 +1639,7 @@ const typeLabel = (type: StatementType) =>
                             </select>
                         </label>
                         <label class="builder-field">
-                            <span>Statement type</span>
+                            <span>Question type</span>
                             <select
                                 v-model="statementForm.statement_type"
                                 class="builder-input"
@@ -1347,8 +1653,193 @@ const typeLabel = (type: StatementType) =>
                                 </option>
                             </select>
                         </label>
+                        <label
+                            v-if="statementForm.statement_type === 'likert'"
+                            class="builder-field"
+                        >
+                            <span>Likert Preview Type</span>
+                            <select
+                                v-model="
+                                    statementForm.settings_json
+                                        .likert_preview_type
+                                "
+                                class="builder-input"
+                            >
+                                <option value="slider">Slider</option>
+                                <option value="stars">Star Rating</option>
+                                <option value="choices">Multiple Choice</option>
+                            </select>
+                        </label>
+                        <label class="builder-field">
+                            <span>Weight</span>
+                            <input
+                                v-model.number="statementForm.weight"
+                                class="builder-input"
+                                min="0"
+                                step="0.01"
+                                type="number"
+                            />
+                        </label>
+                        <label class="builder-field">
+                            <span>Remarks Required Below</span>
+                            <input
+                                v-model.number="
+                                    statementForm.settings_json
+                                        .remarks_required_below
+                                "
+                                class="builder-input"
+                                step="0.01"
+                                type="number"
+                            />
+                        </label>
                     </div>
-                    <div class="grid gap-3 sm:grid-cols-3">
+
+                    <div class="grid gap-3 sm:grid-cols-4">
+                        <label class="builder-toggle">
+                            <input
+                                v-model="statementForm.is_required"
+                                type="checkbox"
+                            />
+                            Required
+                        </label>
+                        <label class="builder-toggle">
+                            <input
+                                v-model="statementForm.is_visible"
+                                type="checkbox"
+                            />
+                            Visible
+                        </label>
+                        <label class="builder-toggle">
+                            <input
+                                v-model="statementForm.scoring_enabled"
+                                type="checkbox"
+                            />
+                            Scoring
+                        </label>
+                        <label class="builder-toggle">
+                            <input
+                                v-model="statementForm.is_read_only"
+                                type="checkbox"
+                            />
+                            Read Only
+                        </label>
+                    </div>
+
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <label class="builder-field">
+                            <span>Minimum Value</span>
+                            <input
+                                v-model.number="
+                                    statementForm.settings_json.min_value
+                                "
+                                class="builder-input"
+                                type="number"
+                            />
+                        </label>
+                        <label class="builder-field">
+                            <span>Maximum Value</span>
+                            <input
+                                v-model.number="
+                                    statementForm.settings_json.max_value
+                                "
+                                class="builder-input"
+                                type="number"
+                            />
+                        </label>
+                        <label class="builder-field">
+                            <span>Placeholder</span>
+                            <input
+                                v-model="
+                                    statementForm.settings_json.placeholder
+                                "
+                                class="builder-input"
+                            />
+                        </label>
+                        <label class="builder-field">
+                            <span>Default Value</span>
+                            <input
+                                v-model="
+                                    statementForm.settings_json.default_value
+                                "
+                                class="builder-input"
+                            />
+                        </label>
+                    </div>
+
+                    <label class="builder-field">
+                        <span>Labels / Conditional Display</span>
+                        <textarea
+                            v-model="statementForm.settings_json.labels"
+                            class="builder-input min-h-16"
+                            placeholder="Excellent, Very Good, Good, Fair, Poor"
+                        />
+                    </label>
+
+                    <section
+                        v-if="
+                            optionTypes.includes(statementForm.statement_type)
+                        "
+                        class="rounded-xl border border-slate-200 p-3 dark:border-white/10"
+                    >
+                        <div
+                            class="mb-3 flex items-center justify-between gap-3"
+                        >
+                            <div>
+                                <h4
+                                    class="text-xs font-bold text-slate-700 dark:text-slate-200"
+                                >
+                                    Choices / Scoring Values
+                                </h4>
+                                <p class="text-[11px] text-slate-500">
+                                    Configure the selectable answers and scores.
+                                </p>
+                            </div>
+                            <button
+                                class="builder-secondary"
+                                type="button"
+                                @click="addQuestionOption"
+                            >
+                                <Plus class="size-3.5" />
+                                Option
+                            </button>
+                        </div>
+                        <div class="space-y-2">
+                            <div
+                                v-for="(
+                                    choice, choiceIndex
+                                ) in statementForm.choices"
+                                :key="choiceIndex"
+                                class="grid gap-2 sm:grid-cols-[1fr_1fr_100px_36px]"
+                            >
+                                <input
+                                    v-model="choice.choice_text"
+                                    class="builder-input"
+                                    placeholder="Label"
+                                />
+                                <input
+                                    v-model="choice.choice_value"
+                                    class="builder-input"
+                                    placeholder="Value"
+                                />
+                                <input
+                                    v-model.number="choice.score_value"
+                                    class="builder-input"
+                                    placeholder="Score"
+                                    step="0.01"
+                                    type="number"
+                                />
+                                <button
+                                    class="builder-icon text-red-600"
+                                    type="button"
+                                    @click="removeQuestionOption(choiceIndex)"
+                                >
+                                    <Trash2 class="size-4" />
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div class="grid gap-3 sm:grid-cols-2">
                         <label class="builder-field">
                             <span>Sort order</span>
                             <input
@@ -1367,19 +1858,18 @@ const typeLabel = (type: StatementType) =>
                                 <option value="inactive">Inactive</option>
                             </select>
                         </label>
-                        <label class="builder-check">
-                            <input
-                                v-model="statementForm.is_required"
-                                type="checkbox"
-                            />
-                            Required
-                        </label>
                     </div>
                     <button
-                        class="builder-primary justify-center"
+                        class="builder-primary ml-auto justify-center"
+                        :disabled="statementForm.processing"
                         type="submit"
                     >
-                        <Check class="size-4" /> Save Statement
+                        <Check class="size-4" />
+                        {{
+                            statementForm.processing
+                                ? 'Saving...'
+                                : 'Save Question'
+                        }}
                     </button>
                 </form>
 
@@ -1460,6 +1950,15 @@ const typeLabel = (type: StatementType) =>
                                 type="number"
                             />
                         </label>
+                        <label class="builder-field">
+                            <span>Score value</span>
+                            <input
+                                v-model.number="choiceForm.score_value"
+                                class="builder-input"
+                                step="0.01"
+                                type="number"
+                            />
+                        </label>
                     </div>
                     <button
                         class="builder-primary justify-center"
@@ -1468,6 +1967,426 @@ const typeLabel = (type: StatementType) =>
                         <Check class="size-4" /> Save Choice
                     </button>
                 </form>
+            </div>
+        </div>
+
+        <!-- Template Preview Modal -->
+        <div
+            v-if="isPreviewOpen && selectedTemplate"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"
+            @click.self="closePreview"
+        >
+            <div
+                class="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-950"
+            >
+                <!-- Modal Header -->
+                <div
+                    class="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-white/10"
+                >
+                    <div>
+                        <h3 class="font-bold text-slate-950 dark:text-white">
+                            Preview: {{ selectedTemplate.name }}
+                        </h3>
+                        <p class="text-xs text-slate-500">
+                            Simulated survey format for review.
+                        </p>
+                    </div>
+                    <button
+                        class="builder-icon"
+                        type="button"
+                        @click="closePreview"
+                    >
+                        <X class="size-4" />
+                    </button>
+                </div>
+
+                <!-- Modal Body -->
+                <div class="flex-1 space-y-6 overflow-y-auto p-6">
+                    <div
+                        v-if="selectedTemplate.description"
+                        class="rounded-xl border border-slate-100 bg-slate-50/70 p-4 text-xs text-slate-600 dark:border-white/5 dark:bg-white/[0.02] dark:text-slate-400"
+                    >
+                        <strong>Instructions:</strong>
+                        {{ selectedTemplate.description }}
+                    </div>
+
+                    <div
+                        v-for="group in categoryGroups"
+                        :key="group.category?.id ?? 'uncategorized'"
+                        class="space-y-4"
+                    >
+                        <!-- Category Header -->
+                        <h4
+                            class="border-b border-slate-100 pb-2 text-xs font-bold tracking-wider text-emerald-600 uppercase dark:border-white/5 dark:text-emerald-400"
+                        >
+                            {{ group.category?.name || 'General Questions' }}
+                        </h4>
+
+                        <!-- Statements -->
+                        <div class="space-y-4">
+                            <div
+                                v-for="statement in group.statements"
+                                :key="statement.id"
+                                v-show="statement.is_visible"
+                                class="space-y-2 rounded-xl border border-slate-100 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-950/40"
+                            >
+                                <div
+                                    class="flex items-start justify-between gap-4"
+                                >
+                                    <span
+                                        class="text-sm font-semibold text-slate-800 dark:text-slate-200"
+                                    >
+                                        {{ statement.statement }}
+                                        <span
+                                            v-if="statement.is_required"
+                                            class="text-red-500"
+                                            >*</span
+                                        >
+                                    </span>
+                                </div>
+                                <p
+                                    v-if="statement.help_text"
+                                    class="text-xs text-slate-500"
+                                >
+                                    {{ statement.help_text }}
+                                </p>
+
+                                <!-- Inputs based on type -->
+                                <div class="mt-3">
+                                    <div
+                                        v-if="
+                                            statement.statement_type ===
+                                            'likert'
+                                        "
+                                        class="space-y-3"
+                                    >
+                                        <div
+                                            v-if="
+                                                statement.settings_json
+                                                    ?.likert_preview_type ===
+                                                'stars'
+                                            "
+                                            class="flex flex-wrap gap-2"
+                                        >
+                                            <button
+                                                v-for="value in likertValues(
+                                                    statement,
+                                                )"
+                                                :key="value"
+                                                class="text-2xl"
+                                                :class="
+                                                    Number(
+                                                        previewAnswers[
+                                                            statement.id
+                                                        ],
+                                                    ) >= value
+                                                        ? 'text-amber-400'
+                                                        : 'text-slate-300 dark:text-slate-700'
+                                                "
+                                                type="button"
+                                                @click="
+                                                    previewAnswers[
+                                                        statement.id
+                                                    ] = value
+                                                "
+                                            >
+                                                ★
+                                            </button>
+                                        </div>
+                                        <div
+                                            v-else-if="
+                                                statement.settings_json
+                                                    ?.likert_preview_type ===
+                                                'choices'
+                                            "
+                                            class="grid gap-2 sm:grid-cols-2"
+                                        >
+                                            <label
+                                                v-for="value in likertValues(
+                                                    statement,
+                                                )"
+                                                :key="value"
+                                                class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-white/10"
+                                            >
+                                                <input
+                                                    v-model="
+                                                        previewAnswers[
+                                                            statement.id
+                                                        ]
+                                                    "
+                                                    :name="
+                                                        'preview_likert_' +
+                                                        statement.id
+                                                    "
+                                                    :value="value"
+                                                    type="radio"
+                                                />
+                                                <strong>{{ value }}</strong>
+                                                {{
+                                                    likertLabel(
+                                                        statement,
+                                                        value,
+                                                    )
+                                                }}
+                                            </label>
+                                        </div>
+                                        <input
+                                            v-else
+                                            v-model.number="
+                                                previewAnswers[statement.id]
+                                            "
+                                            class="w-full accent-emerald-600"
+                                            :min="
+                                                statement.settings_json
+                                                    ?.min_value ?? 1
+                                            "
+                                            :max="
+                                                statement.settings_json
+                                                    ?.max_value ?? 5
+                                            "
+                                            type="range"
+                                        />
+                                        <p class="text-xs text-emerald-700">
+                                            Value:
+                                            {{
+                                                previewAnswers[statement.id] ??
+                                                statement.settings_json
+                                                    ?.min_value ??
+                                                1
+                                            }}
+                                        </p>
+                                    </div>
+
+                                    <!-- Yes/No Type -->
+                                    <div
+                                        v-else-if="
+                                            statement.statement_type ===
+                                            'yes_no'
+                                        "
+                                        class="flex gap-2"
+                                    >
+                                        <label
+                                            v-for="option in statement.choices"
+                                            :key="option.id"
+                                            class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold transition hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
+                                            :class="
+                                                previewAnswers[statement.id] ===
+                                                option.choice_value
+                                                    ? 'border-emerald-500/35 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                                    : ''
+                                            "
+                                        >
+                                            <input
+                                                type="radio"
+                                                v-model="
+                                                    previewAnswers[statement.id]
+                                                "
+                                                :name="
+                                                    'preview_yn_' + statement.id
+                                                "
+                                                :value="option.choice_value"
+                                                class="sr-only"
+                                            />
+                                            {{ option.choice_text }}
+                                        </label>
+                                    </div>
+
+                                    <!-- Rating Scale Type -->
+                                    <div
+                                        v-else-if="
+                                            statement.statement_type ===
+                                            'rating_scale'
+                                        "
+                                        class="flex flex-wrap gap-2"
+                                    >
+                                        <label
+                                            v-for="scale in statement
+                                                .rating_scales.length
+                                                ? statement.rating_scales
+                                                : selectedTemplate.rating_scales"
+                                            :key="scale.id"
+                                            class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold transition hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
+                                            :class="
+                                                previewAnswers[statement.id] ==
+                                                scale.value
+                                                    ? 'border-emerald-500/35 bg-emerald-50 font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                                    : ''
+                                            "
+                                            :title="
+                                                scale.interpretation ||
+                                                scale.label
+                                            "
+                                        >
+                                            <input
+                                                type="radio"
+                                                v-model="
+                                                    previewAnswers[statement.id]
+                                                "
+                                                :name="
+                                                    'preview_scale_' +
+                                                    statement.id
+                                                "
+                                                :value="scale.value"
+                                                class="sr-only"
+                                            />
+                                            <span
+                                                class="flex size-6 items-center justify-center rounded bg-slate-100 font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300"
+                                            >
+                                                {{ Number(scale.value) }}
+                                            </span>
+                                            <span>{{ scale.label }}</span>
+                                        </label>
+                                    </div>
+
+                                    <!-- Multiple Choice Type -->
+                                    <div
+                                        v-else-if="
+                                            statement.statement_type ===
+                                                'multiple_choice' ||
+                                            statement.statement_type ===
+                                                'checkbox'
+                                        "
+                                        class="space-y-2"
+                                    >
+                                        <label
+                                            v-for="choice in statement.choices"
+                                            :key="choice.id"
+                                            class="flex cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200 px-4 py-2.5 text-xs font-semibold transition hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
+                                            :class="
+                                                previewAnswers[statement.id] ===
+                                                choice.choice_value
+                                                    ? 'border-emerald-500/35 bg-emerald-50 font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                                    : ''
+                                            "
+                                        >
+                                            <input
+                                                :type="
+                                                    statement.statement_type ===
+                                                    'checkbox'
+                                                        ? 'checkbox'
+                                                        : 'radio'
+                                                "
+                                                v-model="
+                                                    previewAnswers[statement.id]
+                                                "
+                                                :name="
+                                                    'preview_choice_' +
+                                                    statement.id
+                                                "
+                                                :value="choice.choice_value"
+                                                class="sr-only"
+                                            />
+                                            <div
+                                                v-if="
+                                                    statement.statement_type !==
+                                                    'checkbox'
+                                                "
+                                                class="flex size-4 items-center justify-center rounded-full border border-slate-300 dark:border-white/10"
+                                            >
+                                                <div
+                                                    v-show="
+                                                        previewAnswers[
+                                                            statement.id
+                                                        ] ===
+                                                        choice.choice_value
+                                                    "
+                                                    class="size-2 rounded-full bg-emerald-600"
+                                                ></div>
+                                            </div>
+                                            <span>{{
+                                                choice.choice_text
+                                            }}</span>
+                                        </label>
+                                    </div>
+
+                                    <!-- Text Answer Type -->
+                                    <div
+                                        v-else-if="
+                                            statement.statement_type ===
+                                                'long_answer' ||
+                                            statement.statement_type ===
+                                                'text_answer'
+                                        "
+                                    >
+                                        <textarea
+                                            v-model="
+                                                previewAnswers[statement.id]
+                                            "
+                                            class="builder-input min-h-16"
+                                            :placeholder="
+                                                statement.settings_json
+                                                    ?.placeholder ||
+                                                'Type an answer...'
+                                            "
+                                            :readonly="statement.is_read_only"
+                                        />
+                                    </div>
+                                    <input
+                                        v-else-if="
+                                            statement.statement_type ===
+                                            'short_answer'
+                                        "
+                                        v-model="previewAnswers[statement.id]"
+                                        class="builder-input"
+                                        :placeholder="
+                                            statement.settings_json
+                                                ?.placeholder || ''
+                                        "
+                                        :readonly="statement.is_read_only"
+                                        type="text"
+                                    />
+                                    <input
+                                        v-else-if="
+                                            statement.statement_type ===
+                                            'numeric_score'
+                                        "
+                                        v-model.number="
+                                            previewAnswers[statement.id]
+                                        "
+                                        class="builder-input"
+                                        :min="
+                                            statement.settings_json
+                                                ?.min_value ?? undefined
+                                        "
+                                        :max="
+                                            statement.settings_json
+                                                ?.max_value ?? undefined
+                                        "
+                                        :readonly="statement.is_read_only"
+                                        type="number"
+                                    />
+                                </div>
+                            </div>
+
+                            <p
+                                v-if="group.statements.length === 0"
+                                class="p-2 text-xs text-slate-400 italic"
+                            >
+                                No questions in this section.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div
+                    class="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-4 dark:border-white/10"
+                >
+                    <button
+                        class="builder-secondary"
+                        type="button"
+                        @click="closePreview"
+                    >
+                        Close Preview
+                    </button>
+                    <button
+                        class="builder-primary"
+                        type="button"
+                        @click="submitSimulated"
+                    >
+                        <Check class="size-4" /> Simulated Submit
+                    </button>
+                </div>
             </div>
         </div>
     </SiteSettingsLayout>
@@ -1529,5 +2448,11 @@ const typeLabel = (type: StatementType) =>
 }
 .builder-check {
     @apply flex items-center gap-2 self-end rounded-lg border border-slate-200 px-3 py-2.5 text-xs font-bold dark:border-white/10;
+}
+.builder-toggle {
+    @apply flex items-center gap-2 py-2 text-xs font-bold text-slate-600 dark:text-slate-300;
+}
+.builder-toggle input {
+    @apply size-4 rounded border-slate-300 text-emerald-600 accent-emerald-600;
 }
 </style>

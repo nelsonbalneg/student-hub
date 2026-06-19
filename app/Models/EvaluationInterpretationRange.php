@@ -6,10 +6,19 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['template_id', 'statement_id', 'value', 'label', 'interpretation', 'sort_order', 'status'])]
-class EvaluationRatingScale extends Model
+#[Fillable([
+    'template_id',
+    'category_id',
+    'min_value',
+    'max_value',
+    'interpretation',
+    'sort_order',
+    'status',
+])]
+class EvaluationInterpretationRange extends Model
 {
     protected $attributes = [
+        'sort_order' => 0,
         'status' => 'active',
     ];
 
@@ -17,8 +26,9 @@ class EvaluationRatingScale extends Model
     {
         return [
             'template_id' => 'integer',
-            'statement_id' => 'integer',
-            'value' => 'decimal:2',
+            'category_id' => 'integer',
+            'min_value' => 'decimal:2',
+            'max_value' => 'decimal:2',
             'sort_order' => 'integer',
         ];
     }
@@ -28,8 +38,8 @@ class EvaluationRatingScale extends Model
         return $this->belongsTo(EvaluationTemplate::class, 'template_id');
     }
 
-    public function statement(): BelongsTo
+    public function category(): BelongsTo
     {
-        return $this->belongsTo(EvaluationStatement::class, 'statement_id');
+        return $this->belongsTo(EvaluationStatementCategory::class, 'category_id');
     }
 }

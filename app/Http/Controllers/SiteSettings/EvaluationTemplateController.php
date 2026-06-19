@@ -18,7 +18,17 @@ use Inertia\Response;
 
 class EvaluationTemplateController extends Controller
 {
-    private const STATEMENT_TYPES = ['rating_scale', 'yes_no', 'text_answer', 'multiple_choice'];
+    private const STATEMENT_TYPES = [
+        'likert',
+        'short_answer',
+        'long_answer',
+        'yes_no',
+        'multiple_choice',
+        'checkbox',
+        'rating_scale',
+        'numeric_score',
+        'text_answer',
+    ];
 
     public function index(Request $request): Response
     {
@@ -41,10 +51,14 @@ class EvaluationTemplateController extends Controller
                 'can_delete' => ! $this->templateIsUsed($template),
             ]),
             'selectedTemplate' => $selectedTemplate,
-            'statementTypes' => collect(self::STATEMENT_TYPES)->map(fn (string $type): array => [
-                'value' => $type,
-                'label' => str($type)->replace('_', ' ')->title()->toString(),
-            ]),
+            'statementTypes' => collect(self::STATEMENT_TYPES)
+                ->reject(fn (string $type): bool => $type === 'text_answer')
+                ->map(fn (string $type): array => [
+                    'value' => $type,
+                    'label' => $type === 'likert'
+                        ? 'Likert Scale'
+                        : str($type)->replace('_', ' ')->title()->toString(),
+                ])->values(),
             'can' => [
                 'create' => $request->user()->can('evaluation.templates.create'),
                 'update' => $request->user()->can('evaluation.templates.update'),
@@ -78,6 +92,74 @@ class EvaluationTemplateController extends Controller
         ]));
 
         return back()->with('success', 'Evaluation template updated.');
+    }
+
+    public function cloneTemplate(Request $request, EvaluationTemplate $template): RedirectResponse
+    {
+        $request->user()->can('evaluation.templates.create') || abort(403);
+
+        $clone = DB::transaction(function () use ($request, $template): EvaluationTemplate {
+            $template->load(['categories', 'statements.choices', 'statements.ratingScales', 'ratingScales']);
+
+            $clone = EvaluationTemplate::query()->create([
+                'name' => $template->name.' Copy',
+                'description' => $template->description,
+                'status' => 'inactive',
+                'created_by' => $request->user()->id,
+                'updated_by' => $request->user()->id,
+            ]);
+
+            $categoryIds = [];
+
+            foreach ($template->categories as $category) {
+                $categoryIds[$category->id] = $clone->categories()->create([
+                    'name' => $category->name,
+                    'description' => $category->description,
+                    'sort_order' => $category->sort_order,
+                    'status' => $category->status,
+                ])->id;
+            }
+
+            foreach ($template->statements as $statement) {
+                $newStatement = $clone->statements()->create([
+                    'category_id' => $statement->category_id ? $categoryIds[$statement->category_id] : null,
+                    'statement' => $statement->statement,
+                    'help_text' => $statement->help_text,
+                    'statement_type' => $statement->statement_type,
+                    'is_required' => $statement->is_required,
+                    'weight' => $statement->weight,
+                    'is_visible' => $statement->is_visible,
+                    'scoring_enabled' => $statement->scoring_enabled,
+                    'is_read_only' => $statement->is_read_only,
+                    'settings_json' => $statement->settings_json,
+                    'sort_order' => $statement->sort_order,
+                    'status' => $statement->status,
+                ]);
+
+                $newStatement->choices()->createMany(
+                    $statement->choices->map->only(['choice_text', 'choice_value', 'score_value', 'sort_order'])->all()
+                );
+
+                $newStatement->ratingScales()->createMany(
+                    $statement->ratingScales->map(fn (EvaluationRatingScale $scale): array => [
+                        'template_id' => $clone->id,
+                        ...$scale->only(['value', 'label', 'interpretation', 'sort_order']),
+                    ])->all()
+                );
+            }
+
+            $clone->ratingScales()->createMany(
+                $template->ratingScales
+                    ->whereNull('statement_id')
+                    ->map->only(['value', 'label', 'interpretation', 'sort_order'])
+                    ->all()
+            );
+
+            return $clone;
+        });
+
+        return to_route('site-settings.evaluation.index', ['template' => $clone->id])
+            ->with('success', 'Evaluation template cloned.');
     }
 
     public function destroyTemplate(Request $request, EvaluationTemplate $template): RedirectResponse
@@ -134,7 +216,16 @@ class EvaluationTemplateController extends Controller
     public function storeStatement(Request $request): RedirectResponse
     {
         $request->user()->can('evaluation.templates.create') || abort(403);
-        DB::transaction(fn () => EvaluationStatement::query()->create($this->validateStatement($request)));
+        DB::transaction(function () use ($request): void {
+            $validated = $this->validateStatement($request);
+            $choices = in_array($validated['statement_type'], ['multiple_choice', 'checkbox', 'yes_no'], true)
+                ? ($validated['choices'] ?? [])
+                : [];
+            unset($validated['choices']);
+
+            $statement = EvaluationStatement::query()->create($validated);
+            $statement->choices()->createMany($choices);
+        });
 
         return back()->with('success', 'Evaluation statement created.');
     }
@@ -142,7 +233,17 @@ class EvaluationTemplateController extends Controller
     public function updateStatement(Request $request, EvaluationStatement $statement): RedirectResponse
     {
         $request->user()->can('evaluation.templates.update') || abort(403);
-        DB::transaction(fn () => $statement->update($this->validateStatement($request, $statement)));
+        DB::transaction(function () use ($request, $statement): void {
+            $validated = $this->validateStatement($request, $statement);
+            $choices = in_array($validated['statement_type'], ['multiple_choice', 'checkbox', 'yes_no'], true)
+                ? ($validated['choices'] ?? [])
+                : [];
+            unset($validated['choices']);
+
+            $statement->update($validated);
+            $statement->choices()->delete();
+            $statement->choices()->createMany($choices);
+        });
 
         return back()->with('success', 'Evaluation statement updated.');
     }
@@ -276,8 +377,27 @@ class EvaluationTemplateController extends Controller
             'template_id' => ['required', 'exists:evaluation_templates,id'],
             'category_id' => ['nullable', Rule::exists('evaluation_statement_categories', 'id')->where('template_id', $templateId)],
             'statement' => ['required', 'string'],
+            'help_text' => ['nullable', 'string'],
             'statement_type' => ['required', Rule::in(self::STATEMENT_TYPES)],
             'is_required' => ['required', 'boolean'],
+            'weight' => ['nullable', 'numeric', 'min:0'],
+            'is_visible' => ['required', 'boolean'],
+            'scoring_enabled' => ['required', 'boolean'],
+            'is_read_only' => ['required', 'boolean'],
+            'settings_json' => ['nullable', 'array'],
+            'settings_json.likert_preview_type' => ['nullable', Rule::in(['slider', 'stars', 'choices'])],
+            'settings_json.min_value' => ['nullable', 'numeric'],
+            'settings_json.max_value' => ['nullable', 'numeric', 'gte:settings_json.min_value'],
+            'settings_json.placeholder' => ['nullable', 'string', 'max:255'],
+            'settings_json.default_value' => ['nullable'],
+            'settings_json.remarks_required_below' => ['nullable', 'numeric'],
+            'settings_json.labels' => ['nullable', 'string'],
+            'settings_json.conditional_display' => ['nullable', 'string'],
+            'choices' => ['nullable', 'array'],
+            'choices.*.choice_text' => ['required_with:choices', 'string', 'max:255'],
+            'choices.*.choice_value' => ['required_with:choices', 'string', 'max:255'],
+            'choices.*.score_value' => ['nullable', 'numeric'],
+            'choices.*.sort_order' => ['nullable', 'integer', 'min:0'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
         ]);
@@ -303,6 +423,7 @@ class EvaluationTemplateController extends Controller
             'statement_id' => ['required', 'exists:evaluation_statements,id'],
             'choice_text' => ['required', 'string', 'max:255'],
             'choice_value' => ['required', 'string', 'max:255'],
+            'score_value' => ['nullable', 'numeric'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
     }

@@ -520,6 +520,7 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                 ->group(function () {
                     Route::get('/', 'index')->name('index');
                     Route::post('templates', 'storeTemplate')->name('templates.store');
+                    Route::post('templates/{template}/clone', 'cloneTemplate')->name('templates.clone');
                     Route::patch('templates/{template}', 'updateTemplate')->name('templates.update');
                     Route::delete('templates/{template}', 'destroyTemplate')->name('templates.destroy');
                     Route::post('categories', 'storeCategory')->name('categories.store');
