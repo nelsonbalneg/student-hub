@@ -393,7 +393,7 @@ defineOptions({
                                     :href="editProfileRoute.url()"
                                     class="inline-flex items-center text-amber-950 underline hover:text-amber-900 dark:text-amber-200 dark:hover:text-white"
                                 >
-                                    → Go to <strong class="font-bold">Profile</strong> to update your Campus.
+                                    Go to <strong class="font-bold">Profile</strong> to update your Campus.
                                 </Link>
                             </div>
                         </template>
