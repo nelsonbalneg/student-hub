@@ -11,6 +11,7 @@ use App\Models\EvaluationScaleSet;
 use App\Models\EvaluationStatement;
 use App\Models\EvaluationStatementCategory;
 use App\Models\EvaluationTemplate;
+use App\Models\SiteEvaluationPeriod;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -597,6 +598,13 @@ class EvaluationTemplateController extends Controller
     private function templateIsUsed(EvaluationTemplate $template): bool
     {
         if (CcdCaresEvaluationPeriod::query()->where('evaluation_template_id', $template->id)->exists()) {
+            return true;
+        }
+
+        if (
+            Schema::hasTable('site_evaluation_periods')
+            && SiteEvaluationPeriod::query()->where('evaluation_template_id', $template->id)->exists()
+        ) {
             return true;
         }
 

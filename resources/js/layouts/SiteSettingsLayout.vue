@@ -13,11 +13,11 @@ defineProps<{
         class="flex min-h-[calc(100vh-4rem)] bg-slate-50/50 p-3 sm:p-4 lg:h-[calc(100vh-4rem)] lg:overflow-hidden lg:p-6 dark:bg-slate-900/50"
     >
         <div
-            class="flex w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:flex-row dark:border-white/10 dark:bg-slate-950"
+            class="flex min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:h-full lg:flex-row dark:border-white/10 dark:bg-slate-950"
         >
             <SiteSettingsSidebar />
             <main
-                class="no-scrollbar flex min-w-0 flex-1 flex-col overflow-y-auto"
+                class="no-scrollbar flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto"
             >
                 <slot />
             </main>

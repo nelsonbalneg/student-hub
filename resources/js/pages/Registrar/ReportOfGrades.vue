@@ -1382,7 +1382,7 @@ const profileSections = [
 </script>
 
 <template>
-    <Head title="Registrar - Report of Grades" />
+    <Head title="Registrar - Student Profile" />
 
     <div
         class="flex h-full flex-1 flex-col gap-4 bg-slate-50/60 p-4 dark:bg-slate-950"
@@ -1392,10 +1392,10 @@ const profileSections = [
         >
             <div>
                 <h1 class="text-base font-bold text-slate-900 dark:text-white">
-                    Report of Grades
+                    Student Profile
                 </h1>
                 <p class="text-xs text-slate-500">
-                    Search a student grade report from the Academic API.
+                    Search a student profile from the Academic API.
                 </p>
             </div>
             <span
@@ -1476,7 +1476,7 @@ const profileSections = [
                     {{
                         loading || form.processing
                             ? 'Searching...'
-                            : 'Search Grade Report'
+                            : 'Search Student'
                     }}
                 </button>
 

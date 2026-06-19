@@ -4,6 +4,7 @@ import {
     Building2,
     ClipboardCheck,
     Heart,
+    MessageSquareHeart,
     GraduationCap,
     FileText,
     Dumbbell,
@@ -96,6 +97,13 @@ const tabs = [
         description: 'Branding and platform details',
         permission: 'site_settings.manage',
     },
+    {
+        name: 'Site Evaluation',
+        href: '/admin/site-settings/site-evaluation',
+        icon: MessageSquareHeart,
+        description: 'Portal feedback periods',
+        permission: 'evaluation.templates.view',
+    },
 ];
 
 const isActive = (href: string) => {
@@ -105,10 +113,10 @@ const isActive = (href: string) => {
 
 <template>
     <aside
-        class="flex w-full shrink-0 flex-col border-b border-slate-200 bg-white lg:w-72 lg:border-r lg:border-b-0 dark:border-white/5 dark:bg-slate-950"
+        class="flex min-h-0 w-full shrink-0 flex-col border-b border-slate-200 bg-white lg:h-full lg:w-72 lg:border-r lg:border-b-0 dark:border-white/5 dark:bg-slate-950"
     >
         <div
-            class="flex h-14 items-center border-b border-slate-100 px-4 sm:px-6 lg:h-16 dark:border-white/5"
+            class="flex h-14 shrink-0 items-center border-b border-slate-100 px-4 sm:px-6 lg:h-16 dark:border-white/5"
         >
             <div class="flex items-center gap-2.5">
                 <div
@@ -125,7 +133,7 @@ const isActive = (href: string) => {
         </div>
 
         <nav
-            class="flex gap-2 overflow-x-auto p-3 lg:block lg:flex-1 lg:space-y-1 lg:overflow-visible"
+            class="site-settings-nav flex gap-2 overflow-x-auto p-3 lg:block lg:min-h-0 lg:flex-1 lg:space-y-1 lg:overflow-x-hidden lg:overflow-y-auto"
         >
             <Link
                 v-for="tab in tabs"
@@ -162,7 +170,7 @@ const isActive = (href: string) => {
         </nav>
 
         <div
-            class="hidden border-t border-slate-100 p-4 lg:block dark:border-white/5"
+            class="hidden shrink-0 border-t border-slate-100 p-4 lg:block dark:border-white/5"
         >
             <div class="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
                 <p
@@ -179,3 +187,24 @@ const isActive = (href: string) => {
         </div>
     </aside>
 </template>
+
+<style scoped>
+.site-settings-nav {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(203 213 225) transparent;
+}
+
+.site-settings-nav::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.site-settings-nav::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background: rgb(203 213 225);
+}
+
+.site-settings-nav::-webkit-scrollbar-track {
+    background: transparent;
+}
+</style>

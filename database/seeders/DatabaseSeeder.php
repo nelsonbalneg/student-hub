@@ -26,6 +26,8 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RolesAndPermissionsSeeder::class,
             SiteSettingsPermissionSeeder::class,
+            SiteEvaluationPermissionSeeder::class,
+            CcdCaresSiteEvaluationPermissionSeeder::class,
             FaqPermissionsSeeder::class,
             CarbonFootprintPermissionSeeder::class,
             LegalPermissionsSeeder::class,
@@ -38,6 +40,7 @@ class DatabaseSeeder extends Seeder
             PhysicalFitnessTestPermissionSeeder::class,
             PhysicalFitnessTestSeeder::class,
             Dass21EvaluationTemplateSeeder::class,
+            StudentPortalSystemEvaluationSeeder::class,
         ]);
 
         $testUser->assignRole('Super Admin');

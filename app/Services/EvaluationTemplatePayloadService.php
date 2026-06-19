@@ -76,13 +76,20 @@ class EvaluationTemplatePayloadService
 
     private function statement(EvaluationStatement $statement, $scaleSet): array
     {
-        $scaleOptions = $scaleSet?->ratingScales->map(fn ($scale): array => [
-            'id' => $scale->id,
-            'label' => $scale->label,
-            'value' => (float) $scale->value,
-        ])->values() ?? collect();
+        $usesRatingScale = in_array(
+            $statement->statement_type,
+            ['likert', 'rating_scale'],
+            true,
+        );
+        $scaleOptions = $usesRatingScale
+            ? ($scaleSet?->ratingScales->map(fn ($scale): array => [
+                'id' => $scale->id,
+                'label' => $scale->label,
+                'value' => (float) $scale->value,
+            ])->values() ?? collect())
+            : collect();
 
-        if ($scaleOptions->isEmpty() && in_array($statement->statement_type, ['likert', 'rating_scale'], true)) {
+        if ($usesRatingScale && $scaleOptions->isEmpty()) {
             $minimum = (int) ($statement->settings_json['min_value'] ?? 1);
             $maximum = (int) ($statement->settings_json['max_value'] ?? 5);
             $labels = collect(explode(',', (string) ($statement->settings_json['labels'] ?? '')))

@@ -27,12 +27,14 @@ use App\Http\Controllers\LegalDocumentController;
 use App\Http\Controllers\LegalPublicController;
 use App\Http\Controllers\MyCarbonFootprintController;
 use App\Http\Controllers\ReportingOverviewController;
+use App\Http\Controllers\SiteEvaluationResponseController;
 use App\Http\Controllers\SiteSettings\CcdCaresEvaluationController;
 use App\Http\Controllers\SiteSettings\EvaluationTemplateController;
 use App\Http\Controllers\SiteSettings\PhysicalFitnessConfigurationController;
 use App\Http\Controllers\SiteSettings\SiteAcademicTermController;
 use App\Http\Controllers\SiteSettings\SiteBrandingController;
 use App\Http\Controllers\SiteSettings\SiteCampusController;
+use App\Http\Controllers\SiteSettings\SiteEvaluationController;
 use App\Http\Controllers\SiteSettings\SiteGradeViewingController;
 use App\Http\Controllers\SiteSettings\SiteStudentProfileController;
 use App\Http\Controllers\Society\SocietyAccreditationController;
@@ -80,6 +82,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
+    Route::post('site-evaluation/submit', [SiteEvaluationResponseController::class, 'store'])
+        ->name('site-evaluation.submit');
+    Route::post('site-evaluation/dismiss', [SiteEvaluationResponseController::class, 'dismiss'])
+        ->name('site-evaluation.dismiss');
+
     Route::get('dashboard', DashboardController::class)
         ->middleware('can:dashboard.view')
         ->name('dashboard');
@@ -557,6 +564,19 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                 ->controller(CcdCaresEvaluationController::class)
                 ->group(function () {
                     Route::get('/', 'index')->name('index');
+                    Route::post('periods', 'store')->name('periods.store');
+                    Route::patch('periods/{period}', 'update')->name('periods.update');
+                    Route::delete('periods/{period}', 'destroy')->name('periods.destroy');
+                    Route::get('periods/{period}/submissions', 'submissions')->name('periods.submissions');
+                });
+
+            Route::prefix('site-evaluation')
+                ->name('site-evaluation.')
+                ->controller(SiteEvaluationController::class)
+                ->group(function () {
+                    Route::get('/', 'index')->name('index');
+                    Route::get('results', 'results')->name('results');
+                    Route::get('analytics', 'analytics')->name('analytics');
                     Route::post('periods', 'store')->name('periods.store');
                     Route::patch('periods/{period}', 'update')->name('periods.update');
                     Route::delete('periods/{period}', 'destroy')->name('periods.destroy');

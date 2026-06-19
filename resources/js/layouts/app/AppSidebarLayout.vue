@@ -4,6 +4,7 @@ import AppShell from '@/components/AppShell.vue';
 import AppSidebar from '@/components/AppSidebar.vue';
 import AppSidebarHeader from '@/components/AppSidebarHeader.vue';
 import LegalFooter from '@/components/LegalFooter.vue';
+import SiteEvaluationDrawer from '@/components/SiteEvaluationDrawer.vue';
 import TermsAcceptanceModal from '@/components/TermsAcceptanceModal.vue';
 import { Toaster } from '@/components/ui/sonner';
 import type { BreadcrumbItem } from '@/types';
@@ -35,5 +36,6 @@ withDefaults(defineProps<Props>(), {
         </AppContent>
         <Toaster />
         <TermsAcceptanceModal />
+        <SiteEvaluationDrawer />
     </AppShell>
 </template>

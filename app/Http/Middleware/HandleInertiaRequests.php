@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Services\LegalDocumentService;
+use App\Services\SiteEvaluationPromptService;
 use App\Services\SiteSettingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -13,6 +14,7 @@ class HandleInertiaRequests extends Middleware
     public function __construct(
         private readonly LegalDocumentService $legalDocuments,
         private readonly SiteSettingService $siteSettings,
+        private readonly SiteEvaluationPromptService $siteEvaluation,
     ) {}
 
     /**
@@ -61,6 +63,10 @@ class HandleInertiaRequests extends Middleware
                     ? $this->legalDocuments->requiredTermsFor($request->user())
                     : null,
             ],
+            'siteEvaluation' => fn () => $this->siteEvaluation->forUser(
+                $request->user(),
+                $request->session()->pull('site_evaluation_suppressed_period_id'),
+            ),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
     }

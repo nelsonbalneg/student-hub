@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\SiteSettings;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\IndexCcdCaresEvaluationSubmissionRequest;
 use App\Http\Requests\StoreCcdCaresEvaluationPeriodRequest;
 use App\Http\Requests\UpdateCcdCaresEvaluationPeriodRequest;
 use App\Models\CcdCaresEvaluationPeriod;
 use App\Models\EvaluationTemplate;
+use App\Services\CcdCaresEvaluationAnalysisService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -58,6 +60,71 @@ class CcdCaresEvaluationController extends Controller
                 'create' => $request->user()->can('evaluation.templates.create') || $request->user()->hasRole('Super Admin'),
                 'update' => $request->user()->can('evaluation.templates.update') || $request->user()->hasRole('Super Admin'),
                 'delete' => $request->user()->can('evaluation.templates.delete') || $request->user()->hasRole('Super Admin'),
+            ],
+        ]);
+    }
+
+    public function submissions(
+        IndexCcdCaresEvaluationSubmissionRequest $request,
+        CcdCaresEvaluationPeriod $period,
+        CcdCaresEvaluationAnalysisService $analysis,
+    ): Response {
+        $filters = $request->validated();
+        $template = $analysis->prepareTemplate($period->template()->firstOrFail());
+        $query = $period->submissions()->with('student:id,name,email,student_no,campus_name');
+
+        $query
+            ->when($filters['search'] ?? null, function ($query, string $search): void {
+                $query->whereHas('student', fn ($studentQuery) => $studentQuery
+                    ->where(function ($searchQuery) use ($search): void {
+                        $searchQuery
+                            ->where('name', 'like', "%{$search}%")
+                            ->orWhere('student_no', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%");
+                    }));
+            })
+            ->when($filters['campus'] ?? null, fn ($query, string $campus) => $query
+                ->whereHas('student', fn ($studentQuery) => $studentQuery->where('campus_name', $campus)))
+            ->when($filters['submitted_from'] ?? null, fn ($query, string $date) => $query
+                ->whereDate('submitted_at', '>=', $date))
+            ->when($filters['submitted_to'] ?? null, fn ($query, string $date) => $query
+                ->whereDate('submitted_at', '<=', $date));
+
+        $submissions = $query
+            ->latest('submitted_at')
+            ->paginate($filters['per_page'] ?? 15)
+            ->withQueryString();
+        $submissions->through(fn ($submission): array => $analysis->submission($submission, $template));
+        $allSubmissions = $period->submissions()
+            ->with('student:id,campus_name')
+            ->get();
+        $campuses = $period->submissions()
+            ->join('users', 'users.id', '=', 'ccd_cares_evaluation_submissions.student_id')
+            ->whereNotNull('users.campus_name')
+            ->where('users.campus_name', '<>', '')
+            ->distinct()
+            ->orderBy('users.campus_name')
+            ->pluck('users.campus_name');
+
+        return Inertia::render('SiteSettings/CcdCares/Submissions', [
+            'period' => [
+                'id' => $period->id,
+                'title' => $period->title,
+                'description' => $period->description,
+                'start_date' => $period->start_date->toDateString(),
+                'end_date' => $period->end_date->toDateString(),
+                'status' => $period->status,
+                'template' => $analysis->templatePayload($template),
+            ],
+            'submissions' => $submissions,
+            'analytics' => $analysis->analytics($allSubmissions, $template),
+            'campuses' => $campuses,
+            'filters' => [
+                'search' => $filters['search'] ?? '',
+                'campus' => $filters['campus'] ?? '',
+                'submitted_from' => $filters['submitted_from'] ?? '',
+                'submitted_to' => $filters['submitted_to'] ?? '',
+                'per_page' => $filters['per_page'] ?? 15,
             ],
         ]);
     }
