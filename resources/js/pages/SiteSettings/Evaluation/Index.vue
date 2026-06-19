@@ -20,13 +20,16 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
+import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import SiteSettingsLayout from '@/layouts/SiteSettingsLayout.vue';
 import { index as evaluationIndex } from '@/routes/site-settings/evaluation';
 import * as categoryRoutes from '@/routes/site-settings/evaluation/categories';
 import * as choiceRoutes from '@/routes/site-settings/evaluation/choices';
+import * as scaleSetRoutes from '@/routes/site-settings/evaluation/scale-sets';
 import * as scaleRoutes from '@/routes/site-settings/evaluation/scales';
 import * as statementRoutes from '@/routes/site-settings/evaluation/statements';
 import * as templateRoutes from '@/routes/site-settings/evaluation/templates';
+import * as interpretationRangeRoutes from '@/routes/site-settings/evaluation/interpretation-ranges';
 
 type Status = 'active' | 'inactive';
 type StatementType =
@@ -63,6 +66,7 @@ type StatementSettings = {
 type RatingScale = {
     id: number;
     template_id: number;
+    scale_set_id: number;
     statement_id: number | null;
     value: string;
     label: string;
@@ -70,10 +74,22 @@ type RatingScale = {
     sort_order: number;
 };
 
+type ScaleSet = {
+    id: number;
+    template_id: number;
+    name: string;
+    description: string | null;
+    is_default: boolean;
+    status: Status;
+    sort_order: number;
+    rating_scales: RatingScale[];
+};
+
 type Statement = {
     id: number;
     template_id: number;
     category_id: number | null;
+    scale_set_id: number | null;
     statement: string;
     help_text: string | null;
     statement_type: StatementType;
@@ -86,16 +102,18 @@ type Statement = {
     sort_order: number;
     status: Status;
     choices: Choice[];
-    rating_scales: RatingScale[];
+    scale_set: ScaleSet | null;
 };
 
 type Category = {
     id: number;
     template_id: number;
+    scale_set_id: number | null;
     name: string;
     description: string | null;
     sort_order: number;
     status: Status;
+    scale_set: ScaleSet | null;
 };
 
 type TemplateSummary = {
@@ -108,10 +126,23 @@ type TemplateSummary = {
     can_delete: boolean;
 };
 
+type InterpretationRange = {
+    id: number;
+    template_id: number;
+    category_id: number;
+    min_value: string;
+    max_value: string;
+    interpretation: string;
+    suggested_intervention: string | null;
+    sort_order: number;
+    status: Status;
+};
+
 type TemplateDetail = TemplateSummary & {
     categories: Category[];
     statements: Statement[];
-    rating_scales: RatingScale[];
+    scale_sets: ScaleSet[];
+    interpretation_ranges: InterpretationRange[];
 };
 
 const props = defineProps<{
@@ -122,7 +153,14 @@ const props = defineProps<{
 }>();
 
 const modal = ref<
-    'template' | 'category' | 'statement' | 'scale' | 'choice' | null
+    | 'template'
+    | 'category'
+    | 'statement'
+    | 'scaleSet'
+    | 'scale'
+    | 'choice'
+    | 'interpretationRange'
+    | null
 >(null);
 const editingId = ref<number | null>(null);
 const draggedCategoryId = ref<number | null>(null);
@@ -130,6 +168,11 @@ const draggedStatementId = ref<number | null>(null);
 const draggedScaleId = ref<number | null>(null);
 const draggedChoiceId = ref<number | null>(null);
 const templateSearch = ref('');
+const pendingDelete = ref<{
+    url: string;
+    itemLabel: string;
+} | null>(null);
+const isDeleting = ref(false);
 
 const templateForm = useForm({
     name: '',
@@ -139,6 +182,7 @@ const templateForm = useForm({
 
 const categoryForm = useForm({
     template_id: props.selectedTemplate?.id ?? 0,
+    scale_set_id: null as number | null,
     name: '',
     description: '',
     sort_order: 0,
@@ -148,6 +192,7 @@ const categoryForm = useForm({
 const statementForm = useForm({
     template_id: props.selectedTemplate?.id ?? 0,
     category_id: null as number | null,
+    scale_set_id: null as number | null,
     statement: '',
     help_text: '',
     statement_type: 'likert' as StatementType,
@@ -179,10 +224,20 @@ const statementForm = useForm({
 
 const scaleForm = useForm({
     template_id: props.selectedTemplate?.id ?? 0,
+    scale_set_id: 0,
     statement_id: null as number | null,
     value: 5,
     label: '',
     interpretation: '',
+    sort_order: 0,
+});
+
+const scaleSetForm = useForm({
+    template_id: props.selectedTemplate?.id ?? 0,
+    name: '',
+    description: '',
+    is_default: false,
+    status: 'active' as Status,
     sort_order: 0,
 });
 
@@ -192,6 +247,17 @@ const choiceForm = useForm({
     choice_value: '',
     score_value: null as number | null,
     sort_order: 0,
+});
+
+const interpretationRangeForm = useForm({
+    template_id: props.selectedTemplate?.id ?? 0,
+    category_id: null as number | null,
+    min_value: 0,
+    max_value: 0,
+    interpretation: '',
+    suggested_intervention: '',
+    sort_order: 0,
+    status: 'active' as Status,
 });
 
 const categoryGroups = computed(() => {
@@ -215,6 +281,30 @@ const categoryGroups = computed(() => {
     ];
 });
 
+const statementFormScaleSet = computed<ScaleSet | null>(() => {
+    if (!props.selectedTemplate) return null;
+
+    const category = props.selectedTemplate.categories.find(
+        (item) => item.id === statementForm.category_id,
+    );
+    const scaleSetId =
+        statementForm.scale_set_id ??
+        category?.scale_set_id ??
+        props.selectedTemplate.scale_sets.find((item) => item.is_default)?.id;
+
+    return (
+        props.selectedTemplate.scale_sets.find(
+            (item) => item.id === scaleSetId,
+        ) ?? null
+    );
+});
+
+const usesManagedScaleSet = computed(
+    () =>
+        ['likert', 'rating_scale'].includes(statementForm.statement_type) &&
+        statementFormScaleSet.value !== null,
+);
+
 const filteredTemplates = computed(() => {
     const query = templateSearch.value.trim().toLocaleLowerCase();
 
@@ -232,8 +322,10 @@ const modalTitle = computed(() => {
         template: 'Template',
         category: 'Section',
         statement: 'Question',
+        scaleSet: 'Scale Set',
         scale: 'Scale',
         choice: 'Choice',
+        interpretationRange: 'Interpretation Rule',
     }[modal.value ?? 'template'];
 
     return `${editingId.value ? 'Edit' : 'Add'} ${item}`;
@@ -245,8 +337,10 @@ const closeModal = () => {
     templateForm.clearErrors();
     categoryForm.clearErrors();
     statementForm.clearErrors();
+    scaleSetForm.clearErrors();
     scaleForm.clearErrors();
     choiceForm.clearErrors();
+    interpretationRangeForm.clearErrors();
 };
 
 const selectTemplate = (template: TemplateSummary) => {
@@ -269,6 +363,7 @@ const openCategory = (category?: Category) => {
     if (!props.selectedTemplate) return;
     editingId.value = category?.id ?? null;
     categoryForm.template_id = props.selectedTemplate.id;
+    categoryForm.scale_set_id = category?.scale_set_id ?? null;
     categoryForm.name = category?.name ?? '';
     categoryForm.description = category?.description ?? '';
     categoryForm.sort_order =
@@ -286,6 +381,7 @@ const openStatement = (statement?: Statement, categoryId?: number | null) => {
         categoryId ??
         props.selectedTemplate.categories[0]?.id ??
         null;
+    statementForm.scale_set_id = statement?.scale_set_id ?? null;
     statementForm.statement = statement?.statement ?? '';
     statementForm.help_text = statement?.help_text ?? '';
     statementForm.statement_type = statement?.statement_type ?? 'likert';
@@ -324,18 +420,30 @@ const openStatement = (statement?: Statement, categoryId?: number | null) => {
     modal.value = 'statement';
 };
 
-const openScale = (statement: Statement | null, scale?: RatingScale) => {
+const openScaleSet = (scaleSet?: ScaleSet) => {
+    if (!props.selectedTemplate) return;
+    editingId.value = scaleSet?.id ?? null;
+    scaleSetForm.template_id = props.selectedTemplate.id;
+    scaleSetForm.name = scaleSet?.name ?? '';
+    scaleSetForm.description = scaleSet?.description ?? '';
+    scaleSetForm.is_default = scaleSet?.is_default ?? false;
+    scaleSetForm.status = scaleSet?.status ?? 'active';
+    scaleSetForm.sort_order =
+        scaleSet?.sort_order ?? props.selectedTemplate.scale_sets.length + 1;
+    modal.value = 'scaleSet';
+};
+
+const openScale = (scaleSet: ScaleSet, scale?: RatingScale) => {
     if (!props.selectedTemplate) return;
     editingId.value = scale?.id ?? null;
     scaleForm.template_id = props.selectedTemplate.id;
-    scaleForm.statement_id = statement?.id ?? null;
+    scaleForm.scale_set_id = scaleSet.id;
+    scaleForm.statement_id = null;
     scaleForm.value = Number(scale?.value ?? 5);
     scaleForm.label = scale?.label ?? '';
     scaleForm.interpretation = scale?.interpretation ?? '';
     scaleForm.sort_order =
-        scale?.sort_order ??
-        (statement?.rating_scales.length ??
-            props.selectedTemplate.rating_scales.length) + 1;
+        scale?.sort_order ?? scaleSet.rating_scales.length + 1;
     modal.value = 'scale';
 };
 
@@ -350,94 +458,151 @@ const openChoice = (statement: Statement, choice?: Choice) => {
     modal.value = 'choice';
 };
 
-const formOptions = (message: string) => ({
+const openInterpretationRange = (range?: InterpretationRange) => {
+    if (!props.selectedTemplate) return;
+    editingId.value = range?.id ?? null;
+    interpretationRangeForm.template_id = props.selectedTemplate.id;
+    interpretationRangeForm.category_id =
+        range?.category_id ??
+        props.selectedTemplate.categories[0]?.id ??
+        null;
+    interpretationRangeForm.min_value = Number(range?.min_value ?? 0);
+    interpretationRangeForm.max_value = Number(range?.max_value ?? 0);
+    interpretationRangeForm.interpretation = range?.interpretation ?? '';
+    interpretationRangeForm.suggested_intervention =
+        range?.suggested_intervention ?? '';
+    interpretationRangeForm.sort_order =
+        range?.sort_order ??
+        (props.selectedTemplate.interpretation_ranges?.length ?? 0) + 1;
+    interpretationRangeForm.status = range?.status ?? 'active';
+    modal.value = 'interpretationRange';
+};
+
+const submitInterpretationRange = () => {
+    if (editingId.value) {
+        interpretationRangeForm.patch(
+            interpretationRangeRoutes.update.url(editingId.value),
+            formOptions(),
+        );
+        return;
+    }
+
+    interpretationRangeForm.post(
+        interpretationRangeRoutes.store.url(),
+        formOptions(),
+    );
+};
+
+const formOptions = () => ({
     preserveScroll: true,
     onSuccess: () => {
         closeModal();
-        toast.success(message);
     },
     onError: () => toast.error('Please check the highlighted fields.'),
 });
 
 const submitTemplate = () => {
-    const message = editingId.value ? 'Template updated.' : 'Template created.';
-
     if (editingId.value) {
         templateForm.patch(
             templateRoutes.update.url(editingId.value),
-            formOptions(message),
+            formOptions(),
         );
         return;
     }
 
-    templateForm.post(templateRoutes.store.url(), formOptions(message));
+    templateForm.post(templateRoutes.store.url(), formOptions());
 };
 
 const submitCategory = () => {
-    const message = editingId.value ? 'Section updated.' : 'Section created.';
-
     if (editingId.value) {
         categoryForm.patch(
             categoryRoutes.update.url(editingId.value),
-            formOptions(message),
+            formOptions(),
         );
         return;
     }
 
-    categoryForm.post(categoryRoutes.store.url(), formOptions(message));
+    categoryForm.post(categoryRoutes.store.url(), formOptions());
 };
 
 const submitStatement = () => {
-    const message = editingId.value ? 'Question updated.' : 'Question created.';
+    statementForm.transform((data) => ({
+        ...data,
+        settings_json: usesManagedScaleSet.value
+            ? {
+                  ...data.settings_json,
+                  likert_preview_type: 'choices',
+                  min_value: null,
+                  max_value: null,
+                  labels: '',
+              }
+            : data.settings_json,
+    }));
 
     if (editingId.value) {
         statementForm.patch(
             statementRoutes.update.url(editingId.value),
-            formOptions(message),
+            formOptions(),
         );
         return;
     }
 
-    statementForm.post(statementRoutes.store.url(), formOptions(message));
+    statementForm.post(statementRoutes.store.url(), formOptions());
 };
 
 const submitScale = () => {
-    const message = editingId.value ? 'Scale updated.' : 'Scale created.';
-
     if (editingId.value) {
-        scaleForm.patch(
-            scaleRoutes.update.url(editingId.value),
-            formOptions(message),
+        scaleForm.patch(scaleRoutes.update.url(editingId.value), formOptions());
+        return;
+    }
+
+    scaleForm.post(scaleRoutes.store.url(), formOptions());
+};
+
+const submitScaleSet = () => {
+    if (editingId.value) {
+        scaleSetForm.patch(
+            scaleSetRoutes.update.url(editingId.value),
+            formOptions(),
         );
         return;
     }
 
-    scaleForm.post(scaleRoutes.store.url(), formOptions(message));
+    scaleSetForm.post(scaleSetRoutes.store.url(), formOptions());
 };
 
 const submitChoice = () => {
-    const message = editingId.value ? 'Choice updated.' : 'Choice created.';
-
     if (editingId.value) {
         choiceForm.patch(
             choiceRoutes.update.url(editingId.value),
-            formOptions(message),
+            formOptions(),
         );
         return;
     }
 
-    choiceForm.post(choiceRoutes.store.url(), formOptions(message));
+    choiceForm.post(choiceRoutes.store.url(), formOptions());
 };
 
-const destroy = (url: string, message: string) => {
-    if (!window.confirm('Delete this item? This action cannot be undone.')) {
+const destroy = (url: string, itemLabel: string) => {
+    pendingDelete.value = { url, itemLabel };
+};
+
+const confirmDelete = () => {
+    if (!pendingDelete.value) {
         return;
     }
 
-    router.delete(url, {
+    const deletion = pendingDelete.value;
+    isDeleting.value = true;
+    router.delete(deletion.url, {
         preserveScroll: true,
-        onSuccess: () => toast.success(message),
+        onSuccess: () => {
+            pendingDelete.value = null;
+        },
         onError: () => toast.error('This item could not be deleted.'),
+        onFinish: () => {
+            isDeleting.value = false;
+        },
     });
 };
 
@@ -459,7 +624,6 @@ const cloneTemplate = (template: TemplateSummary) => {
         {},
         {
             preserveScroll: true,
-            onSuccess: () => toast.success('Template cloned.'),
             onError: () => toast.error('The template could not be cloned.'),
         },
     );
@@ -482,6 +646,7 @@ const toggleStatement = (statement: Statement) => {
         {
             template_id: statement.template_id,
             category_id: statement.category_id,
+            scale_set_id: statement.scale_set_id,
             statement: statement.statement,
             help_text: statement.help_text,
             statement_type: statement.statement_type,
@@ -547,7 +712,11 @@ const dropStatement = (targetId: number) => {
     draggedStatementId.value = null;
 };
 
-const dropScale = (targetId: number, scales: RatingScale[]) => {
+const dropScale = (
+    targetId: number,
+    scaleSetId: number,
+    scales: RatingScale[],
+) => {
     if (!props.selectedTemplate || !draggedScaleId.value) return;
     const ids = reorder(
         scales.map((item) => item.id),
@@ -556,10 +725,32 @@ const dropScale = (targetId: number, scales: RatingScale[]) => {
     );
     router.patch(
         scaleRoutes.reorder.url(),
-        { template_id: props.selectedTemplate.id, ids },
+        {
+            template_id: props.selectedTemplate.id,
+            scale_set_id: scaleSetId,
+            ids,
+        },
         { preserveScroll: true },
     );
     draggedScaleId.value = null;
+};
+
+const resolvedScaleSet = (statement: Statement): ScaleSet | null => {
+    if (!props.selectedTemplate) return null;
+
+    const category = props.selectedTemplate.categories.find(
+        (item) => item.id === statement.category_id,
+    );
+    const scaleSetId =
+        statement.scale_set_id ??
+        category?.scale_set_id ??
+        props.selectedTemplate.scale_sets.find((item) => item.is_default)?.id;
+
+    return (
+        props.selectedTemplate.scale_sets.find(
+            (item) => item.id === scaleSetId,
+        ) ?? null
+    );
 };
 
 const dropChoice = (targetId: number, statement: Statement) => {
@@ -915,7 +1106,7 @@ const submitSimulated = () => {
                                             templateRoutes.destroy.url(
                                                 selectedTemplate.id,
                                             ),
-                                            'Template deleted.',
+                                            'template',
                                         )
                                     "
                                 >
@@ -1053,7 +1244,7 @@ const submitSimulated = () => {
                                                     categoryRoutes.destroy.url(
                                                         group.category.id,
                                                     ),
-                                                    'Section deleted.',
+                                                    'section',
                                                 )
                                             "
                                         >
@@ -1157,7 +1348,7 @@ const submitSimulated = () => {
                                                             statementRoutes.destroy.url(
                                                                 statement.id,
                                                             ),
-                                                            'Question deleted.',
+                                                            'question',
                                                         )
                                                     "
                                                 >
@@ -1168,101 +1359,26 @@ const submitSimulated = () => {
 
                                         <div
                                             v-if="
-                                                statement.statement_type ===
-                                                'rating_scale'
+                                                [
+                                                    'likert',
+                                                    'rating_scale',
+                                                ].includes(
+                                                    statement.statement_type,
+                                                )
                                             "
-                                            class="mt-3 rounded-lg bg-slate-50 p-3 dark:bg-white/[0.03]"
+                                            class="mt-3 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs dark:bg-white/[0.03]"
                                         >
-                                            <div
-                                                class="mb-2 flex items-center justify-between"
+                                            <Scale
+                                                class="size-3.5 text-emerald-600"
+                                            />
+                                            <span class="text-slate-500"
+                                                >Scale set:</span
                                             >
-                                                <p
-                                                    class="text-xs font-bold text-slate-500 uppercase"
-                                                >
-                                                    Question rating scale
-                                                </p>
-                                                <button
-                                                    v-if="can.create"
-                                                    class="builder-text-button"
-                                                    type="button"
-                                                    @click="
-                                                        openScale(statement)
-                                                    "
-                                                >
-                                                    <Plus class="size-3.5" />
-                                                    Add
-                                                </button>
-                                            </div>
-                                            <div class="space-y-1.5">
-                                                <div
-                                                    v-for="scale in statement.rating_scales"
-                                                    :key="scale.id"
-                                                    class="builder-config-row"
-                                                    :draggable="can.update"
-                                                    @dragstart="
-                                                        draggedScaleId =
-                                                            scale.id
-                                                    "
-                                                    @dragover.prevent
-                                                    @drop="
-                                                        dropScale(
-                                                            scale.id,
-                                                            statement.rating_scales,
-                                                        )
-                                                    "
-                                                >
-                                                    <GripVertical
-                                                        class="size-3.5 text-slate-400"
-                                                    />
-                                                    <strong>{{
-                                                        Number(scale.value)
-                                                    }}</strong>
-                                                    <span
-                                                        class="min-w-0 flex-1"
-                                                        >{{ scale.label }}</span
-                                                    >
-                                                    <button
-                                                        v-if="can.update"
-                                                        class="builder-icon"
-                                                        @click="
-                                                            openScale(
-                                                                statement,
-                                                                scale,
-                                                            )
-                                                        "
-                                                    >
-                                                        <Edit3
-                                                            class="size-3.5"
-                                                        />
-                                                    </button>
-                                                    <button
-                                                        v-if="can.delete"
-                                                        class="builder-icon text-red-600"
-                                                        @click="
-                                                            destroy(
-                                                                scaleRoutes.destroy.url(
-                                                                    scale.id,
-                                                                ),
-                                                                'Scale deleted.',
-                                                            )
-                                                        "
-                                                    >
-                                                        <Trash2
-                                                            class="size-3.5"
-                                                        />
-                                                    </button>
-                                                </div>
-                                                <p
-                                                    v-if="
-                                                        statement.rating_scales
-                                                            .length === 0
-                                                    "
-                                                    class="text-xs text-slate-400"
-                                                >
-                                                    Uses the template-level
-                                                    scale below.
-                                                </p>
-                                            </div>
+                                            <strong>{{
+                                                resolvedScaleSet(statement)
+                                                    ?.name ||
+                                                'No scale set assigned'
+                                            }}</strong>
                                         </div>
 
                                         <div
@@ -1347,7 +1463,7 @@ const submitSimulated = () => {
                                                                 choiceRoutes.destroy.url(
                                                                     choice.id,
                                                                 ),
-                                                                'Choice deleted.',
+                                                                'choice',
                                                             )
                                                         "
                                                     >
@@ -1376,81 +1492,240 @@ const submitSimulated = () => {
                             <div>
                                 <h3 class="builder-section-title">
                                     <Scale class="size-4 text-emerald-600" />
-                                    Template Rating Scale
+                                    Rating Scale Sets
                                 </h3>
                                 <p class="builder-section-copy">
-                                    Reusable default scale for rating questions.
+                                    Create reusable answer scales and assign
+                                    them by template, section, or question.
                                 </p>
                             </div>
                             <button
                                 v-if="can.create"
                                 class="builder-primary"
                                 type="button"
-                                @click="openScale(null)"
+                                @click="openScaleSet()"
                             >
                                 <Plus class="size-4" />
-                                Scale Item
+                                Scale Set
                             </button>
                         </div>
-                        <div class="grid gap-2 p-4 md:grid-cols-2">
-                            <div
-                                v-for="scale in selectedTemplate.rating_scales"
-                                :key="scale.id"
-                                class="builder-config-row rounded-lg border border-slate-200 dark:border-white/10"
-                                :draggable="can.update"
-                                @dragstart="draggedScaleId = scale.id"
-                                @dragover.prevent
-                                @drop="
-                                    dropScale(
-                                        scale.id,
-                                        selectedTemplate.rating_scales,
-                                    )
-                                "
+                        <div class="grid gap-4 p-4 lg:grid-cols-2">
+                            <article
+                                v-for="scaleSet in selectedTemplate.scale_sets"
+                                :key="scaleSet.id"
+                                class="rounded-xl border border-slate-200 p-4 dark:border-white/10"
                             >
-                                <GripVertical class="size-4 text-slate-400" />
-                                <span
-                                    class="flex size-8 items-center justify-center rounded-lg bg-emerald-50 font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
+                                <div
+                                    class="flex items-start justify-between gap-3"
                                 >
-                                    {{ Number(scale.value) }}
-                                </span>
-                                <div class="min-w-0 flex-1">
-                                    <p class="text-sm font-bold">
-                                        {{ scale.label }}
-                                    </p>
-                                    <p class="truncate text-xs text-slate-500">
-                                        {{
-                                            scale.interpretation ||
-                                            'No interpretation'
-                                        }}
-                                    </p>
+                                    <div>
+                                        <div class="flex items-center gap-2">
+                                            <h4 class="text-sm font-bold">
+                                                {{ scaleSet.name }}
+                                            </h4>
+                                            <span
+                                                v-if="scaleSet.is_default"
+                                                class="builder-badge builder-badge-active"
+                                            >
+                                                Template default
+                                            </span>
+                                        </div>
+                                        <p class="mt-1 text-xs text-slate-500">
+                                            {{
+                                                scaleSet.description ||
+                                                'Reusable rating scale set'
+                                            }}
+                                        </p>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <button
+                                            v-if="can.update"
+                                            class="builder-icon"
+                                            type="button"
+                                            @click="openScaleSet(scaleSet)"
+                                        >
+                                            <Edit3 class="size-4" />
+                                        </button>
+                                        <button
+                                            v-if="can.delete"
+                                            class="builder-icon text-red-600"
+                                            type="button"
+                                            @click="
+                                                destroy(
+                                                    scaleSetRoutes.destroy.url(
+                                                        scaleSet.id,
+                                                    ),
+                                                    'scale set',
+                                                )
+                                            "
+                                        >
+                                            <Trash2 class="size-4" />
+                                        </button>
+                                    </div>
                                 </div>
-                                <button
-                                    v-if="can.update"
-                                    class="builder-icon"
-                                    @click="openScale(null, scale)"
-                                >
-                                    <Edit3 class="size-4" />
-                                </button>
-                                <button
-                                    v-if="can.delete"
-                                    class="builder-icon text-red-600"
-                                    @click="
-                                        destroy(
-                                            scaleRoutes.destroy.url(scale.id),
-                                            'Scale deleted.',
-                                        )
-                                    "
-                                >
-                                    <Trash2 class="size-4" />
-                                </button>
-                            </div>
+                                <div class="mt-3 space-y-2">
+                                    <div
+                                        v-for="scale in scaleSet.rating_scales"
+                                        :key="scale.id"
+                                        class="builder-config-row rounded-lg border border-slate-200 dark:border-white/10"
+                                        :draggable="can.update"
+                                        @dragstart="draggedScaleId = scale.id"
+                                        @dragover.prevent
+                                        @drop="
+                                            dropScale(
+                                                scale.id,
+                                                scaleSet.id,
+                                                scaleSet.rating_scales,
+                                            )
+                                        "
+                                    >
+                                        <GripVertical
+                                            class="size-4 text-slate-400"
+                                        />
+                                        <strong>{{
+                                            Number(scale.value)
+                                        }}</strong>
+                                        <span class="min-w-0 flex-1">{{
+                                            scale.label
+                                        }}</span>
+                                        <button
+                                            v-if="can.update"
+                                            class="builder-icon"
+                                            type="button"
+                                            @click="openScale(scaleSet, scale)"
+                                        >
+                                            <Edit3 class="size-4" />
+                                        </button>
+                                        <button
+                                            v-if="can.delete"
+                                            class="builder-icon text-red-600"
+                                            type="button"
+                                            @click="
+                                                destroy(
+                                                    scaleRoutes.destroy.url(
+                                                        scale.id,
+                                                    ),
+                                                    'scale',
+                                                )
+                                            "
+                                        >
+                                            <Trash2 class="size-4" />
+                                        </button>
+                                    </div>
+                                    <button
+                                        v-if="can.create"
+                                        class="builder-secondary w-full justify-center"
+                                        type="button"
+                                        @click="openScale(scaleSet)"
+                                    >
+                                        <Plus class="size-3.5" />
+                                        Add scale option
+                                    </button>
+                                </div>
+                            </article>
                             <p
-                                v-if="
-                                    selectedTemplate.rating_scales.length === 0
-                                "
+                                v-if="selectedTemplate.scale_sets.length === 0"
                                 class="col-span-full rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-white/15"
                             >
-                                No reusable rating scale configured.
+                                No rating scale sets configured.
+                            </p>
+                        </div>
+                    </section>
+
+                    <section class="builder-panel overflow-hidden">
+                        <div class="builder-section-header">
+                            <div>
+                                <h3 class="builder-section-title">
+                                    <Activity class="size-4 text-emerald-600" />
+                                    Interpretation Rules
+                                </h3>
+                                <p class="builder-section-copy">
+                                    Define score ranges and classifications (normal, mild, etc.) and suggested interventions.
+                                </p>
+                            </div>
+                            <button
+                                v-if="can.create"
+                                class="builder-primary"
+                                type="button"
+                                @click="openInterpretationRange()"
+                            >
+                                <Plus class="size-4" />
+                                Add Rule
+                            </button>
+                        </div>
+                        <div class="space-y-4 p-4">
+                            <div
+                                v-for="category in selectedTemplate.categories"
+                                :key="category.id"
+                                class="rounded-xl border border-slate-200 bg-slate-50/60 p-4 dark:border-white/10 dark:bg-white/[0.02]"
+                            >
+                                <h4 class="text-sm font-bold text-slate-900 dark:text-white mb-3">
+                                    {{ category.name }} subscale
+                                </h4>
+                                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                    <div
+                                        v-for="range in selectedTemplate.interpretation_ranges?.filter(
+                                            (r) => r.category_id === category.id
+                                        )"
+                                        :key="range.id"
+                                        class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-950 flex flex-col justify-between"
+                                    >
+                                        <div>
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="rounded bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                                                    Score: {{ Number(range.min_value) }} – {{ Number(range.max_value) }}
+                                                </span>
+                                                <span class="text-xs font-bold text-slate-900 dark:text-white">
+                                                    {{ range.interpretation }}
+                                                </span>
+                                            </div>
+                                            <p v-if="range.suggested_intervention" class="text-xs text-slate-500 dark:text-slate-400 mt-2 italic">
+                                                Intervention: {{ range.suggested_intervention }}
+                                            </p>
+                                        </div>
+                                        <div class="mt-3 flex items-center justify-end gap-1 pt-2 border-t border-slate-100 dark:border-white/5">
+                                            <button
+                                                v-if="can.update"
+                                                class="builder-icon size-7"
+                                                type="button"
+                                                @click="openInterpretationRange(range)"
+                                            >
+                                                <Edit3 class="size-3.5" />
+                                            </button>
+                                            <button
+                                                v-if="can.delete"
+                                                class="builder-icon size-7 text-red-600"
+                                                type="button"
+                                                @click="
+                                                    destroy(
+                                                        interpretationRangeRoutes.destroy.url(
+                                                            range.id,
+                                                        ),
+                                                        'interpretation rule',
+                                                    )
+                                                "
+                                            >
+                                                <Trash2 class="size-3.5" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <p
+                                        v-if="
+                                            !selectedTemplate.interpretation_ranges?.some(
+                                                (r) => r.category_id === category.id
+                                            )
+                                        "
+                                        class="col-span-full py-4 text-center text-xs text-slate-500 italic"
+                                    >
+                                        No interpretation rules defined for this section.
+                                    </p>
+                                </div>
+                            </div>
+                            <p
+                                v-if="selectedTemplate.categories.length === 0"
+                                class="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-white/15"
+                            >
+                                Add sections/categories first to define interpretation rules.
                             </p>
                         </div>
                     </section>
@@ -1481,7 +1756,6 @@ const submitSimulated = () => {
                     ? 'justify-end'
                     : 'items-center justify-center p-4'
             "
-            @click.self="closeModal"
         >
             <div
                 class="w-full border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-950"
@@ -1534,6 +1808,22 @@ const submitSimulated = () => {
                             v-model="templateForm.description"
                             class="builder-input min-h-24"
                         />
+                    </label>
+                    <label class="builder-field">
+                        <span>Default rating scale</span>
+                        <select
+                            v-model="categoryForm.scale_set_id"
+                            class="builder-input"
+                        >
+                            <option :value="null">Use template default</option>
+                            <option
+                                v-for="scaleSet in selectedTemplate?.scale_sets"
+                                :key="scaleSet.id"
+                                :value="scaleSet.id"
+                            >
+                                {{ scaleSet.name }}
+                            </option>
+                        </select>
                     </label>
                     <label class="builder-field">
                         <span>Status</span>
@@ -1654,7 +1944,35 @@ const submitSimulated = () => {
                             </select>
                         </label>
                         <label
-                            v-if="statementForm.statement_type === 'likert'"
+                            v-if="
+                                ['likert', 'rating_scale'].includes(
+                                    statementForm.statement_type,
+                                )
+                            "
+                            class="builder-field"
+                        >
+                            <span>Rating scale set</span>
+                            <select
+                                v-model="statementForm.scale_set_id"
+                                class="builder-input"
+                            >
+                                <option :value="null">
+                                    Inherit from section or template
+                                </option>
+                                <option
+                                    v-for="scaleSet in selectedTemplate?.scale_sets"
+                                    :key="scaleSet.id"
+                                    :value="scaleSet.id"
+                                >
+                                    {{ scaleSet.name }}
+                                </option>
+                            </select>
+                        </label>
+                        <label
+                            v-if="
+                                statementForm.statement_type === 'likert' &&
+                                !usesManagedScaleSet
+                            "
                             class="builder-field"
                         >
                             <span>Likert Preview Type</span>
@@ -1694,6 +2012,31 @@ const submitSimulated = () => {
                         </label>
                     </div>
 
+                    <div
+                        v-if="usesManagedScaleSet && statementFormScaleSet"
+                        class="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 dark:border-emerald-500/20 dark:bg-emerald-500/10"
+                    >
+                        <p
+                            class="text-xs font-bold text-emerald-800 dark:text-emerald-200"
+                        >
+                            {{ statementFormScaleSet.name }}
+                        </p>
+                        <p
+                            class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300"
+                        >
+                            Values and labels are managed by this scale set.
+                        </p>
+                        <div class="mt-2 flex flex-wrap gap-1.5">
+                            <span
+                                v-for="scale in statementFormScaleSet.rating_scales"
+                                :key="scale.id"
+                                class="rounded-full border border-emerald-200 bg-white px-2 py-1 text-[11px] font-semibold text-emerald-800 dark:border-emerald-500/20 dark:bg-slate-950 dark:text-emerald-200"
+                            >
+                                {{ Number(scale.value) }} — {{ scale.label }}
+                            </span>
+                        </div>
+                    </div>
+
                     <div class="grid gap-3 sm:grid-cols-4">
                         <label class="builder-toggle">
                             <input
@@ -1725,7 +2068,16 @@ const submitSimulated = () => {
                         </label>
                     </div>
 
-                    <div class="grid gap-3 sm:grid-cols-2">
+                    <div
+                        v-if="
+                            statementForm.statement_type === 'numeric_score' ||
+                            (['likert', 'rating_scale'].includes(
+                                statementForm.statement_type,
+                            ) &&
+                                !usesManagedScaleSet)
+                        "
+                        class="grid gap-3 sm:grid-cols-2"
+                    >
                         <label class="builder-field">
                             <span>Minimum Value</span>
                             <input
@@ -1766,8 +2118,14 @@ const submitSimulated = () => {
                         </label>
                     </div>
 
-                    <label class="builder-field">
-                        <span>Labels / Conditional Display</span>
+                    <label
+                        v-if="
+                            statementForm.statement_type === 'likert' &&
+                            !usesManagedScaleSet
+                        "
+                        class="builder-field"
+                    >
+                        <span>Labels</span>
                         <textarea
                             v-model="statementForm.settings_json.labels"
                             class="builder-input min-h-16"
@@ -1874,6 +2232,64 @@ const submitSimulated = () => {
                 </form>
 
                 <form
+                    v-else-if="modal === 'scaleSet'"
+                    class="builder-form"
+                    @submit.prevent="submitScaleSet"
+                >
+                    <label class="builder-field">
+                        <span>Scale set name</span>
+                        <input
+                            v-model="scaleSetForm.name"
+                            class="builder-input"
+                            placeholder="Frequency"
+                        />
+                        <small>{{ scaleSetForm.errors.name }}</small>
+                    </label>
+                    <label class="builder-field">
+                        <span>Description</span>
+                        <textarea
+                            v-model="scaleSetForm.description"
+                            class="builder-input min-h-20"
+                            placeholder="Never, Sometimes, Always"
+                        />
+                    </label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="builder-field">
+                            <span>Sort order</span>
+                            <input
+                                v-model.number="scaleSetForm.sort_order"
+                                class="builder-input"
+                                type="number"
+                            />
+                        </label>
+                        <label class="builder-field">
+                            <span>Status</span>
+                            <select
+                                v-model="scaleSetForm.status"
+                                class="builder-input"
+                            >
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                        </label>
+                    </div>
+                    <label class="builder-toggle">
+                        <input
+                            v-model="scaleSetForm.is_default"
+                            type="checkbox"
+                        />
+                        Use as template default
+                    </label>
+                    <button
+                        class="builder-primary justify-center"
+                        type="submit"
+                        :disabled="scaleSetForm.processing"
+                    >
+                        <Check class="size-4" /> Save Scale Set
+                    </button>
+                </form>
+
+                <form
                     v-else-if="modal === 'scale'"
                     class="builder-form"
                     @submit.prevent="submitScale"
@@ -1965,6 +2381,96 @@ const submitSimulated = () => {
                         type="submit"
                     >
                         <Check class="size-4" /> Save Choice
+                    </button>
+                </form>
+
+                <form
+                    v-else-if="modal === 'interpretationRange'"
+                    class="builder-form"
+                    @submit.prevent="submitInterpretationRange"
+                >
+                    <label class="builder-field">
+                        <span>Section / Subscale</span>
+                        <select
+                            v-model="interpretationRangeForm.category_id"
+                            class="builder-input"
+                        >
+                            <option
+                                v-for="category in selectedTemplate?.categories"
+                                :key="category.id"
+                                :value="category.id"
+                            >
+                                {{ category.name }}
+                            </option>
+                        </select>
+                        <small>{{ interpretationRangeForm.errors.category_id }}</small>
+                    </label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="builder-field">
+                            <span>Minimum Score</span>
+                            <input
+                                v-model.number="interpretationRangeForm.min_value"
+                                class="builder-input"
+                                type="number"
+                                step="0.01"
+                            />
+                            <small>{{ interpretationRangeForm.errors.min_value }}</small>
+                        </label>
+                        <label class="builder-field">
+                            <span>Maximum Score</span>
+                            <input
+                                v-model.number="interpretationRangeForm.max_value"
+                                class="builder-input"
+                                type="number"
+                                step="0.01"
+                            />
+                            <small>{{ interpretationRangeForm.errors.max_value }}</small>
+                        </label>
+                    </div>
+                    <label class="builder-field">
+                        <span>Classification / Interpretation Level</span>
+                        <input
+                            v-model="interpretationRangeForm.interpretation"
+                            class="builder-input"
+                            placeholder="e.g. Normal, Mild, Moderate, Severe, Extremely Severe"
+                        />
+                        <small>{{ interpretationRangeForm.errors.interpretation }}</small>
+                    </label>
+                    <label class="builder-field">
+                        <span>Suggested Intervention</span>
+                        <textarea
+                            v-model="interpretationRangeForm.suggested_intervention"
+                            class="builder-input min-h-20"
+                            placeholder="Suggested self-care, psychoeducation, counseling, or professional referral"
+                        />
+                        <small>{{ interpretationRangeForm.errors.suggested_intervention }}</small>
+                    </label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="builder-field">
+                            <span>Sort order</span>
+                            <input
+                                v-model.number="interpretationRangeForm.sort_order"
+                                class="builder-input"
+                                type="number"
+                            />
+                        </label>
+                        <label class="builder-field">
+                            <span>Status</span>
+                            <select
+                                v-model="interpretationRangeForm.status"
+                                class="builder-input"
+                            >
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                        </label>
+                    </div>
+                    <button
+                        class="builder-primary justify-center"
+                        type="submit"
+                        :disabled="interpretationRangeForm.processing"
+                    >
+                        <Check class="size-4" /> Save Interpretation Rule
                     </button>
                 </form>
             </div>
@@ -2062,6 +2568,47 @@ const submitSimulated = () => {
                                     >
                                         <div
                                             v-if="
+                                                resolvedScaleSet(statement)
+                                                    ?.rating_scales.length
+                                            "
+                                            class="flex flex-wrap gap-2"
+                                        >
+                                            <label
+                                                v-for="scale in resolvedScaleSet(
+                                                    statement,
+                                                )?.rating_scales"
+                                                :key="scale.id"
+                                                class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold transition hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
+                                                :class="
+                                                    previewAnswers[
+                                                        statement.id
+                                                    ] == scale.value
+                                                        ? 'border-emerald-500/35 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                                        : ''
+                                                "
+                                            >
+                                                <input
+                                                    v-model="
+                                                        previewAnswers[
+                                                            statement.id
+                                                        ]
+                                                    "
+                                                    :name="
+                                                        'preview_likert_' +
+                                                        statement.id
+                                                    "
+                                                    :value="scale.value"
+                                                    class="sr-only"
+                                                    type="radio"
+                                                />
+                                                <strong>{{
+                                                    Number(scale.value)
+                                                }}</strong>
+                                                {{ scale.label }}
+                                            </label>
+                                        </div>
+                                        <div
+                                            v-else-if="
                                                 statement.settings_json
                                                     ?.likert_preview_type ===
                                                 'stars'
@@ -2200,10 +2747,9 @@ const submitSimulated = () => {
                                         class="flex flex-wrap gap-2"
                                     >
                                         <label
-                                            v-for="scale in statement
-                                                .rating_scales.length
-                                                ? statement.rating_scales
-                                                : selectedTemplate.rating_scales"
+                                            v-for="scale in resolvedScaleSet(
+                                                statement,
+                                            )?.rating_scales ?? []"
                                             :key="scale.id"
                                             class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold transition hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
                                             :class="
@@ -2389,6 +2935,17 @@ const submitSimulated = () => {
                 </div>
             </div>
         </div>
+
+        <ConfirmationModal
+            :show="pendingDelete !== null"
+            :title="`Delete ${pendingDelete?.itemLabel ?? 'item'}?`"
+            :description="`Are you sure you want to delete this ${pendingDelete?.itemLabel ?? 'item'}? This action cannot be undone.`"
+            confirm-text="Delete"
+            variant="destructive"
+            :loading="isDeleting"
+            @confirm="confirmDelete"
+            @close="pendingDelete = null"
+        />
     </SiteSettingsLayout>
 </template>
 

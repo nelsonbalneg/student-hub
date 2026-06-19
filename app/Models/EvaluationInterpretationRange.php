@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'min_value',
     'max_value',
     'interpretation',
+    'suggested_intervention',
     'sort_order',
     'status',
 ])]

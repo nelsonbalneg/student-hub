@@ -58,6 +58,7 @@ const tabs = [
         href: '/admin/site-settings/ccd-cares',
         icon: Heart,
         description: 'Student support configurations',
+        permission: 'evaluation.templates.view',
     },
     {
         name: 'Grade Viewing',

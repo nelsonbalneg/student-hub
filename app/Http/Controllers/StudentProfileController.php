@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Achievement;
+use App\Models\CcdCaresEvaluationPeriod;
 use App\Models\PftComponent;
 use App\Models\SiteAcademicTerm;
 use App\Models\StudentPftResult;
 use App\Models\Training;
 use App\Services\AcademicApiService;
 use App\Services\CeeStudentRequirementService;
+use App\Services\EvaluationTemplatePayloadService;
 use App\Services\PhysicalFitnessPermissionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,6 +23,7 @@ class StudentProfileController extends Controller
         private readonly AcademicApiService $academicApi,
         private readonly CeeStudentRequirementService $ceeRequirements,
         private readonly PhysicalFitnessPermissionService $pftPermission,
+        private readonly EvaluationTemplatePayloadService $evaluationTemplates,
     ) {}
 
     public function __invoke(Request $request): Response
@@ -63,6 +66,18 @@ class StudentProfileController extends Controller
             ->orderByDesc('id')
             ->get();
         $pftTermIds = $pftTerms->pluck('term_id')->filter()->map(fn ($termId): string => (string) $termId)->all();
+        $ccdCaresPeriods = CcdCaresEvaluationPeriod::query()
+            ->whereIn('status', [
+                CcdCaresEvaluationPeriod::STATUS_ACTIVE,
+                CcdCaresEvaluationPeriod::STATUS_CLOSED,
+            ])
+            ->with([
+                'template',
+                'submissions' => fn ($query) => $query->where('student_id', $user->id),
+            ])
+            ->orderByDesc('start_date')
+            ->orderByDesc('id')
+            ->get();
 
         return Inertia::render('StudentProfile/Index', [
             'profile' => $this->academicApi->profileForStudent($studentNo, $tenantId),
@@ -98,6 +113,31 @@ class StudentProfileController extends Controller
                 'canView' => $canViewPft,
                 'canSubmit' => $canSubmitPft,
                 'canFillUp' => $canFillUpPft,
+            ],
+            'ccdCares' => [
+                'assessments' => $ccdCaresPeriods->map(function (CcdCaresEvaluationPeriod $period): array {
+                    $submission = $period->submissions->first();
+
+                    return [
+                        'period' => [
+                            'id' => $period->id,
+                            'title' => $period->title,
+                            'description' => $period->description,
+                            'start_date' => $period->start_date->toDateString(),
+                            'end_date' => $period->end_date->toDateString(),
+                            'status' => $period->status,
+                            'is_open' => $period->status === CcdCaresEvaluationPeriod::STATUS_ACTIVE
+                                && $period->start_date->lte(today())
+                                && $period->end_date->gte(today()),
+                        ],
+                        'template' => $this->evaluationTemplates->build($period->template),
+                        'submission' => $submission ? [
+                            'submitted_at' => $submission->submitted_at,
+                            'answers' => $submission->answers_json,
+                            'interpretation_results' => $submission->getInterpretationResults(),
+                        ] : null,
+                    ];
+                })->values(),
             ],
         ]);
     }

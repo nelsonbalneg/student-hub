@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, useForm, setLayoutProps } from '@inertiajs/vue3';
 import {
     AlertCircle,
     BookOpen,
@@ -50,8 +50,17 @@ import { Label } from '@/components/ui/label';
 import * as achievementsRoutes from '@/routes/achievements';
 import * as pftRoutes from '@/routes/student-profile/physical-fitness';
 import * as trainingsRoutes from '@/routes/trainings';
+import { Heart } from 'lucide-vue-next';
+import * as ccdCaresEvaluationRoutes from '@/routes/student-profile/ccd-cares/evaluation';
 
 const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
+
+setLayoutProps({
+    breadcrumbs: [
+        { title: 'Home', href: '/' },
+        { title: 'Student Profile', href: '/student-profile' },
+    ],
+});
 
 type ProfileData = {
     studentNo: string;
@@ -207,6 +216,31 @@ const props = defineProps<{
         canSubmit: boolean;
         canFillUp: boolean;
     };
+    ccdCares: {
+        assessments: Array<{
+            period: {
+                id: number;
+                title: string;
+                description: string | null;
+                start_date: string;
+                end_date: string;
+                status: string;
+                is_open: boolean;
+            };
+            template: any;
+            submission: {
+                submitted_at: string;
+                answers: Record<string, any>;
+                interpretation_results: Array<{
+                    category_id: number;
+                    category_name: string;
+                    score: number;
+                    interpretation: string;
+                    suggested_intervention: string | null;
+                }>;
+            } | null;
+        }>;
+    };
 }>();
 
 const PROFILE_TAB_KEY = 'student_profile_active_tab';
@@ -225,6 +259,11 @@ const baseTabs = [
         id: 'physical-fitness-test',
         label: 'Physical Fitness Test',
         icon: Dumbbell,
+    },
+    {
+        id: 'ccd-cares',
+        label: 'CCD Cares',
+        icon: Heart,
     },
 ];
 
@@ -419,7 +458,9 @@ const activeTabDescription = computed(() =>
         ? 'Student profile information synced with the usmcee system.'
         : activeTab.value === 'physical-fitness-test'
           ? 'Physical fitness tests are loaded from the active campus configuration.'
-          : 'Student profile information synced with the academic system.',
+          : activeTab.value === 'ccd-cares'
+            ? 'Access your CCD Cares evaluation forms and view your result interpretations.'
+            : 'Student profile information synced with the academic system.',
 );
 
 const selectedPftComponentId = ref(
@@ -1896,12 +1937,151 @@ const previousStep = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 };
+// CCD Cares States & Methods
+const activeEvaluationPeriod = ref<any>(null);
+const evaluationDrawerOpen = ref(false);
+const resultsModalOpen = ref(false);
+const selectedAssessment = ref<any>(null);
+
+const evaluationForm = useForm({
+    period_id: null as number | null,
+    answers: {} as Record<number, any>,
+});
+
+const startEvaluation = (assessment: any) => {
+    activeEvaluationPeriod.value = assessment;
+    evaluationForm.period_id = assessment.period.id;
+    
+    // Initialize answers: arrays for checkboxes, nulls for everything else
+    const initialAnswers: Record<number, any> = {};
+    assessment.template.categories.forEach((cat: any) => {
+        cat.statements.forEach((stmt: any) => {
+            if (stmt.statement_type === 'checkbox') {
+                initialAnswers[stmt.id] = [];
+            } else {
+                initialAnswers[stmt.id] = null;
+            }
+        });
+    });
+    evaluationForm.answers = initialAnswers;
+    evaluationForm.clearErrors();
+    evaluationDrawerOpen.value = true;
+};
+
+const submitEvaluation = () => {
+    evaluationForm.post(ccdCaresEvaluationRoutes.store.url(), {
+        preserveScroll: true,
+        onSuccess: () => {
+            evaluationDrawerOpen.value = false;
+            toast.success('Your evaluation has been submitted successfully.');
+        },
+        onError: (errors) => {
+            const firstError = Object.keys(errors)[0];
+            if (firstError) {
+                toast.error(errors[firstError] || 'Please complete all required fields.');
+            } else {
+                toast.error('Unable to submit evaluation. Please check your inputs.');
+            }
+        },
+    });
+};
+
+const viewResults = (assessment: any) => {
+    selectedAssessment.value = assessment;
+    resultsModalOpen.value = true;
+};
+
+const ccdCaresChartSeries = computed(() => {
+    if (!selectedAssessment.value?.submission?.interpretation_results) return [];
+    return [
+        {
+            name: 'Your Score',
+            data: selectedAssessment.value.submission.interpretation_results.map(
+                (res: any) => res.score
+            ),
+        },
+    ];
+});
+
+const ccdCaresChartOptions = computed(() => {
+    const categories = selectedAssessment.value?.submission?.interpretation_results?.map(
+        (res: any) => res.category_name
+    ) ?? [];
+    
+    return {
+        chart: {
+            type: 'bar',
+            toolbar: { show: false },
+        },
+        plotOptions: {
+            bar: {
+                borderRadius: 6,
+                columnWidth: '50%',
+                distributed: true,
+            },
+        },
+        colors: selectedAssessment.value?.submission?.interpretation_results?.map((res: any) => {
+            const val = String(res.interpretation || '').toLowerCase().trim();
+            if (val.includes('extremely severe') || val.includes('extremely_severe')) return '#dc2626';
+            if (val.includes('severe')) return '#ea580c';
+            if (val.includes('moderate')) return '#d97706';
+            if (val.includes('mild')) return '#0284c7';
+            return '#059669';
+        }) ?? ['#059669', '#0284c7', '#d97706'],
+        xaxis: {
+            categories: categories,
+            labels: {
+                style: {
+                    fontSize: '11px',
+                    fontWeight: 600,
+                },
+            },
+        },
+        yaxis: {
+            max: 42,
+            tickAmount: 6,
+            labels: {
+                formatter: (val: number) => Math.round(val),
+            },
+        },
+        dataLabels: {
+            enabled: true,
+            formatter: (val: number) => Math.round(val),
+            style: {
+                fontSize: '11px',
+                fontWeight: 'bold',
+            },
+        },
+        legend: {
+            show: false,
+        },
+        grid: {
+            borderColor: 'rgba(156, 163, 175, 0.1)',
+        },
+    };
+});
+
+const getInterpretationColorClass = (interpretation: string) => {
+    const val = String(interpretation || '').toLowerCase().trim();
+    if (val.includes('extremely severe')) return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-500/10 dark:text-red-300 dark:border-red-500/20';
+    if (val.includes('extremely_severe')) return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-500/10 dark:text-red-300 dark:border-red-500/20';
+    if (val.includes('severe')) return 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-500/10 dark:text-orange-300 dark:border-orange-500/20';
+    if (val.includes('moderate')) return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20';
+    if (val.includes('mild')) return 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:border-sky-500/20';
+    return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20';
+};
 
 onMounted(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasCcdParam = urlParams.get('ccd') === '1';
+
     const hashTab = window.location.hash.replace('#', '');
     const savedTab = window.localStorage.getItem(PROFILE_TAB_KEY);
 
-    if (isValidTab(hashTab)) {
+    if (hasCcdParam && isValidTab('ccd-cares')) {
+        activeTab.value = 'ccd-cares';
+        window.history.replaceState(null, '', `#ccd-cares`);
+    } else if (isValidTab(hashTab)) {
         activeTab.value = hashTab;
     } else if (isValidTab(savedTab)) {
         activeTab.value = savedTab as string;
@@ -1946,66 +2126,58 @@ watch(editMode, (val) => {
                 key="view-mode"
                 class="flex flex-col gap-4"
             >
-                <section
-                    class="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
-                >
-                    <div
-                        class="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 md:flex-row md:items-center md:justify-between dark:border-white/10"
-                    >
-                        <div class="flex min-w-0 items-center gap-3">
-                            <div
-                                class="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 text-sm font-bold text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                <section class="flex flex-col gap-3 border-b border-slate-200 pb-4 md:flex-row md:items-center md:justify-between dark:border-white/10">
+                    <div class="flex min-w-0 items-center gap-3">
+                        <div
+                            class="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-sm font-bold text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                        >
+                            <img
+                                v-if="studentPictureUrl"
+                                :src="studentPictureUrl"
+                                alt="Student Picture"
+                                class="size-full object-cover"
+                            />
+                            <span v-else>{{
+                                getInitials(profile.data.firstName)
+                            }}</span>
+                        </div>
+                        <div class="min-w-0">
+                            <h1
+                                class="truncate text-lg font-bold text-slate-950 dark:text-white"
                             >
-                                <img
-                                    v-if="studentPictureUrl"
-                                    :src="studentPictureUrl"
-                                    alt="Student Picture"
-                                    class="size-full object-cover"
-                                />
-                                <span v-else>{{
-                                    getInitials(profile.data.firstName)
-                                }}</span>
-                            </div>
-                            <div class="min-w-0">
-                                <h1
-                                    class="truncate text-lg font-bold text-slate-950 dark:text-white"
+                                {{ fullName }}
+                            </h1>
+                            <div
+                                class="mt-1 flex flex-wrap items-center gap-3 text-xs font-medium text-slate-500 dark:text-slate-400"
+                            >
+                                <span
+                                    class="inline-flex items-center gap-1"
                                 >
-                                    {{ fullName }}
-                                </h1>
-                                <div
-                                    class="mt-1 flex flex-wrap items-center gap-3 text-xs font-medium text-slate-500 dark:text-slate-400"
+                                    <IdCard class="size-3.5" />
+                                    {{ profile.data.studentNo }}
+                                </span>
+                                <span
+                                    class="inline-flex items-center gap-1"
                                 >
-                                    <span
-                                        class="inline-flex items-center gap-1"
-                                    >
-                                        <IdCard class="size-3.5" />
-                                        {{ profile.data.studentNo }}
-                                    </span>
-                                    <span
-                                        class="inline-flex items-center gap-1"
-                                    >
-                                        <School class="size-3.5" />
-                                        {{ profile.data.statusRemarks || '-' }}
-                                    </span>
-                                </div>
+                                    <School class="size-3.5" />
+                                    {{ profile.data.statusRemarks || '-' }}
+                                </span>
                             </div>
                         </div>
-
-                        <button
-                            type="button"
-                            class="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
-                            @click="editMode = true"
-                        >
-                            <Edit class="size-4" />
-                            Edit Profile
-                        </button>
                     </div>
+
+                    <button
+                        type="button"
+                        class="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+                        @click="editMode = true"
+                    >
+                        <Edit class="size-4" />
+                        Edit Profile
+                    </button>
                 </section>
 
-                <div class="grid gap-4 xl:grid-cols-[240px_1fr]">
-                    <aside
-                        class="rounded-lg border border-slate-200 bg-white p-2 shadow-sm dark:border-white/10 dark:bg-slate-950"
-                    >
+                <div class="grid gap-6 xl:grid-cols-[200px_1fr]">
+                    <aside class="flex flex-col gap-0.5 xl:border-r xl:border-slate-100 xl:pr-4 xl:dark:border-white/10">
                         <button
                             v-for="tab in tabs"
                             :key="tab.id"
@@ -2023,9 +2195,7 @@ watch(editMode, (val) => {
                         </button>
                     </aside>
 
-                    <section
-                        class="min-w-0 rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
-                    >
+                    <section class="min-w-0 rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950">
                         <div
                             class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-white/10"
                         >
@@ -2074,202 +2244,138 @@ watch(editMode, (val) => {
                         </div>
 
                         <div class="p-4">
+                            <!-- Personal Tab -->
                             <div
                                 v-if="activeTab === 'personal'"
-                                class="grid gap-4 lg:grid-cols-[1fr_1fr]"
+                                class="space-y-6"
                             >
-                                <div
-                                    class="rounded-lg border border-slate-200 dark:border-white/10"
-                                >
-                                    <div
-                                        class="border-b border-slate-200 px-3 py-2 text-xs font-bold text-slate-500 uppercase dark:border-white/10 dark:text-slate-400"
-                                    >
-                                        Basic Information
-                                    </div>
-                                    <dl
-                                        class="grid gap-0 divide-y divide-slate-100 dark:divide-white/10"
-                                    >
+                                <!-- Basic Info -->
+                                <div>
+                                    <div class="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Basic Information</div>
+                                    <dl class="divide-y divide-slate-100 dark:divide-white/10">
                                         <div
                                             v-for="field in personalFields"
                                             :key="field.label"
-                                            class="grid grid-cols-[150px_1fr] gap-3 px-3 py-2 text-xs"
+                                            class="grid grid-cols-[160px_1fr] gap-3 py-2.5 text-xs"
                                         >
-                                            <dt
-                                                class="font-bold text-slate-500 dark:text-slate-400"
-                                            >
+                                            <dt class="font-medium text-slate-500 dark:text-slate-400">
                                                 {{ field.label }}
                                             </dt>
-                                            <dd
-                                                class="font-semibold text-slate-900 dark:text-white"
-                                            >
+                                            <dd class="font-semibold text-slate-900 dark:text-white">
                                                 {{ field.value }}
                                             </dd>
                                         </div>
                                     </dl>
                                 </div>
 
-                                <div
-                                    class="rounded-lg border border-slate-200 dark:border-white/10"
-                                >
-                                    <div
-                                        class="border-b border-slate-200 px-3 py-2 text-xs font-bold text-slate-500 uppercase dark:border-white/10 dark:text-slate-400"
-                                    >
-                                        Contact
-                                    </div>
-                                    <div class="grid gap-2 p-3">
-                                        <div
-                                            class="flex items-center gap-3 rounded-md bg-slate-50 px-3 py-2 text-xs dark:bg-white/5"
-                                        >
-                                            <Mail
-                                                class="size-4 text-slate-500"
-                                            />
-                                            <span
-                                                class="truncate font-bold text-slate-900 dark:text-white"
-                                                >{{
-                                                    profile.data.email || '-'
-                                                }}</span
-                                            >
+                                <!-- Contact -->
+                                <div>
+                                    <div class="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Contact</div>
+                                    <div class="divide-y divide-slate-100 dark:divide-white/10">
+                                        <div class="flex items-center gap-3 py-2.5 text-xs">
+                                            <Mail class="size-4 shrink-0 text-slate-400" />
+                                            <span class="font-medium text-slate-500 dark:text-slate-400 w-28">Email</span>
+                                            <span class="truncate font-semibold text-slate-900 dark:text-white">{{ profile.data.email || '-' }}</span>
                                         </div>
-                                        <div
-                                            class="flex items-center gap-3 rounded-md bg-slate-50 px-3 py-2 text-xs dark:bg-white/5"
-                                        >
-                                            <Phone
-                                                class="size-4 text-slate-500"
-                                            />
-                                            <span
-                                                class="truncate font-bold text-slate-900 dark:text-white"
-                                                >{{
-                                                    profile.data.mobileNo || '-'
-                                                }}</span
-                                            >
+                                        <div class="flex items-center gap-3 py-2.5 text-xs">
+                                            <Phone class="size-4 shrink-0 text-slate-400" />
+                                            <span class="font-medium text-slate-500 dark:text-slate-400 w-28">Mobile</span>
+                                            <span class="truncate font-semibold text-slate-900 dark:text-white">{{ profile.data.mobileNo || '-' }}</span>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div
-                                    class="rounded-lg border border-slate-200 lg:col-span-2 dark:border-white/10"
-                                >
-                                    <div
-                                        class="border-b border-slate-200 px-3 py-2 text-xs font-bold text-slate-500 uppercase dark:border-white/10 dark:text-slate-400"
-                                    >
-                                        Address
-                                    </div>
-                                    <div
-                                        class="grid gap-3 p-3 text-xs sm:grid-cols-2"
-                                    >
-                                        <div
-                                            class="rounded-md bg-slate-50 p-3 dark:bg-white/5"
-                                        >
-                                            <div
-                                                class="mb-1 flex items-center gap-2 font-bold text-slate-500 dark:text-slate-400"
-                                            >
-                                                <Home class="size-4" />
+                                <!-- Address -->
+                                <div>
+                                    <div class="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Address</div>
+                                    <div class="grid gap-4 text-xs sm:grid-cols-2">
+                                        <div>
+                                            <div class="mb-1 flex items-center gap-1.5 font-medium text-slate-400 dark:text-slate-500">
+                                                <Home class="size-3.5" />
                                                 Residential
                                             </div>
-                                            <p
-                                                class="font-semibold text-slate-900 dark:text-white"
-                                            >
+                                            <p class="font-semibold text-slate-900 dark:text-white leading-relaxed">
                                                 {{ profile.data.resAddress }}
                                                 {{ profile.data.resStreet }}
                                                 {{ profile.data.resBarangay }}
                                             </p>
-                                            <p
-                                                class="mt-1 text-slate-500 dark:text-slate-400"
-                                            >
+                                            <p class="mt-0.5 text-slate-500 dark:text-slate-400">
                                                 {{ profile.data.resTownCity }}
                                                 {{ profile.data.resProvince }}
                                             </p>
                                         </div>
-                                        <div
-                                            class="rounded-md bg-slate-50 p-3 dark:bg-white/5"
-                                        >
-                                            <div
-                                                class="mb-1 flex items-center gap-2 font-bold text-slate-500 dark:text-slate-400"
-                                            >
-                                                <Home class="size-4" />
+                                        <div>
+                                            <div class="mb-1 flex items-center gap-1.5 font-medium text-slate-400 dark:text-slate-500">
+                                                <Home class="size-3.5" />
                                                 Permanent
                                             </div>
-                                            <p
-                                                class="font-semibold text-slate-900 dark:text-white"
-                                            >
-                                                {{
-                                                    profile.data.permAddress ||
-                                                    '-'
-                                                }}
+                                            <p class="font-semibold text-slate-900 dark:text-white leading-relaxed">
+                                                {{ profile.data.permAddress || '-' }}
                                             </p>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
+                            <!-- Academic Tab -->
                             <div
                                 v-if="activeTab === 'academic'"
-                                class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+                                class="divide-y divide-slate-100 dark:divide-white/10"
                             >
                                 <div
                                     v-for="field in academicFields"
                                     :key="field.label"
-                                    class="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5"
+                                    class="grid grid-cols-[160px_1fr] gap-3 py-2.5 text-xs"
                                 >
-                                    <div
-                                        class="text-[11px] font-bold text-slate-500 uppercase dark:text-slate-400"
-                                    >
+                                    <dt class="font-medium text-slate-500 dark:text-slate-400">
                                         {{ field.label }}
-                                    </div>
-                                    <div
-                                        class="mt-2 truncate text-lg font-bold text-slate-950 dark:text-white"
-                                    >
+                                    </dt>
+                                    <dd class="font-semibold text-slate-900 dark:text-white">
                                         {{ field.value }}
-                                    </div>
+                                    </dd>
                                 </div>
                             </div>
 
+                            <!-- Family Tab -->
                             <div
                                 v-if="activeTab === 'family'"
-                                class="rounded-lg border border-slate-200 dark:border-white/10"
+                                class="divide-y divide-slate-100 dark:divide-white/10"
                             >
-                                <dl
-                                    class="divide-y divide-slate-100 dark:divide-white/10"
+                                <div
+                                    v-for="field in familyFields"
+                                    :key="field.label"
+                                    class="grid grid-cols-[160px_1fr] gap-3 py-2.5 text-xs"
                                 >
-                                    <div
-                                        v-for="field in familyFields"
-                                        :key="field.label"
-                                        class="grid grid-cols-[150px_1fr] gap-3 px-3 py-3 text-xs"
-                                    >
-                                        <dt
-                                            class="font-bold text-slate-500 dark:text-slate-400"
-                                        >
-                                            {{ field.label }}
-                                        </dt>
-                                        <dd
-                                            class="font-semibold text-slate-900 dark:text-white"
-                                        >
-                                            {{ field.value }}
-                                        </dd>
-                                    </div>
-                                </dl>
+                                    <dt class="font-medium text-slate-500 dark:text-slate-400">
+                                        {{ field.label }}
+                                    </dt>
+                                    <dd class="font-semibold text-slate-900 dark:text-white">
+                                        {{ field.value }}
+                                    </dd>
+                                </div>
                             </div>
 
+                            <!-- Education Tab -->
                             <div
                                 v-if="activeTab === 'education'"
-                                class="grid gap-3"
+                                class="divide-y divide-slate-100 dark:divide-white/10"
                             >
                                 <div
                                     v-for="field in educationFields"
                                     :key="field.label"
-                                    class="flex items-start gap-3 rounded-lg border border-slate-200 p-3 text-xs dark:border-white/10"
+                                    class="flex items-start gap-3 py-3 text-xs"
                                 >
                                     <BookOpen
-                                        class="mt-0.5 size-4 shrink-0 text-slate-500"
+                                        class="mt-0.5 size-4 shrink-0 text-slate-400"
                                     />
                                     <div class="min-w-0">
                                         <div
-                                            class="font-bold text-slate-500 uppercase dark:text-slate-400"
+                                            class="font-medium text-slate-400 uppercase dark:text-slate-500 text-[11px] tracking-wider"
                                         >
                                             {{ field.label }}
                                         </div>
                                         <div
-                                            class="mt-1 font-semibold text-slate-900 dark:text-white"
+                                            class="mt-0.5 font-semibold text-slate-900 dark:text-white"
                                         >
                                             {{ field.value }}
                                         </div>
@@ -2307,49 +2413,36 @@ watch(editMode, (val) => {
                                     </p>
                                 </div>
 
-                                <div v-else class="grid gap-4">
+                                <div v-else class="space-y-6">
                                     <section
                                         v-for="group in groupedCeeDocuments"
                                         :key="group.key"
-                                        class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
                                     >
-                                        <div
-                                            class="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-white/5"
-                                        >
-                                            <div
-                                                class="flex min-w-0 items-center gap-3"
-                                            >
-                                                <span
-                                                    class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
+                                        <div class="mb-3 flex min-w-0 items-center gap-2">
+                                            <FileText class="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                            <div class="min-w-0">
+                                                <h3
+                                                    class="truncate text-sm font-bold text-slate-900 dark:text-white"
                                                 >
-                                                    <FileText class="size-4" />
-                                                </span>
-                                                <div class="min-w-0">
-                                                    <h3
-                                                        class="truncate text-sm font-bold text-slate-950 dark:text-white"
-                                                    >
-                                                        {{ group.label }}
-                                                    </h3>
-                                                    <p
-                                                        class="text-xs font-medium text-slate-500 dark:text-slate-400"
-                                                    >
-                                                        {{
-                                                            group.documents
-                                                                .length
-                                                        }}
-                                                        file{{
-                                                            group.documents
-                                                                .length === 1
-                                                                ? ''
-                                                                : 's'
-                                                        }}
-                                                    </p>
-                                                </div>
+                                                    {{ group.label }}
+                                                </h3>
+                                                <p
+                                                    class="text-xs font-medium text-slate-400 dark:text-slate-500"
+                                                >
+                                                    {{
+                                                        group.documents.length
+                                                    }}
+                                                    file{{
+                                                        group.documents.length === 1
+                                                            ? ''
+                                                            : 's'
+                                                    }}
+                                                </p>
                                             </div>
                                         </div>
 
                                         <div
-                                            class="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3"
+                                            class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
                                         >
                                             <div
                                                 v-for="document in group.documents"
@@ -2852,30 +2945,23 @@ watch(editMode, (val) => {
                                 </div>
                             </div>
 
+                            <!-- Socio Tab -->
                             <div
                                 v-if="activeTab === 'socio'"
-                                class="rounded-lg border border-slate-200 dark:border-white/10"
+                                class="divide-y divide-slate-100 dark:divide-white/10"
                             >
-                                <dl
-                                    class="divide-y divide-slate-100 dark:divide-white/10"
+                                <div
+                                    v-for="field in socioFields"
+                                    :key="field.label"
+                                    class="grid grid-cols-[160px_1fr] gap-3 py-2.5 text-xs"
                                 >
-                                    <div
-                                        v-for="field in socioFields"
-                                        :key="field.label"
-                                        class="grid grid-cols-[150px_1fr] gap-3 px-3 py-3 text-xs"
-                                    >
-                                        <dt
-                                            class="font-bold text-slate-500 dark:text-slate-400"
-                                        >
-                                            {{ field.label }}
-                                        </dt>
-                                        <dd
-                                            class="font-semibold text-slate-900 dark:text-white"
-                                        >
-                                            {{ field.value }}
-                                        </dd>
-                                    </div>
-                                </dl>
+                                    <dt class="font-medium text-slate-500 dark:text-slate-400">
+                                        {{ field.label }}
+                                    </dt>
+                                    <dd class="font-semibold text-slate-900 dark:text-white">
+                                        {{ field.value }}
+                                    </dd>
+                                </div>
                             </div>
 
                             <div
@@ -4712,6 +4798,105 @@ watch(editMode, (val) => {
                                         </aside>
                                     </div>
                                 </template>
+                            </div>
+
+                            <!-- CCD Cares Evaluation Tab -->
+                            <div
+                                v-if="activeTab === 'ccd-cares'"
+                                class="space-y-4 font-light"
+                            >
+                                <div class="overflow-x-auto rounded-lg border border-slate-200 dark:border-white/10">
+                                    <table class="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr class="border-b border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5 text-xs font-bold text-slate-500 uppercase">
+                                                <th class="px-4 py-3">Evaluation Period</th>
+                                                <th class="px-4 py-3">Duration</th>
+                                                <th class="px-4 py-3">Status</th>
+                                                <th class="px-4 py-3 text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-100 dark:divide-white/10">
+                                            <tr 
+                                                v-for="assessment in ccdCares.assessments" 
+                                                :key="assessment.period.id" 
+                                                class="text-xs hover:bg-slate-50/50 dark:hover:bg-white/5 transition"
+                                            >
+                                                <td class="px-4 py-4">
+                                                    <div class="font-bold text-slate-900 dark:text-white text-sm">
+                                                        {{ assessment.period.title }}
+                                                    </div>
+                                                    <div class="text-slate-500 dark:text-slate-400 mt-1 max-w-md font-light leading-relaxed">
+                                                        {{ assessment.period.description || 'No description provided' }}
+                                                    </div>
+                                                </td>
+                                                <td class="px-4 py-4 text-slate-600 dark:text-slate-300">
+                                                    <span class="font-medium">{{ formatDate(assessment.period.start_date) }}</span>
+                                                    <span class="mx-1 text-slate-400">to</span>
+                                                    <span class="font-medium">{{ formatDate(assessment.period.end_date) }}</span>
+                                                </td>
+                                                <td class="px-4 py-4">
+                                                    <span 
+                                                        v-if="assessment.submission" 
+                                                        class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-500/20"
+                                                    >
+                                                        <CheckCircle2 class="size-3" /> Submitted
+                                                    </span>
+                                                    <span 
+                                                        v-else-if="assessment.period.is_open" 
+                                                        class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 border border-blue-200/50 dark:border-blue-500/20"
+                                                    >
+                                                        <Clock3 class="size-3" /> Open
+                                                    </span>
+                                                    <span 
+                                                        v-else 
+                                                        class="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:bg-slate-500/10 dark:text-slate-400 border border-slate-200/50 dark:border-white/10"
+                                                    >
+                                                        <AlertCircle class="size-3" /> Closed
+                                                    </span>
+                                                </td>
+                                                <td class="px-4 py-4 text-right">
+                                                    <Button 
+                                                        v-if="assessment.submission" 
+                                                        type="button" 
+                                                        variant="outline" 
+                                                        size="sm" 
+                                                        class="h-8 font-semibold text-xs transition" 
+                                                        @click="viewResults(assessment)"
+                                                    >
+                                                        View Results
+                                                    </Button>
+                                                    <Button 
+                                                        v-else-if="assessment.period.is_open" 
+                                                        type="button" 
+                                                        size="sm" 
+                                                        class="h-8 bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-400 font-semibold text-xs transition" 
+                                                        @click="startEvaluation(assessment)"
+                                                    >
+                                                        Evaluate
+                                                    </Button>
+                                                    <Button 
+                                                        v-else 
+                                                        type="button" 
+                                                        size="sm" 
+                                                        class="h-8 font-semibold text-xs" 
+                                                        variant="ghost" 
+                                                        disabled
+                                                    >
+                                                        Closed
+                                                    </Button>
+                                                </td>
+                                            </tr>
+                                            <tr v-if="ccdCares.assessments.length === 0">
+                                                <td colspan="4" class="px-4 py-12 text-center text-slate-500 dark:text-slate-400">
+                                                    <div class="flex flex-col items-center justify-center gap-2">
+                                                        <FileText class="size-8 text-slate-300 dark:text-slate-700" />
+                                                        <span class="font-medium">No evaluation periods scheduled at this time.</span>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     </section>
@@ -6883,8 +7068,307 @@ watch(editMode, (val) => {
                     </section>
                 </div>
             </div>
+
         </aside>
     </div>
+
+    <!-- Drawer Questionnaire -->
+    <div
+        v-if="evaluationDrawerOpen && activeEvaluationPeriod"
+        class="fixed inset-0 z-50 flex justify-end bg-slate-950/40 backdrop-blur-[2px]"
+        @click.self="evaluationDrawerOpen = false"
+    >
+        <aside class="flex h-full w-full max-w-[50rem] flex-col bg-white shadow-2xl dark:bg-slate-950 transition-all duration-300">
+            <div class="flex min-h-0 flex-1 flex-col">
+                <!-- Header -->
+                <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 dark:border-white/10">
+                    <div class="min-w-0">
+                        <p class="text-[11px] font-bold tracking-wide text-emerald-700 uppercase dark:text-emerald-300">
+                            CCD Cares Evaluation
+                        </p>
+                        <h3 class="mt-1 text-lg font-bold text-slate-950 dark:text-white truncate">
+                            {{ activeEvaluationPeriod.period.title }}
+                        </h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            Please answer all statements below honestly.
+                        </p>
+                    </div>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        class="h-9"
+                        @click="evaluationDrawerOpen = false"
+                    >
+                        Close
+                    </Button>
+                </div>
+
+                <!-- Scrollable content -->
+                <div class="flex-1 overflow-y-auto p-5 space-y-6">
+                    <div v-if="activeEvaluationPeriod.period.description" class="text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-white/5 rounded-lg p-3 leading-relaxed">
+                        {{ activeEvaluationPeriod.period.description }}
+                    </div>
+
+                    <div v-for="category in activeEvaluationPeriod.template.categories" :key="category.id" class="space-y-4">
+                        <div class="border-b border-slate-100 pb-2 dark:border-white/10">
+                            <h4 class="text-sm font-bold text-slate-900 dark:text-white">{{ category.name }}</h4>
+                            <p v-if="category.description" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-light">{{ category.description }}</p>
+                        </div>
+
+                        <div class="space-y-5">
+                            <div v-for="(stmt, index) in category.statements" :key="stmt.id" class="space-y-2">
+                                <label class="block text-xs font-semibold text-slate-800 dark:text-slate-200">
+                                    {{ index + 1 }}. {{ stmt.statement }}
+                                    <span v-if="stmt.is_required" class="text-red-500">*</span>
+                                </label>
+                                <p v-if="stmt.help_text" class="text-[11px] text-slate-500 dark:text-slate-400 font-light">{{ stmt.help_text }}</p>
+                                
+                                <!-- Input types -->
+                                <div class="mt-2">
+                                    <!-- Likert / Rating Scale -->
+                                    <div v-if="stmt.statement_type === 'likert' || stmt.statement_type === 'rating_scale'" class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                        <label
+                                            v-for="opt in stmt.scale_options"
+                                            :key="opt.id"
+                                            class="flex cursor-pointer flex-col items-center justify-center rounded-lg border p-2 text-center transition hover:bg-slate-50 dark:hover:bg-white/5"
+                                            :class="evaluationForm.answers[stmt.id] === opt.value
+                                                ? 'border-emerald-600 bg-emerald-50/50 text-emerald-800 dark:border-emerald-500 dark:bg-emerald-950/30 dark:text-emerald-300'
+                                                : 'border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300'"
+                                        >
+                                            <input
+                                                type="radio"
+                                                :name="`answers-${stmt.id}`"
+                                                :value="opt.value"
+                                                v-model="evaluationForm.answers[stmt.id]"
+                                                class="sr-only"
+                                            />
+                                            <span class="text-xs font-bold">{{ opt.value }}</span>
+                                            <span class="mt-0.5 text-[9px] leading-tight font-medium opacity-80">{{ opt.label }}</span>
+                                        </label>
+                                    </div>
+
+                                    <!-- Multiple Choice / Yes No -->
+                                    <div v-else-if="stmt.statement_type === 'multiple_choice' || stmt.statement_type === 'yes_no'" class="grid grid-cols-2 gap-2">
+                                        <label
+                                            v-for="opt in stmt.choices"
+                                            :key="opt.id"
+                                            class="flex cursor-pointer items-center justify-center rounded-lg border p-2 text-center transition hover:bg-slate-50 dark:hover:bg-white/5"
+                                            :class="evaluationForm.answers[stmt.id] === opt.value
+                                                ? 'border-emerald-600 bg-emerald-50/50 text-emerald-800 dark:border-emerald-500 dark:bg-emerald-950/30 dark:text-emerald-300'
+                                                : 'border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300'"
+                                        >
+                                            <input
+                                                type="radio"
+                                                :name="`answers-${stmt.id}`"
+                                                :value="opt.value"
+                                                v-model="evaluationForm.answers[stmt.id]"
+                                                class="sr-only"
+                                            />
+                                            <span class="text-xs font-semibold">{{ opt.label }}</span>
+                                        </label>
+                                    </div>
+
+                                    <!-- Checkbox -->
+                                    <div v-else-if="stmt.statement_type === 'checkbox'" class="grid grid-cols-2 gap-2">
+                                        <label
+                                            v-for="opt in stmt.choices"
+                                            :key="opt.id"
+                                            class="flex cursor-pointer items-center justify-center rounded-lg border p-2 text-center transition hover:bg-slate-50 dark:hover:bg-white/5"
+                                            :class="(evaluationForm.answers[stmt.id] || []).includes(opt.value)
+                                                ? 'border-emerald-600 bg-emerald-50/50 text-emerald-800 dark:border-emerald-500 dark:bg-emerald-950/30 dark:text-emerald-300'
+                                                : 'border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300'"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                :value="opt.value"
+                                                v-model="evaluationForm.answers[stmt.id]"
+                                                class="sr-only"
+                                            />
+                                            <span class="text-xs font-semibold">{{ opt.label }}</span>
+                                        </label>
+                                    </div>
+
+                                    <!-- Numeric -->
+                                    <div v-else-if="stmt.statement_type === 'numeric_score'">
+                                        <Input
+                                            type="number"
+                                            v-model.number="evaluationForm.answers[stmt.id]"
+                                            class="w-full"
+                                            placeholder="Enter numeric response"
+                                        />
+                                    </div>
+
+                                    <!-- Default Text -->
+                                    <div v-else>
+                                        <Input
+                                            type="text"
+                                            v-model="evaluationForm.answers[stmt.id]"
+                                            class="w-full"
+                                            placeholder="Type your answer here..."
+                                        />
+                                    </div>
+                                </div>
+                                <p
+                                    v-if="evaluationForm.errors[`answers.${stmt.id}`]"
+                                    class="text-xs text-red-600 dark:text-red-400 mt-1 font-semibold"
+                                >
+                                    {{ evaluationForm.errors[`answers.${stmt.id}`] }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="border-t border-slate-100 px-5 py-4 flex items-center justify-end gap-3 dark:border-white/10 bg-slate-50 dark:bg-slate-900/50">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        class="h-9"
+                        @click="evaluationDrawerOpen = false"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        type="button"
+                        class="h-9 bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-400 font-semibold"
+                        :disabled="evaluationForm.processing"
+                        @click="submitEvaluation"
+                    >
+                        {{ evaluationForm.processing ? 'Submitting...' : 'Submit Evaluation' }}
+                    </Button>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Results Interpretation Dialog -->
+    <Dialog
+        :open="resultsModalOpen"
+        @update:open="resultsModalOpen = $event"
+    >
+        <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-[640px]">
+            <DialogHeader>
+                <DialogTitle>CCD Cares Evaluation Results</DialogTitle>
+                <DialogDescription>
+                    Interpretation of your submitted responses.
+                </DialogDescription>
+            </DialogHeader>
+
+            <div v-if="selectedAssessment && selectedAssessment.submission" class="py-4 space-y-6">
+                <!-- Summary Info -->
+                <div class="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-xs border-b border-slate-100 dark:border-white/10 pb-4">
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-400">Evaluation:</span>
+                        <span class="font-medium text-slate-800 dark:text-slate-200">{{ selectedAssessment.period.title }}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-400">Submitted at:</span>
+                        <span class="font-medium text-slate-800 dark:text-slate-200">
+                            {{ formatDate(selectedAssessment.submission.submitted_at) }}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Subscale Score Chart -->
+                <div class="space-y-3">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                        Subscale Score Chart (DASS-42 Equivalent)
+                    </h3>
+                    <div class="h-[240px]">
+                        <VueApexCharts
+                            type="bar"
+                            height="240"
+                            :options="ccdCaresChartOptions"
+                            :series="ccdCaresChartSeries"
+                        />
+                    </div>
+                </div>
+
+                <!-- Subscale Results Table -->
+                <div class="space-y-3 pt-2">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Subscale Results</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead>
+                                <tr class="border-b border-slate-100 dark:border-white/10 text-slate-400 font-medium">
+                                    <th class="py-2 font-semibold">Subscale</th>
+                                    <th class="py-2 text-center font-semibold w-24">Score</th>
+                                    <th class="py-2 text-right font-semibold w-40">Classification</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 dark:divide-white/10">
+                                <tr 
+                                    v-for="res in selectedAssessment.submission.interpretation_results"
+                                    :key="res.category_id"
+                                    class="text-slate-700 dark:text-slate-200"
+                                >
+                                    <td class="py-3 font-semibold uppercase tracking-wider text-slate-900 dark:text-white">
+                                        {{ res.category_name }}
+                                    </td>
+                                    <td class="py-3 text-center font-bold text-sm">
+                                        {{ res.score }}
+                                    </td>
+                                    <td class="py-3 text-right">
+                                        <span 
+                                            class="inline-block px-2.5 py-1 text-[10px] font-bold rounded-md uppercase tracking-wider border"
+                                            :class="getInterpretationColorClass(res.interpretation)"
+                                        >
+                                            {{ res.interpretation }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Action Plans / Interventions -->
+                <div 
+                    v-if="selectedAssessment.submission.interpretation_results.some(r => r.suggested_intervention)"
+                    class="space-y-3 pt-4 border-t border-slate-100 dark:border-white/10"
+                >
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                        Suggested Interventions & Action Plans
+                    </h3>
+                    <div class="divide-y divide-slate-100 dark:divide-white/10 text-xs">
+                        <div 
+                            v-for="res in selectedAssessment.submission.interpretation_results"
+                            :key="'intervention-' + res.category_id"
+                            v-show="res.suggested_intervention"
+                            class="py-3 first:pt-0 last:pb-0"
+                        >
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+                                    {{ res.category_name }}
+                                </span>
+                                <span 
+                                    class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider border scale-90 origin-left"
+                                    :class="getInterpretationColorClass(res.interpretation)"
+                                >
+                                    {{ res.interpretation }}
+                                </span>
+                            </div>
+                            <p class="text-slate-600 dark:text-slate-400 leading-relaxed font-light whitespace-pre-line">
+                                {{ res.suggested_intervention }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <DialogFooter>
+                <Button
+                    type="button"
+                    variant="outline"
+                    @click="resultsModalOpen = false"
+                >
+                    Close
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
 
     <Dialog
         :open="pftSummaryModalOpen"

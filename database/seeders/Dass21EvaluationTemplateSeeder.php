@@ -113,6 +113,7 @@ class Dass21EvaluationTemplateSeeder extends Seeder
                         ],
                         [
                             'interpretation' => $range['interpretation'],
+                            'suggested_intervention' => $range['suggested_intervention'] ?? null,
                             'sort_order' => $sortOrder + 1,
                             'status' => 'active',
                         ],
@@ -203,25 +204,25 @@ class Dass21EvaluationTemplateSeeder extends Seeder
     {
         return [
             'Depression' => [
-                ['min' => 0, 'max' => 9, 'interpretation' => 'Normal'],
-                ['min' => 10, 'max' => 13, 'interpretation' => 'Mild'],
-                ['min' => 14, 'max' => 20, 'interpretation' => 'Moderate'],
-                ['min' => 21, 'max' => 27, 'interpretation' => 'Severe'],
-                ['min' => 28, 'max' => 42, 'interpretation' => 'Extremely Severe'],
+                ['min' => 0, 'max' => 9, 'interpretation' => 'Normal', 'suggested_intervention' => 'Maintain healthy lifestyle and self-care practices'],
+                ['min' => 10, 'max' => 13, 'interpretation' => 'Mild', 'suggested_intervention' => 'Psychoeducation, stress management activities'],
+                ['min' => 14, 'max' => 20, 'interpretation' => 'Moderate', 'suggested_intervention' => 'Counseling sessions, coping skills training'],
+                ['min' => 21, 'max' => 27, 'interpretation' => 'Severe', 'suggested_intervention' => 'Referral to Guidance Counselor/Psychologist'],
+                ['min' => 28, 'max' => 42, 'interpretation' => 'Extremely Severe', 'suggested_intervention' => 'Immediate consultation with a Mental Health Professional'],
             ],
             'Anxiety' => [
-                ['min' => 0, 'max' => 7, 'interpretation' => 'Normal'],
-                ['min' => 8, 'max' => 9, 'interpretation' => 'Mild'],
-                ['min' => 10, 'max' => 14, 'interpretation' => 'Moderate'],
-                ['min' => 15, 'max' => 19, 'interpretation' => 'Severe'],
-                ['min' => 20, 'max' => 42, 'interpretation' => 'Extremely Severe'],
+                ['min' => 0, 'max' => 7, 'interpretation' => 'Normal', 'suggested_intervention' => 'Maintain healthy lifestyle and self-care practices'],
+                ['min' => 8, 'max' => 9, 'interpretation' => 'Mild', 'suggested_intervention' => 'Psychoeducation, stress management activities'],
+                ['min' => 10, 'max' => 14, 'interpretation' => 'Moderate', 'suggested_intervention' => 'Counseling sessions, coping skills training'],
+                ['min' => 15, 'max' => 19, 'interpretation' => 'Severe', 'suggested_intervention' => 'Referral to Guidance Counselor/Psychologist'],
+                ['min' => 20, 'max' => 42, 'interpretation' => 'Extremely Severe', 'suggested_intervention' => 'Immediate consultation with a Mental Health Professional'],
             ],
             'Stress' => [
-                ['min' => 0, 'max' => 14, 'interpretation' => 'Normal'],
-                ['min' => 15, 'max' => 18, 'interpretation' => 'Mild'],
-                ['min' => 19, 'max' => 25, 'interpretation' => 'Moderate'],
-                ['min' => 26, 'max' => 33, 'interpretation' => 'Severe'],
-                ['min' => 34, 'max' => 42, 'interpretation' => 'Extremely Severe'],
+                ['min' => 0, 'max' => 14, 'interpretation' => 'Normal', 'suggested_intervention' => 'Maintain healthy lifestyle and self-care practices'],
+                ['min' => 15, 'max' => 18, 'interpretation' => 'Mild', 'suggested_intervention' => 'Psychoeducation, stress management activities'],
+                ['min' => 19, 'max' => 25, 'interpretation' => 'Moderate', 'suggested_intervention' => 'Counseling sessions, coping skills training'],
+                ['min' => 26, 'max' => 33, 'interpretation' => 'Severe', 'suggested_intervention' => 'Referral to Guidance Counselor/Psychologist'],
+                ['min' => 34, 'max' => 42, 'interpretation' => 'Extremely Severe', 'suggested_intervention' => 'Immediate consultation with a Mental Health Professional'],
             ],
         ];
     }

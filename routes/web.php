@@ -8,6 +8,7 @@ use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\SsoAuthenticatedSessionController;
 use App\Http\Controllers\CarbonFootprintController;
+use App\Http\Controllers\CcdCaresEvaluationSubmissionController;
 use App\Http\Controllers\ClassScheduleController;
 use App\Http\Controllers\ClearanceAccountabilityController;
 use App\Http\Controllers\ClearanceUpdateController;
@@ -26,6 +27,7 @@ use App\Http\Controllers\LegalDocumentController;
 use App\Http\Controllers\LegalPublicController;
 use App\Http\Controllers\MyCarbonFootprintController;
 use App\Http\Controllers\ReportingOverviewController;
+use App\Http\Controllers\SiteSettings\CcdCaresEvaluationController;
 use App\Http\Controllers\SiteSettings\EvaluationTemplateController;
 use App\Http\Controllers\SiteSettings\PhysicalFitnessConfigurationController;
 use App\Http\Controllers\SiteSettings\SiteAcademicTermController;
@@ -126,6 +128,9 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
     Route::patch('student-profile', [StudentProfileController::class, 'update'])
         ->middleware('can:student-profile.view')
         ->name('student-profile.update');
+    Route::post('student-profile/ccd-cares/evaluation', CcdCaresEvaluationSubmissionController::class)
+        ->middleware('can:student-profile.view')
+        ->name('student-profile.ccd-cares.evaluation.store');
     Route::get('student-profile/physical-fitness/analytics', [StudentPftResultController::class, 'analytics'])
         ->middleware(['can:student-profile.view', 'can:pft.view'])
         ->name('student-profile.physical-fitness.analytics');
@@ -531,6 +536,9 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                     Route::patch('statements/reorder', 'reorderStatements')->name('statements.reorder');
                     Route::patch('statements/{statement}', 'updateStatement')->name('statements.update');
                     Route::delete('statements/{statement}', 'destroyStatement')->name('statements.destroy');
+                    Route::post('scale-sets', 'storeScaleSet')->name('scale-sets.store');
+                    Route::patch('scale-sets/{scaleSet}', 'updateScaleSet')->name('scale-sets.update');
+                    Route::delete('scale-sets/{scaleSet}', 'destroyScaleSet')->name('scale-sets.destroy');
                     Route::post('scales', 'storeScale')->name('scales.store');
                     Route::patch('scales/reorder', 'reorderScales')->name('scales.reorder');
                     Route::patch('scales/{scale}', 'updateScale')->name('scales.update');
@@ -539,10 +547,20 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                     Route::patch('choices/reorder', 'reorderChoices')->name('choices.reorder');
                     Route::patch('choices/{choice}', 'updateChoice')->name('choices.update');
                     Route::delete('choices/{choice}', 'destroyChoice')->name('choices.destroy');
+                    Route::post('interpretation-ranges', 'storeInterpretationRange')->name('interpretation-ranges.store');
+                    Route::patch('interpretation-ranges/{range}', 'updateInterpretationRange')->name('interpretation-ranges.update');
+                    Route::delete('interpretation-ranges/{range}', 'destroyInterpretationRange')->name('interpretation-ranges.destroy');
                 });
 
-            // Placeholder routes for new tabs
-            Route::get('ccd-cares', fn () => Inertia::render('SiteSettings/Placeholder', ['title' => 'CCD Cares']))->name('ccd-cares');
+            Route::prefix('ccd-cares')
+                ->name('ccd-cares.')
+                ->controller(CcdCaresEvaluationController::class)
+                ->group(function () {
+                    Route::get('/', 'index')->name('index');
+                    Route::post('periods', 'store')->name('periods.store');
+                    Route::patch('periods/{period}', 'update')->name('periods.update');
+                    Route::delete('periods/{period}', 'destroy')->name('periods.destroy');
+                });
 
             Route::get('grade-viewing', [SiteGradeViewingController::class, 'index'])->name('grade-viewing.index');
             Route::post('grade-viewing', [SiteGradeViewingController::class, 'store'])->name('grade-viewing.store');

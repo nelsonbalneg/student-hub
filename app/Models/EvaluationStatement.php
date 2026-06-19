@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'template_id',
     'category_id',
+    'scale_set_id',
     'original_item_number',
     'statement',
     'help_text',
@@ -37,6 +38,7 @@ class EvaluationStatement extends Model
         return [
             'template_id' => 'integer',
             'category_id' => 'integer',
+            'scale_set_id' => 'integer',
             'original_item_number' => 'integer',
             'is_required' => 'boolean',
             'weight' => 'decimal:2',
@@ -61,6 +63,11 @@ class EvaluationStatement extends Model
     public function ratingScales(): HasMany
     {
         return $this->hasMany(EvaluationRatingScale::class, 'statement_id');
+    }
+
+    public function scaleSet(): BelongsTo
+    {
+        return $this->belongsTo(EvaluationScaleSet::class, 'scale_set_id');
     }
 
     public function choices(): HasMany

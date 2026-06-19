@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\SiteSettings;
 
 use App\Http\Controllers\Controller;
+use App\Models\CcdCaresEvaluationPeriod;
 use App\Models\EvaluationChoice;
+use App\Models\EvaluationInterpretationRange;
 use App\Models\EvaluationRatingScale;
+use App\Models\EvaluationScaleSet;
 use App\Models\EvaluationStatement;
 use App\Models\EvaluationStatementCategory;
 use App\Models\EvaluationTemplate;
@@ -91,7 +94,7 @@ class EvaluationTemplateController extends Controller
             'updated_by' => $request->user()->id,
         ]));
 
-        return back()->with('success', 'Evaluation template updated.');
+        return $this->redirectToTemplate($template->id, 'Evaluation template updated.');
     }
 
     public function cloneTemplate(Request $request, EvaluationTemplate $template): RedirectResponse
@@ -99,7 +102,7 @@ class EvaluationTemplateController extends Controller
         $request->user()->can('evaluation.templates.create') || abort(403);
 
         $clone = DB::transaction(function () use ($request, $template): EvaluationTemplate {
-            $template->load(['categories', 'statements.choices', 'statements.ratingScales', 'ratingScales']);
+            $template->load(['categories', 'statements.choices', 'scaleSets.ratingScales']);
 
             $clone = EvaluationTemplate::query()->create([
                 'name' => $template->name.' Copy',
@@ -110,9 +113,24 @@ class EvaluationTemplateController extends Controller
             ]);
 
             $categoryIds = [];
+            $scaleSetIds = [];
+
+            foreach ($template->scaleSets as $scaleSet) {
+                $newScaleSet = $clone->scaleSets()->create(
+                    $scaleSet->only(['name', 'description', 'is_default', 'status', 'sort_order'])
+                );
+                $scaleSetIds[$scaleSet->id] = $newScaleSet->id;
+                $newScaleSet->ratingScales()->createMany(
+                    $scaleSet->ratingScales->map(fn (EvaluationRatingScale $scale): array => [
+                        'template_id' => $clone->id,
+                        ...$scale->only(['value', 'label', 'interpretation', 'sort_order', 'status']),
+                    ])->all()
+                );
+            }
 
             foreach ($template->categories as $category) {
                 $categoryIds[$category->id] = $clone->categories()->create([
+                    'scale_set_id' => $category->scale_set_id ? $scaleSetIds[$category->scale_set_id] : null,
                     'name' => $category->name,
                     'description' => $category->description,
                     'sort_order' => $category->sort_order,
@@ -123,6 +141,7 @@ class EvaluationTemplateController extends Controller
             foreach ($template->statements as $statement) {
                 $newStatement = $clone->statements()->create([
                     'category_id' => $statement->category_id ? $categoryIds[$statement->category_id] : null,
+                    'scale_set_id' => $statement->scale_set_id ? $scaleSetIds[$statement->scale_set_id] : null,
                     'statement' => $statement->statement,
                     'help_text' => $statement->help_text,
                     'statement_type' => $statement->statement_type,
@@ -140,20 +159,7 @@ class EvaluationTemplateController extends Controller
                     $statement->choices->map->only(['choice_text', 'choice_value', 'score_value', 'sort_order'])->all()
                 );
 
-                $newStatement->ratingScales()->createMany(
-                    $statement->ratingScales->map(fn (EvaluationRatingScale $scale): array => [
-                        'template_id' => $clone->id,
-                        ...$scale->only(['value', 'label', 'interpretation', 'sort_order']),
-                    ])->all()
-                );
             }
-
-            $clone->ratingScales()->createMany(
-                $template->ratingScales
-                    ->whereNull('statement_id')
-                    ->map->only(['value', 'label', 'interpretation', 'sort_order'])
-                    ->all()
-            );
 
             return $clone;
         });
@@ -175,9 +181,11 @@ class EvaluationTemplateController extends Controller
     public function storeCategory(Request $request): RedirectResponse
     {
         $request->user()->can('evaluation.templates.create') || abort(403);
-        DB::transaction(fn () => EvaluationStatementCategory::query()->create($this->validateCategory($request)));
+        $category = DB::transaction(
+            fn (): EvaluationStatementCategory => EvaluationStatementCategory::query()->create($this->validateCategory($request))
+        );
 
-        return back()->with('success', 'Statement category created.');
+        return $this->redirectToTemplate($category->template_id, 'Statement category created.');
     }
 
     public function updateCategory(Request $request, EvaluationStatementCategory $category): RedirectResponse
@@ -185,7 +193,7 @@ class EvaluationTemplateController extends Controller
         $request->user()->can('evaluation.templates.update') || abort(403);
         DB::transaction(fn () => $category->update($this->validateCategory($request, $category)));
 
-        return back()->with('success', 'Statement category updated.');
+        return $this->redirectToTemplate($category->template_id, 'Statement category updated.');
     }
 
     public function destroyCategory(Request $request, EvaluationStatementCategory $category): RedirectResponse
@@ -196,7 +204,7 @@ class EvaluationTemplateController extends Controller
             $category->delete();
         });
 
-        return back()->with('success', 'Statement category deleted.');
+        return $this->redirectToTemplate($category->template_id, 'Statement category deleted.');
     }
 
     public function reorderCategories(Request $request): RedirectResponse
@@ -210,13 +218,13 @@ class EvaluationTemplateController extends Controller
 
         $this->reorder(EvaluationStatementCategory::query(), $validated['ids']);
 
-        return back();
+        return $this->redirectToTemplate($validated['template_id']);
     }
 
     public function storeStatement(Request $request): RedirectResponse
     {
         $request->user()->can('evaluation.templates.create') || abort(403);
-        DB::transaction(function () use ($request): void {
+        $statement = DB::transaction(function () use ($request): EvaluationStatement {
             $validated = $this->validateStatement($request);
             $choices = in_array($validated['statement_type'], ['multiple_choice', 'checkbox', 'yes_no'], true)
                 ? ($validated['choices'] ?? [])
@@ -225,9 +233,11 @@ class EvaluationTemplateController extends Controller
 
             $statement = EvaluationStatement::query()->create($validated);
             $statement->choices()->createMany($choices);
+
+            return $statement;
         });
 
-        return back()->with('success', 'Evaluation statement created.');
+        return $this->redirectToTemplate($statement->template_id, 'Evaluation statement created.');
     }
 
     public function updateStatement(Request $request, EvaluationStatement $statement): RedirectResponse
@@ -245,7 +255,7 @@ class EvaluationTemplateController extends Controller
             $statement->choices()->createMany($choices);
         });
 
-        return back()->with('success', 'Evaluation statement updated.');
+        return $this->redirectToTemplate($statement->template_id, 'Evaluation statement updated.');
     }
 
     public function destroyStatement(Request $request, EvaluationStatement $statement): RedirectResponse
@@ -256,7 +266,7 @@ class EvaluationTemplateController extends Controller
             $statement->delete();
         });
 
-        return back()->with('success', 'Evaluation statement deleted.');
+        return $this->redirectToTemplate($statement->template_id, 'Evaluation statement deleted.');
     }
 
     public function reorderStatements(Request $request): RedirectResponse
@@ -270,15 +280,68 @@ class EvaluationTemplateController extends Controller
 
         $this->reorder(EvaluationStatement::query(), $validated['ids']);
 
-        return back();
+        return $this->redirectToTemplate($validated['template_id']);
+    }
+
+    public function storeScaleSet(Request $request): RedirectResponse
+    {
+        $request->user()->can('evaluation.templates.create') || abort(403);
+        $validated = $this->validateScaleSet($request);
+
+        $scaleSet = DB::transaction(function () use ($validated): EvaluationScaleSet {
+            if ($validated['is_default']) {
+                EvaluationScaleSet::query()
+                    ->where('template_id', $validated['template_id'])
+                    ->update(['is_default' => false]);
+            }
+
+            return EvaluationScaleSet::query()->create($validated);
+        });
+
+        return $this->redirectToTemplate($scaleSet->template_id, 'Rating scale set created.');
+    }
+
+    public function updateScaleSet(Request $request, EvaluationScaleSet $scaleSet): RedirectResponse
+    {
+        $request->user()->can('evaluation.templates.update') || abort(403);
+        $validated = $this->validateScaleSet($request, $scaleSet);
+
+        DB::transaction(function () use ($scaleSet, $validated): void {
+            if ($validated['is_default']) {
+                EvaluationScaleSet::query()
+                    ->where('template_id', $scaleSet->template_id)
+                    ->whereKeyNot($scaleSet->id)
+                    ->update(['is_default' => false]);
+            }
+
+            $scaleSet->update($validated);
+        });
+
+        return $this->redirectToTemplate($scaleSet->template_id, 'Rating scale set updated.');
+    }
+
+    public function destroyScaleSet(Request $request, EvaluationScaleSet $scaleSet): RedirectResponse
+    {
+        $request->user()->can('evaluation.templates.delete') || abort(403);
+        $templateId = $scaleSet->template_id;
+        DB::transaction(function () use ($scaleSet): void {
+            $scaleSet->categories()->update(['scale_set_id' => null]);
+            $scaleSet->statements()->update(['scale_set_id' => null]);
+            $scaleSet->ratingScales()->delete();
+            $scaleSet->delete();
+        });
+
+        return $this->redirectToTemplate($templateId, 'Rating scale set deleted.');
     }
 
     public function storeScale(Request $request): RedirectResponse
     {
         $request->user()->can('evaluation.templates.create') || abort(403);
-        DB::transaction(fn () => EvaluationRatingScale::query()->create($this->validateScale($request)));
+        $scale = DB::transaction(
+            fn (): EvaluationRatingScale => EvaluationRatingScale::query()->create($this->validateScale($request))
+        );
 
-        return back()->with('success', 'Rating scale item created.');
+        return $this->redirectToTemplate($scale->template_id, 'Rating scale item created.');
     }
 
     public function updateScale(Request $request, EvaluationRatingScale $scale): RedirectResponse
@@ -286,7 +349,7 @@ class EvaluationTemplateController extends Controller
         $request->user()->can('evaluation.templates.update') || abort(403);
         DB::transaction(fn () => $scale->update($this->validateScale($request, $scale)));
 
-        return back()->with('success', 'Rating scale item updated.');
+        return $this->redirectToTemplate($scale->template_id, 'Rating scale item updated.');
     }
 
     public function destroyScale(Request $request, EvaluationRatingScale $scale): RedirectResponse
@@ -294,29 +357,36 @@ class EvaluationTemplateController extends Controller
         $request->user()->can('evaluation.templates.delete') || abort(403);
         DB::transaction(fn () => $scale->delete());
 
-        return back()->with('success', 'Rating scale item deleted.');
+        return $this->redirectToTemplate($scale->template_id, 'Rating scale item deleted.');
     }
 
     public function reorderScales(Request $request): RedirectResponse
     {
         $request->user()->can('evaluation.templates.update') || abort(403);
+        $templateId = $request->integer('template_id');
         $validated = $request->validate([
             'template_id' => ['required', 'exists:evaluation_templates,id'],
+            'scale_set_id' => ['required', Rule::exists('evaluation_scale_sets', 'id')->where('template_id', $templateId)],
             'ids' => ['required', 'array'],
-            'ids.*' => ['integer', Rule::exists('evaluation_rating_scales', 'id')->where('template_id', $request->integer('template_id'))],
+            'ids.*' => ['integer', Rule::exists('evaluation_rating_scales', 'id')->where('scale_set_id', $request->integer('scale_set_id'))],
         ]);
 
         $this->reorder(EvaluationRatingScale::query(), $validated['ids']);
 
-        return back();
+        return $this->redirectToTemplate($validated['template_id']);
     }
 
     public function storeChoice(Request $request): RedirectResponse
     {
         $request->user()->can('evaluation.templates.create') || abort(403);
-        DB::transaction(fn () => EvaluationChoice::query()->create($this->validateChoice($request)));
+        $choice = DB::transaction(
+            fn (): EvaluationChoice => EvaluationChoice::query()->create($this->validateChoice($request))
+        );
 
-        return back()->with('success', 'Multiple-choice option created.');
+        return $this->redirectToTemplate(
+            $choice->statement()->valueOrFail('template_id'),
+            'Multiple-choice option created.'
+        );
     }
 
     public function updateChoice(Request $request, EvaluationChoice $choice): RedirectResponse
@@ -324,15 +394,19 @@ class EvaluationTemplateController extends Controller
         $request->user()->can('evaluation.templates.update') || abort(403);
         DB::transaction(fn () => $choice->update($this->validateChoice($request, $choice)));
 
-        return back()->with('success', 'Multiple-choice option updated.');
+        return $this->redirectToTemplate(
+            $choice->statement()->valueOrFail('template_id'),
+            'Multiple-choice option updated.'
+        );
     }
 
     public function destroyChoice(Request $request, EvaluationChoice $choice): RedirectResponse
     {
         $request->user()->can('evaluation.templates.delete') || abort(403);
+        $templateId = $choice->statement()->valueOrFail('template_id');
         DB::transaction(fn () => $choice->delete());
 
-        return back()->with('success', 'Multiple-choice option deleted.');
+        return $this->redirectToTemplate($templateId, 'Multiple-choice option deleted.');
     }
 
     public function reorderChoices(Request $request): RedirectResponse
@@ -343,10 +417,13 @@ class EvaluationTemplateController extends Controller
             'ids' => ['required', 'array'],
             'ids.*' => ['integer', Rule::exists('evaluation_choices', 'id')->where('statement_id', $request->integer('statement_id'))],
         ]);
+        $templateId = EvaluationStatement::query()
+            ->whereKey($validated['statement_id'])
+            ->valueOrFail('template_id');
 
         $this->reorder(EvaluationChoice::query(), $validated['ids']);
 
-        return back();
+        return $this->redirectToTemplate($templateId);
     }
 
     private function validateTemplate(Request $request): array
@@ -360,8 +437,11 @@ class EvaluationTemplateController extends Controller
 
     private function validateCategory(Request $request, ?EvaluationStatementCategory $category = null): array
     {
+        $templateId = $request->integer('template_id');
+
         return $request->validate([
             'template_id' => ['required', 'exists:evaluation_templates,id'],
+            'scale_set_id' => ['nullable', Rule::exists('evaluation_scale_sets', 'id')->where('template_id', $templateId)],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
@@ -376,6 +456,7 @@ class EvaluationTemplateController extends Controller
         return $request->validate([
             'template_id' => ['required', 'exists:evaluation_templates,id'],
             'category_id' => ['nullable', Rule::exists('evaluation_statement_categories', 'id')->where('template_id', $templateId)],
+            'scale_set_id' => ['nullable', Rule::exists('evaluation_scale_sets', 'id')->where('template_id', $templateId)],
             'statement' => ['required', 'string'],
             'help_text' => ['nullable', 'string'],
             'statement_type' => ['required', Rule::in(self::STATEMENT_TYPES)],
@@ -409,11 +490,76 @@ class EvaluationTemplateController extends Controller
 
         return $request->validate([
             'template_id' => ['required', 'exists:evaluation_templates,id'],
+            'scale_set_id' => ['required', Rule::exists('evaluation_scale_sets', 'id')->where('template_id', $templateId)],
             'statement_id' => ['nullable', Rule::exists('evaluation_statements', 'id')->where('template_id', $templateId)],
             'value' => ['required', 'numeric'],
             'label' => ['required', 'string', 'max:255'],
             'interpretation' => ['nullable', 'string'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
+        ]);
+    }
+
+    private function validateScaleSet(Request $request, ?EvaluationScaleSet $scaleSet = null): array
+    {
+        $templateId = $request->integer('template_id');
+
+        return $request->validate([
+            'template_id' => ['required', 'exists:evaluation_templates,id'],
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('evaluation_scale_sets', 'name')
+                    ->where('template_id', $templateId)
+                    ->ignore($scaleSet),
+            ],
+            'description' => ['nullable', 'string'],
+            'is_default' => ['required', 'boolean'],
+            'status' => ['required', Rule::in(['active', 'inactive'])],
+            'sort_order' => ['nullable', 'integer', 'min:0'],
+        ]);
+    }
+
+    public function storeInterpretationRange(Request $request): RedirectResponse
+    {
+        $request->user()->can('evaluation.templates.create') || abort(403);
+        $range = DB::transaction(
+            fn (): EvaluationInterpretationRange => EvaluationInterpretationRange::query()->create($this->validateInterpretationRange($request))
+        );
+
+        return $this->redirectToTemplate($range->template_id, 'Interpretation rule created.');
+    }
+
+    public function updateInterpretationRange(Request $request, EvaluationInterpretationRange $range): RedirectResponse
+    {
+        $request->user()->can('evaluation.templates.update') || abort(403);
+        DB::transaction(fn () => $range->update($this->validateInterpretationRange($request, $range)));
+
+        return $this->redirectToTemplate($range->template_id, 'Interpretation rule updated.');
+    }
+
+    public function destroyInterpretationRange(Request $request, EvaluationInterpretationRange $range): RedirectResponse
+    {
+        $request->user()->can('evaluation.templates.delete') || abort(403);
+        $templateId = $range->template_id;
+        DB::transaction(fn () => $range->delete());
+
+        return $this->redirectToTemplate($templateId, 'Interpretation rule deleted.');
+    }
+
+    private function validateInterpretationRange(Request $request, ?EvaluationInterpretationRange $range = null): array
+    {
+        $templateId = $request->integer('template_id');
+
+        return $request->validate([
+            'template_id' => ['required', 'exists:evaluation_templates,id'],
+            'category_id' => ['required', Rule::exists('evaluation_statement_categories', 'id')->where('template_id', $templateId)],
+            'min_value' => ['required', 'numeric', 'min:0'],
+            'max_value' => ['required', 'numeric', 'gte:min_value'],
+            'interpretation' => ['required', 'string', 'max:255'],
+            'suggested_intervention' => ['nullable', 'string'],
+            'sort_order' => ['nullable', 'integer', 'min:0'],
+            'status' => ['required', Rule::in(['active', 'inactive'])],
         ]);
     }
 
@@ -431,12 +577,15 @@ class EvaluationTemplateController extends Controller
     private function templateTree(EvaluationTemplate $template): array
     {
         $data = $template->load([
-            'categories' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
+            'categories' => fn ($query) => $query->with('scaleSet')->orderBy('sort_order')->orderBy('id'),
             'statements' => fn ($query) => $query->with([
                 'choices' => fn ($choiceQuery) => $choiceQuery->orderBy('sort_order')->orderBy('id'),
+                'scaleSet.ratingScales' => fn ($scaleQuery) => $scaleQuery->orderBy('sort_order')->orderBy('id'),
+            ])->orderBy('sort_order')->orderBy('id'),
+            'scaleSets' => fn ($query) => $query->with([
                 'ratingScales' => fn ($scaleQuery) => $scaleQuery->orderBy('sort_order')->orderBy('id'),
             ])->orderBy('sort_order')->orderBy('id'),
-            'ratingScales' => fn ($query) => $query->whereNull('statement_id')->orderBy('sort_order')->orderBy('id'),
+            'interpretationRanges' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
         ])->toArray();
 
         return [
@@ -447,6 +596,10 @@ class EvaluationTemplateController extends Controller
 
     private function templateIsUsed(EvaluationTemplate $template): bool
     {
+        if (CcdCaresEvaluationPeriod::query()->where('evaluation_template_id', $template->id)->exists()) {
+            return true;
+        }
+
         if (! Schema::hasTable('evaluation_responses') || ! Schema::hasColumn('evaluation_responses', 'template_id')) {
             return false;
         }
@@ -461,5 +614,12 @@ class EvaluationTemplateController extends Controller
                 (clone $query)->whereKey($id)->update(['sort_order' => $index + 1]);
             }
         });
+    }
+
+    private function redirectToTemplate(int $templateId, ?string $message = null): RedirectResponse
+    {
+        $response = to_route('site-settings.evaluation.index', ['template' => $templateId]);
+
+        return $message ? $response->with('success', $message) : $response;
     }
 }
