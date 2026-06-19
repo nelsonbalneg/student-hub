@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { Head, router, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { edit as editProfileRoute } from '@/routes/profile';
 import {
     AlertCircle,
     BookOpenCheck,
@@ -1415,7 +1416,24 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                         >
                         <span v-else>Grades Temporarily Locked</span>
                     </p>
+                    <div v-if="evaluation_error_type === 'missing_context'">
+                        <p class="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                            Your account is missing required information (Campus or Tenant assignment).
+                        </p>
+                        <p class="mt-1.5 text-xs text-amber-700 dark:text-amber-300">
+                            Please update your Campus in your profile. If you cannot update it, contact your Registrar or System Administrator to complete your account setup.
+                        </p>
+                        <div class="mt-3 text-xs font-semibold">
+                            <Link
+                                :href="editProfileRoute.url()"
+                                class="inline-flex items-center text-amber-950 underline hover:text-amber-900 dark:text-amber-200 dark:hover:text-white"
+                            >
+                                → Go to <strong class="font-bold">Profile</strong> to update your Campus.
+                            </Link>
+                        </div>
+                    </div>
                     <p
+                        v-else
                         class="mt-1 text-xs"
                         :class="{
                             'text-red-700 dark:text-red-400':

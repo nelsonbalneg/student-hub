@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
+import { edit as editProfileRoute } from '@/routes/profile';
 import {
     AlertTriangle,
     Building2,
@@ -376,7 +377,30 @@ defineOptions({
                     class="m-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200"
                 >
                     <AlertTriangle class="mt-0.5 size-4 shrink-0" />
-                    <span>{{ activeSemesters.error }}</span>
+                    <div>
+                        <template v-if="activeSemesters.error.includes('campus') || activeSemesters.error.includes('tenant') || !campus.id || !campus.tenant_id">
+                            <p class="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                                Account Setup Incomplete
+                            </p>
+                            <p class="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                                Your account is missing required information (Campus or Tenant assignment).
+                            </p>
+                            <p class="mt-1.5 text-xs text-amber-700 dark:text-amber-300">
+                                Please update your Campus in your profile. If you cannot update it, contact your Registrar or System Administrator to complete your account setup.
+                            </p>
+                            <div class="mt-3 text-xs font-semibold">
+                                <Link
+                                    :href="editProfileRoute.url()"
+                                    class="inline-flex items-center text-amber-950 underline hover:text-amber-900 dark:text-amber-200 dark:hover:text-white"
+                                >
+                                    → Go to <strong class="font-bold">Profile</strong> to update your Campus.
+                                </Link>
+                            </div>
+                        </template>
+                        <template v-else>
+                            <span>{{ activeSemesters.error }}</span>
+                        </template>
+                    </div>
                 </div>
 
                 <div
