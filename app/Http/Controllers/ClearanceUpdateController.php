@@ -40,7 +40,7 @@ class ClearanceUpdateController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        $campuses = SiteCampus::all(['id', 'real_campus_id']);
+        $campuses = SiteCampus::all(['id', 'campus_name', 'real_campus_id']);
         $semesters = Semester::orderByDesc('academic_year')
             ->orderByDesc('term')
             ->get(['id', 'academic_year', 'term', 'campus_id', 'campus_name'])
@@ -56,6 +56,7 @@ class ClearanceUpdateController extends Controller
             'filters' => $request->only(['search', 'semester_id', 'status']),
             'semesters' => $semesters,
             'types' => ClearanceType::all(['id', 'name', 'audience', 'campus_id']),
+            'campuses' => $campuses,
             'students' => $this->studentOptions(),
             'activeSemester' => GetActiveSem::current(),
             'can' => [

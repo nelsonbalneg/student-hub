@@ -7,12 +7,10 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class AssignCampusRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
-        return $this->user() !== null && blank($this->user()->tenant_id);
+        $user = $this->user();
+        return $user !== null && (blank($user->tenant_id) || blank($user->campus_id) || blank($user->office_id));
     }
 
     /**
@@ -24,6 +22,7 @@ class AssignCampusRequest extends FormRequest
     {
         return [
             'campus_record_id' => ['required', 'integer', 'min:1'],
+            'office_id' => ['required', 'integer', 'exists:offices,id'],
         ];
     }
 }

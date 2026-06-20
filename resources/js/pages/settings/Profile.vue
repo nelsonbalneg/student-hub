@@ -31,11 +31,17 @@ type Campus = {
     campus_id: number;
 };
 
+type Office = {
+    id: number;
+    name: string;
+};
+
 type Props = {
     mustVerifyEmail: boolean;
     status?: string;
     requiresCampusSelection: boolean;
     campuses: Campus[];
+    officesByCampus: Record<number, Office[]>;
 };
 
 const props = defineProps<Props>();
@@ -55,6 +61,7 @@ const page = usePage();
 const user = computed(() => page.props.auth.user);
 const campusForm = useForm({
     campus_record_id: null as number | null,
+    office_id: null as number | null,
 });
 
 const selectedCampus = computed(
@@ -64,17 +71,51 @@ const selectedCampus = computed(
         ) ?? null,
 );
 
+const availableOffices = computed<Office[]>(() => {
+    if (!campusForm.campus_record_id || !props.officesByCampus) {
+        return [];
+    }
+    return props.officesByCampus[campusForm.campus_record_id] ?? [];
+});
+
+const selectedOffice = computed(
+    () =>
+        availableOffices.value.find(
+            (office) => office.id === campusForm.office_id,
+        ) ?? null,
+);
+
 const selectCampusValue = computed({
     get: () => campusForm.campus_record_id !== null ? String(campusForm.campus_record_id) : undefined,
     set: (val) => {
         campusForm.campus_record_id = val ? Number(val) : null;
+        campusForm.office_id = null;
         campusForm.clearErrors('campus_record_id');
+        campusForm.clearErrors('office_id');
+    }
+});
+
+const selectOfficeValue = computed({
+    get: () => campusForm.office_id !== null ? String(campusForm.office_id) : undefined,
+    set: (val) => {
+        campusForm.office_id = val ? Number(val) : null;
+        campusForm.clearErrors('office_id');
     }
 });
 
 const saveCampus = () => {
+    let hasError = false;
+
     if (!campusForm.campus_record_id) {
         campusForm.setError('campus_record_id', 'Please select your campus.');
+        hasError = true;
+    }
+    if (!campusForm.office_id) {
+        campusForm.setError('office_id', 'Please select your office.');
+        hasError = true;
+    }
+
+    if (hasError) {
         return;
     }
 
@@ -184,25 +225,66 @@ const initials = computed(
             </DialogHeader>
 
             <div class="max-h-[60vh] overflow-y-auto px-6 py-6 space-y-4">
-                <div v-if="campuses.length" class="space-y-2">
-                    <Label class="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                        Campus
-                    </Label>
-                    <Select v-slot="slotProps" v-model="selectCampusValue">
-                        <SelectTrigger class="w-full border-slate-200 bg-white hover:bg-slate-50/50 dark:border-white/10 dark:bg-slate-950">
-                            <SelectValue placeholder="Choose your campus..." />
-                        </SelectTrigger>
-                        <SelectContent class="max-h-[300px] overflow-y-auto">
-                            <SelectItem
-                                v-for="campus in campuses"
-                                :key="campus.record_id"
-                                :value="String(campus.record_id)"
-                                class="cursor-pointer py-2.5"
-                            >
-                                {{ campus.name }}
-                            </SelectItem>
-                        </SelectContent>
-                    </Select>
+                <div v-if="campuses.length" class="space-y-4">
+                    <div class="space-y-2">
+                        <Label class="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                            Campus
+                        </Label>
+                        <Select v-model="selectCampusValue">
+                            <SelectTrigger class="w-full border-slate-200 bg-white hover:bg-slate-50/50 dark:border-white/10 dark:bg-slate-950">
+                                <SelectValue placeholder="Choose your campus..." />
+                            </SelectTrigger>
+                            <SelectContent class="max-h-[300px] overflow-y-auto">
+                                <SelectItem
+                                    v-for="campus in campuses"
+                                    :key="campus.record_id"
+                                    :value="String(campus.record_id)"
+                                    class="cursor-pointer py-2.5"
+                                >
+                                    {{ campus.name }}
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <p
+                            v-if="campusForm.errors.campus_record_id"
+                            class="text-xs font-semibold text-red-600 dark:text-red-400"
+                        >
+                            {{ campusForm.errors.campus_record_id }}
+                        </p>
+                    </div>
+
+                    <div v-if="campusForm.campus_record_id" class="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                        <Label class="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                            Office
+                        </Label>
+                        <Select v-if="availableOffices.length" v-model="selectOfficeValue">
+                            <SelectTrigger class="w-full border-slate-200 bg-white hover:bg-slate-50/50 dark:border-white/10 dark:bg-slate-950">
+                                <SelectValue placeholder="Choose your office..." />
+                            </SelectTrigger>
+                            <SelectContent class="max-h-[300px] overflow-y-auto">
+                                <SelectItem
+                                    v-for="office in availableOffices"
+                                    :key="office.id"
+                                    :value="String(office.id)"
+                                    class="cursor-pointer py-2.5"
+                                >
+                                    {{ office.name }}
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <div
+                            v-else
+                            class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200"
+                        >
+                            No offices available for the selected campus. Please contact the administrator.
+                        </div>
+                        <p
+                            v-if="campusForm.errors.office_id"
+                            class="text-xs font-semibold text-red-600 dark:text-red-400"
+                        >
+                            {{ campusForm.errors.office_id }}
+                        </p>
+                    </div>
                 </div>
 
                 <div
@@ -212,13 +294,6 @@ const initials = computed(
                     Campus options are temporarily unavailable. Please refresh
                     the page or contact the system administrator.
                 </div>
-
-                <p
-                    v-if="campusForm.errors.campus_record_id"
-                    class="text-xs font-semibold text-red-600 dark:text-red-400"
-                >
-                    {{ campusForm.errors.campus_record_id }}
-                </p>
             </div>
 
             <DialogFooter
@@ -229,13 +304,14 @@ const initials = computed(
                         v-if="selectedCampus"
                         class="text-center text-xs text-slate-500 dark:text-slate-400"
                     >
-                        Selected: {{ selectedCampus.name }}
+                        Selected: {{ selectedCampus.name }}<span v-if="selectedOffice"> — {{ selectedOffice.name }}</span>
                     </p>
                     <Button
                         type="button"
                         class="w-full bg-emerald-600 text-white hover:bg-emerald-700"
                         :disabled="
                             !campusForm.campus_record_id ||
+                            !campusForm.office_id ||
                             campusForm.processing ||
                             campuses.length === 0
                         "

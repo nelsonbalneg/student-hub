@@ -64,6 +64,11 @@ const props = defineProps<{
         site_campus_id?: number | null;
     }[];
     types: { id: number; name: string; audience: 'all' | 'individual'; campus_id: number }[];
+    campuses: {
+        id: number;
+        campus_name: string;
+        real_campus_id: string | null;
+    }[];
     students: {
         id: number;
         name: string;
@@ -124,6 +129,7 @@ const form = useForm({
 });
 
 const studentSearch = ref('');
+const selectedCampusId = ref<number | null>(null);
 
 const selectedSemester = computed(() =>
     props.semesters.find(
@@ -131,19 +137,32 @@ const selectedSemester = computed(() =>
     ),
 );
 
+const filteredSemesters = computed(() => {
+    if (!selectedCampusId.value) return [];
+    return props.semesters.filter(
+        (sem) => sem.site_campus_id === selectedCampusId.value,
+    );
+});
+
 const filteredTypes = computed(() => {
-    const siteCampusId = selectedSemester.value?.site_campus_id;
-    if (!siteCampusId) return props.types;
-    return props.types.filter((type) => type.campus_id === siteCampusId);
+    if (!selectedCampusId.value) return [];
+    return props.types.filter(
+        (type) => type.campus_id === selectedCampusId.value,
+    );
 });
 
 const selectedType = computed(() =>
     props.types.find((type) => type.id === Number(form.clearance_type_id)),
 );
 
-watch(() => form.semester_id, () => {
-    const siteCampusId = selectedSemester.value?.site_campus_id;
-    if (siteCampusId && selectedType.value && selectedType.value.campus_id !== siteCampusId) {
+watch(selectedCampusId, (newCampusId) => {
+    const currentSem = props.semesters.find((s) => s.id === form.semester_id);
+    if (!currentSem || currentSem.site_campus_id !== newCampusId) {
+        form.semester_id = '';
+    }
+
+    const currentType = props.types.find((t) => t.id === form.clearance_type_id);
+    if (!currentType || currentType.campus_id !== newCampusId) {
         form.clearance_type_id = '';
     }
 });
@@ -195,9 +214,14 @@ const clearFilters = () => {
 
 const openCreate = () => {
     form.reset();
-    form.semester_id = props.activeSemester?.id ?? '';
     form.selected_student_ids = [];
     studentSearch.value = '';
+
+    const activeSem = props.semesters.find((s) => s.id === props.activeSemester?.id);
+    selectedCampusId.value = activeSem?.site_campus_id ?? null;
+    form.semester_id = props.activeSemester?.id ?? '';
+    form.clearance_type_id = '';
+
     modal.value = { type: 'create' };
 };
 
@@ -213,6 +237,10 @@ const openEdit = (update: ClearanceUpdate) => {
     form.selected_student_ids =
         update.targeted_students?.map((student) => student.id) ?? [];
     studentSearch.value = '';
+
+    const sem = props.semesters.find((s) => s.id === update.semester.id);
+    selectedCampusId.value = sem?.site_campus_id ?? null;
+
     modal.value = { type: 'edit', update };
 };
 
@@ -523,18 +551,37 @@ const statusClass = (status: string) => {
                     <label
                         class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase"
                     >
+                        Campus
+                        <select
+                            v-model="selectedCampusId"
+                            class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
+                        >
+                            <option :value="null" disabled>Select Campus</option>
+                            <option
+                                v-for="campus in campuses"
+                                :key="campus.id"
+                                :value="campus.id"
+                            >
+                                {{ campus.campus_name }}
+                            </option>
+                        </select>
+                    </label>
+                    <label
+                        class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase"
+                    >
                         Semester
                         <select
                             v-model="form.semester_id"
-                            class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
+                            :disabled="!selectedCampusId"
+                            class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100 disabled:opacity-50"
                         >
+                            <option value="" disabled>Select Semester</option>
                             <option
-                                v-for="sem in semesters"
+                                v-for="sem in filteredSemesters"
                                 :key="sem.id"
                                 :value="sem.id"
                             >
-                                {{ sem.academic_year }} - {{ sem.term }} -
-                                {{ sem.campus_name }}
+                                {{ sem.academic_year }} - {{ sem.term }}
                             </option>
                         </select>
                         <InputError :message="form.errors.semester_id" />
@@ -545,7 +592,8 @@ const statusClass = (status: string) => {
                         Type
                         <select
                             v-model="form.clearance_type_id"
-                            class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
+                            :disabled="!selectedCampusId"
+                            class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100 disabled:opacity-50"
                         >
                             <option value="" disabled>Select Type</option>
                             <option

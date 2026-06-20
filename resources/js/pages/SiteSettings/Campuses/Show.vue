@@ -9,11 +9,13 @@ import {
     Calendar,
     CheckCircle2,
     Clock,
+    Download,
     Edit,
     FileCheck2,
     Fingerprint,
     History,
     Info,
+    Loader2,
     MapPin,
     Plus,
     Power,
@@ -148,6 +150,68 @@ const clearanceTypeForm = useForm({
 const configForm = useForm({
     office_ids: [] as number[],
 });
+
+const fetchingColleges = ref(false);
+const showImportModal = ref(false);
+const apiColleges = ref<Array<{ collegeId: number; collegeCode: string; collegeName: string; inactive: boolean }>>([]);
+const selectedImportCollegeCodes = ref<string[]>([]);
+
+const fetchCollegesFromApi = async () => {
+    fetchingColleges.value = true;
+    try {
+        const response = await fetch(officeRoutes.fetchColleges.url(props.campus.id));
+        if (!response.ok) {
+            const errData = await response.json();
+            alert(errData.error || 'Failed to fetch colleges from Academic API.');
+            return;
+        }
+        const data = await response.json();
+        apiColleges.value = data.colleges || [];
+        selectedImportCollegeCodes.value = apiColleges.value.map(c => c.collegeCode);
+        showImportModal.value = true;
+    } catch (error) {
+        console.error(error);
+        alert('An error occurred while fetching colleges.');
+    } finally {
+        fetchingColleges.value = false;
+    }
+};
+
+const toggleAllImportColleges = () => {
+    if (selectedImportCollegeCodes.value.length === apiColleges.value.length) {
+        selectedImportCollegeCodes.value = [];
+    } else {
+        selectedImportCollegeCodes.value = apiColleges.value.map(c => c.collegeCode);
+    }
+};
+
+const importForm = useForm({
+    colleges: [] as Array<{ name: string; code: string }>,
+});
+
+const importColleges = () => {
+    const collegesToImport = apiColleges.value
+        .filter(c => selectedImportCollegeCodes.value.includes(c.collegeCode))
+        .map(c => ({
+            name: c.collegeName,
+            code: c.collegeCode
+        }));
+
+    if (collegesToImport.length === 0) {
+        alert('Please select at least one college to import.');
+        return;
+    }
+
+    importForm.colleges = collegesToImport;
+    importForm.post(officeRoutes.importColleges.url(props.campus.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            showImportModal.value = false;
+            apiColleges.value = [];
+            selectedImportCollegeCodes.value = [];
+        }
+    });
+};
 
 const terms = computed(() => props.campus.academic_terms || []);
 
@@ -1027,14 +1091,28 @@ const getStatusBadgeClass = (status: string) => {
                             class="h-8 pl-8 text-xs"
                         />
                     </div>
-                    <Button
-                        size="sm"
-                        class="h-8 bg-sky-600 text-xs hover:bg-sky-700"
-                        @click="openCreateOffice"
-                    >
-                        <Plus class="mr-1.5 size-3.5" />
-                        Add Office
-                    </Button>
+                    <div class="flex items-center gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            class="h-8 text-xs border-slate-200 dark:border-white/10"
+                            :disabled="fetchingColleges"
+                            @click="fetchCollegesFromApi"
+                        >
+                            <Loader2 v-if="fetchingColleges" class="mr-1.5 size-3.5 animate-spin" />
+                            <Download v-else class="mr-1.5 size-3.5" />
+                            Import Colleges
+                        </Button>
+                        <Button
+                            size="sm"
+                            class="h-8 bg-sky-600 text-xs hover:bg-sky-700"
+                            @click="openCreateOffice"
+                        >
+                            <Plus class="mr-1.5 size-3.5" />
+                            Add Office
+                        </Button>
+                    </div>
                 </div>
 
                 <div
@@ -1838,6 +1916,89 @@ const getStatusBadgeClass = (status: string) => {
                             @click="saveConfiguration"
                         >
                             Save Settings
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <!-- Import Colleges Dialog -->
+            <Dialog v-model:open="showImportModal">
+                <DialogContent class="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle>Import Colleges as Offices</DialogTitle>
+                        <DialogDescription>
+                            We found {{ apiColleges.length }} colleges for Tenant ID <span class="font-semibold text-slate-900 dark:text-white">{{ props.campus.tenant_id || '1' }}</span>. Select which ones to import as offices for this campus.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div class="space-y-4 py-2">
+                        <!-- Select All toggle link/button -->
+                        <div class="flex justify-end">
+                            <Button
+                                type="button"
+                                variant="link"
+                                size="sm"
+                                class="h-auto p-0 text-xs text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300"
+                                @click="toggleAllImportColleges"
+                            >
+                                {{ selectedImportCollegeCodes.length === apiColleges.length ? 'Deselect All' : 'Select All' }}
+                            </Button>
+                        </div>
+
+                        <!-- Colleges list scrollable container -->
+                        <div class="max-h-[300px] overflow-y-auto rounded-md border border-slate-200 p-3 space-y-2 dark:border-white/10 dark:bg-slate-900">
+                            <div
+                                v-for="college in apiColleges"
+                                :key="college.collegeId"
+                                class="flex items-start gap-2.5 rounded-md p-1.5 hover:bg-slate-50 dark:hover:bg-white/5"
+                            >
+                                <input
+                                    :id="`import-college-${college.collegeId}`"
+                                    v-model="selectedImportCollegeCodes"
+                                    type="checkbox"
+                                    :value="college.collegeCode"
+                                    class="mt-1 size-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 dark:border-slate-700 dark:bg-slate-800"
+                                />
+                                <label
+                                    :for="`import-college-${college.collegeId}`"
+                                    class="flex flex-1 flex-col text-xs cursor-pointer select-none"
+                                >
+                                    <span class="font-medium text-slate-900 dark:text-white">
+                                        {{ college.collegeName }}
+                                    </span>
+                                    <span class="font-mono text-[10px] text-sky-600 dark:text-sky-400">
+                                        Code: {{ college.collegeCode }}
+                                    </span>
+                                </label>
+                            </div>
+                            <div v-if="apiColleges.length === 0" class="py-6 text-center text-xs text-slate-500">
+                                No colleges returned from API.
+                            </div>
+                        </div>
+
+                        <div class="text-[11px] text-slate-500">
+                            * Colleges with duplicate names or codes already registered in this campus will be automatically skipped during import.
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            class="h-8 text-xs"
+                            @click="showImportModal = false"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            class="h-8 bg-sky-600 text-xs hover:bg-sky-700"
+                            :disabled="importForm.processing || selectedImportCollegeCodes.length === 0"
+                            @click="importColleges"
+                        >
+                            Import Selected ({{ selectedImportCollegeCodes.length }})
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -512,6 +512,8 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
             Route::prefix('campuses/{campus}')
                 ->name('campuses.')
                 ->group(function () {
+                    Route::get('offices/fetch-colleges', [SiteOfficeController::class, 'fetchColleges'])->name('offices.fetch-colleges');
+                    Route::post('offices/import-colleges', [SiteOfficeController::class, 'importColleges'])->name('offices.import-colleges');
                     Route::post('offices', [SiteOfficeController::class, 'store'])->name('offices.store');
                     Route::patch('offices/{office}', [SiteOfficeController::class, 'update'])->name('offices.update');
                     Route::delete('offices/{office}', [SiteOfficeController::class, 'destroy'])->name('offices.destroy');
