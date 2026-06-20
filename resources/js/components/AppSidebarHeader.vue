@@ -2,6 +2,7 @@
 import Breadcrumbs from '@/components/Breadcrumbs.vue';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import AppearanceToggle from '@/components/AppearanceToggle.vue';
+import AppLauncher from '@/components/AppLauncher.vue';
 import type { BreadcrumbItem } from '@/types';
 
 withDefaults(
@@ -26,7 +27,8 @@ withDefaults(
             </template>
         </div>
 
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-1 sm:gap-2">
+            <AppLauncher />
             <AppearanceToggle />
         </div>
     </header>
