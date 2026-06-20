@@ -11,6 +11,7 @@ use App\Models\ClearanceUpdateOffice;
 use App\Models\Office;
 use App\Models\Semester;
 use App\Models\SiteCampus;
+use App\Models\SiteAcademicTerm;
 use App\Models\StudentSemesterClearance;
 use App\Models\User;
 use App\Services\GetActiveSem;
@@ -29,26 +30,43 @@ class ClearanceUpdateController extends Controller
     {
         $this->authorize('viewAny', ClearanceUpdate::class);
 
+        $semesterId = null;
+        if ($request->semester_id) {
+            $siteTerm = SiteAcademicTerm::find($request->semester_id);
+            if ($siteTerm) {
+                $semesterId = Semester::where('external_id', $siteTerm->term_id)
+                    ->orWhere(fn ($q) => $q->where('academic_year', $siteTerm->school_year)->where('term', $siteTerm->semester))
+                    ->value('id');
+            }
+        }
+
         $updates = ClearanceUpdate::query()
             ->with(['semester', 'type', 'creator', 'targetedStudents:id'])
             ->when($request->search, function ($query, $search) {
                 $query->where('title', 'like', "%{$search}%");
             })
-            ->when($request->semester_id, fn ($query, $id) => $query->where('semester_id', $id))
+            ->when($semesterId, fn ($query, $id) => $query->where('semester_id', $id))
             ->when($request->status, fn ($query, $status) => $query->where('status', $status))
             ->latest()
             ->paginate(10)
             ->withQueryString();
 
         $campuses = SiteCampus::all(['id', 'campus_name', 'real_campus_id']);
-        $semesters = Semester::orderByDesc('academic_year')
-            ->orderByDesc('term')
-            ->get(['id', 'academic_year', 'term', 'campus_id', 'campus_name'])
-            ->map(function ($semester) use ($campuses) {
-                $siteCampus = $campuses->firstWhere('real_campus_id', (string) $semester->campus_id)
-                    ?? $campuses->firstWhere('id', $semester->campus_id);
-                $semester->site_campus_id = $siteCampus?->id;
-                return $semester;
+        $semesters = SiteAcademicTerm::query()
+            ->with('campus')
+            ->orderByDesc('school_year')
+            ->orderByDesc('semester')
+            ->get()
+            ->map(function ($term) {
+                return [
+                    'id' => $term->id,
+                    'academic_year' => $term->school_year,
+                    'term' => $term->semester,
+                    'campus_name' => $term->campus?->campus_name,
+                    'campus_id' => $term->campus?->campus_id,
+                    'site_campus_id' => $term->site_campus_id,
+                    'term_id' => $term->term_id,
+                ];
             });
 
         return Inertia::render('Clearance/Updates/Index', [
@@ -73,7 +91,7 @@ class ClearanceUpdateController extends Controller
         $this->authorize('create', ClearanceUpdate::class);
 
         $validated = $request->validate([
-            'semester_id' => ['required', 'exists:semesters,id'],
+            'semester_id' => ['required', 'exists:site_academic_terms,id'],
             'clearance_type_id' => ['required', 'exists:clearance_types,id'],
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -83,11 +101,20 @@ class ClearanceUpdateController extends Controller
             'selected_student_ids' => ['nullable', 'array'],
         ]);
 
-        $semester = Semester::findOrFail($validated['semester_id']);
-        $siteCampusId = SiteCampus::query()
-            ->where('real_campus_id', (string) $semester->campus_id)
-            ->value('id')
-            ?? SiteCampus::query()->whereKey($semester->campus_id)->value('id');
+        $siteTerm = SiteAcademicTerm::findOrFail($validated['semester_id']);
+
+        $semester = Semester::firstOrCreate(
+            ['external_id' => $siteTerm->term_id],
+            [
+                'campus_id' => $siteTerm->campus?->campus_id ?? $siteTerm->campus_id,
+                'campus_name' => $siteTerm->campus?->campus_name,
+                'academic_year' => $siteTerm->school_year,
+                'term' => $siteTerm->semester,
+                'is_active' => $siteTerm->status === 'Active',
+            ]
+        );
+
+        $siteCampusId = $siteTerm->site_campus_id;
 
         $type = ClearanceType::findOrFail($validated['clearance_type_id']);
         if ($type->campus_id !== $siteCampusId) {
@@ -98,6 +125,8 @@ class ClearanceUpdateController extends Controller
 
         $studentIds = $this->validatedStudentIds($request, $validated);
         unset($validated['selected_student_ids']);
+
+        $validated['semester_id'] = $semester->id;
 
         DB::transaction(function () use ($validated, $studentIds, $request) {
             $update = ClearanceUpdate::create([
@@ -121,7 +150,7 @@ class ClearanceUpdateController extends Controller
         }
 
         $validated = $request->validate([
-            'semester_id' => ['required', 'exists:semesters,id'],
+            'semester_id' => ['required', 'exists:site_academic_terms,id'],
             'clearance_type_id' => ['required', 'exists:clearance_types,id'],
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -131,11 +160,20 @@ class ClearanceUpdateController extends Controller
             'selected_student_ids' => ['nullable', 'array'],
         ]);
 
-        $semester = Semester::findOrFail($validated['semester_id']);
-        $siteCampusId = SiteCampus::query()
-            ->where('real_campus_id', (string) $semester->campus_id)
-            ->value('id')
-            ?? SiteCampus::query()->whereKey($semester->campus_id)->value('id');
+        $siteTerm = SiteAcademicTerm::findOrFail($validated['semester_id']);
+
+        $semester = Semester::firstOrCreate(
+            ['external_id' => $siteTerm->term_id],
+            [
+                'campus_id' => $siteTerm->campus?->campus_id ?? $siteTerm->campus_id,
+                'campus_name' => $siteTerm->campus?->campus_name,
+                'academic_year' => $siteTerm->school_year,
+                'term' => $siteTerm->semester,
+                'is_active' => $siteTerm->status === 'Active',
+            ]
+        );
+
+        $siteCampusId = $siteTerm->site_campus_id;
 
         $type = ClearanceType::findOrFail($validated['clearance_type_id']);
         if ($type->campus_id !== $siteCampusId) {
@@ -146,6 +184,8 @@ class ClearanceUpdateController extends Controller
 
         $studentIds = $this->validatedStudentIds($request, $validated);
         unset($validated['selected_student_ids']);
+
+        $validated['semester_id'] = $semester->id;
 
         DB::transaction(function () use ($update, $validated, $studentIds) {
             $update->update($validated);

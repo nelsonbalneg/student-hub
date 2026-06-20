@@ -140,14 +140,14 @@ const selectedSemester = computed(() =>
 const filteredSemesters = computed(() => {
     if (!selectedCampusId.value) return [];
     return props.semesters.filter(
-        (sem) => sem.site_campus_id === selectedCampusId.value,
+        (sem) => !sem.site_campus_id || Number(sem.site_campus_id) === Number(selectedCampusId.value),
     );
 });
 
 const filteredTypes = computed(() => {
     if (!selectedCampusId.value) return [];
     return props.types.filter(
-        (type) => type.campus_id === selectedCampusId.value,
+        (type) => Number(type.campus_id) === Number(selectedCampusId.value),
     );
 });
 
@@ -217,9 +217,13 @@ const openCreate = () => {
     form.selected_student_ids = [];
     studentSearch.value = '';
 
-    const activeSem = props.semesters.find((s) => s.id === props.activeSemester?.id);
+    const activeSem = props.semesters.find(
+        (s) =>
+            (props.activeSemester?.external_id && String(s.term_id) === String(props.activeSemester?.external_id)) ||
+            (s.academic_year === props.activeSemester?.academic_year && s.term === props.activeSemester?.term),
+    );
     selectedCampusId.value = activeSem?.site_campus_id ?? null;
-    form.semester_id = props.activeSemester?.id ?? '';
+    form.semester_id = activeSem ? activeSem.id : '';
     form.clearance_type_id = '';
 
     modal.value = { type: 'create' };
@@ -227,7 +231,6 @@ const openCreate = () => {
 
 const openEdit = (update: ClearanceUpdate) => {
     form.clearErrors();
-    form.semester_id = update.semester.id;
     form.clearance_type_id = update.type.id;
     form.title = update.title;
     form.description = update.description ?? '';
@@ -238,8 +241,13 @@ const openEdit = (update: ClearanceUpdate) => {
         update.targeted_students?.map((student) => student.id) ?? [];
     studentSearch.value = '';
 
-    const sem = props.semesters.find((s) => s.id === update.semester.id);
+    const sem = props.semesters.find(
+        (s) =>
+            (update.semester.external_id && String(s.term_id) === String(update.semester.external_id)) ||
+            (s.academic_year === update.semester.academic_year && s.term === update.semester.term),
+    );
     selectedCampusId.value = sem?.site_campus_id ?? null;
+    form.semester_id = sem ? sem.id : '';
 
     modal.value = { type: 'edit', update };
 };
