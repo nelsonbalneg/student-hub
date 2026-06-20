@@ -838,7 +838,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
 <template>
     <Head title="My Grades" />
 
-    <div class="flex h-full flex-1 flex-col gap-4 p-4 lg:p-5">
+    <div class="flex h-full flex-1 flex-col gap-4 p-3 sm:p-4 lg:p-5">
         <Sheet v-model:open="evaluationModalOpen">
             <SheetContent side="right" class="w-full p-0 sm:max-w-3xl">
                 <div class="flex h-full min-h-0 flex-col">
@@ -1417,18 +1417,27 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                         <span v-else>Grades Temporarily Locked</span>
                     </p>
                     <div v-if="evaluation_error_type === 'missing_context'">
-                        <p class="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                            Your account is missing required information (Campus or Tenant assignment).
+                        <p
+                            class="mt-1 text-xs text-amber-700 dark:text-amber-300"
+                        >
+                            Your account is missing required information (Campus
+                            or Tenant assignment).
                         </p>
-                        <p class="mt-1.5 text-xs text-amber-700 dark:text-amber-300">
-                            Please update your Campus in your profile. If you cannot update it, contact your Registrar or System Administrator to complete your account setup.
+                        <p
+                            class="mt-1.5 text-xs text-amber-700 dark:text-amber-300"
+                        >
+                            Please update your Campus in your profile. If you
+                            cannot update it, contact your Registrar or System
+                            Administrator to complete your account setup.
                         </p>
                         <div class="mt-3 text-xs font-semibold">
                             <Link
                                 :href="editProfileRoute.url()"
                                 class="inline-flex items-center text-amber-950 underline hover:text-amber-900 dark:text-amber-200 dark:hover:text-white"
                             >
-                                → Go to <strong class="font-bold">Profile</strong> to update your Campus.
+                                → Go to
+                                <strong class="font-bold">Profile</strong> to
+                                update your Campus.
                             </Link>
                         </div>
                     </div>
@@ -1687,7 +1696,169 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
 
                         <CollapsibleContent>
                             <div
-                                class="overflow-x-auto border-t border-slate-200 dark:border-white/10"
+                                class="divide-y divide-slate-100 border-t border-slate-200 md:hidden dark:divide-white/10 dark:border-white/10"
+                            >
+                                <article
+                                    v-for="(row, rowIndex) in group.rows"
+                                    :key="rowIndex"
+                                    class="space-y-2.5 p-3"
+                                >
+                                    <div
+                                        class="flex items-start justify-between gap-2"
+                                    >
+                                        <div class="min-w-0">
+                                            <p
+                                                class="text-xs font-bold text-slate-900 dark:text-white"
+                                            >
+                                                {{ pick(row, columns[0].keys) }}
+                                            </p>
+                                            <p
+                                                class="mt-0.5 line-clamp-2 text-[11px] leading-4 text-slate-500 dark:text-slate-400"
+                                            >
+                                                {{ pick(row, columns[1].keys) }}
+                                            </p>
+                                        </div>
+                                        <span
+                                            class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300"
+                                        >
+                                            {{ pick(row, columns[2].keys) }} U
+                                        </span>
+                                    </div>
+
+                                    <div
+                                        class="grid grid-cols-3 overflow-hidden rounded-md border border-slate-200 dark:border-white/10"
+                                    >
+                                        <div
+                                            v-for="gradeColumn in [
+                                                {
+                                                    label: 'Mid',
+                                                    column: columns[3],
+                                                },
+                                                {
+                                                    label: 'Final',
+                                                    column: columns[4],
+                                                },
+                                                {
+                                                    label: 'Reexam',
+                                                    column: columns[5],
+                                                },
+                                            ]"
+                                            :key="gradeColumn.label"
+                                            class="border-r border-slate-200 px-1 py-1.5 text-center last:border-r-0 dark:border-white/10"
+                                        >
+                                            <p
+                                                class="text-[8px] font-bold text-slate-400 uppercase"
+                                            >
+                                                {{ gradeColumn.label }}
+                                            </p>
+                                            <p
+                                                class="mt-0.5 text-[11px] font-bold text-slate-800 dark:text-slate-100"
+                                            >
+                                                <span
+                                                    v-if="
+                                                        row.requires_evaluation
+                                                    "
+                                                    class="text-[8px] text-slate-400"
+                                                >
+                                                    LOCKED
+                                                </span>
+                                                <template v-else>
+                                                    {{
+                                                        pick(
+                                                            row,
+                                                            gradeColumn.column
+                                                                .keys,
+                                                        )
+                                                    }}
+                                                </template>
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        class="flex flex-wrap items-center justify-between gap-2"
+                                    >
+                                        <div
+                                            class="flex flex-wrap items-center gap-1.5"
+                                        >
+                                            <button
+                                                v-if="
+                                                    showPhysicalFitnessShortcut(
+                                                        group,
+                                                        row,
+                                                    )
+                                                "
+                                                type="button"
+                                                class="inline-flex h-7 items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 text-[9px] font-bold text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+                                                @click.stop="
+                                                    openPhysicalFitnessTest
+                                                "
+                                            >
+                                                <Dumbbell class="size-3" />
+                                                Fitness
+                                            </button>
+                                            <button
+                                                v-if="row.requires_evaluation"
+                                                type="button"
+                                                class="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[9px] font-bold text-white"
+                                                :class="
+                                                    isEvaluationClosed(row)
+                                                        ? 'cursor-not-allowed bg-slate-400 dark:bg-slate-700'
+                                                        : 'bg-indigo-600 hover:bg-indigo-700'
+                                                "
+                                                :disabled="
+                                                    isEvaluationClosed(row)
+                                                "
+                                                @click="
+                                                    openEvaluationChooser(row)
+                                                "
+                                            >
+                                                <MessageSquareQuote
+                                                    class="size-3"
+                                                />
+                                                {{
+                                                    isEvaluationClosed(row)
+                                                        ? 'Closed'
+                                                        : 'Evaluate'
+                                                }}
+                                            </button>
+                                            <button
+                                                v-else-if="
+                                                    evaluatedSummary(row).length
+                                                "
+                                                type="button"
+                                                class="inline-flex h-7 items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 text-[9px] font-bold text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+                                                @click="
+                                                    openEvaluationChooser(row)
+                                                "
+                                            >
+                                                Evaluated
+                                            </button>
+                                        </div>
+
+                                        <span
+                                            v-if="row.requires_evaluation"
+                                            class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[8px] font-bold text-amber-700 uppercase dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300"
+                                        >
+                                            Evaluation required
+                                        </span>
+                                        <span
+                                            v-else
+                                            class="inline-flex rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase"
+                                            :class="
+                                                remarkClass(
+                                                    pick(row, columns[6].keys),
+                                                )
+                                            "
+                                        >
+                                            {{ pick(row, columns[6].keys) }}
+                                        </span>
+                                    </div>
+                                </article>
+                            </div>
+
+                            <div
+                                class="hidden overflow-x-auto border-t border-slate-200 md:block dark:border-white/10"
                             >
                                 <table class="w-full min-w-[900px] text-sm">
                                     <thead

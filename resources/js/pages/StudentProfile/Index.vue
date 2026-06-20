@@ -3079,7 +3079,7 @@ watch(editMode, (val) => {
                                             <Button
                                                 type="button"
                                                 variant="outline"
-                                                class="h-9 border-emerald-200 bg-white px-4 text-xs font-light text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/30 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
+                                                class="h-9 w-full border-emerald-200 bg-white px-4 text-xs font-light text-emerald-700 hover:bg-emerald-50 sm:w-auto dark:border-emerald-500/30 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
                                                 @click="openPftAnalyticsDrawer"
                                             >
                                                 <ChartColumnIncreasing
@@ -3093,7 +3093,140 @@ watch(editMode, (val) => {
                                     <div
                                         class="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
                                     >
-                                        <div class="overflow-x-auto">
+                                        <div
+                                            class="divide-y divide-slate-100 md:hidden dark:divide-white/10"
+                                        >
+                                            <article
+                                                v-for="term in physicalFitness.terms"
+                                                :key="term.term_id"
+                                                class="space-y-3 p-3"
+                                                :class="
+                                                    selectedPftTermId ===
+                                                    term.term_id
+                                                        ? 'bg-emerald-50 dark:bg-emerald-500/10'
+                                                        : ''
+                                                "
+                                            >
+                                                <div
+                                                    class="flex items-start justify-between gap-2"
+                                                >
+                                                    <div class="min-w-0">
+                                                        <p
+                                                            class="text-sm font-medium text-slate-900 dark:text-white"
+                                                        >
+                                                            AY
+                                                            {{
+                                                                term.school_year
+                                                            }}
+                                                            ·
+                                                            {{ term.semester }}
+                                                        </p>
+                                                        <p
+                                                            class="mt-0.5 truncate font-mono text-[10px] text-slate-500"
+                                                        >
+                                                            Term
+                                                            {{ term.term_id }}
+                                                        </p>
+                                                    </div>
+                                                    <span
+                                                        class="inline-flex shrink-0 rounded-full px-2 py-1 text-[9px] font-light"
+                                                        :class="
+                                                            pftTermPendingCount(
+                                                                term.term_id,
+                                                            ) === 0
+                                                                ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20'
+                                                                : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20'
+                                                        "
+                                                    >
+                                                        {{
+                                                            pftTermPendingCount(
+                                                                term.term_id,
+                                                            ) === 0
+                                                                ? 'Complete'
+                                                                : physicalFitness.canFillUp
+                                                                  ? 'Needs fill up'
+                                                                  : 'Completed'
+                                                        }}
+                                                    </span>
+                                                </div>
+
+                                                <div
+                                                    class="grid grid-cols-2 gap-2"
+                                                >
+                                                    <div
+                                                        class="rounded-md bg-slate-50 px-3 py-2 dark:bg-white/5"
+                                                    >
+                                                        <p
+                                                            class="text-[9px] tracking-wide text-slate-400 uppercase"
+                                                        >
+                                                            Tests
+                                                        </p>
+                                                        <p
+                                                            class="mt-0.5 text-sm text-slate-800 dark:text-slate-100"
+                                                        >
+                                                            {{
+                                                                pftRowsForTerm(
+                                                                    term.term_id,
+                                                                ).length
+                                                            }}
+                                                        </p>
+                                                    </div>
+                                                    <div
+                                                        class="rounded-md bg-slate-50 px-3 py-2 dark:bg-white/5"
+                                                    >
+                                                        <p
+                                                            class="text-[9px] tracking-wide text-slate-400 uppercase"
+                                                        >
+                                                            Pending
+                                                        </p>
+                                                        <p
+                                                            class="mt-0.5 text-sm text-slate-800 dark:text-slate-100"
+                                                        >
+                                                            {{
+                                                                pftTermPendingCount(
+                                                                    term.term_id,
+                                                                )
+                                                            }}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    class="h-8 w-full bg-emerald-600 text-xs text-white hover:bg-emerald-700"
+                                                    @click="
+                                                        !physicalFitness.canFillUp ||
+                                                        pftTermPendingCount(
+                                                            term.term_id,
+                                                        ) === 0
+                                                            ? openPftTermSummary(
+                                                                  term,
+                                                              )
+                                                            : openPftTermDrawer(
+                                                                  term,
+                                                              )
+                                                    "
+                                                >
+                                                    {{
+                                                        pftTermPendingCount(
+                                                            term.term_id,
+                                                        ) === 0 ||
+                                                        !physicalFitness.canFillUp
+                                                            ? 'View Summary'
+                                                            : pftTermSavedCount(
+                                                                    term.term_id,
+                                                                ) > 0
+                                                              ? 'Open'
+                                                              : 'Fill Up'
+                                                    }}
+                                                </Button>
+                                            </article>
+                                        </div>
+
+                                        <div
+                                            class="hidden overflow-x-auto md:block"
+                                        >
                                             <table class="min-w-full text-left">
                                                 <thead
                                                     class="border-b border-slate-100 bg-slate-50 text-[11px] font-light tracking-wide text-slate-500 uppercase dark:border-white/10 dark:bg-white/5 dark:text-slate-400"
@@ -4805,7 +4938,130 @@ watch(editMode, (val) => {
                                 v-if="activeTab === 'ccd-cares'"
                                 class="space-y-4 font-light"
                             >
-                                <div class="overflow-x-auto rounded-lg border border-slate-200 dark:border-white/10">
+                                <div
+                                    v-if="ccdCares.assessments.length"
+                                    class="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 md:hidden dark:divide-white/10 dark:border-white/10"
+                                >
+                                    <article
+                                        v-for="assessment in ccdCares.assessments"
+                                        :key="assessment.period.id"
+                                        class="space-y-3 p-3"
+                                    >
+                                        <div
+                                            class="flex items-start justify-between gap-2"
+                                        >
+                                            <div class="min-w-0">
+                                                <p
+                                                    class="text-sm font-bold text-slate-900 dark:text-white"
+                                                >
+                                                    {{
+                                                        assessment.period.title
+                                                    }}
+                                                </p>
+                                                <p
+                                                    class="mt-1 line-clamp-2 text-[11px] leading-4 text-slate-500 dark:text-slate-400"
+                                                >
+                                                    {{
+                                                        assessment.period
+                                                            .description ||
+                                                        'No description provided'
+                                                    }}
+                                                </p>
+                                            </div>
+                                            <span
+                                                v-if="assessment.submission"
+                                                class="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200/50 bg-emerald-50 px-2 py-1 text-[9px] font-semibold text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300"
+                                            >
+                                                <CheckCircle2 class="size-3" />
+                                                Submitted
+                                            </span>
+                                            <span
+                                                v-else-if="
+                                                    assessment.period.is_open
+                                                "
+                                                class="inline-flex shrink-0 items-center gap-1 rounded-full border border-blue-200/50 bg-blue-50 px-2 py-1 text-[9px] font-semibold text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300"
+                                            >
+                                                <Clock3 class="size-3" />
+                                                Open
+                                            </span>
+                                            <span
+                                                v-else
+                                                class="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200/50 bg-slate-50 px-2 py-1 text-[9px] font-semibold text-slate-500 dark:border-white/10 dark:bg-slate-500/10 dark:text-slate-400"
+                                            >
+                                                <AlertCircle class="size-3" />
+                                                Closed
+                                            </span>
+                                        </div>
+
+                                        <div
+                                            class="rounded-md bg-slate-50 px-3 py-2 text-[10px] font-medium text-slate-600 dark:bg-white/5 dark:text-slate-300"
+                                        >
+                                            {{
+                                                formatDate(
+                                                    assessment.period
+                                                        .start_date,
+                                                )
+                                            }}
+                                            <span class="mx-1 text-slate-400"
+                                                >to</span
+                                            >
+                                            {{
+                                                formatDate(
+                                                    assessment.period.end_date,
+                                                )
+                                            }}
+                                        </div>
+
+                                        <Button
+                                            v-if="assessment.submission"
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            class="h-8 w-full text-xs font-semibold"
+                                            @click="viewResults(assessment)"
+                                        >
+                                            View Results
+                                        </Button>
+                                        <Button
+                                            v-else-if="
+                                                assessment.period.is_open
+                                            "
+                                            type="button"
+                                            size="sm"
+                                            class="h-8 w-full bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-400"
+                                            @click="startEvaluation(assessment)"
+                                        >
+                                            Evaluate
+                                        </Button>
+                                        <Button
+                                            v-else
+                                            type="button"
+                                            size="sm"
+                                            class="h-8 w-full text-xs font-semibold"
+                                            variant="ghost"
+                                            disabled
+                                        >
+                                            Closed
+                                        </Button>
+                                    </article>
+                                </div>
+
+                                <div
+                                    v-if="ccdCares.assessments.length === 0"
+                                    class="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-200 p-6 text-center md:hidden dark:border-white/10"
+                                >
+                                    <FileText
+                                        class="size-8 text-slate-300 dark:text-slate-700"
+                                    />
+                                    <span
+                                        class="text-xs font-medium text-slate-500 dark:text-slate-400"
+                                    >
+                                        No evaluation periods scheduled at this
+                                        time.
+                                    </span>
+                                </div>
+
+                                <div class="hidden overflow-x-auto rounded-lg border border-slate-200 md:block dark:border-white/10">
                                     <table class="w-full text-left border-collapse">
                                         <thead>
                                             <tr class="border-b border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5 text-xs font-bold text-slate-500 uppercase">

@@ -271,23 +271,23 @@ const formatHours = (hours: number): string => {
 <template>
     <Head title="Class Schedule" />
 
-    <div class="flex h-full flex-1 flex-col gap-5 p-4 lg:p-6">
+    <div class="flex h-full flex-1 flex-col gap-4 p-3 sm:p-4 lg:gap-5 lg:p-6">
 
         <!-- Page Header -->
         <div class="flex flex-col gap-1">
-            <div class="flex items-center justify-between gap-4">
-                <div>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <div class="min-w-0">
                     <h1 class="text-xl font-bold text-slate-950 dark:text-white">Class Schedule</h1>
                     <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
                         Your enrolled subjects for
                         <span class="font-semibold text-slate-700 dark:text-slate-300">{{ activeTerm.name || 'the current term' }}</span>
                     </p>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="grid grid-cols-2 gap-2 sm:flex sm:items-center">
                     <button
                         v-if="canDownloadCor"
                         type="button"
-                        class="inline-flex h-9 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
+                        class="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20 sm:px-3.5"
                         :disabled="downloadingCor"
                         @click="downloadCOR"
                     >
@@ -297,7 +297,7 @@ const formatHours = (hours: number): string => {
                     </button>
                     <button
                         type="button"
-                        class="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+                        class="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 sm:px-3.5"
                         :disabled="refreshing"
                         @click="refresh"
                     >
@@ -309,32 +309,32 @@ const formatHours = (hours: number): string => {
         </div>
 
         <!-- Stats Row -->
-        <div class="grid grid-cols-3 gap-3">
-            <div class="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-white/10 dark:bg-slate-950">
-                <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400">
+        <div class="grid grid-cols-3 gap-2 sm:gap-3">
+            <div class="flex flex-col gap-1 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm sm:flex-row sm:items-center sm:gap-3 sm:px-4 sm:py-3 dark:border-white/10 dark:bg-slate-950">
+                <span class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600 sm:size-9 dark:bg-sky-500/10 dark:text-sky-400">
                     <LibraryBig class="size-4" />
                 </span>
                 <div>
-                    <p class="text-[11px] font-medium text-slate-500 uppercase dark:text-slate-400">Courses</p>
-                    <p class="text-xl font-bold text-slate-950 dark:text-white">{{ subjectCount }}</p>
+                    <p class="text-[9px] font-medium text-slate-500 uppercase sm:text-[11px] dark:text-slate-400">Courses</p>
+                    <p class="text-lg font-bold text-slate-950 sm:text-xl dark:text-white">{{ subjectCount }}</p>
                 </div>
             </div>
-            <div class="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-white/10 dark:bg-slate-950">
-                <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">
+            <div class="flex flex-col gap-1 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm sm:flex-row sm:items-center sm:gap-3 sm:px-4 sm:py-3 dark:border-white/10 dark:bg-slate-950">
+                <span class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 sm:size-9 dark:bg-emerald-500/10 dark:text-emerald-400">
                     <Clock3 class="size-4" />
                 </span>
                 <div>
-                    <p class="text-[11px] font-medium text-slate-500 uppercase dark:text-slate-400">Lec Hours</p>
-                    <p class="text-xl font-bold text-slate-950 dark:text-white">{{ formatHours(lectureHours) }}</p>
+                    <p class="text-[9px] font-medium text-slate-500 uppercase sm:text-[11px] dark:text-slate-400">Lec Hours</p>
+                    <p class="text-lg font-bold text-slate-950 sm:text-xl dark:text-white">{{ formatHours(lectureHours) }}</p>
                 </div>
             </div>
-            <div class="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-white/10 dark:bg-slate-950">
-                <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400">
+            <div class="flex flex-col gap-1 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm sm:flex-row sm:items-center sm:gap-3 sm:px-4 sm:py-3 dark:border-white/10 dark:bg-slate-950">
+                <span class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-600 sm:size-9 dark:bg-violet-500/10 dark:text-violet-400">
                     <FlaskConical class="size-4" />
                 </span>
                 <div>
-                    <p class="text-[11px] font-medium text-slate-500 uppercase dark:text-slate-400">Lab Hours</p>
-                    <p class="text-xl font-bold text-slate-950 dark:text-white">{{ formatHours(labHours) }}</p>
+                    <p class="text-[9px] font-medium text-slate-500 uppercase sm:text-[11px] dark:text-slate-400">Lab Hours</p>
+                    <p class="text-lg font-bold text-slate-950 sm:text-xl dark:text-white">{{ formatHours(labHours) }}</p>
                 </div>
             </div>
         </div>
@@ -394,8 +394,79 @@ const formatHours = (hours: number): string => {
                         </div>
                     </div>
 
+                    <div
+                        v-if="schedules.length"
+                        class="divide-y divide-slate-100 md:hidden dark:divide-white/10"
+                    >
+                        <article
+                            v-for="schedule in schedules"
+                            :key="`${schedule.subject_id}-${schedule.schedule_id}`"
+                            class="space-y-2.5 p-3"
+                        >
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="min-w-0">
+                                    <div class="flex flex-wrap items-center gap-1.5">
+                                        <span class="inline-flex items-center rounded-md bg-slate-900 px-2 py-0.5 text-[9px] font-bold text-white dark:bg-white dark:text-slate-950">
+                                            {{ schedule.subject_code }}
+                                        </span>
+                                        <span class="text-[9px] font-bold text-slate-500 dark:text-slate-400">
+                                            Section {{ valueOrDash(schedule.section) }}
+                                        </span>
+                                    </div>
+                                    <p class="mt-1 line-clamp-2 text-xs font-semibold leading-4 text-slate-800 dark:text-slate-100">
+                                        {{ schedule.subject_title }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
+                                <UserRound class="size-3 shrink-0" />
+                                <span class="truncate">{{ facultyName(schedule.faculty_name) }}</span>
+                            </div>
+
+                            <div
+                                v-if="schedule.sessions.length"
+                                class="grid gap-1.5"
+                            >
+                                <div
+                                    v-for="(session, sessionIndex) in schedule.sessions"
+                                    :key="sessionIndex"
+                                    class="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 rounded-md bg-slate-50 px-2.5 py-2 dark:bg-white/5"
+                                >
+                                    <span
+                                        class="row-span-2 mt-0.5 inline-flex h-4 items-center rounded-full px-1.5 text-[8px] font-bold"
+                                        :class="
+                                            sessionIndex === 0
+                                                ? 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300'
+                                                : 'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300'
+                                        "
+                                    >
+                                        {{ sessionIndex === 0 ? 'Lec' : 'Lab' }}
+                                    </span>
+                                    <span class="flex min-w-0 items-center gap-1 text-[10px] font-semibold text-slate-700 dark:text-slate-200">
+                                        <Clock3 class="size-3 shrink-0 text-slate-400" />
+                                        <span class="truncate">{{ valueOrDash(session.schedule) }}</span>
+                                    </span>
+                                    <span class="flex min-w-0 items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
+                                        <MapPin class="size-3 shrink-0 text-slate-400" />
+                                        <span class="truncate">{{ valueOrDash(session.room) }}</span>
+                                    </span>
+                                </div>
+                            </div>
+                            <div
+                                v-else
+                                class="rounded-md bg-slate-50 px-2.5 py-2 text-[10px] font-medium text-slate-400 dark:bg-white/5 dark:text-slate-500"
+                            >
+                                Schedule and room TBA
+                            </div>
+                        </article>
+                    </div>
+
                     <!-- Schedule Table -->
-                    <div v-else class="overflow-x-auto">
+                    <div
+                        v-if="schedules.length"
+                        class="hidden overflow-x-auto md:block"
+                    >
                         <table class="min-w-full text-left text-xs">
                             <thead class="border-b border-slate-100 bg-slate-50/80 dark:border-white/10 dark:bg-white/[0.03]">
                                 <tr>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, router, setLayoutProps, useForm } from '@inertiajs/vue3';
 import {
     AlertCircle,
     Ban,
@@ -32,7 +32,18 @@ import {
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
+import { dashboard } from '@/routes';
 import * as internetAccountRoutes from '@/routes/internet-accounts';
+
+setLayoutProps({
+    breadcrumbs: [
+        { title: 'Home', href: dashboard().url },
+        {
+            title: 'Internet Account',
+            href: internetAccountRoutes.index().url,
+        },
+    ],
+});
 
 type ActiveSemester = {
     semester: string | null;
@@ -365,7 +376,7 @@ const navigatePage = (url?: string | null) => {
 <template>
     <Head title="Internet Account" />
 
-    <div class="flex h-full flex-1 flex-col gap-5 p-4 lg:p-6">
+    <div class="flex h-full flex-1 flex-col gap-4 p-3 sm:p-4 lg:gap-5 lg:p-6">
         <section class="border-b border-slate-200 pb-5 dark:border-white/10">
             <div
                 class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"
@@ -391,7 +402,7 @@ const navigatePage = (url?: string | null) => {
                 </div>
 
                 <Button
-                    class="h-10 rounded-md px-4"
+                    class="h-10 w-full rounded-md px-4 sm:w-auto"
                     :disabled="!canSubmit || form.processing"
                     @click="submit"
                 >
@@ -652,7 +663,134 @@ const navigatePage = (url?: string | null) => {
                 </p>
             </div>
 
-            <div v-else class="overflow-x-auto">
+            <template v-else>
+                <div
+                    class="divide-y divide-slate-100 md:hidden dark:divide-white/10"
+                >
+                    <article
+                        v-for="request in requests.data"
+                        :key="request.id"
+                        class="space-y-3 p-3"
+                    >
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <p
+                                    v-if="can.manage"
+                                    class="truncate text-[10px] font-semibold text-slate-500 dark:text-slate-400"
+                                >
+                                    {{ request.student_name || request.student_no }}
+                                </p>
+                                <p class="truncate text-sm font-bold text-slate-950 dark:text-white">
+                                    {{ request.username }}
+                                </p>
+                                <p class="mt-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                                    {{ request.semester }}
+                                    <template v-if="can.viewTermId"> · {{ request.term_id }}</template>
+                                </p>
+                            </div>
+                            <span
+                                class="inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-1 text-[9px] font-bold uppercase"
+                                :class="statusStyles[request.status]"
+                            >
+                                <component :is="statusIcons[request.status]" class="size-3" />
+                                {{ request.status }}
+                            </span>
+                        </div>
+
+                        <div
+                            class="flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 p-1 dark:border-white/10 dark:bg-white/5"
+                        >
+                            <span
+                                class="min-w-0 flex-1 truncate px-1.5 font-mono text-[11px] font-bold text-slate-700 dark:text-slate-200"
+                            >
+                                {{
+                                    isPasswordVisible(request)
+                                        ? request.password || '-'
+                                        : maskedPassword(request.password)
+                                }}
+                            </span>
+                            <button
+                                type="button"
+                                class="inline-flex size-7 items-center justify-center rounded-md text-slate-500 hover:bg-white disabled:opacity-40 dark:text-slate-300 dark:hover:bg-white/10"
+                                :disabled="!request.password"
+                                aria-label="Show or hide password"
+                                @click="togglePassword(request)"
+                            >
+                                <EyeOff v-if="isPasswordVisible(request)" class="size-3.5" />
+                                <Eye v-else class="size-3.5" />
+                            </button>
+                            <button
+                                type="button"
+                                class="inline-flex size-7 items-center justify-center rounded-md text-slate-500 hover:bg-white disabled:opacity-40 dark:text-slate-300 dark:hover:bg-white/10"
+                                :disabled="!request.password"
+                                aria-label="Copy password"
+                                @click="copyPassword(request)"
+                            >
+                                <Copy class="size-3.5" />
+                            </button>
+                        </div>
+
+                        <p
+                            v-if="request.failure_reason"
+                            class="text-[10px] font-medium text-red-600 dark:text-red-300"
+                        >
+                            {{ request.failure_reason }}
+                        </p>
+
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-[10px] font-medium text-slate-400">
+                                {{ formatDate(request.created_at) }}
+                            </span>
+                            <div
+                                v-if="can.manage || can.approve || can.cancel || can.delete"
+                                class="flex items-center gap-1"
+                            >
+                                <button
+                                    v-if="canEditRequest(request)"
+                                    type="button"
+                                    class="inline-flex size-7 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
+                                    :disabled="form.processing || editForm.processing"
+                                    aria-label="Edit request"
+                                    @click="openEdit(request)"
+                                >
+                                    <Pencil class="size-3.5" />
+                                </button>
+                                <button
+                                    v-if="canApproveRequest(request)"
+                                    type="button"
+                                    class="inline-flex size-7 items-center justify-center rounded-md text-emerald-600 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
+                                    :disabled="form.processing"
+                                    aria-label="Approve request"
+                                    @click="approve(request)"
+                                >
+                                    <CheckCircle2 class="size-3.5" />
+                                </button>
+                                <button
+                                    v-if="canCancelRequest(request)"
+                                    type="button"
+                                    class="inline-flex size-7 items-center justify-center rounded-md text-amber-600 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-500/10"
+                                    :disabled="form.processing"
+                                    aria-label="Cancel request"
+                                    @click="askCancelConfirmation(request)"
+                                >
+                                    <Ban class="size-3.5" />
+                                </button>
+                                <button
+                                    v-if="canDeleteRequest(request)"
+                                    type="button"
+                                    class="inline-flex size-7 items-center justify-center rounded-md text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-500/10"
+                                    :disabled="form.processing"
+                                    aria-label="Delete request"
+                                    @click="askDeleteConfirmation(request)"
+                                >
+                                    <Trash2 class="size-3.5" />
+                                </button>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+
+                <div class="hidden overflow-x-auto md:block">
                 <table class="w-full min-w-[900px] text-sm">
                     <thead
                         class="bg-slate-50 text-left text-[11px] font-bold text-slate-500 uppercase dark:bg-white/5 dark:text-slate-400"
@@ -844,7 +982,8 @@ const navigatePage = (url?: string | null) => {
                         </tr>
                     </tbody>
                 </table>
-            </div>
+                </div>
+            </template>
 
             <div
                 v-if="requests.meta.last_page > 1"

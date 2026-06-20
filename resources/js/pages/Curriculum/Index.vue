@@ -499,7 +499,7 @@ const can = (permission?: string | string[]): boolean => {
 <template>
     <Head title="My Curriculum" />
 
-    <div class="flex h-full flex-1 flex-col gap-4 p-4 lg:p-5">
+    <div class="flex h-full flex-1 flex-col gap-4 p-3 sm:p-4 lg:p-5">
         <section
             class="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
         >
@@ -742,7 +742,131 @@ const can = (permission?: string | string[]): boolean => {
 
                             <CollapsibleContent>
                                 <div
-                                    class="overflow-x-auto border-t border-slate-200 dark:border-white/10"
+                                    class="grid gap-3 border-t border-slate-200 bg-slate-50/60 p-3 md:hidden dark:border-white/10 dark:bg-white/[0.02]"
+                                >
+                                    <article
+                                        v-for="(row, index) in sem.rows"
+                                        :key="index"
+                                        class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-950"
+                                    >
+                                        <div
+                                            class="flex items-start justify-between gap-3"
+                                        >
+                                            <div class="min-w-0">
+                                                <p
+                                                    class="text-sm font-bold text-slate-900 dark:text-white"
+                                                >
+                                                    {{
+                                                        pick(
+                                                            row,
+                                                            columns[0].keys,
+                                                        )
+                                                    }}
+                                                </p>
+                                                <p
+                                                    class="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-300"
+                                                >
+                                                    {{
+                                                        pick(
+                                                            row,
+                                                            columns[1].keys,
+                                                        )
+                                                    }}
+                                                </p>
+                                            </div>
+                                            <span
+                                                v-if="takenStatus(row)"
+                                                class="inline-flex shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase"
+                                                :class="
+                                                    takenStatusClass(
+                                                        takenStatus(row),
+                                                    )
+                                                "
+                                            >
+                                                {{ takenStatus(row) }}
+                                            </span>
+                                        </div>
+
+                                        <div
+                                            class="mt-3 grid grid-cols-2 gap-2"
+                                        >
+                                            <div
+                                                class="rounded-md bg-slate-50 px-3 py-2 dark:bg-white/5"
+                                            >
+                                                <p
+                                                    class="text-[9px] font-bold tracking-wide text-slate-400 uppercase"
+                                                >
+                                                    Lecture
+                                                </p>
+                                                <p
+                                                    class="mt-1 text-sm font-bold text-slate-800 dark:text-slate-100"
+                                                >
+                                                    {{
+                                                        subjectLectureUnitsDisplay(
+                                                            row,
+                                                        )
+                                                    }}
+                                                    units
+                                                </p>
+                                            </div>
+                                            <div
+                                                class="rounded-md bg-slate-50 px-3 py-2 dark:bg-white/5"
+                                            >
+                                                <p
+                                                    class="text-[9px] font-bold tracking-wide text-slate-400 uppercase"
+                                                >
+                                                    Laboratory
+                                                </p>
+                                                <p
+                                                    class="mt-1 text-sm font-bold text-slate-800 dark:text-slate-100"
+                                                >
+                                                    {{
+                                                        subjectLabUnitsDisplay(
+                                                            row,
+                                                        )
+                                                    }}
+                                                    units
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div
+                                            class="mt-3 border-t border-slate-100 pt-3 dark:border-white/10"
+                                        >
+                                            <p
+                                                class="text-[9px] font-bold tracking-wide text-slate-400 uppercase"
+                                            >
+                                                Prerequisites
+                                            </p>
+                                            <div
+                                                v-if="
+                                                    prerequisiteItems(row)
+                                                        .length
+                                                "
+                                                class="mt-1.5 flex flex-wrap gap-1.5"
+                                            >
+                                                <span
+                                                    v-for="prerequisite in prerequisiteItems(
+                                                        row,
+                                                    )"
+                                                    :key="prerequisite"
+                                                    class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300"
+                                                >
+                                                    {{ prerequisite }}
+                                                </span>
+                                            </div>
+                                            <p
+                                                v-else
+                                                class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400"
+                                            >
+                                                None
+                                            </p>
+                                        </div>
+                                    </article>
+                                </div>
+
+                                <div
+                                    class="hidden overflow-x-auto border-t border-slate-200 md:block dark:border-white/10"
                                 >
                                     <table class="w-full min-w-[920px] text-sm">
                                         <thead

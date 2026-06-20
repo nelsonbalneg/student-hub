@@ -56,7 +56,7 @@ const props = defineProps<{
     };
 }>();
 
-const showAnnouncements = ref(false);
+const showAnnouncements = ref(props.announcements.length > 0);
 const selectedAnnouncement = ref<DashboardAnnouncement | null>(null);
 
 const openAnnouncement = (announcement: DashboardAnnouncement) => {
