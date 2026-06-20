@@ -2,8 +2,6 @@
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
     Calendar,
-    CheckCircle2,
-    Clock,
     FileText,
     Users,
     Building2,
@@ -19,10 +17,11 @@ import {
     Search,
     Plus,
 } from 'lucide-vue-next';
-import { ref, computed } from 'vue';
-import { Button } from '@/components/ui/button';
-import InputError from '@/components/InputError.vue';
+import { ref, computed, watch } from 'vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
+import InputError from '@/components/InputError.vue';
+import { Button } from '@/components/ui/button';
+import * as updateRoutes from '@/routes/clearance/updates';
 
 const props = defineProps<{
     update: any;
@@ -30,6 +29,12 @@ const props = defineProps<{
     semesters: any[];
     types: any[];
     allOffices: any[];
+    students: {
+        id: number;
+        name: string;
+        student_no: string | null;
+        campus_id: number | null;
+    }[];
     applications: any[];
     can: any;
 }>();
@@ -51,7 +56,56 @@ const editForm = useForm({
     purpose: props.update.purpose,
     start_date: props.update.start_date,
     end_date: props.update.end_date,
+    selected_student_ids:
+        props.update.targeted_students?.map((student: any) => student.id) ?? [],
 });
+const editStudentSearch = ref('');
+
+const selectedEditSemester = computed(() =>
+    props.semesters.find(
+        (semester: any) => semester.id === Number(editForm.semester_id),
+    ),
+);
+
+const filteredEditTypes = computed(() => {
+    const siteCampusId = selectedEditSemester.value?.site_campus_id;
+    if (!siteCampusId) return props.types;
+    return props.types.filter((type: any) => type.campus_id === siteCampusId);
+});
+
+const selectedEditType = computed(() =>
+    props.types.find(
+        (type: any) => type.id === Number(editForm.clearance_type_id),
+    ),
+);
+
+watch(() => editForm.semester_id, () => {
+    const siteCampusId = selectedEditSemester.value?.site_campus_id;
+    if (siteCampusId && selectedEditType.value && selectedEditType.value.campus_id !== siteCampusId) {
+        editForm.clearance_type_id = '';
+    }
+});
+const filteredEditStudents = computed(() => {
+    const query = editStudentSearch.value.trim().toLowerCase();
+    const campusId = selectedEditSemester.value?.campus_id;
+
+    return props.students
+        .filter((student) => !campusId || student.campus_id === campusId)
+        .filter(
+            (student) =>
+                !query ||
+                student.name.toLowerCase().includes(query) ||
+                student.student_no?.toLowerCase().includes(query),
+        )
+        .slice(0, 50);
+});
+const toggleEditStudent = (studentId: number) => {
+    editForm.selected_student_ids = editForm.selected_student_ids.includes(
+        studentId,
+    )
+        ? editForm.selected_student_ids.filter((id: number) => id !== studentId)
+        : [...editForm.selected_student_ids, studentId];
+};
 const confirmModal = ref({
     show: false,
     title: '',
@@ -66,7 +120,10 @@ const confirmModal = ref({
 const officeModalOpen = ref(false);
 const officeSearch = ref('');
 const filteredOffices = computed(() => {
-    if (!officeSearch.value) return props.allOffices;
+    if (!officeSearch.value) {
+        return props.allOffices;
+    }
+
     return props.allOffices.filter((o) =>
         o.name.toLowerCase().includes(officeSearch.value.toLowerCase()),
     );
@@ -78,9 +135,16 @@ const isOfficeSelected = (id: number) => {
 
 const studentSearch = ref('');
 const filteredApplications = computed(() => {
-    if (!props.applications) return [];
-    if (!studentSearch.value) return props.applications;
+    if (!props.applications) {
+        return [];
+    }
+
+    if (!studentSearch.value) {
+        return props.applications;
+    }
+
     const search = studentSearch.value.toLowerCase();
+
     return props.applications.filter(
         (app: any) =>
             app.student?.name?.toLowerCase().includes(search) ||
@@ -141,6 +205,7 @@ const publish = () => {
             );
         },
         loading: false,
+        compact: false,
     };
 };
 
@@ -166,6 +231,7 @@ const closeUpdate = () => {
             );
         },
         loading: false,
+        compact: false,
     };
 };
 
@@ -215,6 +281,7 @@ const deleteUpdate = () => {
             );
         },
         loading: false,
+        compact: false,
     };
 };
 
@@ -238,11 +305,14 @@ const openEdit = () => {
     editForm.purpose = props.update.purpose;
     editForm.start_date = props.update.start_date;
     editForm.end_date = props.update.end_date;
+    editForm.selected_student_ids =
+        props.update.targeted_students?.map((student: any) => student.id) ?? [];
+    editStudentSearch.value = '';
     editModalOpen.value = true;
 };
 
 const updateDetails = () => {
-    editForm.patch(`/student-services/clearance/updates/${props.update.id}`, {
+    editForm.patch(updateRoutes.update.url(props.update.id), {
         onSuccess: () => (editModalOpen.value = false),
     });
 };
@@ -352,7 +422,7 @@ const actionColor = (action: string) => {
             <div class="flex items-center gap-3">
                 <Link
                     href="/student-services/clearance/updates"
-                    class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50"
+                    class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:bg-slate-950 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
                 >
                     <ChevronLeft class="h-4 w-4" />
                 </Link>
@@ -389,7 +459,7 @@ const actionColor = (action: string) => {
                         can.publish
                     "
                     variant="outline"
-                    class="h-8 gap-1.5 border-emerald-200 bg-emerald-50 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+                    class="h-8 gap-1.5 border-emerald-200 bg-emerald-50 text-xs font-bold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
                     @click="publish"
                 >
                     <Play class="h-3.5 w-3.5" />
@@ -398,7 +468,7 @@ const actionColor = (action: string) => {
                 <Button
                     v-if="update.status === 'published' && can.extend"
                     variant="outline"
-                    class="h-8 gap-1.5 border-indigo-200 bg-indigo-50 text-xs font-bold text-indigo-700 hover:bg-indigo-100"
+                    class="h-8 gap-1.5 border-indigo-200 bg-indigo-50 text-xs font-bold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20"
                     @click="extendModalOpen = true"
                 >
                     <CalendarClock class="h-3.5 w-3.5" />
@@ -407,7 +477,7 @@ const actionColor = (action: string) => {
                 <Button
                     v-if="update.status === 'published' && can.close"
                     variant="outline"
-                    class="h-8 gap-1.5 border-amber-200 bg-amber-50 text-xs font-bold text-amber-700 hover:bg-amber-100"
+                    class="h-8 gap-1.5 border-amber-200 bg-amber-50 text-xs font-bold text-amber-700 hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20"
                     @click="closeUpdate"
                 >
                     <StopCircle class="h-3.5 w-3.5" />
@@ -424,7 +494,7 @@ const actionColor = (action: string) => {
                 <Button
                     v-if="update.status === 'draft' && can.delete"
                     variant="outline"
-                    class="h-8 gap-1.5 border-red-200 bg-red-50 text-xs font-bold text-red-700 hover:bg-red-100"
+                    class="h-8 gap-1.5 border-red-200 bg-red-50 text-xs font-bold text-red-700 hover:bg-red-100 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
                     @click="deleteUpdate"
                 >
                     <Trash2 class="h-3.5 w-3.5" />
@@ -443,8 +513,8 @@ const actionColor = (action: string) => {
                 :class="[
                     'flex items-center gap-2 border-b-2 px-4 py-2 text-xs font-medium transition-colors',
                     activeTab === tab.id
-                        ? 'border-emerald-500 text-emerald-600'
-                        : 'border-transparent text-slate-500 hover:text-slate-700',
+                        ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                        : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200',
                 ]"
             >
                 <component :is="tab.icon" class="h-3.5 w-3.5" />
@@ -511,7 +581,7 @@ const actionColor = (action: string) => {
                         <div class="flex items-center gap-8">
                             <div class="flex items-center gap-3">
                                 <div
-                                    class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600"
+                                    class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
                                 >
                                     <Calendar class="h-5 w-5" />
                                 </div>
@@ -530,7 +600,7 @@ const actionColor = (action: string) => {
                             </div>
                             <div class="flex items-center gap-3">
                                 <div
-                                    class="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600"
+                                    class="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400"
                                 >
                                     <Calendar class="h-5 w-5" />
                                 </div>
@@ -566,7 +636,8 @@ const actionColor = (action: string) => {
                             >
                                 <div class="flex items-center gap-2">
                                     <Users class="h-4 w-4 text-slate-400" />
-                                    <span class="text-xs text-slate-600"
+                                    <span
+                                        class="text-xs text-slate-600 dark:text-slate-300"
                                         >Total Applied</span
                                     >
                                 </div>
@@ -579,11 +650,13 @@ const actionColor = (action: string) => {
                                     <CheckCircle
                                         class="h-4 w-4 text-emerald-500"
                                     />
-                                    <span class="text-xs text-emerald-700"
+                                    <span
+                                        class="text-xs text-emerald-700 dark:text-emerald-300"
                                         >Cleared</span
                                     >
                                 </div>
-                                <span class="text-sm font-bold text-emerald-700"
+                                <span
+                                    class="text-sm font-bold text-emerald-700 dark:text-emerald-300"
                                     >0</span
                                 >
                             </div>
@@ -592,11 +665,13 @@ const actionColor = (action: string) => {
                             >
                                 <div class="flex items-center gap-2">
                                     <AlertCircle class="h-4 w-4 text-red-500" />
-                                    <span class="text-xs text-red-700"
+                                    <span
+                                        class="text-xs text-red-700 dark:text-red-300"
                                         >With Accountability</span
                                     >
                                 </div>
-                                <span class="text-sm font-bold text-red-700"
+                                <span
+                                    class="text-sm font-bold text-red-700 dark:text-red-300"
                                     >0</span
                                 >
                             </div>
@@ -645,7 +720,7 @@ const actionColor = (action: string) => {
                     v-else
                     class="min-w-full divide-y divide-slate-100 dark:divide-white/10"
                 >
-                    <thead class="bg-slate-50/50">
+                    <thead class="bg-slate-50/50 dark:bg-white/5">
                         <tr>
                             <th
                                 class="px-4 py-3 text-left text-[10px] font-bold text-slate-400 uppercase"
@@ -682,7 +757,7 @@ const actionColor = (action: string) => {
                             <td class="px-4 py-3 text-[10px] text-slate-500">
                                 <span
                                     v-if="off.is_required"
-                                    class="rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-600 dark:bg-emerald-500/10"
+                                    class="rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
                                     >Yes</span
                                 >
                                 <span
@@ -698,7 +773,7 @@ const actionColor = (action: string) => {
                                 />
                                 <XCircle
                                     v-else
-                                    class="h-4 w-4 text-slate-300"
+                                    class="h-4 w-4 text-slate-300 dark:text-slate-600"
                                 />
                             </td>
                             <td class="px-4 py-3">
@@ -708,7 +783,7 @@ const actionColor = (action: string) => {
                                 />
                                 <XCircle
                                     v-else
-                                    class="h-4 w-4 text-slate-300"
+                                    class="h-4 w-4 text-slate-300 dark:text-slate-600"
                                 />
                             </td>
                             <td class="px-4 py-3 text-right">
@@ -716,7 +791,7 @@ const actionColor = (action: string) => {
                                     v-if="update.status === 'draft'"
                                     variant="ghost"
                                     size="sm"
-                                    class="h-7 w-7 p-0 text-red-500 hover:bg-red-50"
+                                    class="h-7 w-7 p-0 text-red-500 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
                                     @click="removeOffice(off.office.id)"
                                 >
                                     <Trash2 class="h-3.5 w-3.5" />
@@ -755,7 +830,7 @@ const actionColor = (action: string) => {
                             v-model="studentSearch"
                             type="text"
                             placeholder="Search name or ID..."
-                            class="h-8 w-full rounded-lg border border-slate-200 bg-white pl-9 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-950"
+                            class="h-8 w-full rounded-lg border border-slate-200 bg-white pl-9 text-xs text-slate-900 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
                         />
                     </div>
                 </div>
@@ -843,7 +918,7 @@ const actionColor = (action: string) => {
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            class="h-7 px-2 text-[10px] font-bold text-emerald-600 hover:bg-emerald-50"
+                                            class="h-7 px-2 text-[10px] font-bold text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-500/10"
                                             @click="
                                                 router.visit(
                                                     `/student-services/clearance/my-clearance/${app.id}`,
@@ -856,7 +931,7 @@ const actionColor = (action: string) => {
                                             v-if="update.status === 'draft'"
                                             variant="ghost"
                                             size="sm"
-                                            class="h-7 w-7 p-0 text-red-500 hover:bg-red-50 hover:text-red-600"
+                                            class="h-7 w-7 p-0 text-red-500 hover:bg-red-50 hover:text-red-600 dark:text-red-400 dark:hover:bg-red-500/10 dark:hover:text-red-300"
                                             @click="deleteApplication(app)"
                                         >
                                             <Trash2 class="h-3.5 w-3.5" />
@@ -993,11 +1068,11 @@ const actionColor = (action: string) => {
         @click.self="extendModalOpen = false"
     >
         <div
-            class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-slate-950"
+            class="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 text-slate-900 shadow-xl dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"
         >
             <div class="mb-4 flex items-center gap-3">
                 <div
-                    class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600"
+                    class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400"
                 >
                     <CalendarClock class="h-5 w-5" />
                 </div>
@@ -1021,7 +1096,7 @@ const actionColor = (action: string) => {
                     <input
                         v-model="extendForm.end_date"
                         type="date"
-                        class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm focus:border-indigo-500 focus:outline-none dark:border-white/10 dark:bg-slate-900"
+                        class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
                     />
                     <p
                         v-if="extendForm.errors.end_date"
@@ -1037,7 +1112,7 @@ const actionColor = (action: string) => {
                     >
                     <textarea
                         v-model="extendForm.remarks"
-                        class="rounded-lg border border-slate-200 bg-white p-3 text-sm focus:border-indigo-500 focus:outline-none dark:border-white/10 dark:bg-slate-900"
+                        class="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
                         rows="3"
                         placeholder="Reason for extension..."
                     ></textarea>
@@ -1087,7 +1162,7 @@ const actionColor = (action: string) => {
         @click.self="editModalOpen = false"
     >
         <div
-            class="w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl dark:bg-slate-950"
+            class="w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-white/10 dark:bg-slate-950"
         >
             <h2 class="mb-4 text-sm font-bold text-slate-900 dark:text-white">
                 Edit Clearance Update
@@ -1122,17 +1197,95 @@ const actionColor = (action: string) => {
                             class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
                         >
                             <option
-                                v-for="type in types"
+                                v-for="type in filteredEditTypes"
                                 :key="type.id"
                                 :value="type.id"
                             >
                                 {{ type.name }}
+                                {{
+                                    type.audience === 'individual'
+                                        ? ' (Individual)'
+                                        : ' (All students)'
+                                }}
                             </option>
                         </select>
                         <InputError
                             :message="editForm.errors.clearance_type_id"
                         />
                     </label>
+                    <div
+                        v-if="selectedEditType?.audience === 'individual'"
+                        class="rounded-xl border border-violet-200 bg-violet-50/50 p-3 dark:border-violet-500/20 dark:bg-violet-500/5"
+                    >
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <p
+                                    class="text-[11px] font-bold text-violet-800 uppercase dark:text-violet-300"
+                                >
+                                    Selected Students
+                                </p>
+                                <p
+                                    class="text-[10px] text-violet-600 dark:text-violet-400"
+                                >
+                                    Only these students can access this
+                                    individual clearance.
+                                </p>
+                            </div>
+                            <span
+                                class="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-bold text-violet-700 dark:bg-violet-500/10 dark:text-violet-300"
+                            >
+                                {{ editForm.selected_student_ids.length }}
+                                selected
+                            </span>
+                        </div>
+                        <div class="relative mt-3">
+                            <Search
+                                class="absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-slate-400"
+                            />
+                            <input
+                                v-model="editStudentSearch"
+                                type="search"
+                                placeholder="Search student name or ID"
+                                class="h-9 w-full rounded-lg border border-slate-200 bg-white pr-3 pl-9 text-xs text-slate-900 focus:border-violet-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
+                            />
+                        </div>
+                        <div
+                            class="mt-2 max-h-44 overflow-y-auto rounded-lg border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
+                        >
+                            <label
+                                v-for="student in filteredEditStudents"
+                                :key="student.id"
+                                class="flex cursor-pointer items-center gap-3 border-b border-slate-100 px-3 py-2 last:border-b-0 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5"
+                            >
+                                <input
+                                    type="checkbox"
+                                    :checked="
+                                        editForm.selected_student_ids.includes(
+                                            student.id,
+                                        )
+                                    "
+                                    class="size-4 rounded border-slate-300 text-violet-600"
+                                    @change="toggleEditStudent(student.id)"
+                                />
+                                <span class="min-w-0 flex-1">
+                                    <span
+                                        class="block truncate text-xs font-semibold text-slate-900 dark:text-white"
+                                        >{{ student.name }}</span
+                                    >
+                                    <span
+                                        class="block text-[10px] text-slate-500"
+                                        >{{
+                                            student.student_no ||
+                                            'No student number'
+                                        }}</span
+                                    >
+                                </span>
+                            </label>
+                        </div>
+                        <InputError
+                            :message="editForm.errors.selected_student_ids"
+                        />
+                    </div>
                 </div>
                 <label
                     class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase"
@@ -1205,7 +1358,7 @@ const actionColor = (action: string) => {
         @click.self="officeModalOpen = false"
     >
         <div
-            class="flex max-h-[80vh] w-full max-w-lg flex-col rounded-xl bg-white shadow-xl dark:bg-slate-950"
+            class="flex max-h-[80vh] w-full max-w-lg flex-col rounded-xl border border-slate-200 bg-white shadow-xl dark:border-white/10 dark:bg-slate-950"
         >
             <div class="border-b border-slate-100 p-4 dark:border-white/10">
                 <div class="flex items-center justify-between">
@@ -1220,7 +1373,7 @@ const actionColor = (action: string) => {
                         </p>
                     </div>
                     <button
-                        class="rounded-lg p-1 hover:bg-slate-100"
+                        class="rounded-lg p-1 hover:bg-slate-100 dark:hover:bg-white/10"
                         @click="officeModalOpen = false"
                     >
                         <XCircle class="h-5 w-5 text-slate-400" />
@@ -1234,7 +1387,7 @@ const actionColor = (action: string) => {
                         v-model="officeSearch"
                         type="text"
                         placeholder="Search offices..."
-                        class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-white/5"
+                        class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 text-xs text-slate-900 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:placeholder:text-slate-500"
                     />
                 </div>
             </div>
@@ -1249,7 +1402,7 @@ const actionColor = (action: string) => {
                             type="checkbox"
                             :checked="isOfficeSelected(office.id)"
                             @change="toggleOffice(office.id)"
-                            class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                            class="h-4 w-4 rounded border-slate-300 bg-white text-emerald-600 focus:ring-emerald-500 dark:border-slate-600 dark:bg-slate-900"
                         />
                         <span
                             class="text-xs font-medium text-slate-700 dark:text-slate-200"

@@ -26,18 +26,25 @@ class ClearanceUpdateResource extends JsonResource
                 'id' => $this->semester->id,
                 'academic_year' => $this->semester->academic_year,
                 'term' => $this->semester->term,
+                'campus_id' => $this->semester->campus_id,
                 'campus_name' => $this->semester->campus_name,
             ],
             'type' => [
                 'id' => $this->type->id,
                 'name' => $this->type->name,
+                'audience' => $this->type->audience,
             ],
+            'targeted_students' => $this->whenLoaded('targetedStudents', fn () => $this->targetedStudents->map(fn ($student) => [
+                'id' => $student->id,
+                'name' => $student->name,
+                'student_no' => $student->student_no,
+            ])->values()),
             'creator' => [
                 'id' => $this->creator->id,
                 'name' => $this->creator->name,
             ],
-            'offices' => $this->whenLoaded('offices', function() {
-                return $this->offices->map(fn($o) => [
+            'offices' => $this->whenLoaded('offices', function () {
+                return $this->offices->map(fn ($o) => [
                     'id' => $o->id,
                     'office' => [
                         'id' => $o->office->id,

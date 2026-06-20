@@ -4,12 +4,14 @@ namespace App\Http\Controllers\SiteSettings;
 
 use App\Http\Controllers\Controller;
 use App\Models\SiteCampus;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\ValidationException;
 
 class SiteCampusController extends Controller
 {
@@ -38,7 +40,11 @@ class SiteCampusController extends Controller
         $this->authorize('site-settings.view');
 
         return Inertia::render('SiteSettings/Campuses/Show', [
-            'campus' => $campus->load('academicTerms'),
+            'campus' => $campus->load([
+                'academicTerms',
+                'offices' => fn ($query) => $query->orderBy('name'),
+                'clearanceTypes' => fn ($query) => $query->orderBy('name'),
+            ]),
         ]);
     }
 
@@ -56,14 +62,14 @@ class SiteCampusController extends Controller
 
         if ($request->hasFile('logo')) {
             $file = $request->file('logo');
-            if ($file instanceof \Illuminate\Http\UploadedFile && $file->isValid()) {
+            if ($file instanceof UploadedFile && $file->isValid()) {
                 $tempPath = $file->getPathname();
-                
-                if (!empty($tempPath) && file_exists($tempPath)) {
-                    $filename = \Illuminate\Support\Str::random(40) . '.' . ($file->getClientOriginalExtension() ?: 'png');
+
+                if (! empty($tempPath) && file_exists($tempPath)) {
+                    $filename = Str::random(40).'.'.($file->getClientOriginalExtension() ?: 'png');
                     // Use move() which is more reliable on some Windows setups
                     $file->move(storage_path('app/public/campus_logos'), $filename);
-                    $validated['campus_logo_path'] = 'campus_logos/' . $filename;
+                    $validated['campus_logo_path'] = 'campus_logos/'.$filename;
                 } else {
                     \Log::error('Logo upload failed: getRealPath() returned empty string or false.', [
                         'original_name' => $file->getClientOriginalName(),
@@ -92,24 +98,24 @@ class SiteCampusController extends Controller
         $validated = $request->validate([
             'campus_name' => 'required|string|max:255',
             'campus_address' => 'nullable|string|max:500',
-            'real_campus_id' => 'nullable|string|unique:site_campuses,real_campus_id,' . $campus->id,
+            'real_campus_id' => 'nullable|string|unique:site_campuses,real_campus_id,'.$campus->id,
             'status' => 'required|in:Active,Inactive',
             'logo' => 'nullable|image|max:3072',
         ]);
 
         if ($request->hasFile('logo')) {
             $file = $request->file('logo');
-            if ($file instanceof \Illuminate\Http\UploadedFile && $file->isValid()) {
+            if ($file instanceof UploadedFile && $file->isValid()) {
                 $tempPath = $file->getPathname();
-                
-                if (!empty($tempPath) && file_exists($tempPath)) {
-                    if (!empty($campus->campus_logo_path)) {
+
+                if (! empty($tempPath) && file_exists($tempPath)) {
+                    if (! empty($campus->campus_logo_path)) {
                         Storage::disk('public')->delete($campus->campus_logo_path);
                     }
-                    $filename = \Illuminate\Support\Str::random(40) . '.' . ($file->getClientOriginalExtension() ?: 'png');
+                    $filename = Str::random(40).'.'.($file->getClientOriginalExtension() ?: 'png');
                     // Use move() which is more reliable on some Windows setups
                     $file->move(storage_path('app/public/campus_logos'), $filename);
-                    $validated['campus_logo_path'] = 'campus_logos/' . $filename;
+                    $validated['campus_logo_path'] = 'campus_logos/'.$filename;
                 } else {
                     \Log::error('Logo update failed: getRealPath() returned empty string or false.', [
                         'original_name' => $file->getClientOriginalName(),

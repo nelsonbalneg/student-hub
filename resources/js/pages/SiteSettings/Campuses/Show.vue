@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { format } from 'date-fns';
 import {
     Archive,
     ArrowLeft,
     Building2,
+    BriefcaseBusiness,
     Calendar,
     CheckCircle2,
     Clock,
     Edit,
+    FileCheck2,
     Fingerprint,
     History,
     Info,
@@ -17,6 +20,8 @@ import {
     RefreshCcw,
     Search,
     Trash2,
+    UserRound,
+    Users,
     XCircle,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
@@ -42,8 +47,9 @@ import {
 } from '@/components/ui/select';
 import SiteSettingsLayout from '@/layouts/SiteSettingsLayout.vue';
 import * as campusRoutes from '@/routes/site-settings/campuses';
+import * as officeRoutes from '@/routes/site-settings/campuses/offices';
 import * as termRoutes from '@/routes/site-settings/campuses/terms';
-import { format } from 'date-fns';
+import * as clearanceTypeRoutes from '@/routes/site-settings/campuses/clearance-types';
 
 interface AcademicTerm {
     id: number;
@@ -53,6 +59,13 @@ interface AcademicTerm {
     status: 'Active' | 'Inactive' | 'Archived';
     start_date: string;
     end_date: string;
+}
+
+interface ClearanceType {
+    id: number;
+    name: string;
+    description: string | null;
+    audience: 'all' | 'individual';
 }
 
 interface Campus {
@@ -65,6 +78,15 @@ interface Campus {
     created_at?: string | null;
     updated_at?: string | null;
     academic_terms: AcademicTerm[];
+    offices: Office[];
+    clearance_types: ClearanceType[];
+}
+
+interface Office {
+    id: number;
+    name: string;
+    code: string | null;
+    description: string | null;
 }
 
 const props = defineProps<{
@@ -74,9 +96,17 @@ const props = defineProps<{
 const showTermModal = ref(false);
 const showDeleteTermModal = ref(false);
 const showEditModal = ref(false);
+const showOfficeModal = ref(false);
+const showDeleteOfficeModal = ref(false);
+const showClearanceTypeModal = ref(false);
+const showDeleteClearanceTypeModal = ref(false);
 const selectedTerm = ref<AcademicTerm | null>(null);
+const selectedOffice = ref<Office | null>(null);
+const selectedClearanceType = ref<ClearanceType | null>(null);
 const searchTerm = ref('');
-const activeTab = ref<'info' | 'terms'>('info');
+const officeSearch = ref('');
+const clearanceTypeSearch = ref('');
+const activeTab = ref<'info' | 'terms' | 'offices' | 'clearance-types'>('info');
 
 const form = useForm({
     campus_name: props.campus.campus_name,
@@ -93,6 +123,18 @@ const termForm = useForm({
     status: 'Inactive' as 'Active' | 'Inactive' | 'Archived',
     start_date: '',
     end_date: '',
+});
+
+const officeForm = useForm({
+    name: '',
+    code: '',
+    description: '',
+});
+
+const clearanceTypeForm = useForm({
+    name: '',
+    description: '',
+    audience: 'all' as 'all' | 'individual',
 });
 
 const terms = computed(() => props.campus.academic_terms || []);
@@ -118,6 +160,28 @@ const filteredTerms = computed(() => {
                 term.term_id?.toLowerCase().includes(query),
         )
         .sort((a, b) => b.id - a.id);
+});
+
+const filteredOffices = computed(() => {
+    const query = officeSearch.value.trim().toLowerCase();
+
+    return (props.campus.offices ?? []).filter(
+        (office) =>
+            office.name.toLowerCase().includes(query) ||
+            office.code?.toLowerCase().includes(query) ||
+            office.description?.toLowerCase().includes(query),
+    );
+});
+
+const filteredClearanceTypes = computed(() => {
+    const query = clearanceTypeSearch.value.trim().toLowerCase();
+
+    return (props.campus.clearance_types ?? []).filter(
+        (type) =>
+            type.name.toLowerCase().includes(query) ||
+            type.description?.toLowerCase().includes(query) ||
+            type.audience.toLowerCase().includes(query),
+    );
 });
 
 const openEditModal = () => {
@@ -203,7 +267,9 @@ const confirmDeleteTerm = (term: AcademicTerm) => {
 };
 
 const deleteTerm = () => {
-    if (!selectedTerm.value) return;
+    if (!selectedTerm.value) {
+return;
+}
 
     termForm.delete(
         termRoutes.destroy.url({
@@ -214,6 +280,124 @@ const deleteTerm = () => {
             preserveScroll: true,
             preserveState: true,
             onSuccess: () => (showDeleteTermModal.value = false),
+        },
+    );
+};
+
+const openCreateOffice = () => {
+    selectedOffice.value = null;
+    officeForm.reset();
+    officeForm.clearErrors();
+    showOfficeModal.value = true;
+};
+
+const openEditOffice = (office: Office) => {
+    selectedOffice.value = office;
+    officeForm.name = office.name;
+    officeForm.code = office.code ?? '';
+    officeForm.description = office.description ?? '';
+    officeForm.clearErrors();
+    showOfficeModal.value = true;
+};
+
+const saveOffice = () => {
+    const options = {
+        preserveScroll: true,
+        onSuccess: () => (showOfficeModal.value = false),
+    };
+
+    if (selectedOffice.value) {
+        officeForm.patch(
+            officeRoutes.update.url({
+                campus: props.campus.id,
+                office: selectedOffice.value.id,
+            }),
+            options,
+        );
+
+        return;
+    }
+
+    officeForm.post(officeRoutes.store.url(props.campus.id), options);
+};
+
+const confirmDeleteOffice = (office: Office) => {
+    selectedOffice.value = office;
+    showDeleteOfficeModal.value = true;
+};
+
+const deleteOffice = () => {
+    if (!selectedOffice.value) {
+return;
+}
+
+    officeForm.delete(
+        officeRoutes.destroy.url({
+            campus: props.campus.id,
+            office: selectedOffice.value.id,
+        }),
+        {
+            preserveScroll: true,
+            onSuccess: () => (showDeleteOfficeModal.value = false),
+        },
+    );
+};
+
+const openCreateClearanceType = () => {
+    selectedClearanceType.value = null;
+    clearanceTypeForm.reset();
+    clearanceTypeForm.clearErrors();
+    showClearanceTypeModal.value = true;
+};
+
+const openEditClearanceType = (type: ClearanceType) => {
+    selectedClearanceType.value = type;
+    clearanceTypeForm.name = type.name;
+    clearanceTypeForm.description = type.description ?? '';
+    clearanceTypeForm.audience = type.audience;
+    clearanceTypeForm.clearErrors();
+    showClearanceTypeModal.value = true;
+};
+
+const saveClearanceType = () => {
+    const options = {
+        preserveScroll: true,
+        onSuccess: () => (showClearanceTypeModal.value = false),
+    };
+
+    if (selectedClearanceType.value) {
+        clearanceTypeForm.patch(
+            clearanceTypeRoutes.update.url({
+                campus: props.campus.id,
+                clearanceType: selectedClearanceType.value.id,
+            }),
+            options,
+        );
+
+        return;
+    }
+
+    clearanceTypeForm.post(clearanceTypeRoutes.store.url(props.campus.id), options);
+};
+
+const confirmDeleteClearanceType = (type: ClearanceType) => {
+    selectedClearanceType.value = type;
+    showDeleteClearanceTypeModal.value = true;
+};
+
+const deleteClearanceType = () => {
+    if (!selectedClearanceType.value) {
+        return;
+    }
+
+    clearanceTypeForm.delete(
+        clearanceTypeRoutes.destroy.url({
+            campus: props.campus.id,
+            clearanceType: selectedClearanceType.value.id,
+        }),
+        {
+            preserveScroll: true,
+            onSuccess: () => (showDeleteClearanceTypeModal.value = false),
         },
     );
 };
@@ -420,6 +604,42 @@ const getStatusBadgeClass = (status: string) => {
                         class="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] dark:bg-white/10"
                         >{{ termStats.total }}</span
                     >
+                </button>
+                <button
+                    type="button"
+                    class="inline-flex h-8 items-center gap-2 rounded-md px-3 text-xs font-semibold transition"
+                    :class="
+                        activeTab === 'offices'
+                            ? 'bg-white text-sky-700 shadow-sm dark:bg-slate-900 dark:text-sky-300'
+                            : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                    "
+                    @click="activeTab = 'offices'"
+                >
+                    <BriefcaseBusiness class="size-3.5" />
+                    Offices
+                    <span
+                        class="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] dark:bg-white/10"
+                    >
+                        {{ props.campus.offices?.length ?? 0 }}
+                    </span>
+                </button>
+                <button
+                    type="button"
+                    class="inline-flex h-8 items-center gap-2 rounded-md px-3 text-xs font-semibold transition"
+                    :class="
+                        activeTab === 'clearance-types'
+                            ? 'bg-white text-sky-700 shadow-sm dark:bg-slate-900 dark:text-sky-300'
+                            : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                    "
+                    @click="activeTab = 'clearance-types'"
+                >
+                    <FileCheck2 class="size-3.5" />
+                    Clearance Types
+                    <span
+                        class="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] dark:bg-white/10"
+                    >
+                        {{ props.campus.clearance_types?.length ?? 0 }}
+                    </span>
                 </button>
             </div>
 
@@ -697,6 +917,222 @@ const getStatusBadgeClass = (status: string) => {
                 </div>
             </div>
 
+            <div v-if="activeTab === 'offices'" class="space-y-3">
+                <div
+                    class="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-slate-950"
+                >
+                    <div class="relative max-w-sm flex-1">
+                        <Search
+                            class="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-slate-400"
+                        />
+                        <Input
+                            v-model="officeSearch"
+                            placeholder="Search office name, code, or description"
+                            class="h-8 pl-8 text-xs"
+                        />
+                    </div>
+                    <Button
+                        size="sm"
+                        class="h-8 bg-sky-600 text-xs hover:bg-sky-700"
+                        @click="openCreateOffice"
+                    >
+                        <Plus class="mr-1.5 size-3.5" />
+                        Add Office
+                    </Button>
+                </div>
+
+                <div
+                    class="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+                >
+                    <table class="w-full min-w-[680px] text-left text-sm">
+                        <thead
+                            class="border-b border-slate-200 bg-slate-50 text-[10px] font-bold tracking-wider text-slate-500 uppercase dark:border-white/10 dark:bg-white/5 dark:text-slate-400"
+                        >
+                            <tr>
+                                <th class="px-4 py-2.5">Office</th>
+                                <th class="px-4 py-2.5">Code</th>
+                                <th class="px-4 py-2.5">Description</th>
+                                <th class="px-4 py-2.5 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody
+                            class="divide-y divide-slate-100 dark:divide-white/10"
+                        >
+                            <tr
+                                v-for="office in filteredOffices"
+                                :key="office.id"
+                                class="hover:bg-slate-50 dark:hover:bg-white/5"
+                            >
+                                <td
+                                    class="px-4 py-3 font-semibold text-slate-900 dark:text-white"
+                                >
+                                    <span class="flex items-center gap-2">
+                                        <BriefcaseBusiness
+                                            class="size-4 text-sky-500"
+                                        />
+                                        {{ office.name }}
+                                    </span>
+                                </td>
+                                <td
+                                    class="px-4 py-3 font-mono text-xs text-sky-700 dark:text-sky-300"
+                                >
+                                    {{ office.code || '-' }}
+                                </td>
+                                <td
+                                    class="max-w-md px-4 py-3 text-xs text-slate-500 dark:text-slate-400"
+                                >
+                                    {{ office.description || 'No description' }}
+                                </td>
+                                <td class="px-4 py-3">
+                                    <div class="flex justify-end gap-1">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            class="size-7"
+                                            @click="openEditOffice(office)"
+                                        >
+                                            <Edit class="size-3.5" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            class="size-7 text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"
+                                            @click="confirmDeleteOffice(office)"
+                                        >
+                                            <Trash2 class="size-3.5" />
+                                        </Button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr v-if="filteredOffices.length === 0">
+                                <td
+                                    colspan="4"
+                                    class="px-4 py-10 text-center text-sm text-slate-500"
+                                >
+                                    No offices found for this campus.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div v-if="activeTab === 'clearance-types'" class="space-y-3">
+                <div
+                    class="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-slate-950"
+                >
+                    <div class="relative max-w-sm flex-1">
+                        <Search
+                            class="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-slate-400"
+                        />
+                        <Input
+                            v-model="clearanceTypeSearch"
+                            placeholder="Search clearance type name or description"
+                            class="h-8 pl-8 text-xs"
+                        />
+                    </div>
+                    <Button
+                        size="sm"
+                        class="h-8 bg-sky-600 text-xs hover:bg-sky-700"
+                        @click="openCreateClearanceType"
+                    >
+                        <Plus class="mr-1.5 size-3.5" />
+                        Add Clearance Type
+                    </Button>
+                </div>
+
+                <div
+                    class="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+                >
+                    <table class="w-full min-w-[680px] text-left text-sm">
+                        <thead
+                            class="border-b border-slate-200 bg-slate-50 text-[10px] font-bold tracking-wider text-slate-500 uppercase dark:border-white/10 dark:bg-white/5 dark:text-slate-400"
+                        >
+                            <tr>
+                                <th class="px-4 py-2.5">Clearance Type</th>
+                                <th class="px-4 py-2.5">Availability</th>
+                                <th class="px-4 py-2.5">Description</th>
+                                <th class="px-4 py-2.5 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody
+                            class="divide-y divide-slate-100 dark:divide-white/10"
+                        >
+                            <tr
+                                v-for="type in filteredClearanceTypes"
+                                :key="type.id"
+                                class="hover:bg-slate-50 dark:hover:bg-white/5"
+                            >
+                                <td
+                                    class="px-4 py-3 font-semibold text-slate-900 dark:text-white"
+                                >
+                                    <span class="flex items-center gap-2">
+                                        <FileCheck2
+                                            class="size-4 text-emerald-500"
+                                        />
+                                        {{ type.name }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span
+                                        :class="[
+                                            'inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-bold',
+                                            type.audience === 'individual'
+                                                ? 'bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300'
+                                                : 'bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300',
+                                        ]"
+                                    >
+                                        <UserRound
+                                            v-if="type.audience === 'individual'"
+                                            class="size-3"
+                                        />
+                                        <Users v-else class="size-3" />
+                                        {{
+                                            type.audience === 'individual'
+                                                ? 'Selected students'
+                                                : 'All students'
+                                        }}
+                                    </span>
+                                </td>
+                                <td
+                                    class="max-w-md px-4 py-3 text-xs text-slate-500 dark:text-slate-400"
+                                >
+                                    {{ type.description || 'No description' }}
+                                </td>
+                                <td class="px-4 py-3">
+                                    <div class="flex justify-end gap-1">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            class="size-7"
+                                            @click="openEditClearanceType(type)"
+                                        >
+                                            <Edit class="size-3.5" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            class="size-7 text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"
+                                            @click="confirmDeleteClearanceType(type)"
+                                        >
+                                            <Trash2 class="size-3.5" />
+                                        </Button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr v-if="filteredClearanceTypes.length === 0">
+                                <td
+                                    colspan="4"
+                                    class="px-4 py-10 text-center text-sm text-slate-500"
+                                >
+                                    No clearance types found for this campus.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <Dialog v-model:open="showTermModal">
                 <DialogContent class="sm:max-w-[520px]">
                     <DialogHeader>
@@ -850,6 +1286,79 @@ const getStatusBadgeClass = (status: string) => {
                 </DialogContent>
             </Dialog>
 
+            <Dialog v-model:open="showOfficeModal">
+                <DialogContent class="sm:max-w-[460px]">
+                    <DialogHeader>
+                        <DialogTitle>
+                            {{ selectedOffice ? 'Edit Office' : 'New Office' }}
+                        </DialogTitle>
+                        <DialogDescription>
+                            This office will belong to
+                            {{ props.campus.campus_name }}.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form class="space-y-3 py-2" @submit.prevent="saveOffice">
+                        <div class="space-y-1.5">
+                            <Label for="office-name">Office Name</Label>
+                            <Input
+                                id="office-name"
+                                v-model="officeForm.name"
+                                class="h-8"
+                                required
+                            />
+                            <div
+                                v-if="officeForm.errors.name"
+                                class="text-xs text-red-500"
+                            >
+                                {{ officeForm.errors.name }}
+                            </div>
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="office-code">Office Code</Label>
+                            <Input
+                                id="office-code"
+                                v-model="officeForm.code"
+                                class="h-8"
+                            />
+                            <div
+                                v-if="officeForm.errors.code"
+                                class="text-xs text-red-500"
+                            >
+                                {{ officeForm.errors.code }}
+                            </div>
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="office-description">Description</Label>
+                            <textarea
+                                id="office-description"
+                                v-model="officeForm.description"
+                                rows="3"
+                                class="w-full rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-900 focus:border-sky-500 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
+                            />
+                            <div
+                                v-if="officeForm.errors.description"
+                                class="text-xs text-red-500"
+                            >
+                                {{ officeForm.errors.description }}
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button
+                                type="submit"
+                                class="h-8 bg-sky-600 text-xs hover:bg-sky-700"
+                                :disabled="officeForm.processing"
+                            >
+                                {{
+                                    selectedOffice
+                                        ? 'Update Office'
+                                        : 'Create Office'
+                                }}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
             <Dialog v-model:open="showEditModal">
                 <DialogContent class="sm:max-w-[460px]">
                     <DialogHeader>
@@ -964,6 +1473,116 @@ const getStatusBadgeClass = (status: string) => {
                 variant="destructive"
                 @confirm="deleteTerm"
                 @close="showDeleteTermModal = false"
+            />
+            <ConfirmationModal
+                :show="showDeleteOfficeModal"
+                title="Delete Office"
+                :description="`Delete ${selectedOffice?.name ?? 'this office'} from ${props.campus.campus_name}?`"
+                confirm-text="Delete Office"
+                variant="destructive"
+                :loading="officeForm.processing"
+                @confirm="deleteOffice"
+                @close="showDeleteOfficeModal = false"
+            />
+
+            <!-- Clearance Type Dialog -->
+            <Dialog v-model:open="showClearanceTypeModal">
+                <DialogContent class="sm:max-w-[460px]">
+                    <DialogHeader>
+                        <DialogTitle>
+                            {{ selectedClearanceType ? 'Edit Clearance Type' : 'New Clearance Type' }}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Configure clearance type audience rules. This will belong to
+                            {{ props.campus.campus_name }}.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form class="space-y-3 py-2" @submit.prevent="saveClearanceType">
+                        <div class="space-y-1.5">
+                            <Label for="clearance-type-name">Name</Label>
+                            <Input
+                                id="clearance-type-name"
+                                v-model="clearanceTypeForm.name"
+                                class="h-8"
+                                required
+                            />
+                            <div
+                                v-if="clearanceTypeForm.errors.name"
+                                class="text-xs text-red-500"
+                            >
+                                {{ clearanceTypeForm.errors.name }}
+                            </div>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <Label for="clearance-type-audience">Who is this clearance for?</Label>
+                            <Select v-model="clearanceTypeForm.audience">
+                                <SelectTrigger id="clearance-type-audience" class="h-8">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">
+                                        All students
+                                    </SelectItem>
+                                    <SelectItem value="individual">
+                                        Selected students only
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p class="text-[11px] text-slate-500">
+                                Use selected students for credential release and other individual clearances.
+                            </p>
+                            <div
+                                v-if="clearanceTypeForm.errors.audience"
+                                class="text-xs text-red-500"
+                            >
+                                {{ clearanceTypeForm.errors.audience }}
+                            </div>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <Label for="clearance-type-description">Description</Label>
+                            <textarea
+                                id="clearance-type-description"
+                                v-model="clearanceTypeForm.description"
+                                rows="3"
+                                class="w-full rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-900 focus:border-sky-500 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
+                            />
+                            <div
+                                v-if="clearanceTypeForm.errors.description"
+                                class="text-xs text-red-500"
+                            >
+                                {{ clearanceTypeForm.errors.description }}
+                            </div>
+                        </div>
+
+                        <DialogFooter>
+                            <Button
+                                type="submit"
+                                class="h-8 bg-sky-600 text-xs hover:bg-sky-700"
+                                :disabled="clearanceTypeForm.processing"
+                            >
+                                {{
+                                    selectedClearanceType
+                                        ? 'Update Clearance Type'
+                                        : 'Create Clearance Type'
+                                }}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            <!-- Clearance Type Delete Confirmation -->
+            <ConfirmationModal
+                :show="showDeleteClearanceTypeModal"
+                title="Delete Clearance Type"
+                :description="`Delete ${selectedClearanceType?.name ?? 'this clearance type'} from ${props.campus.campus_name}?`"
+                confirm-text="Delete Clearance Type"
+                variant="destructive"
+                :loading="clearanceTypeForm.processing"
+                @confirm="deleteClearanceType"
+                @close="showDeleteClearanceTypeModal = false"
             />
         </div>
     </SiteSettingsLayout>

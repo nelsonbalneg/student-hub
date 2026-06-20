@@ -3,8 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SiteCampus extends Model
 {
@@ -21,6 +21,16 @@ class SiteCampus extends Model
     public function academicTerms(): HasMany
     {
         return $this->hasMany(SiteAcademicTerm::class);
+    }
+
+    public function offices(): HasMany
+    {
+        return $this->hasMany(Office::class, 'campus_id');
+    }
+
+    public function clearanceTypes(): HasMany
+    {
+        return $this->hasMany(ClearanceType::class, 'campus_id');
     }
 
     public function creator(): BelongsTo

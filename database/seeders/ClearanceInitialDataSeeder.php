@@ -34,14 +34,29 @@ class ClearanceInitialDataSeeder extends Seeder
         }
 
         // 3. Clearance Types
+        $defaultCampusId = \DB::table('site_campuses')->where('id', 2)->value('id')
+            ?? \DB::table('site_campuses')->orderBy('id')->value('id');
+
+        if (! $defaultCampusId) {
+            $campus = \App\Models\SiteCampus::create([
+                'campus_name' => 'Main Campus',
+                'campus_address' => 'Main Address',
+                'status' => 'Active',
+            ]);
+            $defaultCampusId = $campus->id;
+        }
+
         $types = [
-            ['name' => 'Semestral Clearance', 'description' => 'Standard clearance for every semester.'],
-            ['name' => 'Graduation Clearance', 'description' => 'Final clearance for graduating students.'],
-            ['name' => 'Transfer/Withdrawal Clearance', 'description' => 'Clearance for students leaving the university.'],
+            ['name' => 'Semestral Clearance', 'description' => 'Standard clearance for every semester.', 'campus_id' => $defaultCampusId],
+            ['name' => 'Graduation Clearance', 'description' => 'Final clearance for graduating students.', 'campus_id' => $defaultCampusId],
+            ['name' => 'Transfer/Withdrawal Clearance', 'description' => 'Clearance for students leaving the university.', 'campus_id' => $defaultCampusId],
         ];
 
         foreach ($types as $type) {
-            ClearanceType::updateOrCreate(['name' => $type['name']], $type);
+            ClearanceType::updateOrCreate(
+                ['name' => $type['name'], 'campus_id' => $defaultCampusId],
+                $type
+            );
         }
     }
 }

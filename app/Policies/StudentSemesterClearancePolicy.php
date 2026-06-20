@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Models\ClearanceType;
 use App\Models\ClearanceUpdate;
 use App\Models\StudentSemesterClearance;
 use App\Models\User;
@@ -20,12 +21,19 @@ class StudentSemesterClearancePolicy
 
     public function apply(User $user, ClearanceUpdate $update): bool
     {
-        return $user->can('clearance-application.apply') && $update->status === ClearanceUpdate::STATUS_PUBLISHED;
+        if (! $user->can('clearance-application.apply') || $update->status !== ClearanceUpdate::STATUS_PUBLISHED) {
+            return false;
+        }
+
+        $update->loadMissing('type');
+
+        return $update->type->audience === ClearanceType::AUDIENCE_ALL
+            || $update->targetedStudents()->whereKey($user->id)->exists();
     }
 
     public function print(User $user, StudentSemesterClearance $clearance): bool
     {
-        return ($user->id === $clearance->student_id || $user->can('clearance-application.print')) 
+        return ($user->id === $clearance->student_id || $user->can('clearance-application.print'))
             && ($clearance->status === StudentSemesterClearance::STATUS_CLEARED || $clearance->status === StudentSemesterClearance::STATUS_COMPLETED);
     }
 }

@@ -3,6 +3,7 @@ import { Link, usePage } from '@inertiajs/vue3';
 import {
     Building2,
     ClipboardCheck,
+    FileCheck2,
     Heart,
     MessageSquareHeart,
     GraduationCap,

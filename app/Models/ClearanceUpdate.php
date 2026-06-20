@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -27,7 +28,9 @@ class ClearanceUpdate extends Model
     use HasFactory, SoftDeletes;
 
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_PUBLISHED = 'published';
+
     public const STATUS_CLOSED = 'closed';
 
     protected function casts(): array
@@ -73,6 +76,12 @@ class ClearanceUpdate extends Model
     public function accountabilities(): HasMany
     {
         return $this->hasMany(ClearanceAccountability::class);
+    }
+
+    public function targetedStudents(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'clearance_update_students', 'clearance_update_id', 'student_id')
+            ->withTimestamps();
     }
 
     public function uploads(): HasMany

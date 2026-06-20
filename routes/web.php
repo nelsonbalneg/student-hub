@@ -34,8 +34,10 @@ use App\Http\Controllers\SiteSettings\PhysicalFitnessConfigurationController;
 use App\Http\Controllers\SiteSettings\SiteAcademicTermController;
 use App\Http\Controllers\SiteSettings\SiteBrandingController;
 use App\Http\Controllers\SiteSettings\SiteCampusController;
+use App\Http\Controllers\SiteSettings\SiteClearanceTypeController;
 use App\Http\Controllers\SiteSettings\SiteEvaluationController;
 use App\Http\Controllers\SiteSettings\SiteGradeViewingController;
+use App\Http\Controllers\SiteSettings\SiteOfficeController;
 use App\Http\Controllers\SiteSettings\SiteStudentProfileController;
 use App\Http\Controllers\Society\SocietyAccreditationController;
 use App\Http\Controllers\Society\SocietyAnnouncementController;
@@ -391,16 +393,6 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
         ->group(function () {
             Route::get('/', 'index')->name('index');
 
-            // Offices
-            Route::post('/offices', 'storeOffice')->name('offices.store');
-            Route::patch('/offices/{office}', 'updateOffice')->name('offices.update');
-            Route::delete('/offices/{office}', 'destroyOffice')->name('offices.destroy');
-
-            // Clearance Types
-            Route::post('/types', 'storeType')->name('types.store');
-            Route::patch('/types/{type}', 'updateType')->name('types.update');
-            Route::delete('/types/{type}', 'destroyType')->name('types.destroy');
-
             // Semesters
             Route::post('/semesters', 'storeSemester')->name('semesters.store');
             Route::patch('/semesters/{semester}', 'updateSemester')->name('semesters.update');
@@ -520,10 +512,16 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
             Route::prefix('campuses/{campus}')
                 ->name('campuses.')
                 ->group(function () {
+                    Route::post('offices', [SiteOfficeController::class, 'store'])->name('offices.store');
+                    Route::patch('offices/{office}', [SiteOfficeController::class, 'update'])->name('offices.update');
+                    Route::delete('offices/{office}', [SiteOfficeController::class, 'destroy'])->name('offices.destroy');
                     Route::post('terms', [SiteAcademicTermController::class, 'store'])->name('terms.store');
                     Route::patch('terms/{term}', [SiteAcademicTermController::class, 'update'])->name('terms.update');
                     Route::patch('terms/{term}/activate', [SiteAcademicTermController::class, 'activate'])->name('terms.activate');
                     Route::delete('terms/{term}', [SiteAcademicTermController::class, 'destroy'])->name('terms.destroy');
+                    Route::post('clearance-types', [SiteClearanceTypeController::class, 'store'])->name('clearance-types.store');
+                    Route::patch('clearance-types/{clearanceType}', [SiteClearanceTypeController::class, 'update'])->name('clearance-types.update');
+                    Route::delete('clearance-types/{clearanceType}', [SiteClearanceTypeController::class, 'destroy'])->name('clearance-types.destroy');
                 });
 
             Route::prefix('evaluation')

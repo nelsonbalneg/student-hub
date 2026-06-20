@@ -3,25 +3,19 @@ import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
     ChevronLeft,
     ChevronRight,
-    ChevronsLeft,
-    ChevronsRight,
     MoreHorizontal,
     Plus,
     RefreshCw,
     Search,
     SlidersHorizontal,
-    X,
-    Calendar,
-    CheckCircle2,
-    Clock,
-    FileText,
     Trash2,
     Pencil,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
+import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
-import ConfirmationModal from '@/components/ConfirmationModal.vue';
+import * as updateRoutes from '@/routes/clearance/updates';
 
 type PageLink = { url: string | null; label: string; active: boolean };
 type PageMeta = {
@@ -37,13 +31,21 @@ type Page<T> = { data: T[]; links: PageLink[]; meta: PageMeta };
 type ClearanceUpdate = {
     id: number;
     title: string;
+    description: string | null;
+    purpose: string | null;
     semester: {
         id: number;
         academic_year: string;
         term: string;
         campus_name?: string;
+        campus_id: number;
     };
-    type: { id: number; name: string };
+    type: { id: number; name: string; audience: 'all' | 'individual' };
+    targeted_students?: {
+        id: number;
+        name: string;
+        student_no: string | null;
+    }[];
     status: string;
     start_date: string;
     end_date: string;
@@ -58,8 +60,16 @@ const props = defineProps<{
         academic_year: string;
         term: string;
         campus_name?: string;
+        campus_id: number;
+        site_campus_id?: number | null;
     }[];
-    types: { id: number; name: string }[];
+    types: { id: number; name: string; audience: 'all' | 'individual'; campus_id: number }[];
+    students: {
+        id: number;
+        name: string;
+        student_no: string | null;
+        campus_id: number | null;
+    }[];
     activeSemester: any;
     can: {
         create: boolean;
@@ -67,7 +77,7 @@ const props = defineProps<{
         publish: boolean;
         delete: boolean;
     };
-}>();
+} >();
 
 defineOptions({
     layout: {
@@ -103,18 +113,65 @@ const modal = ref<null | { type: 'create' | 'edit'; update?: ClearanceUpdate }>(
 );
 
 const form = useForm({
-    semester_id: props.activeSemester?.id ?? '',
-    clearance_type_id: '',
+    semester_id: (props.activeSemester?.id ?? '') as string | number,
+    clearance_type_id: '' as string | number,
     title: '',
     description: '',
     purpose: '',
     start_date: '',
     end_date: '',
+    selected_student_ids: [] as number[],
 });
+
+const studentSearch = ref('');
+
+const selectedSemester = computed(() =>
+    props.semesters.find(
+        (semester) => semester.id === Number(form.semester_id),
+    ),
+);
+
+const filteredTypes = computed(() => {
+    const siteCampusId = selectedSemester.value?.site_campus_id;
+    if (!siteCampusId) return props.types;
+    return props.types.filter((type) => type.campus_id === siteCampusId);
+});
+
+const selectedType = computed(() =>
+    props.types.find((type) => type.id === Number(form.clearance_type_id)),
+);
+
+watch(() => form.semester_id, () => {
+    const siteCampusId = selectedSemester.value?.site_campus_id;
+    if (siteCampusId && selectedType.value && selectedType.value.campus_id !== siteCampusId) {
+        form.clearance_type_id = '';
+    }
+});
+
+const filteredStudents = computed(() => {
+    const query = studentSearch.value.trim().toLowerCase();
+    const campusId = selectedSemester.value?.campus_id;
+
+    return props.students
+        .filter((student) => !campusId || student.campus_id === campusId)
+        .filter(
+            (student) =>
+                !query ||
+                student.name.toLowerCase().includes(query) ||
+                student.student_no?.toLowerCase().includes(query),
+        )
+        .slice(0, 50);
+});
+
+const toggleStudent = (studentId: number) => {
+    form.selected_student_ids = form.selected_student_ids.includes(studentId)
+        ? form.selected_student_ids.filter((id) => id !== studentId)
+        : [...form.selected_student_ids, studentId];
+};
 
 const applyFilters = () => {
     router.get(
-        '/student-services/clearance/updates',
+        updateRoutes.index.url(),
         {
             search: search.value,
             ...filters.value,
@@ -139,6 +196,8 @@ const clearFilters = () => {
 const openCreate = () => {
     form.reset();
     form.semester_id = props.activeSemester?.id ?? '';
+    form.selected_student_ids = [];
+    studentSearch.value = '';
     modal.value = { type: 'create' };
 };
 
@@ -147,23 +206,25 @@ const openEdit = (update: ClearanceUpdate) => {
     form.semester_id = update.semester.id;
     form.clearance_type_id = update.type.id;
     form.title = update.title;
+    form.description = update.description ?? '';
+    form.purpose = update.purpose ?? '';
     form.start_date = update.start_date;
     form.end_date = update.end_date;
+    form.selected_student_ids =
+        update.targeted_students?.map((student) => student.id) ?? [];
+    studentSearch.value = '';
     modal.value = { type: 'edit', update };
 };
 
 const submit = () => {
     if (modal.value?.type === 'create') {
-        form.post('/student-services/clearance/updates', {
+        form.post(updateRoutes.store.url(), {
             onSuccess: () => (modal.value = null),
         });
     } else if (modal.value?.type === 'edit' && modal.value.update) {
-        form.patch(
-            `/student-services/clearance/updates/${modal.value.update.id}`,
-            {
-                onSuccess: () => (modal.value = null),
-            },
-        );
+        form.patch(updateRoutes.update.url(modal.value.update.id), {
+            onSuccess: () => (modal.value = null),
+        });
     }
 };
 
@@ -176,7 +237,7 @@ const deleteUpdate = (id: number) => {
         confirmText: 'Delete Update',
         variant: 'destructive',
         action: () => {
-            router.delete(`/student-services/clearance/updates/${id}`, {
+            router.delete(updateRoutes.destroy.url(id), {
                 onStart: () => (confirmModal.value.loading = true),
                 onFinish: () => {
                     confirmModal.value.loading = false;
@@ -189,7 +250,9 @@ const deleteUpdate = (id: number) => {
 };
 
 const navigatePage = (url: string | null) => {
-    if (url) router.get(url, {}, { preserveState: true });
+    if (url) {
+        router.get(url, {}, { preserveState: true });
+    }
 };
 
 const statusClass = (status: string) => {
@@ -211,7 +274,7 @@ const statusClass = (status: string) => {
         <div class="flex items-center justify-between gap-3">
             <div>
                 <h1 class="text-base font-bold text-slate-800 dark:text-white">
-                    Clearance Updates
+                    Manage Clearance Updates
                 </h1>
                 <p class="text-xs text-slate-400">
                     Manage semester-based clearance periods and updates.
@@ -349,7 +412,7 @@ const statusClass = (status: string) => {
                     >
                         <td class="px-4 py-3">
                             <Link
-                                :href="`/student-services/clearance/updates/${update.id}`"
+                                :href="updateRoutes.show.url(update.id)"
                                 class="text-xs font-bold text-slate-900 hover:text-emerald-600 dark:text-white"
                             >
                                 {{ update.title }}
@@ -392,7 +455,7 @@ const statusClass = (status: string) => {
                                     <Pencil class="h-3.5 w-3.5" />
                                 </button>
                                 <Link
-                                    :href="`/student-services/clearance/updates/${update.id}`"
+                                    :href="updateRoutes.show.url(update.id)"
                                     class="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                                 >
                                     <MoreHorizontal class="h-4 w-4" />
@@ -486,15 +549,98 @@ const statusClass = (status: string) => {
                         >
                             <option value="" disabled>Select Type</option>
                             <option
-                                v-for="type in types"
+                                v-for="type in filteredTypes"
                                 :key="type.id"
                                 :value="type.id"
                             >
                                 {{ type.name }}
+                                {{
+                                    type.audience === 'individual'
+                                        ? ' (Individual)'
+                                        : ' (All students)'
+                                }}
                             </option>
                         </select>
                         <InputError :message="form.errors.clearance_type_id" />
                     </label>
+                    <div
+                        v-if="selectedType?.audience === 'individual'"
+                        class="rounded-xl border border-violet-200 bg-violet-50/50 p-3 dark:border-violet-500/20 dark:bg-violet-500/5"
+                    >
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <p
+                                    class="text-[11px] font-bold text-violet-800 uppercase dark:text-violet-300"
+                                >
+                                    Select Students
+                                </p>
+                                <p
+                                    class="text-[10px] text-violet-600 dark:text-violet-400"
+                                >
+                                    Only selected students can see and apply for
+                                    this clearance.
+                                </p>
+                            </div>
+                            <span
+                                class="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-bold text-violet-700 dark:bg-violet-500/10 dark:text-violet-300"
+                            >
+                                {{ form.selected_student_ids.length }} selected
+                            </span>
+                        </div>
+                        <div class="relative mt-3">
+                            <Search
+                                class="absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-slate-400"
+                            />
+                            <input
+                                v-model="studentSearch"
+                                type="search"
+                                placeholder="Search student name or ID"
+                                class="h-9 w-full rounded-lg border border-slate-200 bg-white pr-3 pl-9 text-xs text-slate-900 focus:border-violet-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
+                            />
+                        </div>
+                        <div
+                            class="mt-2 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
+                        >
+                            <label
+                                v-for="student in filteredStudents"
+                                :key="student.id"
+                                class="flex cursor-pointer items-center gap-3 border-b border-slate-100 px-3 py-2 last:border-b-0 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5"
+                            >
+                                <input
+                                    type="checkbox"
+                                    :checked="
+                                        form.selected_student_ids.includes(
+                                            student.id,
+                                        )
+                                    "
+                                    class="size-4 rounded border-slate-300 text-violet-600"
+                                    @change="toggleStudent(student.id)"
+                                />
+                                <span class="min-w-0 flex-1">
+                                    <span
+                                        class="block truncate text-xs font-semibold text-slate-900 dark:text-white"
+                                        >{{ student.name }}</span
+                                    >
+                                    <span
+                                        class="block text-[10px] text-slate-500"
+                                        >{{
+                                            student.student_no ||
+                                            'No student number'
+                                        }}</span
+                                    >
+                                </span>
+                            </label>
+                            <p
+                                v-if="filteredStudents.length === 0"
+                                class="p-4 text-center text-xs text-slate-500"
+                            >
+                                No students found for the selected campus.
+                            </p>
+                        </div>
+                        <InputError
+                            :message="form.errors.selected_student_ids"
+                        />
+                    </div>
                 </div>
                 <label
                     class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase"

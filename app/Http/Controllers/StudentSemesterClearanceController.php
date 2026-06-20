@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\Clearance\StudentSemesterClearanceResource;
+use App\Models\ClearanceType;
 use App\Models\ClearanceUpdate;
 use App\Models\StudentSemesterClearance;
 use App\Services\ClearanceApplicationService;
@@ -20,24 +21,29 @@ class StudentSemesterClearanceController extends Controller
     public function myClearance(Request $request): Response
     {
         $activeSem = GetActiveSem::current();
-        
+
         $activeUpdates = $activeSem ? ClearanceUpdate::query()
             ->where('semester_id', $activeSem->id)
             ->where('status', ClearanceUpdate::STATUS_PUBLISHED)
             ->whereDate('start_date', '<=', now())
             ->whereDate('end_date', '>=', now())
+            ->where(function ($query) use ($request) {
+                $query
+                    ->whereHas('type', fn ($typeQuery) => $typeQuery->where('audience', ClearanceType::AUDIENCE_ALL))
+                    ->orWhereHas('targetedStudents', fn ($studentQuery) => $studentQuery->whereKey($request->user()->id));
+            })
             ->with(['type', 'offices.office'])
             ->get() : collect();
 
         $myClearances = StudentSemesterClearance::query()
             ->where('student_id', $request->user()->id)
             ->with([
-                'clearanceUpdate.type', 
+                'clearanceUpdate.type',
                 'semester',
                 'clearanceUpdate.offices.office',
-                'clearanceUpdate.accountabilities' => function($query) use ($request) {
+                'clearanceUpdate.accountabilities' => function ($query) use ($request) {
                     $query->where('student_id', $request->user()->id);
-                }
+                },
             ])
             ->latest()
             ->get();
@@ -59,6 +65,14 @@ class StudentSemesterClearanceController extends Controller
         // Validate application period
         if ($update->status !== ClearanceUpdate::STATUS_PUBLISHED || now()->isBefore($update->start_date) || now()->isAfter($update->end_date)) {
             return back()->with('error', 'The application period for this clearance has ended or not yet started.');
+        }
+
+        $update->loadMissing('type');
+        if (
+            $update->type->audience === ClearanceType::AUDIENCE_INDIVIDUAL
+            && ! $update->targetedStudents()->whereKey($request->user()->id)->exists()
+        ) {
+            abort(403, 'This clearance is assigned to selected students only.');
         }
 
         // Check if already applied
@@ -83,13 +97,13 @@ class StudentSemesterClearanceController extends Controller
         $this->authorize('view', $clearance);
 
         $clearance->load([
-            'clearanceUpdate.offices.office', 
-            'clearanceUpdate.accountabilities' => function($query) use ($clearance) {
+            'clearanceUpdate.offices.office',
+            'clearanceUpdate.accountabilities' => function ($query) use ($clearance) {
                 $query->where('student_id', $clearance->student_id)
-                      ->whereNull('parent_id')
-                      ->with(['student', 'office', 'children', 'children.student', 'children.office']);
+                    ->whereNull('parent_id')
+                    ->with(['student', 'office', 'children', 'children.student', 'children.office']);
             },
-            'logs.performer'
+            'logs.performer',
         ]);
 
         return Inertia::render('Clearance/Student/Details', [
