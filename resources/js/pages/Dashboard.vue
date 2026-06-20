@@ -337,7 +337,7 @@ defineOptions({
 
         <section class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[1fr_360px]">
             <div
-                class="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+                class="order-2 min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm xl:order-1 dark:border-white/10 dark:bg-slate-950"
             >
                 <div
                     class="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-white/10"
@@ -475,10 +475,12 @@ defineOptions({
                 </div>
             </div>
 
-            <div class="grid content-start gap-4">
+            <div
+                class="contents xl:order-2 xl:grid xl:content-start xl:gap-4"
+            >
                 <!-- Announcements Widget -->
                 <div
-                    class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+                    class="order-1 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
                 >
                     <div
                         class="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 dark:border-white/10"
@@ -633,7 +635,7 @@ defineOptions({
 
                 <div
                     v-if="can('dashboard.view-campus-identity')"
-                    class="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+                    class="order-3 rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
                 >
                     <div
                         class="border-b border-slate-100 px-4 py-3 dark:border-white/10"
@@ -683,7 +685,7 @@ defineOptions({
 
                 <div
                     v-if="can('dashboard.view-integration-health')"
-                    class="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+                    class="order-3 rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
                 >
                     <div
                         class="border-b border-slate-100 px-4 py-3 dark:border-white/10"
