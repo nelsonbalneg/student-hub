@@ -244,7 +244,16 @@ class ClearanceUpdateController extends Controller
     {
         $this->authorize('update', $update);
 
-        $offices = $this->officesForSemester($update->semester)->get();
+        $configuredOffices = $update->type->offices;
+
+        if ($configuredOffices->isNotEmpty()) {
+            $offices = $configuredOffices;
+            $msg = 'Configured offices assigned to this clearance.';
+        } else {
+            $offices = $this->officesForSemester($update->semester)->get();
+            $msg = 'All offices assigned to this clearance.';
+        }
+
         foreach ($offices as $idx => $office) {
             ClearanceUpdateOffice::updateOrCreate(
                 ['clearance_update_id' => $update->id, 'office_id' => $office->id],
@@ -252,7 +261,7 @@ class ClearanceUpdateController extends Controller
             );
         }
 
-        return back()->with('success', 'All offices assigned to this clearance.');
+        return back()->with('success', $msg);
     }
 
     public function toggleOffice(Request $request, ClearanceUpdate $update): RedirectResponse

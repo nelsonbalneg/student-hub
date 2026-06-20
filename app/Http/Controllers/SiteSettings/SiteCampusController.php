@@ -43,7 +43,7 @@ class SiteCampusController extends Controller
             'campus' => $campus->load([
                 'academicTerms',
                 'offices' => fn ($query) => $query->orderBy('name'),
-                'clearanceTypes' => fn ($query) => $query->orderBy('name'),
+                'clearanceTypes' => fn ($query) => $query->with('offices')->orderBy('name'),
             ]),
         ]);
     }
@@ -56,6 +56,8 @@ class SiteCampusController extends Controller
             'campus_name' => 'required|string|max:255',
             'campus_address' => 'nullable|string|max:500',
             'real_campus_id' => 'nullable|string|unique:site_campuses,real_campus_id',
+            'campus_id' => 'nullable|integer',
+            'tenant_id' => 'nullable|string|max:255',
             'status' => 'required|in:Active,Inactive',
             'logo' => 'nullable|image|max:3072',
         ]);
@@ -99,6 +101,8 @@ class SiteCampusController extends Controller
             'campus_name' => 'required|string|max:255',
             'campus_address' => 'nullable|string|max:500',
             'real_campus_id' => 'nullable|string|unique:site_campuses,real_campus_id,'.$campus->id,
+            'campus_id' => 'nullable|integer',
+            'tenant_id' => 'nullable|string|max:255',
             'status' => 'required|in:Active,Inactive',
             'logo' => 'nullable|image|max:3072',
         ]);

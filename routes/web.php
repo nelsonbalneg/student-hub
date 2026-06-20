@@ -522,6 +522,7 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                     Route::post('clearance-types', [SiteClearanceTypeController::class, 'store'])->name('clearance-types.store');
                     Route::patch('clearance-types/{clearanceType}', [SiteClearanceTypeController::class, 'update'])->name('clearance-types.update');
                     Route::delete('clearance-types/{clearanceType}', [SiteClearanceTypeController::class, 'destroy'])->name('clearance-types.destroy');
+                    Route::post('clearance-types/{clearanceType}/offices', [SiteClearanceTypeController::class, 'syncOffices'])->name('clearance-types.sync-offices');
                 });
 
             Route::prefix('evaluation')

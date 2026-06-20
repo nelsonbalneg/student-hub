@@ -19,6 +19,7 @@ import {
     Power,
     RefreshCcw,
     Search,
+    Settings,
     Trash2,
     UserRound,
     Users,
@@ -66,6 +67,7 @@ interface ClearanceType {
     name: string;
     description: string | null;
     audience: 'all' | 'individual';
+    offices: Office[];
 }
 
 interface Campus {
@@ -74,6 +76,8 @@ interface Campus {
     campus_address: string;
     campus_logo_path: string;
     real_campus_id: string;
+    campus_id: number | null;
+    tenant_id: string | null;
     status: 'Active' | 'Inactive';
     created_at?: string | null;
     updated_at?: string | null;
@@ -100,11 +104,13 @@ const showOfficeModal = ref(false);
 const showDeleteOfficeModal = ref(false);
 const showClearanceTypeModal = ref(false);
 const showDeleteClearanceTypeModal = ref(false);
+const showConfigureModal = ref(false);
 const selectedTerm = ref<AcademicTerm | null>(null);
 const selectedOffice = ref<Office | null>(null);
 const selectedClearanceType = ref<ClearanceType | null>(null);
 const searchTerm = ref('');
 const officeSearch = ref('');
+const officeSearchTerm = ref('');
 const clearanceTypeSearch = ref('');
 const activeTab = ref<'info' | 'terms' | 'offices' | 'clearance-types'>('info');
 
@@ -112,6 +118,8 @@ const form = useForm({
     campus_name: props.campus.campus_name,
     campus_address: props.campus.campus_address,
     real_campus_id: props.campus.real_campus_id,
+    campus_id: props.campus.campus_id ?? '' as string | number,
+    tenant_id: props.campus.tenant_id ?? '',
     status: props.campus.status,
     logo: null as File | null,
 });
@@ -135,6 +143,10 @@ const clearanceTypeForm = useForm({
     name: '',
     description: '',
     audience: 'all' as 'all' | 'individual',
+});
+
+const configForm = useForm({
+    office_ids: [] as number[],
 });
 
 const terms = computed(() => props.campus.academic_terms || []);
@@ -188,6 +200,8 @@ const openEditModal = () => {
     form.campus_name = props.campus.campus_name;
     form.campus_address = props.campus.campus_address;
     form.real_campus_id = props.campus.real_campus_id;
+    form.campus_id = props.campus.campus_id ?? '';
+    form.tenant_id = props.campus.tenant_id ?? '';
     form.status = props.campus.status;
     form.logo = null;
     showEditModal.value = true;
@@ -401,6 +415,54 @@ const deleteClearanceType = () => {
         },
     );
 };
+
+const openConfigureClearanceType = (type: ClearanceType) => {
+    selectedClearanceType.value = type;
+    configForm.office_ids = (type.offices || []).map((o) => o.id);
+    officeSearchTerm.value = '';
+    configForm.clearErrors();
+    showConfigureModal.value = true;
+};
+
+const saveConfiguration = () => {
+    if (!selectedClearanceType.value) {
+        return;
+    }
+
+    configForm.post(
+        clearanceTypeRoutes.syncOffices.url({
+            campus: props.campus.id,
+            clearanceType: selectedClearanceType.value.id,
+        }),
+        {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => {
+                showConfigureModal.value = false;
+            },
+        },
+    );
+};
+
+const selectAllOffices = () => {
+    configForm.office_ids = (props.campus.offices || []).map((o) => o.id);
+};
+
+const deselectAllOffices = () => {
+    configForm.office_ids = [];
+};
+
+const filteredConfigOffices = computed(() => {
+    const query = officeSearchTerm.value.trim().toLowerCase();
+    if (!query) {
+        return props.campus.offices || [];
+    }
+    return (props.campus.offices || []).filter(
+        (office) =>
+            office.name.toLowerCase().includes(query) ||
+            (office.code && office.code.toLowerCase().includes(query)),
+    );
+});
 
 const formatDate = (date?: string | null, pattern = 'MMM d, yyyy') =>
     date ? format(new Date(date), pattern) : 'N/A';
@@ -701,6 +763,40 @@ const getStatusBadgeClass = (status: string) => {
                                 >
                                     {{
                                         props.campus.real_campus_id || 'Not set'
+                                    }}
+                                </Badge>
+                            </dd>
+                        </div>
+                        <div
+                            class="grid gap-1 px-4 py-3 sm:grid-cols-[180px_1fr]"
+                        >
+                            <dt class="text-xs font-semibold text-slate-500">
+                                Campus ID
+                            </dt>
+                            <dd>
+                                <Badge
+                                    variant="outline"
+                                    class="font-mono text-[11px] font-semibold"
+                                >
+                                    {{
+                                        props.campus.campus_id || 'Not set'
+                                    }}
+                                </Badge>
+                            </dd>
+                        </div>
+                        <div
+                            class="grid gap-1 px-4 py-3 sm:grid-cols-[180px_1fr]"
+                        >
+                            <dt class="text-xs font-semibold text-slate-500">
+                                Tenant ID
+                            </dt>
+                            <dd>
+                                <Badge
+                                    variant="outline"
+                                    class="font-mono text-[11px] font-semibold"
+                                >
+                                    {{
+                                        props.campus.tenant_id || 'Not set'
                                     }}
                                 </Badge>
                             </dd>
@@ -1072,6 +1168,26 @@ const getStatusBadgeClass = (status: string) => {
                                         />
                                         {{ type.name }}
                                     </span>
+                                    <div
+                                        v-if="type.offices && type.offices.length > 0"
+                                        class="mt-1 flex flex-wrap gap-1"
+                                    >
+                                        <Badge
+                                            v-for="office in type.offices"
+                                            :key="office.id"
+                                            variant="secondary"
+                                            class="px-1 py-0 text-[9px] font-semibold font-mono"
+                                            :title="office.name"
+                                        >
+                                            {{ office.code || office.name }}
+                                        </Badge>
+                                    </div>
+                                    <div
+                                        v-else
+                                        class="mt-0.5 text-[10px] text-slate-400 font-normal"
+                                    >
+                                        All campus offices
+                                    </div>
                                 </td>
                                 <td class="px-4 py-3">
                                     <span
@@ -1101,6 +1217,15 @@ const getStatusBadgeClass = (status: string) => {
                                 </td>
                                 <td class="px-4 py-3">
                                     <div class="flex justify-end gap-1">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            class="size-7"
+                                            title="Configure Participating Offices"
+                                            @click="openConfigureClearanceType(type)"
+                                        >
+                                            <Settings class="size-3.5" />
+                                        </Button>
                                         <Button
                                             variant="ghost"
                                             size="icon"
@@ -1435,6 +1560,37 @@ const getStatusBadgeClass = (status: string) => {
                                 </div>
                             </div>
                         </div>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div class="space-y-1.5">
+                                <Label for="edit_campus_id">Campus ID</Label>
+                                <Input
+                                    id="edit_campus_id"
+                                    v-model="form.campus_id"
+                                    class="h-8 text-sm"
+                                    type="number"
+                                />
+                                <div
+                                    v-if="form.errors.campus_id"
+                                    class="text-xs text-red-500"
+                                >
+                                    {{ form.errors.campus_id }}
+                                </div>
+                            </div>
+                            <div class="space-y-1.5">
+                                <Label for="edit_tenant_id">Tenant ID</Label>
+                                <Input
+                                    id="edit_tenant_id"
+                                    v-model="form.tenant_id"
+                                    class="h-8 text-sm"
+                                />
+                                <div
+                                    v-if="form.errors.tenant_id"
+                                    class="text-xs text-red-500"
+                                >
+                                    {{ form.errors.tenant_id }}
+                                </div>
+                            </div>
+                        </div>
                         <div class="space-y-1.5">
                             <Label for="edit_logo">Campus Logo</Label>
                             <Input
@@ -1584,6 +1740,108 @@ const getStatusBadgeClass = (status: string) => {
                 @confirm="deleteClearanceType"
                 @close="showDeleteClearanceTypeModal = false"
             />
+
+            <!-- Clearance Type Configure Participating Offices Dialog -->
+            <Dialog v-model:open="showConfigureModal">
+                <DialogContent class="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle>Configure Participating Offices</DialogTitle>
+                        <DialogDescription>
+                            Select which offices are required/participating under <span class="font-semibold text-slate-900 dark:text-white">{{ selectedClearanceType?.name }}</span>.
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div class="space-y-4 py-2">
+                        <!-- Search & Quick Select Action Buttons -->
+                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div class="relative flex-1">
+                                <Search class="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-slate-400" />
+                                <Input
+                                    v-model="officeSearchTerm"
+                                    placeholder="Filter offices..."
+                                    class="h-8 pl-8 text-xs"
+                                />
+                            </div>
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    class="h-8 px-2 text-[10px]"
+                                    @click="selectAllOffices"
+                                >
+                                    Select All
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    class="h-8 px-2 text-[10px]"
+                                    @click="deselectAllOffices"
+                                >
+                                    Clear All
+                                </Button>
+                            </div>
+                        </div>
+
+                        <!-- Offices List (Scrollable Area) -->
+                        <div class="max-h-[300px] overflow-y-auto rounded-md border border-slate-200 p-3 space-y-2 dark:border-white/10 dark:bg-slate-900">
+                            <div 
+                                v-for="office in filteredConfigOffices" 
+                                :key="office.id"
+                                class="flex items-start gap-2.5 rounded-md p-1.5 hover:bg-slate-50 dark:hover:bg-white/5"
+                            >
+                                <input
+                                    :id="`config-office-${office.id}`"
+                                    v-model="configForm.office_ids"
+                                    type="checkbox"
+                                    :value="office.id"
+                                    class="mt-1 size-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 dark:border-slate-700 dark:bg-slate-800"
+                                />
+                                <label 
+                                    :for="`config-office-${office.id}`" 
+                                    class="flex flex-1 flex-col text-xs cursor-pointer select-none"
+                                >
+                                    <span class="font-medium text-slate-900 dark:text-white">
+                                        {{ office.name }}
+                                    </span>
+                                    <span v-if="office.code" class="font-mono text-[10px] text-sky-600 dark:text-sky-400">
+                                        {{ office.code }}
+                                    </span>
+                                </label>
+                            </div>
+                            <div v-if="filteredConfigOffices.length === 0" class="py-6 text-center text-xs text-slate-500">
+                                No offices match search query or exist for this campus.
+                            </div>
+                        </div>
+
+                        <div class="text-[11px] text-slate-500">
+                            * Selected offices will automatically participate when setting up clearance updates. Leaving all offices unchecked defaults to assigning all offices.
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            class="h-8 text-xs"
+                            @click="showConfigureModal = false"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            class="h-8 bg-sky-600 text-xs hover:bg-sky-700"
+                            :disabled="configForm.processing"
+                            @click="saveConfiguration"
+                        >
+                            Save Settings
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     </SiteSettingsLayout>
 </template>

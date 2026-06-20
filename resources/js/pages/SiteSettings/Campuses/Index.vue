@@ -49,6 +49,8 @@ interface Campus {
     campus_address: string;
     campus_logo_path: string;
     real_campus_id: string;
+    campus_id: number | null;
+    tenant_id: string | null;
     status: 'Active' | 'Inactive';
     academic_terms_count: number;
 }
@@ -73,6 +75,8 @@ const form = useForm({
     campus_name: '',
     campus_address: '',
     real_campus_id: '',
+    campus_id: '' as string | number,
+    tenant_id: '',
     status: 'Active' as 'Active' | 'Inactive',
     logo: null as File | null,
 });
@@ -93,6 +97,8 @@ const editCampus = (campus: Campus) => {
     form.campus_name = campus.campus_name;
     form.campus_address = campus.campus_address;
     form.real_campus_id = campus.real_campus_id;
+    form.campus_id = campus.campus_id ?? '';
+    form.tenant_id = campus.tenant_id ?? '';
     form.status = campus.status;
     showEditModal.value = true;
 };
@@ -230,7 +236,7 @@ const handleSearch = () => {
                         </div>
 
                         <div
-                            class="mt-6 flex items-center justify-between border-t border-slate-100 pt-4 dark:border-white/5"
+                            class="mt-6 flex flex-wrap items-center justify-between gap-y-3 border-t border-slate-100 pt-4 dark:border-white/5"
                         >
                             <div class="flex flex-col gap-1">
                                 <span
@@ -240,6 +246,26 @@ const handleSearch = () => {
                                 <span
                                     class="font-mono text-xs font-bold text-slate-700 dark:text-slate-300"
                                     >#{{ campus.real_campus_id || 'N/A' }}</span
+                                >
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <span
+                                    class="text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                                    >Campus ID</span
+                                >
+                                <span
+                                    class="font-mono text-xs font-bold text-slate-700 dark:text-slate-300"
+                                    >#{{ campus.campus_id || 'N/A' }}</span
+                                >
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <span
+                                    class="text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                                    >Tenant ID</span
+                                >
+                                <span
+                                    class="font-mono text-xs font-bold text-slate-700 dark:text-slate-300"
+                                    >{{ campus.tenant_id || 'N/A' }}</span
                                 >
                             </div>
                             <div class="flex flex-col items-end gap-1">
@@ -385,6 +411,37 @@ const handleSearch = () => {
                                 </div>
                             </div>
                         </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <Label for="campus_id">Campus ID</Label>
+                                <Input
+                                    id="campus_id"
+                                    v-model="form.campus_id"
+                                    placeholder="1"
+                                    type="number"
+                                />
+                                <div
+                                    v-if="form.errors.campus_id"
+                                    class="text-xs text-red-500"
+                                >
+                                    {{ form.errors.campus_id }}
+                                </div>
+                            </div>
+                            <div class="space-y-2">
+                                <Label for="tenant_id">Tenant ID</Label>
+                                <Input
+                                    id="tenant_id"
+                                    v-model="form.tenant_id"
+                                    placeholder="tenant-123"
+                                />
+                                <div
+                                    v-if="form.errors.tenant_id"
+                                    class="text-xs text-red-500"
+                                >
+                                    {{ form.errors.tenant_id }}
+                                </div>
+                            </div>
+                        </div>
                         <div class="space-y-2">
                             <Label for="logo">Campus Logo</Label>
                             <Input
@@ -483,6 +540,35 @@ const handleSearch = () => {
                                     class="text-xs text-red-500"
                                 >
                                     {{ form.errors.status }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <Label for="edit_campus_id">Campus ID</Label>
+                                <Input
+                                    id="edit_campus_id"
+                                    v-model="form.campus_id"
+                                    type="number"
+                                />
+                                <div
+                                    v-if="form.errors.campus_id"
+                                    class="text-xs text-red-500"
+                                >
+                                    {{ form.errors.campus_id }}
+                                </div>
+                            </div>
+                            <div class="space-y-2">
+                                <Label for="edit_tenant_id">Tenant ID</Label>
+                                <Input
+                                    id="edit_tenant_id"
+                                    v-model="form.tenant_id"
+                                />
+                                <div
+                                    v-if="form.errors.tenant_id"
+                                    class="text-xs text-red-500"
+                                >
+                                    {{ form.errors.tenant_id }}
                                 </div>
                             </div>
                         </div>

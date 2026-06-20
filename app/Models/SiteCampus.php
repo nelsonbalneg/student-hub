@@ -13,6 +13,8 @@ class SiteCampus extends Model
         'campus_address',
         'campus_logo_path',
         'real_campus_id',
+        'campus_id',
+        'tenant_id',
         'status',
         'created_by',
         'updated_by',
