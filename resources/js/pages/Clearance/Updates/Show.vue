@@ -9,42 +9,197 @@ import {
     History,
     FileBarChart,
     ChevronLeft,
+    ChevronRight,
     CheckCircle,
-    XCircle,
     StopCircle,
+    RotateCcw,
     Trash2,
     CalendarClock,
     Search,
     Plus,
 } from 'lucide-vue-next';
-import { ref, computed, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
+import { index as accountabilitiesIndex } from '@/routes/clearance/accountabilities';
 import * as updateRoutes from '@/routes/clearance/updates';
 
 const props = defineProps<{
     update: any;
-    logs: any[];
+    logs: {
+        data: any[];
+        meta: {
+            current_page: number;
+            from: number | null;
+            last_page: number;
+            per_page: number;
+            to: number | null;
+            total: number;
+        };
+        links: {
+            url: string | null;
+            label: string;
+            active: boolean;
+        }[];
+    };
     semesters: any[];
     types: any[];
-    allOffices: any[];
+    allOffices: {
+        id: number;
+        name: string;
+        code: string | null;
+        category: 'academic' | 'support' | 'administration';
+    }[];
+    configuredOfficeIds: number[];
     students: {
         id: number;
         name: string;
         student_no: string | null;
         campus_id: number | null;
     }[];
-    applications: any[];
+    applications: {
+        data: any[];
+        meta: {
+            current_page: number;
+            from: number | null;
+            last_page: number;
+            per_page: number;
+            to: number | null;
+            total: number;
+        };
+        links: {
+            url: string | null;
+            label: string;
+            active: boolean;
+        }[];
+    };
+    applicationFilters: {
+        applications_search?: string;
+    };
+    accountabilitySummary: {
+        total: number;
+        pending: number;
+        resolved: number;
+        waived: number;
+        affected_students: number;
+        outstanding_amount: number;
+        posted_offices: number;
+        total_offices: number;
+        offices: {
+            id: number;
+            name: string;
+            posted: boolean;
+            finalized_at: string | null;
+        }[];
+    };
     can: any;
 }>();
 
-const activeTab = ref('overview');
+type ClearanceUpdateTab =
+    | 'overview'
+    | 'offices'
+    | 'applications'
+    | 'accountabilities'
+    | 'uploads'
+    | 'reports'
+    | 'logs';
+
+const clearanceUpdateTabs: ClearanceUpdateTab[] = [
+    'overview',
+    'offices',
+    'applications',
+    'accountabilities',
+    'uploads',
+    'reports',
+    'logs',
+];
+
+const tabFromUrl = (): ClearanceUpdateTab => {
+    if (typeof window === 'undefined') {
+        return 'overview';
+    }
+
+    const tab = window.location.hash.slice(1);
+
+    return clearanceUpdateTabs.includes(tab as ClearanceUpdateTab)
+        ? (tab as ClearanceUpdateTab)
+        : 'overview';
+};
+
+const activeTab = ref<ClearanceUpdateTab>(tabFromUrl());
+
+const selectTab = (tab: string) => {
+    if (!clearanceUpdateTabs.includes(tab as ClearanceUpdateTab)) {
+        return;
+    }
+
+    const selectedTab = tab as ClearanceUpdateTab;
+    activeTab.value = selectedTab;
+
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const url = new URL(window.location.href);
+    url.hash = selectedTab === 'overview' ? '' : selectedTab;
+    window.history.replaceState(window.history.state, '', url);
+};
+
+const syncTabFromUrl = () => {
+    activeTab.value = tabFromUrl();
+};
+
+const navigateLogs = (url: string | null) => {
+    if (!url) {
+        return;
+    }
+
+    router.visit(`${url}#logs`, {
+        only: ['logs'],
+        preserveScroll: true,
+        preserveState: true,
+        replace: true,
+        onSuccess: () => {
+            activeTab.value = 'logs';
+        },
+    });
+};
+
+const navigateApplications = (url: string | null) => {
+    if (!url) {
+        return;
+    }
+
+    router.visit(`${url}#applications`, {
+        only: ['applications', 'applicationFilters'],
+        preserveScroll: true,
+        preserveState: true,
+        replace: true,
+        onSuccess: () => {
+            activeTab.value = 'applications';
+        },
+    });
+};
+
+onMounted(() => {
+    window.addEventListener('hashchange', syncTabFromUrl);
+});
+
+onBeforeUnmount(() => {
+    window.removeEventListener('hashchange', syncTabFromUrl);
+});
+
 const extendModalOpen = ref(false);
+const reopenModalOpen = ref(false);
 
 const extendForm = useForm({
     end_date: props.update.end_date,
     remarks: '',
+});
+const reopenForm = useForm({
+    status: 'published',
+    reason: '',
 });
 
 const editModalOpen = ref(false);
@@ -69,8 +224,14 @@ const selectedEditSemester = computed(() =>
 
 const filteredEditTypes = computed(() => {
     const siteCampusId = selectedEditSemester.value?.site_campus_id;
-    if (!siteCampusId) return props.types;
-    return props.types.filter((type: any) => type.campus_id === siteCampusId);
+
+    if (!siteCampusId) {
+        return props.types;
+    }
+
+    return props.types.filter(
+        (type: any) => Number(type.campus_id) === Number(siteCampusId),
+    );
 });
 
 const selectedEditType = computed(() =>
@@ -79,18 +240,30 @@ const selectedEditType = computed(() =>
     ),
 );
 
-watch(() => editForm.semester_id, () => {
-    const siteCampusId = selectedEditSemester.value?.site_campus_id;
-    if (siteCampusId && selectedEditType.value && selectedEditType.value.campus_id !== siteCampusId) {
-        editForm.clearance_type_id = '';
-    }
-});
+watch(
+    () => editForm.semester_id,
+    () => {
+        const siteCampusId = selectedEditSemester.value?.site_campus_id;
+
+        if (
+            siteCampusId &&
+            selectedEditType.value &&
+            Number(selectedEditType.value.campus_id) !== Number(siteCampusId)
+        ) {
+            editForm.clearance_type_id = '';
+        }
+    },
+);
 const filteredEditStudents = computed(() => {
     const query = editStudentSearch.value.trim().toLowerCase();
     const campusId = selectedEditSemester.value?.campus_id;
 
     return props.students
-        .filter((student) => !campusId || student.campus_id === campusId)
+        .filter(
+            (student) =>
+                !campusId ||
+                Number(student.campus_id) === Number(campusId),
+        )
         .filter(
             (student) =>
                 !query ||
@@ -117,8 +290,15 @@ const confirmModal = ref({
     compact: false,
 });
 
-const officeModalOpen = ref(false);
 const officeSearch = ref('');
+const initialOfficeIds =
+    props.update.offices?.length > 0
+        ? props.update.offices.map((office: any) => office.office.id)
+        : props.configuredOfficeIds;
+const officeForm = useForm({
+    office_ids: [...initialOfficeIds] as number[],
+});
+
 const filteredOffices = computed(() => {
     if (!officeSearch.value) {
         return props.allOffices;
@@ -130,30 +310,50 @@ const filteredOffices = computed(() => {
 });
 
 const isOfficeSelected = (id: number) => {
-    return props.update.offices.some((o: any) => o.office.id === id);
+    return officeForm.office_ids.includes(id);
 };
 
-const studentSearch = ref('');
-const filteredApplications = computed(() => {
-    if (!props.applications) {
-        return [];
-    }
+const isConfiguredOffice = (id: number) => {
+    return props.configuredOfficeIds.includes(id);
+};
 
-    if (!studentSearch.value) {
-        return props.applications;
-    }
+const toggleOffice = (id: number) => {
+    officeForm.office_ids = isOfficeSelected(id)
+        ? officeForm.office_ids.filter((officeId) => officeId !== id)
+        : [...officeForm.office_ids, id];
+};
 
-    const search = studentSearch.value.toLowerCase();
+const loadConfiguredOffices = () => {
+    officeForm.office_ids = [...props.configuredOfficeIds];
+};
 
-    return props.applications.filter(
-        (app: any) =>
-            app.student?.name?.toLowerCase().includes(search) ||
-            false ||
-            app.student?.student_id?.toLowerCase().includes(search) ||
-            false ||
-            app.reference_no?.toLowerCase().includes(search) ||
-            false,
-    );
+const saveOffices = () => {
+    officeForm.post(updateRoutes.syncOffices.url(props.update.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            officeForm.defaults('office_ids', [...officeForm.office_ids]);
+            selectTab('offices');
+        },
+    });
+};
+
+const studentSearch = ref(props.applicationFilters.applications_search ?? '');
+let applicationSearchTimer: ReturnType<typeof setTimeout> | undefined;
+
+watch(studentSearch, (value) => {
+    window.clearTimeout(applicationSearchTimer);
+    applicationSearchTimer = window.setTimeout(() => {
+        const search = value.trim();
+        const url = updateRoutes.show.url(props.update.id, {
+            query: search ? { applications_search: search } : {},
+        });
+
+        navigateApplications(url);
+    }, 350);
+});
+
+onBeforeUnmount(() => {
+    window.clearTimeout(applicationSearchTimer);
 });
 
 const statusColor = (status: string) => {
@@ -233,6 +433,23 @@ const closeUpdate = () => {
         loading: false,
         compact: false,
     };
+};
+
+const openReopenModal = () => {
+    reopenForm.reset();
+    reopenForm.status = 'published';
+    reopenForm.clearErrors();
+    reopenModalOpen.value = true;
+};
+
+const reopenUpdate = () => {
+    reopenForm.post(updateRoutes.reopen.url(props.update.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            reopenModalOpen.value = false;
+            reopenForm.reset();
+        },
+    });
 };
 
 const deleteApplication = (application: any) => {
@@ -321,12 +538,12 @@ const tabs = computed(() => [
     { id: 'overview', name: 'Overview', icon: FileText },
     {
         id: 'offices',
-        name: `Participating Offices (${props.update.offices?.length || 0})`,
+        name: `Participating Offices (${officeForm.office_ids.length})`,
         icon: Building2,
     },
     {
         id: 'applications',
-        name: `Student Applications (${props.applications?.length || 0})`,
+        name: `Student Applications (${props.applications.meta.total})`,
         icon: Users,
     },
     { id: 'accountabilities', name: 'Accountabilities', icon: AlertCircle },
@@ -334,7 +551,7 @@ const tabs = computed(() => [
     { id: 'reports', name: 'Reports', icon: FileBarChart },
     {
         id: 'logs',
-        name: `Audit Logs (${props.logs?.length || 0})`,
+        name: `Audit Logs (${props.logs.meta.total})`,
         icon: History,
     },
 ]);
@@ -349,61 +566,22 @@ const statusClass = (status: string) => {
             return 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300';
     }
 };
-const syncOffices = () => {
-    router.post(
-        `/student-services/clearance/updates/${props.update.id}/sync-offices`,
-    );
-};
-
-const toggleOffice = (id: number) => {
-    router.post(
-        `/student-services/clearance/updates/${props.update.id}/toggle-office`,
-        {
-            office_id: id,
-        },
-        {
-            preserveScroll: true,
-        },
-    );
-};
-
-const removeOffice = (id: number) => {
-    confirmModal.value = {
-        show: true,
-        title: 'Remove Office',
-        description: 'Remove this office from the clearance period?',
-        confirmText: 'Remove',
-        variant: 'destructive',
-        compact: true,
-        action: () => {
-            router.delete(
-                `/student-services/clearance/updates/${props.update.id}/offices/${id}`,
-                {
-                    preserveScroll: true,
-                    onStart: () => (confirmModal.value.loading = true),
-                    onFinish: () => {
-                        confirmModal.value.loading = false;
-                        confirmModal.value.show = false;
-                    },
-                },
-            );
-        },
-        loading: false,
-    };
-};
-
 const actionColor = (action: string) => {
     switch (action) {
         case 'PUBLISHED':
             return 'text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 dark:text-emerald-400';
         case 'CLOSED':
             return 'text-slate-600 bg-slate-50 dark:bg-white/5 dark:text-slate-400';
+        case 'REOPENED':
+            return 'text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 dark:text-emerald-400';
         case 'EXTEND_PERIOD':
             return 'text-indigo-600 bg-indigo-50 dark:bg-indigo-500/10 dark:text-indigo-400';
         case 'OFFICE_ADDED':
             return 'text-blue-600 bg-blue-50 dark:bg-blue-500/10 dark:text-blue-400';
         case 'OFFICE_REMOVED':
             return 'text-red-600 bg-red-50 dark:bg-red-500/10 dark:text-red-400';
+        case 'OFFICES_UPDATED':
+            return 'text-blue-600 bg-blue-50 dark:bg-blue-500/10 dark:text-blue-400';
         case 'APPLICATION_REMOVED':
             return 'text-rose-600 bg-rose-50 dark:bg-rose-500/10 dark:text-rose-400';
         default:
@@ -443,6 +621,12 @@ const actionColor = (action: string) => {
                         </span>
                     </div>
                     <p class="text-xs text-slate-500">
+                        <span
+                            v-if="update.reference_code"
+                            class="font-mono font-semibold"
+                        >
+                            {{ update.reference_code }} ·
+                        </span>
                         {{ update.semester.academic_year }} -
                         {{ update.semester.term }} -
                         {{ update.semester.campus_name }} |
@@ -484,6 +668,15 @@ const actionColor = (action: string) => {
                     Close Update
                 </Button>
                 <Button
+                    v-if="update.status === 'closed' && can.reopen"
+                    variant="outline"
+                    class="h-8 gap-1.5 border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
+                    @click="openReopenModal"
+                >
+                    <RotateCcw class="h-3.5 w-3.5" />
+                    Reopen Update
+                </Button>
+                <Button
                     v-if="update.status === 'draft' && can.edit"
                     variant="outline"
                     class="h-8 text-xs font-bold"
@@ -509,7 +702,7 @@ const actionColor = (action: string) => {
             <button
                 v-for="tab in tabs"
                 :key="tab.id"
-                @click="activeTab = tab.id"
+                @click="selectTab(tab.id)"
                 :class="[
                     'flex items-center gap-2 border-b-2 px-4 py-2 text-xs font-medium transition-colors',
                     activeTab === tab.id
@@ -682,131 +875,142 @@ const actionColor = (action: string) => {
 
             <div
                 v-if="activeTab === 'offices'"
-                class="rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
+                class="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
             >
                 <div
-                    class="flex items-center justify-between border-b border-slate-100 p-4 dark:border-white/10"
+                    class="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-white/10"
                 >
-                    <h3
-                        class="text-sm font-bold text-slate-900 dark:text-white"
+                    <div>
+                        <h3
+                            class="text-sm font-bold text-slate-900 dark:text-white"
+                        >
+                            Participating Offices
+                        </h3>
+                        <p class="mt-0.5 text-[10px] text-slate-500">
+                            Offices tagged on the
+                            <span class="font-semibold">{{
+                                update.type.name
+                            }}</span>
+                            clearance type are selected by default.
+                        </p>
+                    </div>
+                    <div
+                        v-if="update.status === 'draft'"
+                        class="flex flex-wrap items-center gap-2"
                     >
-                        Participating Offices
-                    </h3>
-                    <div class="flex gap-2">
                         <Button
-                            v-if="update.status === 'draft'"
                             variant="outline"
                             size="sm"
                             class="h-7 text-[10px] font-bold"
-                            @click="officeModalOpen = true"
-                            >Manage Offices</Button
+                            :disabled="configuredOfficeIds.length === 0"
+                            @click="loadConfiguredOffices"
                         >
+                            Load Tagged Offices
+                        </Button>
                         <Button
-                            v-if="update.status === 'draft'"
-                            variant="outline"
                             size="sm"
-                            class="h-7 text-[10px] font-bold"
-                            @click="syncOffices"
-                            >Assign All Offices</Button
+                            class="h-7 bg-emerald-600 text-[10px] font-bold text-white hover:bg-emerald-700"
+                            :disabled="
+                                officeForm.processing ||
+                                officeForm.office_ids.length === 0
+                            "
+                            @click="saveOffices"
                         >
+                            {{
+                                officeForm.processing
+                                    ? 'Saving...'
+                                    : 'Save Offices'
+                            }}
+                        </Button>
                     </div>
                 </div>
-                <div class="p-8 text-center" v-if="update.offices.length === 0">
-                    <p class="text-xs text-slate-400">
-                        No participating offices added yet.
+
+                <div class="border-b border-slate-100 p-4 dark:border-white/10">
+                    <div
+                        class="flex flex-col gap-3 sm:flex-row sm:items-center"
+                    >
+                        <div class="relative flex-1">
+                            <Search
+                                class="absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-slate-400"
+                            />
+                            <input
+                                v-model="officeSearch"
+                                type="search"
+                                placeholder="Search offices..."
+                                class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pr-3 pl-9 text-xs text-slate-900 focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-white/5 dark:text-slate-100"
+                            />
+                        </div>
+                        <div
+                            class="flex shrink-0 items-center gap-2 text-[10px] font-semibold text-slate-500"
+                        >
+                            <span
+                                class="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
+                            >
+                                {{ officeForm.office_ids.length }} selected
+                            </span>
+                            <span
+                                class="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"
+                            >
+                                {{ configuredOfficeIds.length }} tagged
+                            </span>
+                        </div>
+                    </div>
+                    <InputError :message="officeForm.errors.office_ids" />
+                </div>
+
+                <div class="grid gap-2 p-4 sm:grid-cols-2 xl:grid-cols-3">
+                    <label
+                        v-for="office in filteredOffices"
+                        :key="office.id"
+                        :class="[
+                            'flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors',
+                            isOfficeSelected(office.id)
+                                ? 'border-emerald-300 bg-emerald-50/60 dark:border-emerald-500/30 dark:bg-emerald-500/10'
+                                : 'border-slate-200 hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5',
+                            update.status !== 'draft'
+                                ? 'pointer-events-none'
+                                : '',
+                        ]"
+                    >
+                        <input
+                            type="checkbox"
+                            :checked="isOfficeSelected(office.id)"
+                            :disabled="update.status !== 'draft'"
+                            class="mt-0.5 size-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-slate-600 dark:bg-slate-900"
+                            @change="toggleOffice(office.id)"
+                        />
+                        <span class="min-w-0 flex-1">
+                            <span
+                                class="flex items-center justify-between gap-2"
+                            >
+                                <span
+                                    class="truncate text-xs font-semibold text-slate-800 dark:text-slate-100"
+                                >
+                                    {{ office.name }}
+                                </span>
+                                <span
+                                    v-if="isConfiguredOffice(office.id)"
+                                    class="shrink-0 rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold text-blue-700 uppercase dark:bg-blue-500/15 dark:text-blue-300"
+                                >
+                                    Tagged
+                                </span>
+                            </span>
+                            <span
+                                v-if="office.code"
+                                class="mt-0.5 block font-mono text-[10px] text-slate-400"
+                            >
+                                {{ office.code }}
+                            </span>
+                        </span>
+                    </label>
+
+                    <p
+                        v-if="filteredOffices.length === 0"
+                        class="col-span-full py-8 text-center text-xs text-slate-400"
+                    >
+                        No offices match your search.
                     </p>
                 </div>
-                <table
-                    v-else
-                    class="min-w-full divide-y divide-slate-100 dark:divide-white/10"
-                >
-                    <thead class="bg-slate-50/50 dark:bg-white/5">
-                        <tr>
-                            <th
-                                class="px-4 py-3 text-left text-[10px] font-bold text-slate-400 uppercase"
-                            >
-                                Office
-                            </th>
-                            <th
-                                class="px-4 py-3 text-left text-[10px] font-bold text-slate-400 uppercase"
-                            >
-                                Required
-                            </th>
-                            <th
-                                class="px-4 py-3 text-left text-[10px] font-bold text-slate-400 uppercase"
-                            >
-                                Upload Acc.
-                            </th>
-                            <th
-                                class="px-4 py-3 text-left text-[10px] font-bold text-slate-400 uppercase"
-                            >
-                                Resolve Acc.
-                            </th>
-                            <th
-                                class="px-4 py-3 text-right text-[10px] font-bold text-slate-400 uppercase"
-                            >
-                                Actions
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-50 dark:divide-white/5">
-                        <tr v-for="off in update.offices" :key="off.id">
-                            <td class="px-4 py-3 text-xs font-medium">
-                                {{ off.office.name }}
-                            </td>
-                            <td class="px-4 py-3 text-[10px] text-slate-500">
-                                <span
-                                    v-if="off.is_required"
-                                    class="rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
-                                    >Yes</span
-                                >
-                                <span
-                                    v-else
-                                    class="rounded bg-slate-50 px-1.5 py-0.5 text-slate-500 dark:bg-white/5"
-                                    >No</span
-                                >
-                            </td>
-                            <td class="px-4 py-3">
-                                <CheckCircle
-                                    v-if="off.can_upload_accountability"
-                                    class="h-4 w-4 text-emerald-500"
-                                />
-                                <XCircle
-                                    v-else
-                                    class="h-4 w-4 text-slate-300 dark:text-slate-600"
-                                />
-                            </td>
-                            <td class="px-4 py-3">
-                                <CheckCircle
-                                    v-if="off.can_resolve_accountability"
-                                    class="h-4 w-4 text-emerald-500"
-                                />
-                                <XCircle
-                                    v-else
-                                    class="h-4 w-4 text-slate-300 dark:text-slate-600"
-                                />
-                            </td>
-                            <td class="px-4 py-3 text-right">
-                                <Button
-                                    v-if="update.status === 'draft'"
-                                    variant="ghost"
-                                    size="sm"
-                                    class="h-7 w-7 p-0 text-red-500 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
-                                    @click="removeOffice(off.office.id)"
-                                >
-                                    <Trash2 class="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                    v-else
-                                    variant="ghost"
-                                    size="sm"
-                                    class="h-7 w-7 p-0"
-                                    ><MoreHorizontal class="h-4 w-4"
-                                /></Button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
             </div>
 
             <div v-if="activeTab === 'applications'" class="space-y-4">
@@ -856,7 +1060,7 @@ const actionColor = (action: string) => {
                             class="divide-y divide-slate-50 dark:divide-white/5"
                         >
                             <tr
-                                v-for="app in filteredApplications"
+                                v-for="app in applications.data"
                                 :key="app.id"
                                 class="hover:bg-slate-50 dark:hover:bg-white/5"
                             >
@@ -939,7 +1143,7 @@ const actionColor = (action: string) => {
                                     </div>
                                 </td>
                             </tr>
-                            <tr v-if="filteredApplications.length === 0">
+                            <tr v-if="applications.data.length === 0">
                                 <td
                                     colspan="5"
                                     class="p-8 text-center text-xs text-slate-400"
@@ -949,38 +1153,214 @@ const actionColor = (action: string) => {
                             </tr>
                         </tbody>
                     </table>
+                    <div
+                        v-if="applications.meta.last_page > 1"
+                        class="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-white/10"
+                    >
+                        <p class="text-[10px] text-slate-500">
+                            Showing {{ applications.meta.from }}–{{
+                                applications.meta.to
+                            }}
+                            of {{ applications.meta.total }} applications
+                        </p>
+                        <div class="flex items-center gap-2">
+                            <button
+                                type="button"
+                                class="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 px-3 text-[10px] font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+                                :disabled="applications.meta.current_page === 1"
+                                @click="
+                                    navigateApplications(
+                                        applications.links[0]?.url,
+                                    )
+                                "
+                            >
+                                <ChevronLeft class="h-3.5 w-3.5" />
+                                Previous
+                            </button>
+                            <span class="text-[10px] text-slate-500">
+                                {{ applications.meta.current_page }} /
+                                {{ applications.meta.last_page }}
+                            </span>
+                            <button
+                                type="button"
+                                class="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 px-3 text-[10px] font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+                                :disabled="
+                                    applications.meta.current_page ===
+                                    applications.meta.last_page
+                                "
+                                @click="
+                                    navigateApplications(
+                                        applications.links[
+                                            applications.links.length - 1
+                                        ]?.url,
+                                    )
+                                "
+                            >
+                                Next
+                                <ChevronRight class="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <div v-if="activeTab === 'accountabilities'" class="space-y-4">
-                <div class="flex items-center justify-between">
-                    <h3
-                        class="text-sm font-bold text-slate-900 dark:text-white"
-                    >
-                        Accountability Management
-                    </h3>
-                    <div class="flex gap-2">
-                        <Link
-                            :href="`/student-services/clearance/updates/${update.id}/accountabilities`"
-                            class="inline-flex h-8 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700"
+                <div
+                    class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                    <div>
+                        <h3
+                            class="text-sm font-semibold text-slate-900 dark:text-white"
                         >
-                            <Plus class="h-3.5 w-3.5" />
-                            Manage Accountabilities
-                        </Link>
+                            Accountability Summary
+                        </h3>
+                        <p class="mt-0.5 text-[10px] text-slate-500">
+                            Current encoding, resolution, and office posting
+                            progress.
+                        </p>
+                    </div>
+                    <Link
+                        :href="accountabilitiesIndex.url(update.id)"
+                        class="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-4 text-xs font-medium text-white hover:bg-emerald-700"
+                    >
+                        <Plus class="h-3.5 w-3.5" />
+                        Manage Accountabilities
+                    </Link>
+                </div>
+
+                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div
+                        class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950"
+                    >
+                        <p
+                            class="text-[9px] font-medium text-slate-400 uppercase"
+                        >
+                            Total Accountabilities
+                        </p>
+                        <p
+                            class="mt-2 text-2xl font-semibold text-slate-900 dark:text-white"
+                        >
+                            {{ accountabilitySummary.total }}
+                        </p>
+                        <p class="mt-1 text-[10px] text-slate-500">
+                            {{ accountabilitySummary.affected_students }}
+                            affected student(s)
+                        </p>
+                    </div>
+                    <div
+                        class="rounded-xl border border-red-100 bg-red-50/50 p-4 dark:border-red-500/20 dark:bg-red-500/5"
+                    >
+                        <p
+                            class="text-[9px] font-medium text-red-500 uppercase"
+                        >
+                            Pending
+                        </p>
+                        <p
+                            class="mt-2 text-2xl font-semibold text-red-700 dark:text-red-400"
+                        >
+                            {{ accountabilitySummary.pending }}
+                        </p>
+                        <p class="mt-1 text-[10px] text-red-600/80">
+                            ₱{{
+                                Number(
+                                    accountabilitySummary.outstanding_amount,
+                                ).toLocaleString(undefined, {
+                                    minimumFractionDigits: 2,
+                                })
+                            }}
+                            outstanding
+                        </p>
+                    </div>
+                    <div
+                        class="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4 dark:border-emerald-500/20 dark:bg-emerald-500/5"
+                    >
+                        <p
+                            class="text-[9px] font-medium text-emerald-600 uppercase"
+                        >
+                            Resolved
+                        </p>
+                        <p
+                            class="mt-2 text-2xl font-semibold text-emerald-700 dark:text-emerald-400"
+                        >
+                            {{ accountabilitySummary.resolved }}
+                        </p>
+                        <p class="mt-1 text-[10px] text-emerald-600/80">
+                            {{ accountabilitySummary.waived }} waived
+                        </p>
+                    </div>
+                    <div
+                        class="rounded-xl border border-amber-100 bg-amber-50/50 p-4 dark:border-amber-500/20 dark:bg-amber-500/5"
+                    >
+                        <p
+                            class="text-[9px] font-medium text-amber-600 uppercase"
+                        >
+                            Offices Posted
+                        </p>
+                        <p
+                            class="mt-2 text-2xl font-semibold text-amber-700 dark:text-amber-400"
+                        >
+                            {{ accountabilitySummary.posted_offices }}/{{
+                                accountabilitySummary.total_offices
+                            }}
+                        </p>
+                        <p class="mt-1 text-[10px] text-amber-600/80">
+                            Encoding completion
+                        </p>
                     </div>
                 </div>
+
                 <div
-                    class="rounded-xl border border-slate-200 bg-white p-12 text-center dark:border-white/10 dark:bg-slate-950"
+                    class="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
                 >
-                    <p class="text-sm text-slate-500">
-                        View and manage student accountabilities for this
-                        clearance period.
-                    </p>
-                    <Link
-                        :href="`/student-services/clearance/updates/${update.id}/accountabilities`"
-                        class="mt-4 inline-flex text-xs font-bold text-emerald-600 hover:underline"
-                        >View All Accountabilities →</Link
+                    <div
+                        class="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-white/10"
                     >
+                        <div>
+                            <h4
+                                class="text-xs font-semibold text-slate-800 dark:text-white"
+                            >
+                                Office Posting Progress
+                            </h4>
+                            <p class="text-[10px] text-slate-500">
+                                Students receive final results after all
+                                relevant offices post.
+                            </p>
+                        </div>
+                        <span
+                            class="rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
+                        >
+                            {{ accountabilitySummary.posted_offices }} posted
+                        </span>
+                    </div>
+                    <div
+                        v-if="accountabilitySummary.offices.length > 0"
+                        class="grid gap-2 p-4 sm:grid-cols-2 lg:grid-cols-3"
+                    >
+                        <div
+                            v-for="office in accountabilitySummary.offices"
+                            :key="office.id"
+                            class="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/50 px-3 py-2.5 dark:border-white/5 dark:bg-white/[0.03]"
+                        >
+                            <span
+                                class="truncate text-[11px] font-medium text-slate-700 dark:text-slate-300"
+                            >
+                                {{ office.name }}
+                            </span>
+                            <span
+                                :class="[
+                                    'shrink-0 rounded-full px-2 py-0.5 text-[8px] font-medium',
+                                    office.posted
+                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
+                                        : 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400',
+                                ]"
+                            >
+                                {{ office.posted ? 'Posted' : 'Pending' }}
+                            </span>
+                        </div>
+                    </div>
+                    <p v-else class="p-8 text-center text-xs text-slate-400">
+                        No participating offices configured.
+                    </p>
                 </div>
             </div>
 
@@ -995,7 +1375,7 @@ const actionColor = (action: string) => {
                         Audit Trail
                     </h3>
                 </div>
-                <div class="p-4" v-if="logs.length === 0">
+                <div class="p-4" v-if="logs.data.length === 0">
                     <p class="text-center text-xs text-slate-400">
                         No activity logged yet.
                     </p>
@@ -1005,7 +1385,7 @@ const actionColor = (action: string) => {
                     class="relative space-y-4 p-4 before:absolute before:top-4 before:bottom-4 before:left-[21px] before:w-0.5 before:bg-slate-100 dark:before:bg-white/5"
                 >
                     <div
-                        v-for="log in logs"
+                        v-for="log in logs.data"
                         :key="log.id"
                         class="relative pl-10"
                     >
@@ -1057,7 +1437,135 @@ const actionColor = (action: string) => {
                         </div>
                     </div>
                 </div>
+                <div
+                    v-if="logs.meta.last_page > 1"
+                    class="flex items-center justify-between border-t border-slate-100 px-4 py-3 dark:border-white/10"
+                >
+                    <p class="text-[10px] text-slate-500">
+                        Showing {{ logs.meta.from }}–{{ logs.meta.to }} of
+                        {{ logs.meta.total }} entries
+                    </p>
+                    <div class="flex items-center gap-2">
+                        <button
+                            type="button"
+                            class="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 px-3 text-[10px] font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+                            :disabled="logs.meta.current_page === 1"
+                            @click="navigateLogs(logs.links[0]?.url)"
+                        >
+                            <ChevronLeft class="h-3.5 w-3.5" />
+                            Previous
+                        </button>
+                        <span class="text-[10px] text-slate-500">
+                            {{ logs.meta.current_page }} /
+                            {{ logs.meta.last_page }}
+                        </span>
+                        <button
+                            type="button"
+                            class="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 px-3 text-[10px] font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+                            :disabled="
+                                logs.meta.current_page === logs.meta.last_page
+                            "
+                            @click="
+                                navigateLogs(
+                                    logs.links[logs.links.length - 1]?.url,
+                                )
+                            "
+                        >
+                            Next
+                            <ChevronRight class="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+                </div>
             </div>
+        </div>
+    </div>
+
+    <div
+        v-if="reopenModalOpen"
+        class="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"
+        @click.self="reopenModalOpen = false"
+    >
+        <div
+            class="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 text-slate-900 shadow-xl dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"
+        >
+            <div class="mb-5 flex items-center gap-3">
+                <div
+                    class="flex size-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
+                >
+                    <RotateCcw class="size-5" />
+                </div>
+                <div>
+                    <h2
+                        class="text-base font-semibold text-slate-900 dark:text-white"
+                    >
+                        Reopen Clearance Update
+                    </h2>
+                    <p class="text-xs text-slate-500">
+                        Select the new status and provide a reason.
+                    </p>
+                </div>
+            </div>
+
+            <form class="grid gap-4" @submit.prevent="reopenUpdate">
+                <div class="grid gap-1.5">
+                    <label
+                        for="reopen-status"
+                        class="text-[11px] font-medium text-slate-600 dark:text-slate-300"
+                    >
+                        Status after reopening
+                    </label>
+                    <select
+                        id="reopen-status"
+                        v-model="reopenForm.status"
+                        class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
+                    >
+                        <option value="published">Published</option>
+                        <option value="draft">Draft</option>
+                    </select>
+                    <InputError :message="reopenForm.errors.status" />
+                </div>
+
+                <div class="grid gap-1.5">
+                    <label
+                        for="reopen-reason"
+                        class="text-[11px] font-medium text-slate-600 dark:text-slate-300"
+                    >
+                        Reason for reopening
+                    </label>
+                    <textarea
+                        id="reopen-reason"
+                        v-model="reopenForm.reason"
+                        rows="4"
+                        required
+                        placeholder="Explain why this clearance update needs to be reopened..."
+                        class="resize-none rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
+                    ></textarea>
+                    <InputError :message="reopenForm.errors.reason" />
+                </div>
+
+                <div class="mt-1 flex justify-end gap-2">
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        class="h-9 px-4 text-xs font-medium"
+                        :disabled="reopenForm.processing"
+                        @click="reopenModalOpen = false"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        type="submit"
+                        class="h-9 bg-emerald-600 px-4 text-xs font-medium text-white hover:bg-emerald-700"
+                        :disabled="reopenForm.processing"
+                    >
+                        {{
+                            reopenForm.processing
+                                ? 'Reopening...'
+                                : 'Reopen Update'
+                        }}
+                    </Button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -1348,79 +1856,6 @@ const actionColor = (action: string) => {
                     >
                 </div>
             </form>
-        </div>
-    </div>
-
-    <!-- Manage Offices Modal -->
-    <div
-        v-if="officeModalOpen"
-        class="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"
-        @click.self="officeModalOpen = false"
-    >
-        <div
-            class="flex max-h-[80vh] w-full max-w-lg flex-col rounded-xl border border-slate-200 bg-white shadow-xl dark:border-white/10 dark:bg-slate-950"
-        >
-            <div class="border-b border-slate-100 p-4 dark:border-white/10">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h2
-                            class="text-sm font-bold text-slate-900 dark:text-white"
-                        >
-                            Manage Participating Offices
-                        </h2>
-                        <p class="text-[10px] text-slate-500">
-                            Select offices to include in this clearance period.
-                        </p>
-                    </div>
-                    <button
-                        class="rounded-lg p-1 hover:bg-slate-100 dark:hover:bg-white/10"
-                        @click="officeModalOpen = false"
-                    >
-                        <XCircle class="h-5 w-5 text-slate-400" />
-                    </button>
-                </div>
-                <div class="relative mt-3">
-                    <Search
-                        class="absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-slate-400"
-                    />
-                    <input
-                        v-model="officeSearch"
-                        type="text"
-                        placeholder="Search offices..."
-                        class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 text-xs text-slate-900 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:placeholder:text-slate-500"
-                    />
-                </div>
-            </div>
-            <div class="flex-1 overflow-y-auto p-2">
-                <div class="grid gap-1">
-                    <label
-                        v-for="office in filteredOffices"
-                        :key="office.id"
-                        class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-white/5"
-                    >
-                        <input
-                            type="checkbox"
-                            :checked="isOfficeSelected(office.id)"
-                            @change="toggleOffice(office.id)"
-                            class="h-4 w-4 rounded border-slate-300 bg-white text-emerald-600 focus:ring-emerald-500 dark:border-slate-600 dark:bg-slate-900"
-                        />
-                        <span
-                            class="text-xs font-medium text-slate-700 dark:text-slate-200"
-                            >{{ office.name }}</span
-                        >
-                    </label>
-                </div>
-            </div>
-            <div
-                class="border-t border-slate-100 p-4 text-right dark:border-white/10"
-            >
-                <Button
-                    variant="ghost"
-                    class="h-8 text-xs font-bold"
-                    @click="officeModalOpen = false"
-                    >Close</Button
-                >
-            </div>
         </div>
     </div>
 </template>

@@ -24,21 +24,23 @@ class StudentSemesterClearanceResource extends JsonResource
             'remarks' => $this->remarks,
             'clearance_update' => [
                 'id' => $this->clearanceUpdate->id,
+                'reference_code' => $this->clearanceUpdate->reference_code,
                 'title' => $this->clearanceUpdate->title,
                 'type' => [
                     'id' => $this->clearanceUpdate->type->id,
                     'name' => $this->clearanceUpdate->type->name,
                 ],
-                'accountabilities' => $this->when($this->relationLoaded('clearanceUpdate') && $this->clearanceUpdate->relationLoaded('accountabilities'), function() {
+                'accountabilities' => $this->when($this->relationLoaded('clearanceUpdate') && $this->clearanceUpdate->relationLoaded('accountabilities'), function () {
                     return ClearanceAccountabilityResource::collection($this->clearanceUpdate->accountabilities);
                 }),
-                'offices' => $this->when($this->relationLoaded('clearanceUpdate') && $this->clearanceUpdate->relationLoaded('offices'), function() {
-                    return $this->clearanceUpdate->offices->map(fn($o) => [
+                'offices' => $this->when($this->relationLoaded('clearanceUpdate') && $this->clearanceUpdate->relationLoaded('offices'), function () {
+                    return $this->clearanceUpdate->offices->map(fn ($o) => [
                         'id' => $o->id,
                         'office' => [
                             'id' => $o->office->id,
                             'name' => $o->office->name,
-                        ]
+                        ],
+                        'finalized_at' => $o->finalized_at?->format('Y-m-d H:i:s'),
                     ]);
                 }),
             ],

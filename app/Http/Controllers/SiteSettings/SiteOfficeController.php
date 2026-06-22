@@ -7,7 +7,10 @@ use App\Http\Requests\SiteSettings\StoreOfficeRequest;
 use App\Http\Requests\SiteSettings\UpdateOfficeRequest;
 use App\Models\Office;
 use App\Models\SiteCampus;
+use App\Services\AcademicApiService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 
 class SiteOfficeController extends Controller
 {
@@ -37,7 +40,7 @@ class SiteOfficeController extends Controller
         return back()->with('success', 'Office deleted successfully.');
     }
 
-    public function fetchColleges(SiteCampus $campus, \App\Services\AcademicApiService $apiService): \Illuminate\Http\JsonResponse
+    public function fetchColleges(SiteCampus $campus, AcademicApiService $apiService): JsonResponse
     {
         $this->authorize('site-settings.edit');
 
@@ -46,16 +49,16 @@ class SiteOfficeController extends Controller
 
         $result = $apiService->getColleges($tenantId);
 
-        if (!empty($result['error'])) {
+        if (! empty($result['error'])) {
             return response()->json(['error' => $result['error']], 400);
         }
 
         return response()->json([
-            'colleges' => $result['data']
+            'colleges' => $result['data'],
         ]);
     }
 
-    public function importColleges(\Illuminate\Http\Request $request, SiteCampus $campus): RedirectResponse
+    public function importColleges(Request $request, SiteCampus $campus): RedirectResponse
     {
         $this->authorize('site-settings.edit');
 
@@ -70,14 +73,15 @@ class SiteOfficeController extends Controller
             $exists = $campus->offices()
                 ->where(function ($query) use ($college) {
                     $query->where('name', $college['name'])
-                          ->orWhere('code', $college['code']);
+                        ->orWhere('code', $college['code']);
                 })
                 ->exists();
 
-            if (!$exists) {
+            if (! $exists) {
                 $campus->offices()->create([
                     'name' => $college['name'],
                     'code' => $college['code'],
+                    'category' => Office::CATEGORY_ACADEMIC,
                     'description' => 'Imported from Academic API College List',
                 ]);
                 $importedCount++;

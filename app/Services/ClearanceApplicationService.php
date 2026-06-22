@@ -18,7 +18,7 @@ class ClearanceApplicationService
     public function applyForClearance(User $student, ClearanceUpdate $update): StudentSemesterClearance
     {
         return DB::transaction(function () use ($student, $update) {
-            $status = $this->determineClearanceStatus($student->id, $update->id);
+            $status = StudentSemesterClearance::STATUS_PENDING_REVIEW;
 
             $clearance = StudentSemesterClearance::create([
                 'clearance_update_id' => $update->id,
@@ -27,7 +27,7 @@ class ClearanceApplicationService
                 'reference_no' => $this->generateReferenceNo(),
                 'status' => $status,
                 'applied_at' => now(),
-                'cleared_at' => $status === StudentSemesterClearance::STATUS_CLEARED ? now() : null,
+                'cleared_at' => null,
             ]);
 
             $this->logAction($clearance, 'applied', null, $status, 'Student applied for clearance.');
@@ -41,12 +41,31 @@ class ClearanceApplicationService
      */
     public function determineClearanceStatus(int $studentId, int $clearanceUpdateId): string
     {
+        $student = User::findOrFail($studentId);
+        $update = ClearanceUpdate::with('offices.office')->findOrFail($clearanceUpdateId);
+
+        $relevantOffices = $update->offices->filter(function ($updateOffice) use ($student): bool {
+            if (! $updateOffice->is_required || ! $updateOffice->office) {
+                return false;
+            }
+
+            if ($updateOffice->office->category !== \App\Models\Office::CATEGORY_ACADEMIC) {
+                return true;
+            }
+
+            return (int) $updateOffice->office_id === (int) $student->office_id;
+        });
+
+        if ($relevantOffices->contains(fn ($office) => $office->finalized_at === null)) {
+            return StudentSemesterClearance::STATUS_PENDING_REVIEW;
+        }
+
         $hasPending = ClearanceAccountability::where('student_id', $studentId)
             ->where('clearance_update_id', $clearanceUpdateId)
             ->where('status', ClearanceAccountability::STATUS_PENDING)
             ->exists();
 
-        return $hasPending 
+        return $hasPending
             ? StudentSemesterClearance::STATUS_WITH_ACCOUNTABILITY 
             : StudentSemesterClearance::STATUS_CLEARED;
     }
@@ -65,6 +84,8 @@ class ClearanceApplicationService
             
             if ($newStatus === StudentSemesterClearance::STATUS_CLEARED && ! $clearance->cleared_at) {
                 $clearance->cleared_at = now();
+            } elseif ($newStatus !== StudentSemesterClearance::STATUS_CLEARED) {
+                $clearance->cleared_at = null;
             }
 
             $clearance->save();

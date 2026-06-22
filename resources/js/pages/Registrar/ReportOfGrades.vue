@@ -26,7 +26,7 @@ import {
     WifiOff,
 } from 'lucide-vue-next';
 import QRCode from 'qrcode';
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
     Collapsible,
     CollapsibleContent,
@@ -37,6 +37,7 @@ import {
     search as searchReportOfGrades,
 } from '@/routes/admin/registrar/report-of-grades';
 import { print as printCurriculumRoute } from '@/routes/admin/registrar/report-of-grades/curriculum';
+import { show as showClearance } from '@/routes/clearance';
 
 type Campus = {
     id: number | string;
@@ -87,6 +88,33 @@ type YearGroup = {
     semesters: SemesterGroup[];
 };
 
+type ClearanceApplication = {
+    id: number;
+    reference_no: string;
+    status: string;
+    applied_at: string | null;
+    cleared_at: string | null;
+    completed_at: string | null;
+    remarks: string | null;
+    clearance: {
+        reference_code: string;
+        title: string;
+        type: string;
+        start_date: string | null;
+        end_date: string | null;
+    };
+    semester: {
+        academic_year: string;
+        term: string;
+    };
+    accountabilities: {
+        total: number;
+        pending: number;
+        outstanding_amount: number;
+    };
+    can_view: boolean;
+};
+
 type SearchResult = {
     student_no: string;
     campus: Campus;
@@ -101,6 +129,7 @@ type SearchResult = {
         data: CeeDocument[];
         error: string | null;
     };
+    clearanceApplications?: ClearanceApplication[];
     bypass_evaluation?: boolean;
     show_gwa_gpa?: boolean;
     evaluation_error?: string | null;
@@ -117,6 +146,30 @@ const props = defineProps<{
     error: string | null;
 }>();
 
+const studentTabIds = [
+    'student-profile',
+    'report-of-grades',
+    'clearance',
+    'evaluation',
+    'curriculum',
+    'class-schedule',
+    'documents',
+] as const;
+
+type StudentTabId = (typeof studentTabIds)[number];
+
+const studentTabFromUrl = (): StudentTabId => {
+    if (typeof window === 'undefined') {
+        return 'student-profile';
+    }
+
+    const tab = window.location.hash.slice(1);
+
+    return studentTabIds.includes(tab as StudentTabId)
+        ? (tab as StudentTabId)
+        : 'student-profile';
+};
+
 defineOptions({
     layout: {
         breadcrumbs: [
@@ -130,7 +183,7 @@ defineOptions({
 });
 
 const loading = ref(false);
-const activeStudentTab = ref('student-profile');
+const activeStudentTab = ref<StudentTabId>(studentTabFromUrl());
 const expandedCurriculumSems = ref<Record<string, boolean>>({});
 const printPreviewHtml = ref('');
 const printPreviewTitle = ref('');
@@ -154,6 +207,35 @@ const studentTabs = [
     { id: 'class-schedule', label: 'Class Schedule', icon: CalendarDays },
     { id: 'documents', label: 'Documents', icon: FileText },
 ];
+
+const selectStudentTab = (tab: string) => {
+    if (!studentTabIds.includes(tab as StudentTabId)) {
+        return;
+    }
+
+    const selectedTab = tab as StudentTabId;
+    activeStudentTab.value = selectedTab;
+
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const url = new URL(window.location.href);
+    url.hash = selectedTab === 'student-profile' ? '' : selectedTab;
+    window.history.replaceState(window.history.state, '', url);
+};
+
+const syncStudentTabFromUrl = () => {
+    activeStudentTab.value = studentTabFromUrl();
+};
+
+onMounted(() => {
+    window.addEventListener('hashchange', syncStudentTabFromUrl);
+});
+
+onBeforeUnmount(() => {
+    window.removeEventListener('hashchange', syncStudentTabFromUrl);
+});
 
 const selectedCampus = computed(
     () =>
@@ -231,6 +313,42 @@ const ceeDocuments = computed(
 );
 
 const ceeDocumentCount = computed(() => ceeDocuments.value.data.length);
+const clearanceApplications = computed(
+    () => props.result?.clearanceApplications ?? [],
+);
+
+const clearanceStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+        cleared: 'Cleared',
+        completed: 'Completed',
+        pending_review: 'Processing',
+        with_accountability: 'With deficiencies',
+        not_cleared: 'Not cleared',
+    };
+
+    return labels[status] ?? status.replaceAll('_', ' ');
+};
+
+const clearanceStatusClass = (status: string) => {
+    if (status === 'cleared' || status === 'completed') {
+        return 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30';
+    }
+
+    if (status === 'with_accountability' || status === 'not_cleared') {
+        return 'bg-red-50 text-red-700 ring-red-200 dark:bg-red-500/10 dark:text-red-300 dark:ring-red-500/30';
+    }
+
+    return 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30';
+};
+
+const semesterLabel = (application: ClearanceApplication) =>
+    `${application.semester.academic_year} · ${application.semester.term}`;
+
+const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('en-PH', {
+        style: 'currency',
+        currency: 'PHP',
+    }).format(amount);
 
 const groupedCeeDocuments = computed(() => {
     const groups = new Map<
@@ -1627,7 +1745,7 @@ const profileSections = [
                                 ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/20'
                                 : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5'
                         "
-                        @click="activeStudentTab = tab.id"
+                        @click="selectStudentTab(tab.id)"
                     >
                         <component :is="tab.icon" class="h-4 w-4" />
                         {{ tab.label }}
@@ -2134,6 +2252,342 @@ const profileSections = [
                             </div>
                         </article>
                     </div>
+                </div>
+
+                <div
+                    v-else-if="activeStudentTab === 'clearance'"
+                    class="space-y-4"
+                >
+                    <section
+                        class="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
+                    >
+                        <div
+                            class="flex flex-col gap-3 border-b border-slate-100 bg-emerald-50/50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-emerald-500/5"
+                        >
+                            <div class="flex items-center gap-3">
+                                <div
+                                    class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+                                >
+                                    <ClipboardCheck class="size-5" />
+                                </div>
+                                <div>
+                                    <h3
+                                        class="text-sm font-semibold text-slate-900 dark:text-white"
+                                    >
+                                        Clearance Applications
+                                    </h3>
+                                    <p class="text-xs text-slate-500">
+                                        Complete clearance application history
+                                        for {{ result.student_no }}.
+                                    </p>
+                                </div>
+                            </div>
+                            <span
+                                class="inline-flex w-fit rounded-full bg-white px-3 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30"
+                            >
+                                {{ clearanceApplications.length }}
+                                application{{
+                                    clearanceApplications.length === 1
+                                        ? ''
+                                        : 's'
+                                }}
+                            </span>
+                        </div>
+
+                        <div
+                            v-if="clearanceApplications.length === 0"
+                            class="px-4 py-12 text-center"
+                        >
+                            <ClipboardCheck
+                                class="mx-auto size-10 text-slate-300"
+                            />
+                            <p
+                                class="mt-3 text-sm font-medium text-slate-800 dark:text-slate-200"
+                            >
+                                No clearance applications found
+                            </p>
+                            <p class="mt-1 text-xs text-slate-500">
+                                This student has not submitted a clearance
+                                application in Student Hub.
+                            </p>
+                        </div>
+
+                        <div v-else>
+                            <div
+                                class="grid divide-y divide-slate-100 md:hidden dark:divide-white/10"
+                            >
+                                <article
+                                    v-for="application in clearanceApplications"
+                                    :key="application.id"
+                                    class="space-y-3 p-4"
+                                >
+                                    <div
+                                        class="flex items-start justify-between gap-3"
+                                    >
+                                        <div class="min-w-0">
+                                            <p
+                                                class="truncate text-sm font-semibold text-slate-900 dark:text-white"
+                                            >
+                                                {{
+                                                    application.clearance.title
+                                                }}
+                                            </p>
+                                            <p
+                                                class="mt-0.5 text-[11px] text-slate-500"
+                                            >
+                                                {{ application.clearance.type }}
+                                                ·
+                                                {{ semesterLabel(application) }}
+                                            </p>
+                                        </div>
+                                        <span
+                                            :class="[
+                                                'shrink-0 rounded-full px-2.5 py-1 text-[10px] font-medium capitalize ring-1',
+                                                clearanceStatusClass(
+                                                    application.status,
+                                                ),
+                                            ]"
+                                        >
+                                            {{
+                                                clearanceStatusLabel(
+                                                    application.status,
+                                                )
+                                            }}
+                                        </span>
+                                    </div>
+                                    <div
+                                        class="grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3 text-xs dark:bg-white/[0.03]"
+                                    >
+                                        <div>
+                                            <p class="text-slate-400">
+                                                Reference
+                                            </p>
+                                            <p
+                                                class="mt-0.5 font-mono text-slate-700 dark:text-slate-200"
+                                            >
+                                                {{ application.reference_no }}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p class="text-slate-400">
+                                                Applied
+                                            </p>
+                                            <p
+                                                class="mt-0.5 text-slate-700 dark:text-slate-200"
+                                            >
+                                                {{
+                                                    formatDate(
+                                                        application.applied_at ??
+                                                            undefined,
+                                                    )
+                                                }}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p class="text-slate-400">
+                                                Deficiencies
+                                            </p>
+                                            <p
+                                                class="mt-0.5 text-slate-700 dark:text-slate-200"
+                                            >
+                                                {{
+                                                    application.accountabilities
+                                                        .pending
+                                                }}
+                                                pending
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p class="text-slate-400">
+                                                Outstanding
+                                            </p>
+                                            <p
+                                                class="mt-0.5 text-slate-700 dark:text-slate-200"
+                                            >
+                                                {{
+                                                    formatCurrency(
+                                                        application
+                                                            .accountabilities
+                                                            .outstanding_amount,
+                                                    )
+                                                }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        v-if="application.can_view"
+                                        type="button"
+                                        class="inline-flex h-8 items-center gap-1.5 rounded-md border border-emerald-200 px-3 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 dark:border-emerald-500/30 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
+                                        @click="
+                                            router.visit(
+                                                showClearance.url(
+                                                    application.id,
+                                                ),
+                                            )
+                                        "
+                                    >
+                                        View details
+                                        <ExternalLink class="size-3.5" />
+                                    </button>
+                                </article>
+                            </div>
+
+                            <div class="hidden overflow-x-auto md:block">
+                                <table class="w-full text-left">
+                                    <thead>
+                                        <tr
+                                            class="border-b border-slate-100 bg-slate-50/70 text-[10px] tracking-wide text-slate-500 uppercase dark:border-white/10 dark:bg-white/[0.03]"
+                                        >
+                                            <th class="px-4 py-3 font-medium">
+                                                Clearance
+                                            </th>
+                                            <th class="px-4 py-3 font-medium">
+                                                Semester
+                                            </th>
+                                            <th class="px-4 py-3 font-medium">
+                                                Applied
+                                            </th>
+                                            <th class="px-4 py-3 font-medium">
+                                                Status
+                                            </th>
+                                            <th class="px-4 py-3 font-medium">
+                                                Deficiencies
+                                            </th>
+                                            <th
+                                                class="px-4 py-3 text-right font-medium"
+                                            >
+                                                Action
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody
+                                        class="divide-y divide-slate-100 dark:divide-white/10"
+                                    >
+                                        <tr
+                                            v-for="application in clearanceApplications"
+                                            :key="application.id"
+                                            class="hover:bg-slate-50/70 dark:hover:bg-white/[0.03]"
+                                        >
+                                            <td class="px-4 py-3">
+                                                <p
+                                                    class="text-xs font-semibold text-slate-900 dark:text-white"
+                                                >
+                                                    {{
+                                                        application.clearance
+                                                            .title
+                                                    }}
+                                                </p>
+                                                <p
+                                                    class="mt-0.5 text-[10px] text-slate-500"
+                                                >
+                                                    {{
+                                                        application.clearance
+                                                            .type
+                                                    }}
+                                                    ·
+                                                    {{
+                                                        application.reference_no
+                                                    }}
+                                                </p>
+                                            </td>
+                                            <td
+                                                class="px-4 py-3 text-xs text-slate-600 dark:text-slate-300"
+                                            >
+                                                {{ semesterLabel(application) }}
+                                            </td>
+                                            <td
+                                                class="px-4 py-3 text-xs text-slate-600 dark:text-slate-300"
+                                            >
+                                                {{
+                                                    formatDate(
+                                                        application.applied_at ??
+                                                            undefined,
+                                                    )
+                                                }}
+                                            </td>
+                                            <td class="px-4 py-3">
+                                                <span
+                                                    :class="[
+                                                        'inline-flex rounded-full px-2.5 py-1 text-[10px] font-medium capitalize ring-1',
+                                                        clearanceStatusClass(
+                                                            application.status,
+                                                        ),
+                                                    ]"
+                                                >
+                                                    {{
+                                                        clearanceStatusLabel(
+                                                            application.status,
+                                                        )
+                                                    }}
+                                                </span>
+                                            </td>
+                                            <td class="px-4 py-3">
+                                                <p
+                                                    :class="[
+                                                        'text-xs font-medium',
+                                                        application
+                                                            .accountabilities
+                                                            .pending > 0
+                                                            ? 'text-red-600 dark:text-red-400'
+                                                            : 'text-slate-500',
+                                                    ]"
+                                                >
+                                                    {{
+                                                        application
+                                                            .accountabilities
+                                                            .pending
+                                                    }}
+                                                    pending
+                                                </p>
+                                                <p
+                                                    v-if="
+                                                        application
+                                                            .accountabilities
+                                                            .outstanding_amount >
+                                                        0
+                                                    "
+                                                    class="mt-0.5 text-[10px] text-slate-500"
+                                                >
+                                                    {{
+                                                        formatCurrency(
+                                                            application
+                                                                .accountabilities
+                                                                .outstanding_amount,
+                                                        )
+                                                    }}
+                                                </p>
+                                            </td>
+                                            <td class="px-4 py-3 text-right">
+                                                <button
+                                                    v-if="application.can_view"
+                                                    type="button"
+                                                    class="inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
+                                                    @click="
+                                                        router.visit(
+                                                            showClearance.url(
+                                                                application.id,
+                                                            ),
+                                                        )
+                                                    "
+                                                >
+                                                    View
+                                                    <ExternalLink
+                                                        class="size-3.5"
+                                                    />
+                                                </button>
+                                                <span
+                                                    v-else
+                                                    class="text-[10px] text-slate-400"
+                                                >
+                                                    View only
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
                 </div>
 
                 <div

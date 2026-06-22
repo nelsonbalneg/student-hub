@@ -14,6 +14,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'is_required',
     'can_upload_accountability',
     'can_resolve_accountability',
+    'finalized_by',
+    'finalized_at',
 ])]
 class ClearanceUpdateOffice extends Model
 {
@@ -25,6 +27,7 @@ class ClearanceUpdateOffice extends Model
             'is_required' => 'boolean',
             'can_upload_accountability' => 'boolean',
             'can_resolve_accountability' => 'boolean',
+            'finalized_at' => 'datetime',
         ];
     }
 
@@ -36,5 +39,10 @@ class ClearanceUpdateOffice extends Model
     public function office(): BelongsTo
     {
         return $this->belongsTo(Office::class);
+    }
+
+    public function finalizer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'finalized_by');
     }
 }

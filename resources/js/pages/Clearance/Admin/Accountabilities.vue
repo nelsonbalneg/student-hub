@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, setLayoutProps, useForm } from '@inertiajs/vue3';
 import {
     ChevronLeft,
     ChevronRight,
@@ -20,8 +20,19 @@ import {
     AlertTriangle,
     Loader2,
 } from 'lucide-vue-next';
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { Button } from '@/components/ui/button';
+import {
+    finalizeOffice,
+    unfinalizeOffice,
+    index,
+    store,
+} from '@/routes/clearance/accountabilities';
+import { search as searchStudentsRoute } from '@/routes/clearance/accountabilities/students';
+import {
+    index as updatesIndex,
+    show as updateShow,
+} from '@/routes/clearance/updates';
 
 const props = defineProps<{
     update: any;
@@ -30,11 +41,37 @@ const props = defineProps<{
     offices: any;
 }>();
 
-const page = usePage();
+setLayoutProps({
+    breadcrumbs: [
+        {
+            title: 'Student Services',
+            href: '#',
+        },
+        {
+            title: 'Clearance Updates',
+            href: updatesIndex.url(),
+        },
+        {
+            title: props.update.title,
+            href: updateShow.url(props.update.id),
+        },
+        {
+            title: 'Accountabilities',
+            href: index.url(props.update.id),
+        },
+    ],
+});
 
 const search = ref(props.filters.search ?? '');
 const office_id = ref(props.filters.office_id ?? '');
 const status = ref(props.filters.status ?? '');
+
+const selectedOffice = computed(() => {
+    if (!office_id.value) return null;
+    return props.offices.find(
+        (office: any) => office.id === Number(office_id.value),
+    );
+});
 
 const uploadModal = ref(false);
 const uploadForm = useForm({
@@ -43,12 +80,16 @@ const uploadForm = useForm({
 });
 
 const individualModal = ref(false);
+const finalizeForm = useForm({
+    office_id: office_id.value,
+});
+const unfinalizeForm = useForm({
+    office_id: office_id.value,
+    remarks: '',
+});
 const individualForm = useForm({
     student_id: '',
-    office_id:
-        (page.props.auth as any).user.office_id ??
-        props.filters.office_id ??
-        '',
+    office_id: '',
     group_title: '',
     items: [{ title: '', description: '', amount: '' }],
 });
@@ -61,6 +102,7 @@ const confirmationModal = ref({
     message: '',
     action: () => {},
     loading: false,
+    requiresRemarks: false,
 });
 
 const editModal = ref(false);
@@ -76,14 +118,20 @@ const studentsList = ref<any[]>([]);
 const isSearching = ref(false);
 
 const searchStudents = async () => {
-    if (studentSearch.value.length < 2) {
+    if (!individualForm.office_id || studentSearch.value.length < 2) {
         studentsList.value = [];
         return;
     }
     isSearching.value = true;
     try {
         const response = await fetch(
-            `/student-services/clearance/accountabilities/students?search=${studentSearch.value}`,
+            searchStudentsRoute.url({
+                query: {
+                    search: studentSearch.value,
+                    update_id: props.update.id,
+                    office_id: individualForm.office_id,
+                },
+            }),
         );
         studentsList.value = await response.json();
     } catch (e) {
@@ -98,6 +146,15 @@ watch(studentSearch, () => {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(searchStudents, 400);
 });
+
+watch(
+    () => individualForm.office_id,
+    () => {
+        individualForm.student_id = '';
+        studentSearch.value = '';
+        studentsList.value = [];
+    },
+);
 
 const selectStudent = (student: any) => {
     individualForm.student_id = student.id;
@@ -117,7 +174,7 @@ const removeItem = (index: number) => {
 
 const applyFilters = () => {
     router.get(
-        `/student-services/clearance/updates/${props.update.id}/accountabilities`,
+        index.url(props.update.id),
         {
             search: search.value,
             office_id: office_id.value,
@@ -131,6 +188,11 @@ let timeout: any;
 watch([search, office_id, status], () => {
     clearTimeout(timeout);
     timeout = setTimeout(applyFilters, 400);
+});
+
+watch(office_id, (value) => {
+    finalizeForm.office_id = value;
+    unfinalizeForm.office_id = value;
 });
 
 const resolve = (id: number) => {
@@ -154,6 +216,7 @@ const resolve = (id: number) => {
                 },
             );
         },
+        requiresRemarks: false,
     };
 };
 
@@ -178,6 +241,7 @@ const waive = (id: number) => {
                 },
             );
         },
+        requiresRemarks: false,
     };
 };
 
@@ -202,6 +266,7 @@ const reset = (id: number) => {
                 },
             );
         },
+        requiresRemarks: false,
     };
 };
 
@@ -257,17 +322,35 @@ const handleUpdate = () => {
 };
 
 const deleteAcc = (id: number) => {
-    if (
-        confirm(
-            'Are you sure you want to delete this accountability? This action cannot be undone.',
-        )
-    ) {
-        router.delete(`/student-services/clearance/accountabilities/${id}`, {
-            onSuccess: () => {
-                detailsModal.value = false;
-            },
-        });
-    }
+    const children =
+        selectedAcc.value?.children?.data || selectedAcc.value?.children || [];
+    const accountability =
+        selectedAcc.value?.id === id
+            ? selectedAcc.value
+            : children.find((child: any) => child.id === id);
+
+    confirmationModal.value = {
+        show: true,
+        title: 'Delete Accountability',
+        message: `Delete “${accountability?.title || 'this accountability'}”? This action cannot be undone.`,
+        loading: false,
+        action: () => {
+            confirmationModal.value.loading = true;
+            router.delete(
+                `/student-services/clearance/accountabilities/${id}`,
+                {
+                    onSuccess: () => {
+                        confirmationModal.value.show = false;
+                        detailsModal.value = false;
+                    },
+                    onFinish: () => {
+                        confirmationModal.value.loading = false;
+                    },
+                },
+            );
+        },
+        requiresRemarks: false,
+    };
 };
 
 const handleUpload = () => {
@@ -280,16 +363,73 @@ const handleUpload = () => {
 };
 
 const handleIndividualAdd = () => {
-    individualForm.post(
-        `/student-services/clearance/updates/${props.update.id}/accountabilities`,
-        {
-            onSuccess: () => {
-                individualModal.value = false;
-                individualForm.reset();
-                studentSearch.value = '';
-            },
+    individualForm.post(store.url(props.update.id), {
+        onSuccess: () => {
+            individualModal.value = false;
+            individualForm.reset();
+            studentSearch.value = '';
         },
-    );
+    });
+};
+
+const handlePostOffice = () => {
+    const office = selectedOffice.value;
+
+    if (!office || office.finalized_at) {
+        return;
+    }
+
+    confirmationModal.value = {
+        show: true,
+        title: 'Post Office Encoding',
+        message: `Post accountability encoding for ${office.name}? Confirm that all student accountabilities have been encoded. Students will receive their final status only after every relevant office has posted.`,
+        loading: false,
+        action: () => {
+            confirmationModal.value.loading = true;
+            finalizeForm.post(finalizeOffice.url(props.update.id), {
+                preserveScroll: true,
+                onSuccess: () => {
+                    confirmationModal.value.show = false;
+                },
+                onFinish: () => {
+                    confirmationModal.value.loading = false;
+                },
+            });
+        },
+        requiresRemarks: false,
+    };
+};
+
+const handleUnpostOffice = () => {
+    const office = selectedOffice.value;
+
+    if (!office || !office.finalized_at) {
+        return;
+    }
+
+    unfinalizeForm.remarks = '';
+    unfinalizeForm.clearErrors();
+
+    confirmationModal.value = {
+        show: true,
+        title: 'Unpost Office Encoding',
+        message: `Are you sure you want to unpost accountability encoding for ${office.name}? This will allow adding more accountabilities. Note that student clearance statuses will revert to pending review.`,
+        loading: false,
+        action: () => {
+            confirmationModal.value.loading = true;
+            unfinalizeForm.post(unfinalizeOffice.url(props.update.id), {
+                preserveScroll: true,
+                onSuccess: () => {
+                    confirmationModal.value.show = false;
+                    unfinalizeForm.reset('remarks');
+                },
+                onFinish: () => {
+                    confirmationModal.value.loading = false;
+                },
+            });
+        },
+        requiresRemarks: true,
+    };
 };
 
 const statusBadge = (s: string) => {
@@ -322,21 +462,26 @@ const statusBadge = (s: string) => {
                 </div>
                 <div class="grid gap-0.5">
                     <h1
-                        class="text-base font-black tracking-tight text-slate-900"
+                        class="text-base font-semibold tracking-tight text-slate-900"
                     >
                         Accountabilities Center
                     </h1>
                     <div class="flex items-center gap-2">
                         <span
-                            class="text-[9px] font-bold tracking-widest text-slate-400 uppercase"
+                            class="text-[9px] font-medium tracking-widest text-slate-400 uppercase"
                             >{{ props.update.title }}</span
                         >
                         <span
                             class="h-0.5 w-0.5 rounded-full bg-slate-300"
                         ></span>
                         <span
-                            class="text-[9px] font-bold tracking-widest text-indigo-500 uppercase"
+                            class="text-[9px] font-medium tracking-widest text-indigo-500 uppercase"
                             >{{ props.update.semester.academic_year }}</span
+                        >
+                        <span
+                            v-if="props.update.reference_code"
+                            class="rounded bg-emerald-50 px-1.5 py-0.5 font-mono text-[9px] font-medium text-emerald-700"
+                            >{{ props.update.reference_code }}</span
                         >
                     </div>
                 </div>
@@ -344,14 +489,14 @@ const statusBadge = (s: string) => {
             <div class="flex items-center gap-2">
                 <Button
                     variant="outline"
-                    class="h-9 gap-1.5 rounded-lg border-slate-200 px-4 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                    class="h-9 gap-1.5 rounded-lg border-slate-200 px-4 text-xs font-medium text-slate-600 hover:bg-slate-50"
                     @click="uploadModal = true"
                 >
                     <Upload class="h-3.5 w-3.5" />
                     Bulk Upload
                 </Button>
                 <Button
-                    class="h-9 gap-1.5 rounded-lg bg-indigo-600 px-4 text-xs font-bold text-white shadow-md shadow-indigo-600/10 hover:bg-indigo-700"
+                    class="h-9 gap-1.5 rounded-lg bg-indigo-600 px-4 text-xs font-medium text-white shadow-md shadow-indigo-600/10 hover:bg-indigo-700"
                     @click="individualModal = true"
                 >
                     <Plus class="h-3.5 w-3.5" />
@@ -376,83 +521,191 @@ const statusBadge = (s: string) => {
                 />
             </div>
             <select
-                v-model="office_id"
-                class="h-9 rounded-lg border-slate-200 bg-slate-50/50 text-xs font-bold text-slate-600 transition-all focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5"
-            >
-                <option value="">All Departments</option>
-                <option
-                    v-for="office in offices"
-                    :key="office.id"
-                    :value="office.id"
-                >
-                    {{ office.name }}
-                </option>
-            </select>
-            <select
                 v-model="status"
-                class="h-9 rounded-lg border-slate-200 bg-slate-50/50 text-xs font-bold text-slate-600 transition-all focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5"
+                class="h-9 rounded-lg border-slate-200 bg-slate-50/50 text-xs font-medium text-slate-600 transition-all focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5"
             >
                 <option value="">All Statuses</option>
                 <option value="pending">Pending</option>
                 <option value="resolved">Resolved</option>
                 <option value="waived">Waived</option>
             </select>
+            <div class="grid min-w-0 gap-1.5">
+                <div class="flex min-w-0 gap-2">
+                    <select
+                        v-model="office_id"
+                        class="h-9 min-w-0 flex-1 rounded-lg border-slate-200 bg-slate-50/50 text-xs font-medium text-slate-600 transition-all focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5"
+                    >
+                        <option value="">All Departments</option>
+                        <option
+                            v-for="office in offices"
+                            :key="office.id"
+                            :value="office.id"
+                        >
+                            {{ office.name }}
+                            {{ office.finalized_at ? '— Posted' : '' }}
+                        </option>
+                    </select>
+                    <Button
+                        v-if="!selectedOffice?.finalized_at"
+                        variant="outline"
+                        class="h-9 shrink-0 gap-1.5 rounded-lg border-emerald-300 px-3 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                        :disabled="finalizeForm.processing || !selectedOffice"
+                        @click="handlePostOffice"
+                    >
+                        <CheckCircle2 class="h-3.5 w-3.5" />
+                        Post
+                    </Button>
+                    <Button
+                        v-else
+                        variant="outline"
+                        class="h-9 shrink-0 gap-1.5 rounded-lg border-red-300 px-3 text-xs font-medium text-red-700 hover:bg-red-50"
+                        :disabled="finalizeForm.processing"
+                        @click="handleUnpostOffice"
+                    >
+                        <XCircle class="h-3.5 w-3.5" />
+                        Unpost
+                    </Button>
+                </div>
+                <p
+                    class="truncate px-1 text-[10px] font-semibold text-slate-500"
+                >
+                    <template v-if="selectedOffice">
+                        Posting office:
+                        <span class="font-medium text-indigo-600">
+                            {{ selectedOffice.name }}
+                        </span>
+                    </template>
+                    <template v-else>
+                        Select an office to post its encoding.
+                    </template>
+                </p>
+            </div>
         </div>
 
         <!-- Compact Data Grid -->
         <div
             class="flex flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
         >
+            <div
+                v-if="selectedOffice && selectedOffice.finalized_at"
+                class="flex items-center justify-between border-b border-emerald-100 bg-emerald-50/50 px-5 py-3"
+            >
+                <div class="flex items-center gap-2">
+                    <CheckCircle2 class="h-4 w-4 text-emerald-600" />
+                    <span class="text-xs font-medium text-emerald-800">
+                        {{ selectedOffice.name }} accountability encoding is
+                        Posted
+                    </span>
+                    <span class="text-[10px] font-semibold text-emerald-600/80">
+                        (Posted on {{ selectedOffice.finalized_at }} by
+                        {{ selectedOffice.finalized_by || 'Unknown' }})
+                    </span>
+                </div>
+                <span
+                    class="rounded bg-emerald-100 px-2 py-0.5 text-[9px] font-medium tracking-wider text-emerald-800 uppercase"
+                >
+                    Posted
+                </span>
+            </div>
+
             <div class="overflow-x-auto">
                 <table class="w-full border-collapse">
                     <thead>
                         <tr class="border-b border-slate-100 bg-slate-50/50">
                             <th
-                                class="w-12 px-5 py-3 text-left text-[9px] font-black tracking-widest text-slate-400 uppercase"
+                                class="w-12 px-5 py-3 text-left text-[9px] font-medium tracking-widest text-slate-400 uppercase"
                             >
                                 ID
                             </th>
                             <th
-                                class="px-5 py-3 text-left text-[9px] font-black tracking-widest text-slate-400 uppercase"
+                                class="px-5 py-3 text-left text-[9px] font-medium tracking-widest text-slate-400 uppercase"
                             >
                                 Student Information
                             </th>
                             <th
-                                class="px-5 py-3 text-left text-[9px] font-black tracking-widest text-slate-400 uppercase"
+                                class="px-5 py-3 text-left text-[9px] font-medium tracking-widest text-slate-400 uppercase"
                             >
                                 Requirement
                             </th>
                             <th
-                                class="px-5 py-3 text-center text-left text-[9px] font-black tracking-widest text-slate-400 uppercase"
+                                class="px-5 py-3 text-center text-left text-[9px] font-medium tracking-widest text-slate-400 uppercase"
                             >
                                 Items
                             </th>
                             <th
-                                class="px-5 py-3 text-left text-[9px] font-black tracking-widest text-slate-400 uppercase"
+                                class="px-5 py-3 text-left text-[9px] font-medium tracking-widest text-slate-400 uppercase"
                             >
                                 Amount
                             </th>
                             <th
-                                class="px-5 py-3 text-left text-[9px] font-black tracking-widest text-slate-400 uppercase"
+                                class="px-5 py-3 text-left text-[9px] font-medium tracking-widest text-slate-400 uppercase"
                             >
                                 Status
                             </th>
                             <th
-                                class="px-5 py-3 text-right text-[9px] font-black tracking-widest text-slate-400 uppercase"
+                                class="px-5 py-3 text-right text-[9px] font-medium tracking-widest text-slate-400 uppercase"
                             >
                                 Actions
                             </th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-50">
+                        <tr v-if="accountabilities.data.length === 0">
+                            <td colspan="7" class="px-5 py-12 text-center">
+                                <div
+                                    class="flex flex-col items-center justify-center gap-2"
+                                >
+                                    <div
+                                        class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400"
+                                    >
+                                        <CheckCircle2 class="h-6 w-6" />
+                                    </div>
+                                    <h3
+                                        class="text-xs font-medium text-slate-900"
+                                    >
+                                        No students with accountabilities
+                                    </h3>
+                                    <div
+                                        v-if="
+                                            selectedOffice &&
+                                            selectedOffice.finalized_at
+                                        "
+                                        class="mt-1 flex flex-col items-center gap-1"
+                                    >
+                                        <span
+                                            class="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[9px] font-medium tracking-wider text-emerald-800 uppercase"
+                                        >
+                                            Status: Posted
+                                        </span>
+                                        <span
+                                            class="text-[10px] font-semibold text-emerald-600"
+                                        >
+                                            Posted on
+                                            {{ selectedOffice.finalized_at }} by
+                                            {{
+                                                selectedOffice.finalized_by ||
+                                                'Unknown'
+                                            }}
+                                        </span>
+                                    </div>
+                                    <p
+                                        v-else
+                                        class="text-[10px] text-slate-500"
+                                    >
+                                        No outstanding requirements recorded.
+                                    </p>
+                                </div>
+                            </td>
+                        </tr>
                         <tr
+                            v-else
                             v-for="acc in accountabilities.data"
                             :key="acc.id"
                             class="group transition-colors hover:bg-slate-50/50"
                         >
                             <td class="px-5 py-3">
                                 <span
-                                    class="font-mono text-[10px] font-bold text-slate-300"
+                                    class="font-mono text-[10px] font-medium text-slate-300"
                                     >#{{ acc.id }}</span
                                 >
                             </td>
@@ -461,13 +714,13 @@ const statusBadge = (s: string) => {
                                     <div
                                         class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-100 bg-slate-50 text-slate-400 transition-colors group-hover:bg-indigo-50 group-hover:text-indigo-600"
                                     >
-                                        <span class="text-[10px] font-black">{{
+                                        <span class="text-[10px] font-medium">{{
                                             acc.student.name.charAt(0)
                                         }}</span>
                                     </div>
                                     <div class="grid gap-0">
                                         <span
-                                            class="text-xs leading-tight font-bold text-slate-900"
+                                            class="text-xs leading-tight font-medium text-slate-900"
                                             >{{ acc.student.name }}</span
                                         >
                                         <span
@@ -480,11 +733,11 @@ const statusBadge = (s: string) => {
                             <td class="px-5 py-3">
                                 <div class="grid gap-0">
                                     <span
-                                        class="text-xs font-bold text-slate-700"
+                                        class="text-xs font-medium text-slate-700"
                                         >{{ acc.title }}</span
                                     >
                                     <span
-                                        class="flex items-center gap-1 text-[9px] font-bold tracking-widest text-slate-400 uppercase"
+                                        class="flex items-center gap-1 text-[9px] font-medium tracking-widest text-slate-400 uppercase"
                                     >
                                         {{ acc.office.name }}
                                     </span>
@@ -500,21 +753,21 @@ const statusBadge = (s: string) => {
                                         class="flex items-center gap-1"
                                     >
                                         <span
-                                            class="rounded-full border border-indigo-100 bg-indigo-50 px-2 py-0.5 text-[8px] font-black tracking-tighter text-indigo-500 uppercase"
+                                            class="rounded-full border border-indigo-100 bg-indigo-50 px-2 py-0.5 text-[8px] font-medium tracking-tighter text-indigo-500 uppercase"
                                         >
                                             {{ acc.children.length }} items
                                         </span>
                                     </div>
                                     <span
                                         v-else
-                                        class="text-[8px] font-bold tracking-widest text-slate-300 uppercase"
+                                        class="text-[8px] font-medium tracking-widest text-slate-300 uppercase"
                                         >Single</span
                                     >
                                 </div>
                             </td>
                             <td class="px-5 py-3">
                                 <span
-                                    class="font-mono text-[10px] font-bold"
+                                    class="font-mono text-[10px] font-medium"
                                     :class="
                                         acc.amount > 0
                                             ? 'text-slate-900'
@@ -535,7 +788,7 @@ const statusBadge = (s: string) => {
                             <td class="px-5 py-3">
                                 <span
                                     :class="[
-                                        'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[8px] font-black tracking-widest uppercase',
+                                        'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[8px] font-medium tracking-widest uppercase',
                                         statusBadge(acc.status),
                                     ]"
                                 >
@@ -580,7 +833,7 @@ const statusBadge = (s: string) => {
                 class="mt-auto flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-5 py-3"
             >
                 <p
-                    class="text-[9px] font-bold tracking-widest text-slate-400 uppercase"
+                    class="text-[9px] font-medium tracking-widest text-slate-400 uppercase"
                 >
                     Showing {{ accountabilities.from }}-{{
                         accountabilities.to
@@ -594,7 +847,7 @@ const statusBadge = (s: string) => {
                         :href="link.url || '#'"
                         v-html="link.label"
                         :class="[
-                            'flex h-8 min-w-[32px] items-center justify-center rounded-lg border px-2 text-[10px] font-black transition-all',
+                            'flex h-8 min-w-[32px] items-center justify-center rounded-lg border px-2 text-[10px] font-medium transition-all',
                             link.active
                                 ? 'border-indigo-600 bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
                                 : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50',
@@ -613,12 +866,12 @@ const statusBadge = (s: string) => {
         @click.self="uploadModal = false"
     >
         <div class="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
-            <h2 class="mb-4 text-sm font-bold text-slate-900">
+            <h2 class="mb-4 text-sm font-medium text-slate-900">
                 Bulk Upload Accountabilities
             </h2>
             <form class="grid gap-4" @submit.prevent="handleUpload">
                 <label
-                    class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase"
+                    class="grid gap-1 text-[11px] font-medium text-slate-500 uppercase"
                 >
                     Select Office
                     <select
@@ -629,13 +882,15 @@ const statusBadge = (s: string) => {
                             v-for="off in offices"
                             :key="off.id"
                             :value="off.id"
+                            :disabled="off.finalized_at"
                         >
                             {{ off.name }}
+                            {{ off.finalized_at ? ' (Posted — Locked)' : '' }}
                         </option>
                     </select>
                 </label>
                 <label
-                    class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase"
+                    class="grid gap-1 text-[11px] font-medium text-slate-500 uppercase"
                 >
                     CSV File
                     <input
@@ -679,19 +934,19 @@ const statusBadge = (s: string) => {
         @click.self="individualModal = false"
     >
         <div
-            class="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+            class="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
         >
             <div
                 class="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-6 py-4"
             >
                 <div>
                     <h2
-                        class="text-sm font-black tracking-widest text-slate-900 uppercase"
+                        class="text-sm font-medium tracking-widest text-slate-900 uppercase"
                     >
                         Add Individual Accountability
                     </h2>
                     <p
-                        class="text-[10px] font-bold tracking-tighter text-slate-400 uppercase"
+                        class="text-[10px] font-medium tracking-tighter text-slate-400 uppercase"
                     >
                         Register new student requirement
                     </p>
@@ -708,10 +963,45 @@ const statusBadge = (s: string) => {
                 class="flex-1 overflow-y-auto p-6"
                 @submit.prevent="handleIndividualAdd"
             >
-                <div class="mb-6 grid gap-4 md:grid-cols-2">
-                    <div class="relative grid gap-1.5">
+                <div class="mb-6 grid grid-cols-1 gap-4">
+                    <div class="grid min-w-0 gap-1.5">
                         <label
-                            class="text-[9px] font-black tracking-widest text-slate-400 uppercase"
+                            class="text-[9px] font-medium tracking-widest text-slate-600 uppercase"
+                            >Participating Office</label
+                        >
+                        <select
+                            v-model="individualForm.office_id"
+                            class="h-10 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-800"
+                            required
+                        >
+                            <option value="" disabled>
+                                Select office first
+                            </option>
+                            <option
+                                v-for="off in offices"
+                                :key="off.id"
+                                :value="off.id"
+                                :disabled="off.finalized_at"
+                            >
+                                {{ off.name }}
+                                {{
+                                    off.category === 'academic'
+                                        ? '— Academic'
+                                        : ''
+                                }}
+                                {{
+                                    off.finalized_at ? ' (Posted — Locked)' : ''
+                                }}
+                            </option>
+                        </select>
+                        <p class="text-[9px] font-medium text-slate-600">
+                            Academic offices show only their assigned students.
+                        </p>
+                    </div>
+
+                    <div class="relative grid min-w-0 gap-1.5">
+                        <label
+                            class="text-[9px] font-medium tracking-widest text-slate-600 uppercase"
                             >Student Lookup</label
                         >
                         <div class="relative">
@@ -721,8 +1011,13 @@ const statusBadge = (s: string) => {
                             <input
                                 v-model="studentSearch"
                                 type="text"
-                                placeholder="Name or Student ID..."
-                                class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50/50 pr-3 pl-9 text-xs transition-all focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5"
+                                :placeholder="
+                                    individualForm.office_id
+                                        ? 'Name or Student ID...'
+                                        : 'Select an office first'
+                                "
+                                :disabled="!individualForm.office_id"
+                                class="h-10 w-full min-w-0 rounded-lg border border-slate-300 bg-white pr-3 pl-9 text-xs font-semibold text-slate-800 transition-all placeholder:text-slate-500 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                             />
                         </div>
                         <div
@@ -737,7 +1032,7 @@ const statusBadge = (s: string) => {
                                 class="group flex w-full flex-col rounded-lg px-3 py-2 text-left transition-colors hover:bg-indigo-50"
                             >
                                 <span
-                                    class="text-xs font-bold text-slate-700 group-hover:text-indigo-600"
+                                    class="text-xs font-medium text-slate-700 group-hover:text-indigo-600"
                                     >{{ s.name }}</span
                                 >
                                 <span
@@ -747,28 +1042,6 @@ const statusBadge = (s: string) => {
                             </button>
                         </div>
                     </div>
-
-                    <div
-                        v-if="!(page.props.auth as any).user.office_id"
-                        class="grid gap-1.5"
-                    >
-                        <label
-                            class="text-[9px] font-black tracking-widest text-slate-400 uppercase"
-                            >Department</label
-                        >
-                        <select
-                            v-model="individualForm.office_id"
-                            class="h-9 rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-bold text-slate-600"
-                        >
-                            <option
-                                v-for="off in offices"
-                                :key="off.id"
-                                :value="off.id"
-                            >
-                                {{ off.name }}
-                            </option>
-                        </select>
-                    </div>
                 </div>
 
                 <div
@@ -776,14 +1049,14 @@ const statusBadge = (s: string) => {
                     class="mb-6 grid gap-1.5"
                 >
                     <label
-                        class="text-[9px] font-black tracking-widest text-slate-400 uppercase"
+                        class="text-[9px] font-medium tracking-widest text-slate-400 uppercase"
                         >Group Heading</label
                     >
                     <input
                         v-model="individualForm.group_title"
                         type="text"
                         placeholder="e.g. Enrollment Requirements Pack"
-                        class="h-9 rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-bold"
+                        class="h-9 rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium"
                         required
                     />
                 </div>
@@ -791,14 +1064,14 @@ const statusBadge = (s: string) => {
                 <div class="border-t border-slate-100 pt-4">
                     <div class="mb-4 flex items-center justify-between">
                         <h3
-                            class="text-[9px] font-black tracking-widest text-slate-400 uppercase"
+                            class="text-[9px] font-medium tracking-widest text-slate-400 uppercase"
                         >
                             Accountability Line Items
                         </h3>
                         <button
                             type="button"
                             @click="addItem"
-                            class="flex h-7 items-center gap-1.5 rounded-lg border border-emerald-100 bg-emerald-50 px-3 text-[10px] font-black text-emerald-600 transition-all hover:bg-emerald-600 hover:text-white"
+                            class="flex h-7 items-center gap-1.5 rounded-lg border border-emerald-100 bg-emerald-50 px-3 text-[10px] font-medium text-emerald-600 transition-all hover:bg-emerald-600 hover:text-white"
                         >
                             <Plus class="h-3 w-3" />
                             Add Item
@@ -823,20 +1096,20 @@ const statusBadge = (s: string) => {
                             <div class="grid gap-3 md:grid-cols-2">
                                 <div class="grid gap-1">
                                     <label
-                                        class="text-[8px] font-black tracking-widest text-slate-400 uppercase"
+                                        class="text-[8px] font-medium tracking-widest text-slate-400 uppercase"
                                         >Item Title</label
                                     >
                                     <input
                                         v-model="item.title"
                                         type="text"
                                         placeholder="e.g. PSA Birth Certificate"
-                                        class="h-8 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-bold"
+                                        class="h-8 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-medium"
                                         required
                                     />
                                 </div>
                                 <div class="grid gap-1">
                                     <label
-                                        class="text-[8px] font-black tracking-widest text-slate-400 uppercase"
+                                        class="text-[8px] font-medium tracking-widest text-slate-400 uppercase"
                                         >Fee (Optional)</label
                                     >
                                     <input
@@ -850,7 +1123,7 @@ const statusBadge = (s: string) => {
                             </div>
                             <div class="grid gap-1">
                                 <label
-                                    class="text-[8px] font-black tracking-widest text-slate-400 uppercase"
+                                    class="text-[8px] font-medium tracking-widest text-slate-400 uppercase"
                                     >Detailed Remarks</label
                                 >
                                 <textarea
@@ -871,19 +1144,21 @@ const statusBadge = (s: string) => {
                 <Button
                     type="button"
                     variant="ghost"
-                    class="h-9 px-4 text-xs font-bold text-slate-500"
+                    class="h-9 px-4 text-xs font-medium text-slate-500"
                     @click="individualModal = false"
                     >Discard</Button
                 >
                 <Button
                     type="submit"
                     @click="handleIndividualAdd"
-                    class="h-9 bg-emerald-600 px-6 text-xs font-black text-white shadow-lg shadow-emerald-600/10 hover:bg-emerald-700"
+                    class="h-9 bg-emerald-600 px-6 text-xs font-medium text-white shadow-lg shadow-emerald-600/10 hover:bg-emerald-700"
                     :disabled="
-                        individualForm.processing || !individualForm.student_id
+                        individualForm.processing ||
+                        !individualForm.office_id ||
+                        !individualForm.student_id
                     "
                 >
-                    Finalize & Save
+                    Save
                 </Button>
             </div>
         </div>
@@ -896,38 +1171,45 @@ const statusBadge = (s: string) => {
         @click.self="detailsModal = false"
     >
         <div
-            class="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+            class="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl shadow-emerald-950/10"
         >
-            <div class="relative bg-slate-900 px-6 py-5 text-white">
+            <div
+                class="relative border-b border-emerald-100 bg-emerald-50 px-5 py-5 sm:px-6"
+            >
                 <button
                     @click="detailsModal = false"
-                    class="absolute top-4 right-4 text-slate-500 transition-colors hover:text-white"
+                    class="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white hover:text-emerald-700"
                 >
-                    <XCircle class="h-5 w-5" />
+                    <XCircle class="h-4 w-4" />
                 </button>
-                <div class="flex items-center gap-4">
+                <div class="flex items-center gap-3 pr-9 sm:gap-4">
                     <div
-                        class="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500 shadow-lg shadow-indigo-500/20"
+                        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-600 shadow-sm"
                     >
                         <RotateCcw class="h-5 w-5 text-white" />
                     </div>
-                    <div>
+                    <div class="min-w-0">
+                        <p
+                            class="mb-1 text-[9px] font-medium tracking-wider text-emerald-700 uppercase"
+                        >
+                            Accountability details
+                        </p>
                         <h2
-                            class="text-base leading-tight font-black tracking-tight"
+                            class="truncate text-base leading-tight font-semibold text-slate-900"
                         >
                             {{ selectedAcc.title }}
                         </h2>
-                        <div class="mt-0.5 flex items-center gap-2">
+                        <div class="mt-1.5 flex flex-wrap items-center gap-2">
                             <span
                                 :class="[
-                                    'rounded-full border px-2 py-0.5 text-[8px] font-black tracking-widest uppercase',
+                                    'rounded-full border px-2 py-0.5 text-[8px] font-medium tracking-wide uppercase',
                                     statusBadge(selectedAcc.status),
                                 ]"
                             >
                                 {{ selectedAcc.status }}
                             </span>
                             <span
-                                class="text-[8px] font-black tracking-widest text-slate-400 uppercase"
+                                class="truncate text-[9px] font-medium text-slate-500"
                                 >{{ selectedAcc.office.name }}</span
                             >
                         </div>
@@ -935,17 +1217,17 @@ const statusBadge = (s: string) => {
                 </div>
             </div>
 
-            <div class="flex-1 space-y-6 overflow-y-auto p-6">
-                <div class="grid gap-3 md:grid-cols-3">
+            <div class="flex-1 space-y-5 overflow-y-auto p-4 sm:p-6">
+                <div class="grid gap-3 sm:grid-cols-3">
                     <div
-                        class="rounded-xl border border-slate-100 bg-slate-50 p-3"
+                        class="rounded-xl border border-emerald-100 bg-emerald-50/40 p-3.5"
                     >
                         <span
-                            class="mb-1 block text-[8px] font-black tracking-widest text-slate-400 uppercase"
+                            class="mb-1 block text-[8px] font-medium tracking-wider text-slate-400 uppercase"
                             >Student</span
                         >
                         <p
-                            class="text-xs leading-tight font-bold text-slate-900"
+                            class="text-xs leading-tight font-medium text-slate-900"
                         >
                             {{ selectedAcc.student.name }}
                         </p>
@@ -954,13 +1236,15 @@ const statusBadge = (s: string) => {
                         </p>
                     </div>
                     <div
-                        class="rounded-xl border border-slate-100 bg-slate-50 p-3"
+                        class="rounded-xl border border-emerald-100 bg-emerald-50/40 p-3.5"
                     >
                         <span
-                            class="mb-1 block text-[8px] font-black tracking-widest text-slate-400 uppercase"
+                            class="mb-1 block text-[8px] font-medium tracking-wider text-slate-400 uppercase"
                             >Total Due</span
                         >
-                        <p class="font-mono text-sm font-black text-slate-900">
+                        <p
+                            class="font-mono text-sm font-semibold text-emerald-700"
+                        >
                             {{
                                 selectedAcc.amount
                                     ? '₱' +
@@ -973,14 +1257,14 @@ const statusBadge = (s: string) => {
                         </p>
                     </div>
                     <div
-                        class="rounded-xl border border-slate-100 bg-slate-50 p-3"
+                        class="rounded-xl border border-emerald-100 bg-emerald-50/40 p-3.5"
                     >
                         <span
-                            class="mb-1 block text-[8px] font-black tracking-widest text-slate-400 uppercase"
+                            class="mb-1 block text-[8px] font-medium tracking-wider text-slate-400 uppercase"
                             >Timeline</span
                         >
                         <p
-                            class="text-[10px] leading-tight font-bold text-slate-900"
+                            class="text-[10px] leading-tight font-medium text-slate-900"
                         >
                             {{ selectedAcc.created_at }}
                         </p>
@@ -992,13 +1276,13 @@ const statusBadge = (s: string) => {
 
                 <div v-if="selectedAcc.description" class="space-y-1.5">
                     <span
-                        class="text-[8px] font-black tracking-widest text-slate-400 uppercase"
+                        class="text-[9px] font-medium tracking-wide text-slate-500"
                         >Administrative Remarks</span
                     >
                     <div
-                        class="rounded-xl border border-slate-100 bg-slate-50/50 p-3 text-[11px] leading-relaxed text-slate-600 italic"
+                        class="rounded-xl border border-emerald-100 bg-emerald-50/30 p-4 text-[11px] leading-relaxed text-slate-600"
                     >
-                        "{{ selectedAcc.description }}"
+                        {{ selectedAcc.description }}
                     </div>
                 </div>
 
@@ -1012,11 +1296,11 @@ const statusBadge = (s: string) => {
                 >
                     <div class="flex items-center justify-between">
                         <span
-                            class="text-[8px] font-black tracking-widest text-slate-400 uppercase"
+                            class="text-[9px] font-medium tracking-wide text-slate-600"
                             >Child Requirements Breakdown</span
                         >
                         <span
-                            class="rounded-full border border-indigo-100 bg-indigo-50 px-2 py-0.5 text-[8px] font-black tracking-widest text-indigo-600 uppercase"
+                            class="rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[8px] font-medium text-emerald-700"
                             >{{
                                 (
                                     selectedAcc.children?.data ||
@@ -1031,20 +1315,20 @@ const statusBadge = (s: string) => {
                             v-for="child in selectedAcc.children?.data ||
                             selectedAcc.children"
                             :key="child.id"
-                            class="group/child flex flex-col rounded-xl border border-slate-100 p-3 transition-all hover:bg-slate-50"
+                            class="group/child flex flex-col rounded-xl border border-emerald-100 p-3 transition-all hover:bg-emerald-50/30"
                         >
                             <div
                                 class="flex items-center justify-between gap-4"
                             >
                                 <div class="flex items-center gap-3">
                                     <div
-                                        class="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-[9px] font-black text-slate-400 transition-all group-hover/child:border-indigo-500 group-hover/child:bg-indigo-500 group-hover/child:text-white"
+                                        class="flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50 text-[9px] font-medium text-emerald-700"
                                     >
                                         {{ child.id }}
                                     </div>
                                     <div class="grid gap-0">
                                         <span
-                                            class="text-[11px] leading-tight font-bold text-slate-800"
+                                            class="text-[11px] leading-tight font-medium text-slate-800"
                                             >{{ child.title }}</span
                                         >
                                         <span
@@ -1063,7 +1347,7 @@ const statusBadge = (s: string) => {
                                 <div class="flex items-center gap-2">
                                     <span
                                         :class="[
-                                            'rounded-full border px-2 py-0.5 text-[8px] font-black tracking-widest uppercase',
+                                            'rounded-full border px-2 py-0.5 text-[8px] font-medium uppercase',
                                             statusBadge(child.status),
                                         ]"
                                     >
@@ -1093,13 +1377,13 @@ const statusBadge = (s: string) => {
                                 <template v-if="child.status === 'pending'">
                                     <button
                                         @click="resolve(child.id)"
-                                        class="h-6 rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 text-[9px] font-black text-emerald-600 transition-all hover:bg-emerald-600 hover:text-white"
+                                        class="h-7 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 text-[9px] font-medium text-emerald-700 transition-all hover:bg-emerald-600 hover:text-white"
                                     >
                                         Clear
                                     </button>
                                     <button
                                         @click="waive(child.id)"
-                                        class="h-6 rounded-lg border border-indigo-100 bg-indigo-50 px-2.5 text-[9px] font-black text-indigo-600 transition-all hover:bg-indigo-600 hover:text-white"
+                                        class="h-7 rounded-lg border border-slate-200 bg-white px-2.5 text-[9px] font-medium text-slate-600 transition-all hover:bg-slate-100"
                                     >
                                         Waive
                                     </button>
@@ -1107,7 +1391,7 @@ const statusBadge = (s: string) => {
                                 <template v-else>
                                     <button
                                         @click="reset(child.id)"
-                                        class="h-6 rounded-lg border border-slate-200 bg-slate-100 px-2.5 text-[9px] font-black text-slate-600 transition-all hover:bg-slate-200"
+                                        class="h-7 rounded-lg border border-slate-200 bg-slate-100 px-2.5 text-[9px] font-medium text-slate-600 transition-all hover:bg-slate-200"
                                     >
                                         Reset
                                     </button>
@@ -1127,11 +1411,11 @@ const statusBadge = (s: string) => {
                         <CheckCircle2 class="h-4 w-4 text-emerald-500" />
                         <div>
                             <p
-                                class="text-[8px] font-black tracking-widest text-emerald-800 uppercase"
+                                class="text-[9px] font-medium tracking-wide text-emerald-800"
                             >
                                 Resolution Audit
                             </p>
-                            <p class="text-[10px] font-bold text-emerald-700">
+                            <p class="text-[10px] font-medium text-emerald-700">
                                 Approved by {{ selectedAcc.resolver.name }} on
                                 {{ selectedAcc.resolved_at }}
                             </p>
@@ -1141,40 +1425,40 @@ const statusBadge = (s: string) => {
             </div>
 
             <div
-                class="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-6 py-4"
+                class="flex flex-col-reverse gap-3 border-t border-emerald-100 bg-emerald-50/30 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6"
             >
-                <div class="flex gap-1.5">
+                <div class="grid grid-cols-2 gap-2 sm:flex">
                     <Button
                         variant="outline"
-                        class="h-8 gap-1.5 border-slate-200 px-3 text-[10px] font-black text-slate-600"
+                        class="h-9 gap-1.5 border-emerald-200 bg-white px-3 text-[10px] font-medium text-slate-600 hover:bg-emerald-50"
                         @click="openEdit(selectedAcc)"
                     >
                         <Pencil class="h-3 w-3" /> Edit Group
                     </Button>
                     <Button
                         variant="outline"
-                        class="h-8 gap-1.5 border-red-100 px-3 text-[10px] font-black text-red-600"
+                        class="h-9 gap-1.5 border-red-100 bg-white px-3 text-[10px] font-medium text-red-600 hover:bg-red-50"
                         @click="deleteAcc(selectedAcc.id)"
                     >
                         <Trash2 class="h-3 w-3" /> Purge
                     </Button>
                 </div>
-                <div class="flex gap-2">
+                <div class="grid grid-cols-2 gap-2 sm:flex">
                     <Button
                         variant="ghost"
-                        class="h-8 px-4 text-[10px] font-black text-slate-500"
+                        class="h-9 px-4 text-[10px] font-medium text-slate-500"
                         @click="detailsModal = false"
                         >Close</Button
                     >
                     <Button
                         v-if="selectedAcc.status === 'pending'"
-                        class="h-8 bg-indigo-600 px-5 text-[10px] font-black text-white shadow-lg shadow-indigo-600/10 hover:bg-indigo-700"
+                        class="h-9 bg-emerald-600 px-5 text-[10px] font-medium text-white shadow-sm hover:bg-emerald-700"
                         @click="resolve(selectedAcc.id)"
-                        >Approve All</Button
+                        >Clear All</Button
                     >
                     <Button
                         v-else
-                        class="h-8 bg-slate-900 px-5 text-[10px] font-black text-white shadow-lg shadow-slate-900/10 hover:bg-slate-800"
+                        class="h-9 bg-slate-700 px-5 text-[10px] font-medium text-white shadow-sm hover:bg-slate-800"
                         @click="reset(selectedAcc.id)"
                         >Revert Status</Button
                     >
@@ -1197,12 +1481,12 @@ const statusBadge = (s: string) => {
             >
                 <div>
                     <h2
-                        class="text-sm font-black tracking-widest text-slate-900 uppercase"
+                        class="text-sm font-medium tracking-widest text-slate-900 uppercase"
                     >
                         Edit Accountability
                     </h2>
                     <p
-                        class="text-[10px] font-bold tracking-tighter text-slate-400 uppercase"
+                        class="text-[10px] font-medium tracking-tighter text-slate-400 uppercase"
                     >
                         Modify requirement details
                     </p>
@@ -1218,19 +1502,19 @@ const statusBadge = (s: string) => {
             <form class="grid gap-4 p-6" @submit.prevent="handleUpdate">
                 <div class="grid gap-1.5">
                     <label
-                        class="text-[9px] font-black tracking-widest text-slate-400 uppercase"
+                        class="text-[9px] font-medium tracking-widest text-slate-400 uppercase"
                         >Requirement Title</label
                     >
                     <input
                         v-model="editForm.title"
                         type="text"
-                        class="h-9 rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-bold"
+                        class="h-9 rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium"
                         required
                     />
                 </div>
                 <div class="grid gap-1.5">
                     <label
-                        class="text-[9px] font-black tracking-widest text-slate-400 uppercase"
+                        class="text-[9px] font-medium tracking-widest text-slate-400 uppercase"
                         >Fee / Amount</label
                     >
                     <input
@@ -1243,7 +1527,7 @@ const statusBadge = (s: string) => {
                 </div>
                 <div class="grid gap-1.5">
                     <label
-                        class="text-[9px] font-black tracking-widest text-slate-400 uppercase"
+                        class="text-[9px] font-medium tracking-widest text-slate-400 uppercase"
                         >Administrative Remarks</label
                     >
                     <textarea
@@ -1259,13 +1543,13 @@ const statusBadge = (s: string) => {
                     <Button
                         type="button"
                         variant="ghost"
-                        class="h-9 px-4 text-xs font-bold text-slate-500"
+                        class="h-9 px-4 text-xs font-medium text-slate-500"
                         @click="editModal = false"
                         >Discard</Button
                     >
                     <Button
                         type="submit"
-                        class="h-9 bg-indigo-600 px-6 text-xs font-black text-white shadow-lg shadow-indigo-600/10 hover:bg-indigo-700"
+                        class="h-9 bg-indigo-600 px-6 text-xs font-medium text-white shadow-lg shadow-indigo-600/10 hover:bg-indigo-700"
                         :disabled="editForm.processing"
                     >
                         Save Changes
@@ -1286,13 +1570,18 @@ const statusBadge = (s: string) => {
             <div class="p-6">
                 <div class="mb-4 flex items-center gap-4">
                     <div
-                        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600"
+                        :class="[
+                            'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl',
+                            confirmationModal.title === 'Delete Accountability'
+                                ? 'bg-red-100 text-red-600'
+                                : 'bg-amber-100 text-amber-600',
+                        ]"
                     >
                         <AlertTriangle class="h-6 w-6" />
                     </div>
                     <div>
                         <h3
-                            class="text-sm font-black tracking-widest text-slate-900 uppercase"
+                            class="text-sm font-medium tracking-widest text-slate-900 uppercase"
                         >
                             {{ confirmationModal.title }}
                         </h3>
@@ -1303,21 +1592,55 @@ const statusBadge = (s: string) => {
                         </p>
                     </div>
                 </div>
+                <div
+                    v-if="confirmationModal.requiresRemarks"
+                    class="grid gap-1.5"
+                >
+                    <label
+                        for="unpost-remarks"
+                        class="text-[10px] font-medium tracking-wider text-slate-700 uppercase"
+                    >
+                        Reason for unposting
+                    </label>
+                    <textarea
+                        id="unpost-remarks"
+                        v-model="unfinalizeForm.remarks"
+                        rows="4"
+                        maxlength="1000"
+                        placeholder="Explain why this office encoding needs to be unposted..."
+                        class="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5"
+                    ></textarea>
+                    <p
+                        v-if="unfinalizeForm.errors.remarks"
+                        class="text-[10px] font-semibold text-red-600"
+                    >
+                        {{ unfinalizeForm.errors.remarks }}
+                    </p>
+                </div>
             </div>
             <div
                 class="flex justify-end gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-4"
             >
                 <Button
                     variant="ghost"
-                    class="h-9 px-4 text-xs font-bold text-slate-500"
+                    class="h-9 px-4 text-xs font-medium text-slate-500"
                     @click="confirmationModal.show = false"
                     :disabled="confirmationModal.loading"
                     >Discard</Button
                 >
                 <Button
-                    class="h-9 bg-slate-900 px-6 text-xs font-black text-white shadow-lg shadow-slate-900/10"
+                    :class="[
+                        'h-9 px-6 text-xs font-medium text-white shadow-sm',
+                        confirmationModal.title === 'Delete Accountability'
+                            ? 'bg-red-600 hover:bg-red-700'
+                            : 'bg-slate-900 hover:bg-slate-800',
+                    ]"
                     @click="confirmationModal.action"
-                    :disabled="confirmationModal.loading"
+                    :disabled="
+                        confirmationModal.loading ||
+                        (confirmationModal.requiresRemarks &&
+                            !unfinalizeForm.remarks.trim())
+                    "
                 >
                     <span
                         v-if="confirmationModal.loading"
@@ -1325,7 +1648,13 @@ const statusBadge = (s: string) => {
                     >
                         <Loader2 class="h-3.5 w-3.5 animate-spin" /> Working...
                     </span>
-                    <span v-else>Proceed</span>
+                    <span v-else>
+                        {{
+                            confirmationModal.title === 'Delete Accountability'
+                                ? 'Delete'
+                                : 'Proceed'
+                        }}
+                    </span>
                 </Button>
             </div>
         </div>

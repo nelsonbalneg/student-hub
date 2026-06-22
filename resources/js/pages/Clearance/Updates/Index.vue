@@ -30,6 +30,7 @@ type Page<T> = { data: T[]; links: PageLink[]; meta: PageMeta };
 
 type ClearanceUpdate = {
     id: number;
+    reference_code: string | null;
     title: string;
     description: string | null;
     purpose: string | null;
@@ -39,6 +40,7 @@ type ClearanceUpdate = {
         term: string;
         campus_name?: string;
         campus_id: number;
+        external_id?: string | null;
     };
     type: { id: number; name: string; audience: 'all' | 'individual' };
     targeted_students?: {
@@ -62,8 +64,14 @@ const props = defineProps<{
         campus_name?: string;
         campus_id: number;
         site_campus_id?: number | null;
+        term_id?: string | null;
     }[];
-    types: { id: number; name: string; audience: 'all' | 'individual'; campus_id: number }[];
+    types: {
+        id: number;
+        name: string;
+        audience: 'all' | 'individual';
+        campus_id: number;
+    }[];
     campuses: {
         id: number;
         campus_name: string;
@@ -82,7 +90,7 @@ const props = defineProps<{
         publish: boolean;
         delete: boolean;
     };
-} >();
+}>();
 
 defineOptions({
     layout: {
@@ -137,15 +145,29 @@ const selectedSemester = computed(() =>
     ),
 );
 
+const selectedCampus = computed(() =>
+    props.campuses.find(
+        (campus) => campus.id === Number(selectedCampusId.value),
+    ),
+);
+
 const filteredSemesters = computed(() => {
-    if (!selectedCampusId.value) return [];
+    if (!selectedCampusId.value) {
+return [];
+}
+
     return props.semesters.filter(
-        (sem) => !sem.site_campus_id || Number(sem.site_campus_id) === Number(selectedCampusId.value),
+        (sem) =>
+            !sem.site_campus_id ||
+            Number(sem.site_campus_id) === Number(selectedCampusId.value),
     );
 });
 
 const filteredTypes = computed(() => {
-    if (!selectedCampusId.value) return [];
+    if (!selectedCampusId.value) {
+return [];
+}
+
     return props.types.filter(
         (type) => Number(type.campus_id) === Number(selectedCampusId.value),
     );
@@ -155,14 +177,54 @@ const selectedType = computed(() =>
     props.types.find((type) => type.id === Number(form.clearance_type_id)),
 );
 
+const suggestedTitle = computed(() => {
+    if (
+        !selectedCampus.value ||
+        !selectedSemester.value ||
+        !selectedType.value
+    ) {
+        return '';
+    }
+
+    return `${selectedCampus.value.campus_name} - ${selectedSemester.value.academic_year} ${selectedSemester.value.term} - ${selectedType.value.name}`;
+});
+
+const lastSuggestedTitle = ref('');
+
+const useSuggestedTitle = () => {
+    if (!suggestedTitle.value) {
+        return;
+    }
+
+    form.title = suggestedTitle.value;
+    lastSuggestedTitle.value = suggestedTitle.value;
+};
+
+watch(suggestedTitle, (suggestion) => {
+    if (
+        modal.value?.type !== 'create' ||
+        !suggestion ||
+        (form.title.trim() && form.title !== lastSuggestedTitle.value)
+    ) {
+        return;
+    }
+
+    form.title = suggestion;
+    lastSuggestedTitle.value = suggestion;
+});
+
 watch(selectedCampusId, (newCampusId) => {
     const currentSem = props.semesters.find((s) => s.id === form.semester_id);
-    if (!currentSem || currentSem.site_campus_id !== newCampusId) {
+
+    if (!currentSem || Number(currentSem.site_campus_id) !== Number(newCampusId)) {
         form.semester_id = '';
     }
 
-    const currentType = props.types.find((t) => t.id === form.clearance_type_id);
-    if (!currentType || currentType.campus_id !== newCampusId) {
+    const currentType = props.types.find(
+        (t) => t.id === form.clearance_type_id,
+    );
+
+    if (!currentType || Number(currentType.campus_id) !== Number(newCampusId)) {
         form.clearance_type_id = '';
     }
 });
@@ -172,7 +234,11 @@ const filteredStudents = computed(() => {
     const campusId = selectedSemester.value?.campus_id;
 
     return props.students
-        .filter((student) => !campusId || student.campus_id === campusId)
+        .filter(
+            (student) =>
+                !campusId ||
+                Number(student.campus_id) === Number(campusId),
+        )
         .filter(
             (student) =>
                 !query ||
@@ -216,17 +282,22 @@ const openCreate = () => {
     form.reset();
     form.selected_student_ids = [];
     studentSearch.value = '';
+    lastSuggestedTitle.value = '';
 
     const activeSem = props.semesters.find(
         (s) =>
-            (props.activeSemester?.external_id && String(s.term_id) === String(props.activeSemester?.external_id)) ||
-            (s.academic_year === props.activeSemester?.academic_year && s.term === props.activeSemester?.term),
+            (props.activeSemester?.external_id &&
+                String(s.term_id) ===
+                    String(props.activeSemester?.external_id)) ||
+            (s.academic_year === props.activeSemester?.academic_year &&
+                s.term === props.activeSemester?.term),
     );
     selectedCampusId.value = activeSem?.site_campus_id ?? null;
     form.semester_id = activeSem ? activeSem.id : '';
     form.clearance_type_id = '';
 
     modal.value = { type: 'create' };
+    useSuggestedTitle();
 };
 
 const openEdit = (update: ClearanceUpdate) => {
@@ -243,8 +314,10 @@ const openEdit = (update: ClearanceUpdate) => {
 
     const sem = props.semesters.find(
         (s) =>
-            (update.semester.external_id && String(s.term_id) === String(update.semester.external_id)) ||
-            (s.academic_year === update.semester.academic_year && s.term === update.semester.term),
+            (update.semester.external_id &&
+                String(s.term_id) === String(update.semester.external_id)) ||
+            (s.academic_year === update.semester.academic_year &&
+                s.term === update.semester.term),
     );
     selectedCampusId.value = sem?.site_campus_id ?? null;
     form.semester_id = sem ? sem.id : '';
@@ -453,6 +526,12 @@ const statusClass = (status: string) => {
                             >
                                 {{ update.title }}
                             </Link>
+                            <p
+                                v-if="update.reference_code"
+                                class="mt-0.5 font-mono text-[10px] font-semibold tracking-wide text-slate-400"
+                            >
+                                {{ update.reference_code }}
+                            </p>
                         </td>
                         <td
                             class="px-4 py-3 text-xs text-slate-600 dark:text-slate-300"
@@ -564,7 +643,9 @@ const statusClass = (status: string) => {
                             v-model="selectedCampusId"
                             class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
                         >
-                            <option :value="null" disabled>Select Campus</option>
+                            <option :value="null" disabled>
+                                Select Campus
+                            </option>
                             <option
                                 v-for="campus in campuses"
                                 :key="campus.id"
@@ -581,7 +662,7 @@ const statusClass = (status: string) => {
                         <select
                             v-model="form.semester_id"
                             :disabled="!selectedCampusId"
-                            class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100 disabled:opacity-50"
+                            class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none disabled:opacity-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
                         >
                             <option value="" disabled>Select Semester</option>
                             <option
@@ -601,7 +682,7 @@ const statusClass = (status: string) => {
                         <select
                             v-model="form.clearance_type_id"
                             :disabled="!selectedCampusId"
-                            class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100 disabled:opacity-50"
+                            class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none disabled:opacity-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
                         >
                             <option value="" disabled>Select Type</option>
                             <option
@@ -698,18 +779,45 @@ const statusClass = (status: string) => {
                         />
                     </div>
                 </div>
-                <label
-                    class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase"
-                >
-                    Title
+                <div class="grid gap-1">
+                    <div class="flex items-center justify-between gap-3">
+                        <label
+                            for="clearance-update-title"
+                            class="text-[11px] font-bold text-slate-500 uppercase"
+                        >
+                            Title
+                        </label>
+                        <button
+                            v-if="modal.type === 'create' && suggestedTitle"
+                            type="button"
+                            class="text-[10px] font-semibold text-emerald-600 hover:text-emerald-700"
+                            @click="useSuggestedTitle"
+                        >
+                            Use suggested title
+                        </button>
+                    </div>
                     <input
+                        id="clearance-update-title"
                         v-model="form.title"
                         type="text"
                         class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
                         placeholder="e.g. 1st Semester Clearance 2025"
                     />
+                    <p
+                        v-if="modal.type === 'create' && suggestedTitle"
+                        class="text-[10px] text-slate-400"
+                    >
+                        Suggested: {{ suggestedTitle }}
+                    </p>
                     <InputError :message="form.errors.title" />
-                </label>
+                    <p
+                        v-if="modal.type === 'create'"
+                        class="text-[10px] text-slate-400"
+                    >
+                        A reference code such as CLR260621ABCDEF1 will be
+                        generated when this draft is created.
+                    </p>
+                </div>
                 <div class="grid grid-cols-2 gap-3">
                     <label
                         class="grid gap-1 text-[11px] font-bold text-slate-500 uppercase"

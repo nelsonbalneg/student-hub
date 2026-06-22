@@ -16,6 +16,7 @@ class ClearanceUpdateResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'reference_code' => $this->reference_code,
             'title' => $this->title,
             'description' => $this->description,
             'purpose' => $this->purpose,
@@ -53,6 +54,7 @@ class ClearanceUpdateResource extends JsonResource
                     'is_required' => $o->is_required,
                     'can_upload_accountability' => $o->can_upload_accountability,
                     'can_resolve_accountability' => $o->can_resolve_accountability,
+                    'finalized_at' => $o->finalized_at?->format('Y-m-d H:i:s'),
                 ]);
             }),
             'created_at' => $this->created_at->format('Y-m-d H:i:s'),

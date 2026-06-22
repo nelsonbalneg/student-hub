@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\GradeViewingRule;
 use App\Models\SiteCampus;
 use App\Models\SsoCampus;
+use App\Models\StudentSemesterClearance;
+use App\Models\User;
 use App\Services\AcademicApiService;
 use App\Services\CeeStudentRequirementService;
 use App\Services\GetActiveAcademicTermService;
@@ -283,28 +285,93 @@ class RegistrarController extends Controller
                     ->orWhere('id', $validated['campus_id']);
             })
             ->first();
+        $clearanceApplications = $this->clearanceApplications($validated['student_no'], $request);
+
+        $request->session()->put('registrar_grade_report', [
+            'student_no' => $validated['student_no'],
+            'campus' => [
+                'id' => $campus->getKey(),
+                'name' => $campus->displayName(),
+                'tenant_id' => $tenantId,
+                'address' => $siteCampus?->campus_address,
+                'logo_url' => $siteCampus?->campus_logo_path ? '/storage/'.$siteCampus->campus_logo_path : null,
+            ],
+            'terms' => $computedReport['terms'],
+            'summary' => $computedReport['overall'],
+            'bypass_evaluation' => $bypassEvaluation,
+            'show_gwa_gpa' => $showGwaGpa,
+            'evaluation_error' => $evaluationError,
+            'evaluation_error_type' => $evaluationErrorType,
+            'profile' => $profile,
+            'curriculum' => $curriculum,
+            'ceeDocuments' => $ceeDocuments,
+            'clearanceApplications' => $clearanceApplications,
+        ]);
+        $request->session()->forget('registrar_grade_report_error');
 
         return to_route('admin.registrar.report-of-grades.index')
-            ->withInput($validated)
-            ->with('registrar_grade_report', [
-                'student_no' => $validated['student_no'],
-                'campus' => [
-                    'id' => $campus->getKey(),
-                    'name' => $campus->displayName(),
-                    'tenant_id' => $tenantId,
-                    'address' => $siteCampus?->campus_address,
-                    'logo_url' => $siteCampus?->campus_logo_path ? '/storage/'.$siteCampus->campus_logo_path : null,
-                ],
-                'terms' => $computedReport['terms'],
-                'summary' => $computedReport['overall'],
-                'bypass_evaluation' => $bypassEvaluation,
-                'show_gwa_gpa' => $showGwaGpa,
-                'evaluation_error' => $evaluationError,
-                'evaluation_error_type' => $evaluationErrorType,
-                'profile' => $profile,
-                'curriculum' => $curriculum,
-                'ceeDocuments' => $ceeDocuments,
-            ]);
+            ->withInput($validated);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function clearanceApplications(string $studentNo, Request $request): array
+    {
+        $student = User::query()
+            ->where('student_no', $studentNo)
+            ->first();
+
+        if (! $student) {
+            return [];
+        }
+
+        return StudentSemesterClearance::query()
+            ->whereBelongsTo($student, 'student')
+            ->with([
+                'semester:id,academic_year,term',
+                'clearanceUpdate:id,clearance_type_id,reference_code,title,start_date,end_date',
+                'clearanceUpdate.type:id,name',
+                'clearanceUpdate.accountabilities' => fn ($query) => $query
+                    ->where('student_id', $student->id)
+                    ->whereNull('parent_id')
+                    ->select(['id', 'clearance_update_id', 'student_id', 'status', 'amount']),
+            ])
+            ->latest('applied_at')
+            ->get()
+            ->map(function (StudentSemesterClearance $clearance) use ($request): array {
+                $accountabilities = $clearance->clearanceUpdate->accountabilities;
+                $pendingAccountabilities = $accountabilities->where('status', 'pending');
+
+                return [
+                    'id' => $clearance->id,
+                    'reference_no' => $clearance->reference_no,
+                    'status' => $clearance->status,
+                    'applied_at' => $clearance->applied_at?->toIso8601String(),
+                    'cleared_at' => $clearance->cleared_at?->toIso8601String(),
+                    'completed_at' => $clearance->completed_at?->toIso8601String(),
+                    'remarks' => $clearance->remarks,
+                    'clearance' => [
+                        'reference_code' => $clearance->clearanceUpdate->reference_code,
+                        'title' => $clearance->clearanceUpdate->title,
+                        'type' => $clearance->clearanceUpdate->type->name,
+                        'start_date' => $clearance->clearanceUpdate->start_date?->toDateString(),
+                        'end_date' => $clearance->clearanceUpdate->end_date?->toDateString(),
+                    ],
+                    'semester' => [
+                        'academic_year' => $clearance->semester->academic_year,
+                        'term' => $clearance->semester->term,
+                    ],
+                    'accountabilities' => [
+                        'total' => $accountabilities->count(),
+                        'pending' => $pendingAccountabilities->count(),
+                        'outstanding_amount' => (float) $pendingAccountabilities->sum('amount'),
+                    ],
+                    'can_view' => $request->user()->can('view', $clearance),
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     public function printCurriculum(

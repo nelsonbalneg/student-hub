@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests\SiteSettings;
 
+use App\Models\Office;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateOfficeRequest extends FormRequest
 {
@@ -25,6 +27,14 @@ class UpdateOfficeRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'code' => ['nullable', 'string', 'max:50'],
+            'category' => [
+                'required',
+                Rule::in([
+                    Office::CATEGORY_ACADEMIC,
+                    Office::CATEGORY_SUPPORT,
+                    Office::CATEGORY_ADMINISTRATION,
+                ]),
+            ],
             'description' => ['nullable', 'string'],
         ];
     }

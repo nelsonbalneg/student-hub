@@ -14,11 +14,29 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'name',
     'campus_id',
     'code',
+    'category',
     'description',
 ])]
 class Office extends Model
 {
     use HasFactory, SoftDeletes;
+
+    public const CATEGORY_ACADEMIC = 'academic';
+
+    public const CATEGORY_SUPPORT = 'support';
+
+    public const CATEGORY_ADMINISTRATION = 'administration';
+
+    protected $attributes = [
+        'category' => self::CATEGORY_SUPPORT,
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'campus_id' => 'integer',
+        ];
+    }
 
     public function campus(): BelongsTo
     {

@@ -464,6 +464,7 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                 Route::patch('/updates/{update}', [ClearanceUpdateController::class, 'update'])->name('updates.update');
                 Route::post('/updates/{update}/publish', [ClearanceUpdateController::class, 'publish'])->name('updates.publish');
                 Route::post('/updates/{update}/close', [ClearanceUpdateController::class, 'close'])->name('updates.close');
+                Route::post('/updates/{update}/reopen', [ClearanceUpdateController::class, 'reopen'])->name('updates.reopen');
                 Route::post('/updates/{update}/sync-offices', [ClearanceUpdateController::class, 'syncOffices'])->name('updates.sync-offices');
                 Route::post('/updates/{update}/toggle-office', [ClearanceUpdateController::class, 'toggleOffice'])->name('updates.toggle-office');
                 Route::delete('/updates/{update}/offices/{office}', [ClearanceUpdateController::class, 'removeOffice'])->name('updates.remove-office');
@@ -476,6 +477,8 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                 Route::get('/updates/{update}/accountabilities', [ClearanceAccountabilityController::class, 'index'])->name('accountabilities.index');
                 Route::get('/accountabilities/students', [ClearanceAccountabilityController::class, 'students'])->name('accountabilities.students.search');
                 Route::post('/updates/{update}/accountabilities', [ClearanceAccountabilityController::class, 'store'])->name('accountabilities.store');
+                Route::post('/updates/{update}/accountabilities/finalize-office', [ClearanceAccountabilityController::class, 'finalizeOffice'])->name('accountabilities.finalize-office');
+                Route::post('/updates/{update}/accountabilities/unfinalize-office', [ClearanceAccountabilityController::class, 'unfinalizeOffice'])->name('accountabilities.unfinalize-office');
                 Route::post('/updates/{update}/accountabilities/upload-preview', [ClearanceAccountabilityController::class, 'uploadPreview'])->name('accountabilities.upload-preview');
                 Route::post('/updates/{update}/accountabilities/upload-save', [ClearanceAccountabilityController::class, 'uploadSave'])->name('accountabilities.upload-save');
                 Route::post('/accountabilities/{accountability}/resolve', [ClearanceAccountabilityController::class, 'resolve'])->name('accountabilities.resolve');

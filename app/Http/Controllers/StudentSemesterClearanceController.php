@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Http\Resources\Clearance\StudentSemesterClearanceResource;
 use App\Models\ClearanceType;
 use App\Models\ClearanceUpdate;
+use App\Models\Office;
 use App\Models\StudentSemesterClearance;
+use App\Models\User;
 use App\Services\ClearanceApplicationService;
 use App\Services\GetActiveSem;
 use Illuminate\Http\RedirectResponse;
@@ -21,22 +23,29 @@ class StudentSemesterClearanceController extends Controller
     public function myClearance(Request $request): Response
     {
         $activeSem = GetActiveSem::current();
+        $clearanceDate = now(config('clearance.timezone'))->toDateString();
 
         $activeUpdates = $activeSem ? ClearanceUpdate::query()
             ->where('semester_id', $activeSem->id)
             ->where('status', ClearanceUpdate::STATUS_PUBLISHED)
-            ->whereDate('start_date', '<=', now())
-            ->whereDate('end_date', '>=', now())
+            ->whereDate('start_date', '<=', $clearanceDate)
+            ->whereDate('end_date', '>=', $clearanceDate)
             ->where(function ($query) use ($request) {
                 $query
                     ->whereHas('type', fn ($typeQuery) => $typeQuery->where('audience', ClearanceType::AUDIENCE_ALL))
                     ->orWhereHas('targetedStudents', fn ($studentQuery) => $studentQuery->whereKey($request->user()->id));
             })
             ->with(['type', 'offices.office'])
-            ->get() : collect();
+            ->get()
+            ->each(fn (ClearanceUpdate $update) => $this->filterOfficesForStudent($update, $request->user())) : collect();
 
         $myClearances = StudentSemesterClearance::query()
             ->where('student_id', $request->user()->id)
+            // Only show clearances whose parent update has been published (or closed).
+            // Draft updates must remain invisible to students even if they were tagged.
+            ->whereHas('clearanceUpdate', function ($q) {
+                $q->where('status', '!=', ClearanceUpdate::STATUS_DRAFT);
+            })
             ->with([
                 'clearanceUpdate.type',
                 'semester',
@@ -46,7 +55,11 @@ class StudentSemesterClearanceController extends Controller
                 },
             ])
             ->latest()
-            ->get();
+            ->get()
+            ->each(fn (StudentSemesterClearance $clearance) => $this->filterOfficesForStudent(
+                $clearance->clearanceUpdate,
+                $request->user(),
+            ));
 
         return Inertia::render('Clearance/Student/MyClearance', [
             'activeSemester' => $activeSem,
@@ -62,9 +75,15 @@ class StudentSemesterClearanceController extends Controller
     {
         $this->authorize('apply', [StudentSemesterClearance::class, $update]);
 
-        // Validate application period
-        if ($update->status !== ClearanceUpdate::STATUS_PUBLISHED || now()->isBefore($update->start_date) || now()->isAfter($update->end_date)) {
-            return back()->with('error', 'The application period for this clearance has ended or not yet started.');
+        $clearanceDate = now(config('clearance.timezone'))->toDateString();
+
+        if (
+            $update->status !== ClearanceUpdate::STATUS_PUBLISHED
+            || $clearanceDate < $update->start_date->toDateString()
+            || $clearanceDate > $update->end_date->toDateString()
+        ) {
+            return redirect()->route('clearance.my-clearance')
+                ->with('error', 'The application period for this clearance has ended or not yet started.');
         }
 
         $update->loadMissing('type');
@@ -81,12 +100,14 @@ class StudentSemesterClearanceController extends Controller
             ->exists();
 
         if ($exists) {
-            return back()->with('error', 'You have already applied for this clearance.');
+            return redirect()->route('clearance.my-clearance')
+                ->with('error', 'You have already applied for this clearance.');
         }
 
-        app(ClearanceApplicationService::class)->applyForClearance($request->user(), $update);
+        $clearance = app(ClearanceApplicationService::class)->applyForClearance($request->user(), $update);
 
-        return back()->with('success', 'Clearance application submitted.');
+        return redirect()->route('clearance.show', $clearance)
+            ->with('success', 'Clearance application submitted.');
     }
 
     /**
@@ -96,7 +117,18 @@ class StudentSemesterClearanceController extends Controller
     {
         $this->authorize('view', $clearance);
 
+        $clearance->loadMissing('clearanceUpdate');
+
+        // Draft clearance updates are hidden from students, but staff/admins
+        // with the clearance-application.view permission can still view them.
+        $isDraft = $clearance->clearanceUpdate?->status === ClearanceUpdate::STATUS_DRAFT;
+        $isStudent = auth()->id() === $clearance->student_id && ! auth()->user()->can('clearance-application.view');
+        if ($isDraft && $isStudent) {
+            abort(404);
+        }
+
         $clearance->load([
+            'student',
             'clearanceUpdate.offices.office',
             'clearanceUpdate.accountabilities' => function ($query) use ($clearance) {
                 $query->where('student_id', $clearance->student_id)
@@ -106,8 +138,37 @@ class StudentSemesterClearanceController extends Controller
             'logs.performer',
         ]);
 
+        $this->filterOfficesForStudent($clearance->clearanceUpdate, $clearance->student);
+
         return Inertia::render('Clearance/Student/Details', [
             'clearance' => (new StudentSemesterClearanceResource($clearance))->resolve(),
         ]);
+    }
+
+    private function filterOfficesForStudent(ClearanceUpdate $update, User $student): void
+    {
+        if (! $update->relationLoaded('offices')) {
+            return;
+        }
+
+        $update->setRelation(
+            'offices',
+            $update->offices
+                ->filter(function ($updateOffice) use ($student): bool {
+                    $office = $updateOffice->office;
+
+                    if (! $office || $office->category !== Office::CATEGORY_ACADEMIC) {
+                        return true;
+                    }
+
+                    if ($student->office_id) {
+                        return (int) $office->id === (int) $student->office_id;
+                    }
+
+                    return mb_strtolower(trim($office->name))
+                        === mb_strtolower(trim($student->office ?? ''));
+                })
+                ->values(),
+        );
     }
 }

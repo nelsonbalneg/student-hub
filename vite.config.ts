@@ -14,6 +14,54 @@ const laragonKey = 'C:/laragon/etc/ssl/laragon.key';
 const hasLaragonCertificate =
     fs.existsSync(laragonCertificate) && fs.existsSync(laragonKey);
 
+const normalizeLaravelManifest = () => ({
+    name: 'normalize-laravel-manifest',
+    enforce: 'post' as const,
+    closeBundle() {
+        const manifestPath = fileURLToPath(
+            new URL('./public/build/manifest.json', import.meta.url),
+        );
+
+        if (!fs.existsSync(manifestPath)) {
+            return;
+        }
+
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        const normalizedManifest = Object.fromEntries(
+            Object.entries(manifest).map(([key, value]) => {
+                const normalizedKey = key.replace(
+                    /^.*?(?=resources\/)/,
+                    '',
+                );
+                const entry = value as {
+                    src?: string;
+                    imports?: string[];
+                    dynamicImports?: string[];
+                };
+
+                if (entry.src) {
+                    entry.src = entry.src.replace(/^.*?(?=resources\/)/, '');
+                }
+
+                for (const property of ['imports', 'dynamicImports'] as const) {
+                    if (entry[property]) {
+                        entry[property] = entry[property].map((item) =>
+                            item.replace(/^.*?(?=resources\/)/, ''),
+                        );
+                    }
+                }
+
+                return [normalizedKey, entry];
+            }),
+        );
+
+        fs.writeFileSync(
+            manifestPath,
+            `${JSON.stringify(normalizedManifest, null, 2)}\n`,
+        );
+    },
+});
+
 export default defineConfig({
     server: {
         host: 'studenthub.test',
@@ -66,5 +114,6 @@ export default defineConfig({
         wayfinder({
             formVariants: true,
         }),
+        normalizeLaravelManifest(),
     ],
 });

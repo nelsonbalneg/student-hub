@@ -37,6 +37,11 @@ class ClearanceUpdatePolicy
         return $user->can('clearance-update.close') && $update->status === ClearanceUpdate::STATUS_PUBLISHED;
     }
 
+    public function reopen(User $user, ClearanceUpdate $update): bool
+    {
+        return $user->can('clearance-update.close') && $update->status === ClearanceUpdate::STATUS_CLOSED;
+    }
+
     public function delete(User $user, ClearanceUpdate $update): bool
     {
         return $user->can('clearance-update.delete') && $update->status === ClearanceUpdate::STATUS_DRAFT;
