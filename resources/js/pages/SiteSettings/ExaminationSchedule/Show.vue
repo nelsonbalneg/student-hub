@@ -7,11 +7,13 @@ import {
     FileSpreadsheet,
     RefreshCw,
     Upload,
+    Search,
 } from 'lucide-vue-next';
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import { toast } from 'vue-sonner';
 import SiteSettingsLayout from '@/layouts/SiteSettingsLayout.vue';
 import webRoutes from '@/routes/site-settings/examination-schedules';
+import SearchableSelect from '@/components/SearchableSelect.vue';
 import {
     preview as previewImportRoute,
     sync as syncImportRoute,
@@ -163,9 +165,27 @@ const selectImportFile = (event: Event) => {
 };
 
 // DataTables (Records)
-const records = ref<any>({ data: [], current_page: 1, last_page: 1 });
+const records = ref<any>({ data: [], current_page: 1, last_page: 1, sections: [], rooms: [], days: [] });
 const recordsLoading = ref(false);
 const searchQuery = ref('');
+const selectedSection = ref('');
+const selectedRoom = ref('');
+const selectedDay = ref('');
+
+const groupedRecords = computed(() => {
+    const groups: { [key: string]: any[] } = {};
+    if (!records.value || !records.value.data) {
+        return groups;
+    }
+    records.value.data.forEach((record: any) => {
+        const sec = record.section || 'Unassigned';
+        if (!groups[sec]) {
+            groups[sec] = [];
+        }
+        groups[sec].push(record);
+    });
+    return groups;
+});
 
 const fetchRecords = async (page = 1) => {
     recordsLoading.value = true;
@@ -175,6 +195,15 @@ const fetchRecords = async (page = 1) => {
 
         if (searchQuery.value) {
             params.append('search', searchQuery.value);
+        }
+        if (selectedSection.value) {
+            params.append('section', selectedSection.value);
+        }
+        if (selectedRoom.value) {
+            params.append('room', selectedRoom.value);
+        }
+        if (selectedDay.value) {
+            params.append('day', selectedDay.value);
         }
 
         const response = await fetch(
@@ -192,6 +221,10 @@ const fetchRecords = async (page = 1) => {
         recordsLoading.value = false;
     }
 };
+
+watch([selectedSection, selectedRoom, selectedDay], () => {
+    fetchRecords(1);
+});
 
 // DataTables (Logs)
 const logs = ref<any>({ data: [], current_page: 1, last_page: 1 });
@@ -242,6 +275,8 @@ onUnmounted(() => {
     }
 });
 
+const dateValue = (value: string | null | undefined) =>
+    value ? value.substring(0, 10) : '';
 const formatTime = (time: string) => (time ? time.substring(0, 5) : '');
 </script>
 
@@ -277,6 +312,8 @@ const formatTime = (time: string) => (time ? time.substring(0, 5) : '');
                         <span>{{
                             examinationSchedule.campus.campus_name
                         }}</span>
+                        <span>&bull;</span>
+                        <span>{{ dateValue(examinationSchedule.start_date) }} — {{ dateValue(examinationSchedule.end_date) }}</span>
                         <span>&bull;</span>
                         <span
                             :class="[
@@ -530,22 +567,55 @@ const formatTime = (time: string) => (time ? time.substring(0, 5) : '');
 
             <!-- Tab Content: Records -->
             <div v-show="activeTab === 'records'" class="mt-6 flex-1">
-                <div class="mb-4 flex items-center justify-between">
-                    <div class="relative w-full max-w-sm">
-                        <input
-                            v-model="searchQuery"
-                            @input="fetchRecords(1)"
-                            type="text"
-                            placeholder="Search subjects, sections, or rooms..."
-                            class="block w-full rounded-xl border-slate-300 pl-10 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 text-[13px] dark:border-white/10 dark:bg-slate-800 dark:text-white"
-                        />
-                        <Search
-                            class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400"
-                        />
+                <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+                        <div class="relative w-full max-w-sm">
+                            <input
+                                v-model="searchQuery"
+                                @input="fetchRecords(1)"
+                                type="text"
+                                placeholder="Search subjects, sections, or rooms..."
+                                class="block w-full rounded-xl border-slate-300 pl-10 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 text-[13px] dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                            />
+                            <Search
+                                class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400"
+                            />
+                        </div>
+                        
+                        <!-- Section Filter -->
+                        <div class="w-full sm:w-48">
+                            <SearchableSelect
+                                v-model="selectedSection"
+                                :options="records.sections || []"
+                                empty-text="All Sections"
+                                placeholder="Search section..."
+                            />
+                        </div>
+                        
+                        <!-- Room Filter -->
+                        <div class="w-full sm:w-44">
+                            <SearchableSelect
+                                v-model="selectedRoom"
+                                :options="records.rooms || []"
+                                empty-text="All Rooms"
+                                placeholder="Search room..."
+                            />
+                        </div>
+                        
+                        <!-- Day Filter -->
+                        <div class="w-full sm:w-40">
+                            <SearchableSelect
+                                v-model="selectedDay"
+                                :options="records.days || []"
+                                empty-text="All Days"
+                                placeholder="Search day..."
+                            />
+                        </div>
                     </div>
+                    
                     <button
                         @click="fetchRecords(records.current_page)"
-                        class="text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400"
+                        class="self-end text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 sm:self-auto"
                     >
                         <RefreshCw
                             :class="[
@@ -626,48 +696,63 @@ const formatTime = (time: string) => (time ? time.substring(0, 5) : '');
                                         No records found.
                                     </td>
                                 </tr>
-                                <tr
-                                    v-for="record in records.data"
-                                    :key="record.id"
-                                    class="transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                                <template
+                                    v-for="(groupRecords, sectionName) in groupedRecords"
+                                    :key="sectionName"
                                 >
-                                    <td
-                                        class="px-6 py-3 text-[13px] font-medium whitespace-nowrap text-slate-900 dark:text-white"
+                                    <!-- Section Header Row -->
+                                    <tr class="bg-slate-50/70 dark:bg-slate-800/40">
+                                        <td
+                                            colspan="7"
+                                            class="px-6 py-2 text-[11px] font-semibold tracking-wider text-slate-500 dark:text-slate-400 uppercase"
+                                        >
+                                            Section: {{ sectionName }} ({{ dateValue(examinationSchedule.start_date) }} — {{ dateValue(examinationSchedule.end_date) }})
+                                        </td>
+                                    </tr>
+                                    <!-- Subject Rows -->
+                                    <tr
+                                        v-for="record in groupRecords"
+                                        :key="record.id"
+                                        class="transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
                                     >
-                                        {{ record.subject_code }}
-                                    </td>
-                                    <td
-                                        class="px-6 py-3 text-[13px] whitespace-nowrap text-slate-500 dark:text-slate-400"
-                                    >
-                                        {{ record.section || '-' }}
-                                    </td>
-                                    <td
-                                        class="px-6 py-3 text-[13px] whitespace-nowrap text-slate-500 dark:text-slate-400"
-                                    >
-                                        {{ record.room || '-' }}
-                                    </td>
-                                    <td
-                                        class="px-6 py-3 text-[13px] whitespace-nowrap text-slate-500 dark:text-slate-400"
-                                    >
-                                        {{ record.day || '-' }}
-                                    </td>
-                                    <td
-                                        class="px-6 py-3 text-[13px] whitespace-nowrap text-slate-500 dark:text-slate-400"
-                                    >
-                                        {{ formatTime(record.start_time) }} -
-                                        {{ formatTime(record.end_time) }}
-                                    </td>
-                                    <td
-                                        class="px-6 py-3 text-[13px] whitespace-nowrap text-slate-500 dark:text-slate-400"
-                                    >
-                                        {{ record.instructor || '-' }}
-                                    </td>
-                                    <td
-                                        class="px-6 py-3 text-[13px] whitespace-nowrap text-slate-500 dark:text-slate-400"
-                                    >
-                                        {{ record.proctor_name || '-' }}
-                                    </td>
-                                </tr>
+                                        <td
+                                            class="px-6 py-3 text-[13px] font-medium whitespace-nowrap text-slate-900 dark:text-white"
+                                        >
+                                            {{ record.subject_code }}
+                                        </td>
+                                        <td
+                                            class="px-6 py-3 text-[13px] whitespace-nowrap text-slate-500 dark:text-slate-400"
+                                        >
+                                            {{ record.section || '-' }}
+                                        </td>
+                                        <td
+                                            class="px-6 py-3 text-[13px] whitespace-nowrap text-slate-500 dark:text-slate-400"
+                                        >
+                                            {{ record.room || '-' }}
+                                        </td>
+                                        <td
+                                            class="px-6 py-3 text-[13px] whitespace-nowrap text-slate-500 dark:text-slate-400"
+                                        >
+                                            {{ record.day || '-' }}
+                                        </td>
+                                        <td
+                                            class="px-6 py-3 text-[13px] whitespace-nowrap text-slate-500 dark:text-slate-400"
+                                        >
+                                            {{ formatTime(record.start_time) }} -
+                                            {{ formatTime(record.end_time) }}
+                                        </td>
+                                        <td
+                                            class="px-6 py-3 text-[13px] whitespace-nowrap text-slate-500 dark:text-slate-400"
+                                        >
+                                            {{ record.instructor || '-' }}
+                                        </td>
+                                        <td
+                                            class="px-6 py-3 text-[13px] whitespace-nowrap text-slate-500 dark:text-slate-400"
+                                        >
+                                            {{ record.proctor_name || '-' }}
+                                        </td>
+                                    </tr>
+                                </template>
                             </tbody>
                         </table>
                     </div>

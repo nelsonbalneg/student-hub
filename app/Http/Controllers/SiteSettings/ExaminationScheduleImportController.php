@@ -160,7 +160,7 @@ class ExaminationScheduleImportController extends Controller
 
         $query = $examinationSchedule->subjects();
 
-        if ($request->has('search') && $request->search !== null) {
+        if ($request->has('search') && $request->search !== null && $request->search !== '') {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('subject_code', 'like', "%{$search}%")
@@ -169,9 +169,26 @@ class ExaminationScheduleImportController extends Controller
             });
         }
 
-        return response()->json(
-            $query->latest()->paginate($request->get('per_page', 15))
-        );
+        if ($request->has('section') && $request->section !== null && $request->section !== '') {
+            $query->where('section', $request->section);
+        }
+
+        if ($request->has('room') && $request->room !== null && $request->room !== '') {
+            $query->where('room', $request->room);
+        }
+
+        if ($request->has('day') && $request->day !== null && $request->day !== '') {
+            $query->where('day', $request->day);
+        }
+
+        $paginated = $query->latest()->paginate($request->get('per_page', 15));
+
+        $response = $paginated->toArray();
+        $response['sections'] = $examinationSchedule->subjects()->distinct()->whereNotNull('section')->pluck('section')->sort()->values();
+        $response['rooms'] = $examinationSchedule->subjects()->distinct()->whereNotNull('room')->pluck('room')->sort()->values();
+        $response['days'] = $examinationSchedule->subjects()->distinct()->whereNotNull('day')->pluck('day')->sort()->values();
+
+        return response()->json($response);
     }
 
     public function logs(Request $request, ExaminationSchedule $examinationSchedule)
