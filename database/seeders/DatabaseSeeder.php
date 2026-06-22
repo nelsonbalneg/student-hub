@@ -41,6 +41,7 @@ class DatabaseSeeder extends Seeder
             PhysicalFitnessTestSeeder::class,
             Dass21EvaluationTemplateSeeder::class,
             StudentPortalSystemEvaluationSeeder::class,
+            ExaminationSchedulePermissionSeeder::class,
         ]);
 
         $testUser->assignRole('Super Admin');

@@ -83,7 +83,7 @@ class ClearanceUpdateController extends Controller
             'semesters' => $semesters,
             'types' => ClearanceType::all(['id', 'name', 'audience', 'campus_id']),
             'campuses' => $campuses,
-            'students' => $this->studentOptions(),
+            'students' => [],  // Loaded on demand via searchStudents()
             'activeSemester' => GetActiveSem::current(),
             'can' => [
                 'create' => $request->user()->can('clearance-update.create'),
@@ -611,7 +611,40 @@ class ClearanceUpdateController extends Controller
     }
 
     /**
+     * Server-side student search for the create/edit modal.
+     * Returns up to 20 matching active students, filtered by campus if provided.
+     * Requires at least 2 characters to avoid loading the full 80k dataset.
+     *
      * @return array<int, array{id: int, name: string, student_no: string|null, campus_id: int|null}>
+     */
+    public function searchStudents(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $validated = $request->validate([
+            'q'         => ['required', 'string', 'min:2', 'max:100'],
+            'campus_id' => ['nullable', 'integer'],
+        ]);
+
+        $query = trim($validated['q']);
+        $campusId = $validated['campus_id'] ?? null;
+
+        $students = User::query()
+            ->whereNotNull('student_no')
+            ->where('is_active', true)
+            ->when($campusId, fn ($q) => $q->where('campus_id', $campusId))
+            ->where(function ($q) use ($query) {
+                $q->where('name', 'like', "%{$query}%")
+                  ->orWhere('student_no', 'like', "%{$query}%");
+            })
+            ->orderBy('name')
+            ->limit(20)
+            ->get(['id', 'name', 'student_no', 'campus_id']);
+
+        return response()->json($students);
+    }
+
+    /**
+     * @return array<int, array{id: int, name: string, student_no: string|null, campus_id: int|null}>
+     * @deprecated No longer used — kept for reference only. Students are loaded via searchStudents().
      */
     private function studentOptions(): array
     {
@@ -691,5 +724,66 @@ class ClearanceUpdateController extends Controller
 
         return redirect()->route('clearance.updates.show', $update)
             ->with('success', 'Student application removed.');
+    }
+
+    /**
+     * Tag a single student to an individual clearance update and create their
+     * clearance application immediately. Called from the Applications tab on
+     * the Show page.
+     */
+    public function tagStudent(
+        Request $request,
+        ClearanceUpdate $update,
+        ClearanceApplicationService $applicationService,
+    ): RedirectResponse {
+        $this->authorize('update', $update);
+
+        abort_unless(
+            $update->type?->audience === ClearanceType::AUDIENCE_INDIVIDUAL,
+            422,
+            'This clearance update is not individual-type.',
+        );
+
+        $validated = $request->validate([
+            'student_id' => [
+                'required',
+                'integer',
+                Rule::exists('users', 'id')->where(
+                    fn ($q) => $q->whereNotNull('student_no'),
+                ),
+            ],
+        ]);
+
+        $student = User::findOrFail($validated['student_id']);
+
+        // Add to targeted students if not already tagged.
+        $update->targetedStudents()->syncWithoutDetaching([$student->id]);
+
+        // Create the clearance application if one doesn't already exist.
+        $existing = StudentSemesterClearance::query()
+            ->where('clearance_update_id', $update->id)
+            ->where('student_id', $student->id)
+            ->first();
+
+        if (! $existing) {
+            $applicationService->applyForClearance($student, $update);
+
+            ClearanceLog::create([
+                'clearance_update_id' => $update->id,
+                'action'              => 'STUDENT_TAGGED',
+                'remarks'             => "Tagged student {$student->name} ({$student->student_no}) and created clearance application.",
+                'performed_by'        => auth()->id(),
+            ]);
+        } else {
+            ClearanceLog::create([
+                'clearance_update_id' => $update->id,
+                'action'              => 'STUDENT_TAGGED',
+                'remarks'             => "Tagged student {$student->name} ({$student->student_no}) — clearance application already existed.",
+                'performed_by'        => auth()->id(),
+            ]);
+        }
+
+        return redirect()->route('clearance.updates.show', $update)
+            ->with('success', "{$student->name} has been tagged and their clearance application created.");
     }
 }

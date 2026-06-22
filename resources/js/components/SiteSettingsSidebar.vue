@@ -56,6 +56,13 @@ const tabs = [
         permission: 'evaluation.templates.view',
     },
     {
+        name: 'Examination Schedule',
+        href: '/admin/site-settings/examination-schedules',
+        icon: FileCheck2,
+        description: 'Manage and import exam schedules',
+        permission: 'examination-schedule.view',
+    },
+    {
         name: 'CCD Cares',
         href: '/admin/site-settings/ccd-cares',
         icon: Heart,

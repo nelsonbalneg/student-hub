@@ -13,6 +13,7 @@ use App\Policies\EvaluationRequestPolicy;
 use App\Policies\PermissionPolicy;
 use App\Policies\RolePolicy;
 use App\Policies\UserPolicy;
+use App\Support\SpreadsheetAutoload;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
@@ -37,7 +38,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        SpreadsheetAutoload::register();
     }
 
     /**

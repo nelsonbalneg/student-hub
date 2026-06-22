@@ -3,6 +3,7 @@ import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
     ChevronLeft,
     ChevronRight,
+    Loader2,
     MoreHorizontal,
     Plus,
     RefreshCw,
@@ -229,24 +230,75 @@ watch(selectedCampusId, (newCampusId) => {
     }
 });
 
-const filteredStudents = computed(() => {
-    const query = studentSearch.value.trim().toLowerCase();
-    const campusId = selectedSemester.value?.campus_id;
+// ─── Async student search ────────────────────────────────────────────────────
+type StudentOption = {
+    id: number;
+    name: string;
+    student_no: string | null;
+    campus_id: number | null;
+};
 
-    return props.students
-        .filter(
-            (student) =>
-                !campusId ||
-                Number(student.campus_id) === Number(campusId),
-        )
-        .filter(
-            (student) =>
-                !query ||
-                student.name.toLowerCase().includes(query) ||
-                student.student_no?.toLowerCase().includes(query),
-        )
-        .slice(0, 50);
+const studentSearchResults = ref<StudentOption[]>([]);
+const studentSearchLoading = ref(false);
+let studentSearchTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Students already selected (pre-loaded from the update being edited).
+const selectedStudentDetails = ref<StudentOption[]>([]);
+
+// The list shown in the dropdown — search results merged with selected entries
+// so checked items always appear regardless of the current query.
+const visibleStudents = computed<StudentOption[]>(() => {
+    const selectedIds = new Set(form.selected_student_ids);
+    const results = studentSearchResults.value;
+    const extraSelected = selectedStudentDetails.value.filter(
+        (s) => selectedIds.has(s.id) && !results.find((r) => r.id === s.id),
+    );
+    return [...extraSelected, ...results];
 });
+
+const doStudentSearch = () => {
+    const q = studentSearch.value.trim();
+    // Infer campus_id from the selected semester's campus
+    const campusId = selectedSemester.value?.campus_id ?? null;
+
+    if (q.length < 2) {
+        studentSearchResults.value = [];
+        studentSearchLoading.value = false;
+        return;
+    }
+
+    studentSearchLoading.value = true;
+
+    const params = new URLSearchParams({ q });
+    if (campusId) params.set('campus_id', String(campusId));
+
+    fetch(
+        `/student-services/clearance/updates/students/search?${params}`,
+        {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+        },
+    )
+        .then((r) => r.json())
+        .then((data: StudentOption[]) => {
+            studentSearchResults.value = data;
+        })
+        .catch(() => {
+            studentSearchResults.value = [];
+        })
+        .finally(() => {
+            studentSearchLoading.value = false;
+        });
+};
+
+watch(studentSearch, () => {
+    if (studentSearchTimer) clearTimeout(studentSearchTimer);
+    studentSearchTimer = setTimeout(doStudentSearch, 350);
+});
+// ─────────────────────────────────────────────────────────────────────────────
 
 const toggleStudent = (studentId: number) => {
     form.selected_student_ids = form.selected_student_ids.includes(studentId)
@@ -282,6 +334,8 @@ const openCreate = () => {
     form.reset();
     form.selected_student_ids = [];
     studentSearch.value = '';
+    studentSearchResults.value = [];
+    selectedStudentDetails.value = [];
     lastSuggestedTitle.value = '';
 
     const activeSem = props.semesters.find(
@@ -311,6 +365,15 @@ const openEdit = (update: ClearanceUpdate) => {
     form.selected_student_ids =
         update.targeted_students?.map((student) => student.id) ?? [];
     studentSearch.value = '';
+    studentSearchResults.value = [];
+    // Pre-populate selectedStudentDetails so already-selected names appear
+    // in the list without needing to search first.
+    selectedStudentDetails.value = (update.targeted_students ?? []).map((s) => ({
+        id: s.id,
+        name: s.name,
+        student_no: s.student_no,
+        campus_id: null,
+    }));
 
     const sem = props.semesters.find(
         (s) =>
@@ -738,41 +801,67 @@ const statusClass = (status: string) => {
                         <div
                             class="mt-2 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
                         >
-                            <label
-                                v-for="student in filteredStudents"
-                                :key="student.id"
-                                class="flex cursor-pointer items-center gap-3 border-b border-slate-100 px-3 py-2 last:border-b-0 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5"
+                            <!-- Loading spinner -->
+                            <div
+                                v-if="studentSearchLoading"
+                                class="flex items-center justify-center gap-2 p-4 text-xs text-slate-400"
                             >
-                                <input
-                                    type="checkbox"
-                                    :checked="
-                                        form.selected_student_ids.includes(
-                                            student.id,
-                                        )
-                                    "
-                                    class="size-4 rounded border-slate-300 text-violet-600"
-                                    @change="toggleStudent(student.id)"
-                                />
-                                <span class="min-w-0 flex-1">
-                                    <span
-                                        class="block truncate text-xs font-semibold text-slate-900 dark:text-white"
-                                        >{{ student.name }}</span
-                                    >
-                                    <span
-                                        class="block text-[10px] text-slate-500"
-                                        >{{
-                                            student.student_no ||
-                                            'No student number'
-                                        }}</span
-                                    >
-                                </span>
-                            </label>
-                            <p
-                                v-if="filteredStudents.length === 0"
-                                class="p-4 text-center text-xs text-slate-500"
-                            >
-                                No students found for the selected campus.
-                            </p>
+                                <Loader2 class="h-3.5 w-3.5 animate-spin" />
+                                Searching...
+                            </div>
+
+                            <template v-else>
+                                <label
+                                    v-for="student in visibleStudents"
+                                    :key="student.id"
+                                    class="flex cursor-pointer items-center gap-3 border-b border-slate-100 px-3 py-2 last:border-b-0 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        :checked="
+                                            form.selected_student_ids.includes(
+                                                student.id,
+                                            )
+                                        "
+                                        class="size-4 rounded border-slate-300 text-violet-600"
+                                        @change="toggleStudent(student.id)"
+                                    />
+                                    <span class="min-w-0 flex-1">
+                                        <span
+                                            class="block truncate text-xs font-semibold text-slate-900 dark:text-white"
+                                            >{{ student.name }}</span
+                                        >
+                                        <span
+                                            class="block text-[10px] text-slate-500"
+                                            >{{
+                                                student.student_no ||
+                                                'No student number'
+                                            }}</span
+                                        >
+                                    </span>
+                                </label>
+
+                                <!-- Empty states -->
+                                <p
+                                    v-if="visibleStudents.length === 0 && studentSearch.trim().length >= 2"
+                                    class="p-4 text-center text-xs text-slate-500"
+                                >
+                                    No students found matching
+                                    <strong>{{ studentSearch }}</strong>.
+                                </p>
+                                <p
+                                    v-else-if="visibleStudents.length === 0 && form.selected_student_ids.length === 0"
+                                    class="p-4 text-center text-xs text-slate-400"
+                                >
+                                    Type at least 2 characters to search students.
+                                </p>
+                                <p
+                                    v-else-if="visibleStudents.length === 0"
+                                    class="p-4 text-center text-xs text-slate-400"
+                                >
+                                    Type to search for more students.
+                                </p>
+                            </template>
                         </div>
                         <InputError
                             :message="form.errors.selected_student_ids"

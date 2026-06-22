@@ -30,6 +30,8 @@ use App\Http\Controllers\ReportingOverviewController;
 use App\Http\Controllers\SiteEvaluationResponseController;
 use App\Http\Controllers\SiteSettings\CcdCaresEvaluationController;
 use App\Http\Controllers\SiteSettings\EvaluationTemplateController;
+use App\Http\Controllers\SiteSettings\ExaminationScheduleController;
+use App\Http\Controllers\SiteSettings\ExaminationScheduleImportController;
 use App\Http\Controllers\SiteSettings\PhysicalFitnessConfigurationController;
 use App\Http\Controllers\SiteSettings\SiteAcademicTermController;
 use App\Http\Controllers\SiteSettings\SiteBrandingController;
@@ -471,6 +473,7 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                 Route::delete('/updates/{update}/applications/{application}', [ClearanceUpdateController::class, 'deleteApplication'])->name('updates.delete-application');
                 Route::delete('/updates/{update}', [ClearanceUpdateController::class, 'destroy'])->name('updates.destroy');
                 Route::patch('/updates/{update}/extend', [ClearanceUpdateController::class, 'extend'])->name('updates.extend');
+                Route::get('/updates/students/search', [ClearanceUpdateController::class, 'searchStudents'])->name('updates.students.search');
 
                 // Accountabilities
                 Route::get('/accountabilities-center', [ClearanceAccountabilityController::class, 'center'])->name('accountabilities-center');
@@ -632,6 +635,18 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
 
             Route::get('site-settings', [SiteBrandingController::class, 'index'])->name('branding.index');
             Route::post('site-settings', [SiteBrandingController::class, 'update'])->name('branding.update');
+
+            Route::resource('examination-schedules', ExaminationScheduleController::class);
+            Route::prefix('examination-schedules/{examination_schedule}')
+                ->name('examination-schedules.')
+                ->controller(ExaminationScheduleImportController::class)
+                ->group(function () {
+                    Route::get('import/preview', 'returnFromPreview')->name('import.preview.return');
+                    Route::post('import/preview', 'preview')->name('import.preview');
+                    Route::post('import/sync', 'sync')->name('import.sync');
+                    Route::get('import/records', 'records')->name('import.records');
+                    Route::get('import/logs', 'logs')->name('import.logs');
+                });
         });
 
     // Society Module
