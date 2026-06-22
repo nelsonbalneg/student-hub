@@ -173,12 +173,12 @@ const confirmDelete = () => {
             >
                 <div>
                     <h1
-                        class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white"
+                        class="text-xl font-semibold tracking-tight text-slate-900 dark:text-white"
                     >
                         Examination Schedules
                     </h1>
                     <p
-                        class="mt-1.5 text-sm text-slate-500 dark:text-slate-400"
+                        class="mt-1.5 text-[13px] text-slate-500 dark:text-slate-400"
                     >
                         Manage exam schedules and import subject data.
                     </p>
@@ -187,7 +187,7 @@ const confirmDelete = () => {
                 <div class="flex items-center gap-3">
                     <button
                         @click="openModal()"
-                        class="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500/50 focus:outline-none"
+                        class="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-[13px] font-medium text-white shadow-sm transition-all hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500/50 focus:outline-none"
                     >
                         <Plus class="size-4" />
                         Create Schedule
@@ -205,29 +205,29 @@ const confirmDelete = () => {
                         <tr>
                             <th
                                 scope="col"
-                                class="px-6 py-4 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase dark:text-slate-400"
+                                class="px-6 py-3.5 text-left text-[11px] font-medium tracking-wider text-slate-500 uppercase dark:text-slate-400"
                             >
                                 Title
                             </th>
                             <th
                                 scope="col"
-                                class="px-6 py-4 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase dark:text-slate-400"
+                                class="px-6 py-3.5 text-left text-[11px] font-medium tracking-wider text-slate-500 uppercase dark:text-slate-400"
                             >
                                 Term & Campus
                             </th>
                             <th
                                 scope="col"
-                                class="px-6 py-4 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase dark:text-slate-400"
+                                class="px-6 py-3.5 text-left text-[11px] font-medium tracking-wider text-slate-500 uppercase dark:text-slate-400"
                             >
                                 Examination Period
                             </th>
                             <th
                                 scope="col"
-                                class="px-6 py-4 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase dark:text-slate-400"
+                                class="px-6 py-3.5 text-left text-[11px] font-medium tracking-wider text-slate-500 uppercase dark:text-slate-400"
                             >
                                 Status
                             </th>
-                            <th scope="col" class="relative px-6 py-4">
+                            <th scope="col" class="relative px-6 py-3.5">
                                 <span class="sr-only">Actions</span>
                             </th>
                         </tr>
@@ -240,9 +240,9 @@ const confirmDelete = () => {
                             :key="schedule.id"
                             class="transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
                         >
-                            <td class="px-6 py-4 whitespace-nowrap">
+                            <td class="px-6 py-3.5 whitespace-nowrap">
                                 <div
-                                    class="text-sm font-medium text-slate-900 dark:text-white"
+                                    class="text-[13px] font-medium text-slate-900 dark:text-white"
                                 >
                                     <Link
                                         :href="
@@ -256,34 +256,34 @@ const confirmDelete = () => {
                                     </Link>
                                 </div>
                                 <div
-                                    class="line-clamp-1 max-w-xs text-xs text-slate-500"
+                                    class="line-clamp-1 max-w-xs text-[11px] text-slate-500"
                                 >
                                     {{ schedule.description }}
                                 </div>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
+                            <td class="px-6 py-3.5 whitespace-nowrap">
                                 <div
-                                    class="text-sm text-slate-900 dark:text-white"
+                                    class="text-[13px] text-slate-900 dark:text-white"
                                 >
                                     {{ schedule.academic_term.semester }} - A.Y.
                                     {{ schedule.academic_term.school_year }}
                                 </div>
-                                <div class="text-xs text-slate-500">
+                                <div class="text-[11px] text-slate-500">
                                     {{ schedule.campus.campus_name }}
                                 </div>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
+                            <td class="px-6 py-3.5 whitespace-nowrap">
                                 <div
-                                    class="text-sm text-slate-900 dark:text-white"
+                                    class="text-[13px] text-slate-900 dark:text-white"
                                 >
                                     {{ dateValue(schedule.start_date) }} —
                                     {{ dateValue(schedule.end_date) }}
                                 </div>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
+                            <td class="px-6 py-3.5 whitespace-nowrap">
                                 <span
                                     :class="[
-                                        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
+                                        'inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium',
                                         schedule.status === 'Published'
                                             ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-400'
                                             : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-400',
@@ -293,7 +293,7 @@ const confirmDelete = () => {
                                 </span>
                             </td>
                             <td
-                                class="px-6 py-4 text-right text-sm font-medium whitespace-nowrap"
+                                class="px-6 py-3.5 text-right text-[13px] font-medium whitespace-nowrap"
                             >
                                 <div
                                     class="flex items-center justify-end gap-2"
@@ -316,7 +316,7 @@ const confirmDelete = () => {
                         <tr v-if="schedules.data.length === 0">
                             <td
                                 colspan="5"
-                                class="px-6 py-12 text-center text-sm text-slate-500"
+                                class="px-6 py-12 text-center text-[13px] text-slate-500"
                             >
                                 No examination schedules found.
                             </td>
@@ -346,7 +346,7 @@ const confirmDelete = () => {
                             </div>
                             <div>
                                 <SheetTitle
-                                    class="text-lg font-semibold text-slate-900 dark:text-white"
+                                    class="text-[13px] font-semibold text-slate-900 dark:text-white"
                                 >
                                     {{
                                         editingId
@@ -354,7 +354,7 @@ const confirmDelete = () => {
                                             : 'Create Examination Schedule'
                                     }}
                                 </SheetTitle>
-                                <SheetDescription class="mt-1 text-xs">
+                                <SheetDescription class="mt-1 text-[11px]">
                                     {{
                                         editingId
                                             ? 'Update the examination period and publishing status.'
@@ -373,7 +373,7 @@ const confirmDelete = () => {
                             <section class="space-y-4">
                                 <div>
                                     <p
-                                        class="text-xs font-semibold text-slate-800 dark:text-slate-200"
+                                        class="text-[13px] font-medium text-slate-800 dark:text-slate-200"
                                     >
                                         Academic session
                                     </p>
@@ -389,14 +389,14 @@ const confirmDelete = () => {
                                     <div class="grid gap-1.5">
                                         <label
                                             for="schedule-campus"
-                                            class="text-xs font-medium text-slate-600 dark:text-slate-300"
+                                            class="text-[11px] font-medium text-slate-600 dark:text-slate-300"
                                         >
                                             Campus
                                         </label>
                                         <select
                                             id="schedule-campus"
                                             v-model="form.campus_id"
-                                            class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 transition outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 dark:border-white/10 dark:bg-slate-900 dark:text-white"
+                                            class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 transition outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 dark:border-white/10 dark:bg-slate-900 dark:text-white"
                                             required
                                         >
                                             <option value="" disabled>
@@ -412,7 +412,7 @@ const confirmDelete = () => {
                                         </select>
                                         <p
                                             v-if="form.errors.campus_id"
-                                            class="text-xs text-rose-500"
+                                            class="text-[11px] font-medium text-rose-500 dark:text-rose-400"
                                         >
                                             {{ form.errors.campus_id }}
                                         </p>
@@ -421,7 +421,7 @@ const confirmDelete = () => {
                                     <div class="grid gap-1.5">
                                         <label
                                             for="schedule-term"
-                                            class="text-xs font-medium text-slate-600 dark:text-slate-300"
+                                            class="text-[11px] font-medium text-slate-600 dark:text-slate-300"
                                         >
                                             Academic term
                                         </label>
@@ -432,7 +432,7 @@ const confirmDelete = () => {
                                                 !form.campus_id ||
                                                 filteredTerms.length === 0
                                             "
-                                            class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 transition outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 dark:border-white/10 dark:bg-slate-900 dark:text-white dark:disabled:bg-white/5"
+                                            class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 transition outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 dark:border-white/10 dark:bg-slate-900 dark:text-white dark:disabled:bg-white/5"
                                             required
                                         >
                                             <option value="" disabled>
@@ -455,7 +455,7 @@ const confirmDelete = () => {
                                         </select>
                                         <p
                                             v-if="form.errors.academic_term_id"
-                                            class="text-xs text-rose-500"
+                                            class="text-[11px] font-medium text-rose-500 dark:text-rose-400"
                                         >
                                             {{ form.errors.academic_term_id }}
                                         </p>
@@ -469,7 +469,7 @@ const confirmDelete = () => {
 
                             <section class="space-y-4">
                                 <p
-                                    class="text-xs font-semibold text-slate-800 dark:text-slate-200"
+                                    class="text-[13px] font-medium text-slate-800 dark:text-slate-200"
                                 >
                                     Schedule details
                                 </p>
@@ -477,7 +477,7 @@ const confirmDelete = () => {
                                 <div class="grid gap-1.5">
                                     <label
                                         for="schedule-title"
-                                        class="text-xs font-medium text-slate-600 dark:text-slate-300"
+                                        class="text-[11px] font-medium text-slate-600 dark:text-slate-300"
                                     >
                                         Title
                                     </label>
@@ -486,12 +486,12 @@ const confirmDelete = () => {
                                         v-model="form.title"
                                         type="text"
                                         placeholder="e.g. Midterm Examination Schedule"
-                                        class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 transition outline-none placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 dark:border-white/10 dark:bg-slate-900 dark:text-white"
+                                        class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 transition outline-none placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 dark:border-white/10 dark:bg-slate-900 dark:text-white"
                                         required
                                     />
                                     <p
                                         v-if="form.errors.title"
-                                        class="text-xs text-rose-500"
+                                        class="text-[11px] font-medium text-rose-500 dark:text-rose-400"
                                     >
                                         {{ form.errors.title }}
                                     </p>
@@ -501,7 +501,7 @@ const confirmDelete = () => {
                                     <div class="grid gap-1.5">
                                         <label
                                             for="schedule-start-date"
-                                            class="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300"
+                                            class="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-300"
                                         >
                                             <CalendarDays class="size-3.5" />
                                             From date
@@ -510,12 +510,12 @@ const confirmDelete = () => {
                                             id="schedule-start-date"
                                             v-model="form.start_date"
                                             type="date"
-                                            class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 transition outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 dark:border-white/10 dark:bg-slate-900 dark:text-white"
+                                            class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 transition outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 dark:border-white/10 dark:bg-slate-900 dark:text-white"
                                             required
                                         />
                                         <p
                                             v-if="form.errors.start_date"
-                                            class="text-xs text-rose-500"
+                                            class="text-[11px] font-medium text-rose-500 dark:text-rose-400"
                                         >
                                             {{ form.errors.start_date }}
                                         </p>
@@ -524,7 +524,7 @@ const confirmDelete = () => {
                                     <div class="grid gap-1.5">
                                         <label
                                             for="schedule-end-date"
-                                            class="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300"
+                                            class="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-300"
                                         >
                                             <CalendarDays class="size-3.5" />
                                             To date
@@ -534,12 +534,12 @@ const confirmDelete = () => {
                                             v-model="form.end_date"
                                             type="date"
                                             :min="form.start_date || undefined"
-                                            class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 transition outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 dark:border-white/10 dark:bg-slate-900 dark:text-white"
+                                            class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 transition outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 dark:border-white/10 dark:bg-slate-900 dark:text-white"
                                             required
                                         />
                                         <p
                                             v-if="form.errors.end_date"
-                                            class="text-xs text-rose-500"
+                                            class="text-[11px] font-medium text-rose-500 dark:text-rose-400"
                                         >
                                             {{ form.errors.end_date }}
                                         </p>
@@ -548,14 +548,14 @@ const confirmDelete = () => {
                                     <div class="grid gap-1.5 sm:col-span-2">
                                         <label
                                             for="schedule-status"
-                                            class="text-xs font-medium text-slate-600 dark:text-slate-300"
+                                            class="text-[11px] font-medium text-slate-600 dark:text-slate-300"
                                         >
                                             Status
                                         </label>
                                         <select
                                             id="schedule-status"
                                             v-model="form.status"
-                                            class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 transition outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 dark:border-white/10 dark:bg-slate-900 dark:text-white"
+                                            class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 transition outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 dark:border-white/10 dark:bg-slate-900 dark:text-white"
                                             required
                                         >
                                             <option value="Draft">Draft</option>
@@ -565,7 +565,7 @@ const confirmDelete = () => {
                                         </select>
                                         <p
                                             v-if="form.errors.status"
-                                            class="text-xs text-rose-500"
+                                            class="text-[11px] font-medium text-rose-500 dark:text-rose-400"
                                         >
                                             {{ form.errors.status }}
                                         </p>
@@ -575,7 +575,7 @@ const confirmDelete = () => {
                                 <div class="grid gap-1.5">
                                     <label
                                         for="schedule-description"
-                                        class="text-xs font-medium text-slate-600 dark:text-slate-300"
+                                        class="text-[11px] font-medium text-slate-600 dark:text-slate-300"
                                     >
                                         Description
                                         <span class="text-slate-400"
@@ -587,11 +587,11 @@ const confirmDelete = () => {
                                         v-model="form.description"
                                         rows="4"
                                         placeholder="Add instructions or notes about this examination schedule..."
-                                        class="w-full resize-none rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 transition outline-none placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 dark:border-white/10 dark:bg-slate-900 dark:text-white"
+                                        class="w-full resize-none rounded-lg border border-slate-200 bg-white p-3 text-[13px] text-slate-800 transition outline-none placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 dark:border-white/10 dark:bg-slate-900 dark:text-white"
                                     ></textarea>
                                     <p
                                         v-if="form.errors.description"
-                                        class="text-xs text-rose-500"
+                                        class="text-[11px] font-medium text-rose-500 dark:text-rose-400"
                                     >
                                         {{ form.errors.description }}
                                     </p>
@@ -604,7 +604,7 @@ const confirmDelete = () => {
                         >
                             <button
                                 type="button"
-                                class="h-10 rounded-lg px-4 text-sm font-medium text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5"
+                                class="h-10 rounded-lg px-4 text-[13px] font-medium text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5"
                                 :disabled="form.processing"
                                 @click="closeModal"
                             >
@@ -613,7 +613,7 @@ const confirmDelete = () => {
                             <button
                                 type="submit"
                                 :disabled="form.processing"
-                                class="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-600 px-5 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                class="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-600 px-5 text-[13px] font-medium text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {{
                                     form.processing
