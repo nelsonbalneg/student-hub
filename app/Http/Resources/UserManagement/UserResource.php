@@ -21,9 +21,9 @@ class UserResource extends JsonResource
             'office' => $this->office,
             'office_id' => $this->office_id,
             'office_details' => $this->whenLoaded('office', fn () => [
-                'id' => $this->office->id,
-                'name' => $this->office->name,
-                'code' => $this->office->code,
+                'id' => $this->getRelation('office')->id,
+                'name' => $this->getRelation('office')->name,
+                'code' => $this->getRelation('office')->code,
             ]),
             'department' => $this->department,
             'sso_id' => $this->sso_id,

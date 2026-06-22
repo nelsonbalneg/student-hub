@@ -390,10 +390,10 @@ const deletePermission = () => {
     <Head title="Roles & Permissions" />
 
     <div
-        class="flex h-[calc(100vh-3rem)] overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
+        class="flex h-[calc(100vh-3rem)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white md:flex-row dark:border-white/10 dark:bg-slate-950"
     >
         <aside
-            class="flex w-64 flex-col border-r border-slate-100 dark:border-white/10"
+            class="flex h-[35%] w-full shrink-0 flex-col border-b border-slate-100 md:h-full md:w-64 md:border-b-0 md:border-r dark:border-white/10"
         >
             <div
                 class="flex items-center justify-between border-b border-slate-100 px-3 py-2.5 dark:border-white/10"
@@ -466,10 +466,10 @@ const deletePermission = () => {
 
         <main class="flex min-w-0 flex-1 flex-col overflow-hidden">
             <div
-                class="flex items-center justify-between border-b border-slate-100 bg-white px-4 py-2.5 dark:border-white/10 dark:bg-slate-950"
+                class="flex flex-col gap-3 border-b border-slate-100 bg-white px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-slate-950"
             >
                 <div class="flex min-w-0 items-center gap-2">
-                    <Key class="h-3.5 w-3.5 text-emerald-600" />
+                    <Key class="h-3.5 w-3.5 shrink-0 text-emerald-600" />
                     <span
                         class="text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-200"
                     >
@@ -485,8 +485,8 @@ const deletePermission = () => {
                         assigned)
                     </span>
                 </div>
-                <div class="flex items-center gap-2">
-                    <div class="relative">
+                <div class="flex w-full items-center gap-2 sm:w-auto">
+                    <div class="relative flex-1 sm:flex-none">
                         <Search
                             class="absolute top-1/2 left-2 h-3 w-3 -translate-y-1/2 text-slate-400"
                         />
@@ -494,7 +494,7 @@ const deletePermission = () => {
                             v-model="permissionSearch"
                             type="text"
                             placeholder="Search permissions..."
-                            class="h-7 w-48 rounded-lg border border-slate-200 bg-white pr-2 pl-7 text-[11px] focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900"
+                            class="h-7 w-full rounded-lg border border-slate-200 bg-white pr-2 pl-7 text-[11px] focus:border-emerald-400 focus:outline-none sm:w-48 dark:border-white/10 dark:bg-slate-900"
                         />
                     </div>
                     <button

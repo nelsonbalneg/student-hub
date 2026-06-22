@@ -84,7 +84,7 @@ class EvaluationController extends Controller
 
         $this->log($request->user(), 'Intent submitted', "Submitted evaluation intent for {$period->title}", $evaluationRequest);
 
-        return back()->with('success', 'Evaluation intent submitted.');
+        return to_route('student.evaluation.index')->with('success', 'Evaluation intent submitted.');
     }
 
     public function cancelIntent(EvaluationRequest $evaluationRequest)
@@ -94,7 +94,7 @@ class EvaluationController extends Controller
         $evaluationRequest->update(['status' => EvaluationRequest::STATUS_CANCELLED]);
         $this->log(request()->user(), 'Intent cancelled', 'Cancelled evaluation intent.', $evaluationRequest);
 
-        return back()->with('success', 'Evaluation request cancelled.');
+        return to_route('student.evaluation.index')->with('success', 'Evaluation request cancelled.');
     }
 
     public function adminIndex(Request $request)
@@ -178,7 +178,7 @@ class EvaluationController extends Controller
 
         $this->log($request->user(), 'Period created', "Created evaluation period {$period->title}", $period);
 
-        return back()->with('success', 'Evaluation period created.');
+        return to_route('admin.evaluations.index')->with('success', 'Evaluation period created.');
     }
 
     public function updatePeriod(UpdateEvaluationPeriodRequest $request, EvaluationPeriod $evaluationPeriod)
@@ -190,7 +190,7 @@ class EvaluationController extends Controller
 
         $this->log($request->user(), 'Period updated', "Updated evaluation period {$evaluationPeriod->title}", $evaluationPeriod);
 
-        return back()->with('success', 'Evaluation period updated.');
+        return to_route('admin.evaluations.index')->with('success', 'Evaluation period updated.');
     }
 
     public function destroyPeriod(EvaluationPeriod $evaluationPeriod)
@@ -200,7 +200,7 @@ class EvaluationController extends Controller
         $evaluationPeriod->delete();
         $this->log(request()->user(), 'Period deleted', "Deleted evaluation period {$evaluationPeriod->title}", $evaluationPeriod);
 
-        return back()->with('success', 'Evaluation period deleted.');
+        return to_route('admin.evaluations.index')->with('success', 'Evaluation period deleted.');
     }
 
     public function updatePeriodStatus(Request $request, EvaluationPeriod $evaluationPeriod)
@@ -229,7 +229,7 @@ class EvaluationController extends Controller
 
         $this->log($request->user(), 'Period '.$validated['status'], "Marked {$evaluationPeriod->title} as {$validated['status']}", $evaluationPeriod);
 
-        return back()->with('success', 'Evaluation period status updated.');
+        return to_route('admin.evaluations.index')->with('success', 'Evaluation period status updated.');
     }
 
     public function updateRequestStatus(Request $request, EvaluationRequest $evaluationRequest)
@@ -258,7 +258,7 @@ class EvaluationController extends Controller
         $evaluationRequest->update($updates);
         $this->log($request->user(), 'Request '.$validated['status'], "Marked evaluation request as {$validated['status']}", $evaluationRequest);
 
-        return back()->with('success', 'Evaluation request updated.');
+        return to_route('admin.evaluations.requests.show', $evaluationRequest)->with('success', 'Evaluation request updated.');
     }
 
     public function addFeedback(EvaluationFeedbackRequest $request, EvaluationRequest $evaluationRequest)
@@ -285,7 +285,7 @@ class EvaluationController extends Controller
             $this->log($request->user(), 'Feedback added', 'Added evaluation feedback.', $evaluationRequest);
         });
 
-        return back()->with('success', 'Feedback saved.');
+        return to_route('admin.evaluations.requests.show', $evaluationRequest)->with('success', 'Feedback saved.');
     }
 
     private function periodsQuery(Request $request)

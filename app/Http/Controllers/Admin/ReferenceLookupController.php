@@ -48,7 +48,7 @@ class ReferenceLookupController extends Controller
             'campus_name' => $campusName,
         ]);
 
-        return back()->with('success', 'Semester created successfully.');
+        return to_route('admin.reference-lookups.index')->with('success', 'Semester created successfully.');
     }
 
     public function updateSemester(Request $request, Semester $semester): RedirectResponse
@@ -80,13 +80,13 @@ class ReferenceLookupController extends Controller
             'campus_name' => $campusName,
         ]);
 
-        return back()->with('success', 'Semester updated successfully.');
+        return to_route('admin.reference-lookups.index')->with('success', 'Semester updated successfully.');
     }
 
     public function destroySemester(Semester $semester): RedirectResponse
     {
         $semester->delete();
 
-        return back()->with('success', 'Semester deleted.');
+        return to_route('admin.reference-lookups.index')->with('success', 'Semester deleted.');
     }
 }

@@ -904,94 +904,140 @@ const navigatePage = (url: string | null) => {
 
             <div
                 v-if="modal.type === 'view'"
-                class="grid gap-3 text-sm text-slate-600 dark:text-slate-300"
+                class="flex flex-col gap-6"
             >
-                <div class="grid gap-3 md:grid-cols-2">
-                    <p><strong>ID:</strong> {{ modal.user.id }}</p>
-                    <p><strong>Name:</strong> {{ modal.user.name }}</p>
-                    <p><strong>Email:</strong> {{ modal.user.email }}</p>
-                    <p>
-                        <strong>Email verified:</strong>
-                        {{ modal.user.email_verified_at || 'No' }}
-                    </p>
-                    <p>
-                        <strong>User type:</strong>
-                        {{ modal.user.user_type || 'Member' }}
-                    </p>
-                    <p><strong>Status:</strong> {{ modal.user.status }}</p>
-                    <p>
-                        <strong>Tenant/Campus:</strong>
-                        {{ modal.user.tenant_id || 'N/A' }} /
-                        {{ modal.user.campus_id || 'N/A' }}
-                    </p>
-                    <p>
-                        <strong>Campus name:</strong>
-                        {{ modal.user.campus_name || 'None' }}
-                    </p>
-                    <p>
-                        <strong>Student no:</strong>
-                        {{ modal.user.student_no || 'None' }}
-                    </p>
-                    <p>
-                        <strong>Employee no:</strong>
-                        {{ modal.user.employee_no || 'None' }}
-                    </p>
-                    <p>
-                        <strong>Office:</strong>
-                        {{ modal.user.office || 'None' }}
-                    </p>
-                    <p>
-                        <strong>Office ID:</strong>
-                        {{ modal.user.office_id || 'None' }}
-                    </p>
-                    <p>
-                        <strong>Department:</strong>
-                        {{ modal.user.department || 'None' }}
-                    </p>
-                    <p>
-                        <strong>SSO ID:</strong>
-                        {{ modal.user.sso_id || 'None' }}
-                    </p>
-                    <p>
-                        <strong>SSO UUID:</strong>
-                        {{ modal.user.sso_uuid || 'None' }}
-                    </p>
-                    <p>
-                        <strong>SSO username:</strong>
-                        {{ modal.user.sso_username || 'None' }}
-                    </p>
-                    <p>
-                        <strong>SSO account type:</strong>
-                        {{ modal.user.sso_account_type || 'None' }}
-                    </p>
-                    <p>
-                        <strong>2FA confirmed:</strong>
-                        {{ modal.user.two_factor_confirmed_at || 'No' }}
-                    </p>
-                    <p>
-                        <strong>Created:</strong>
-                        {{
-                            modal.user.created_at_full ||
-                            modal.user.created_at ||
-                            'N/A'
-                        }}
-                    </p>
-                    <p>
-                        <strong>Updated:</strong>
-                        {{ modal.user.updated_at_full || 'N/A' }}
-                    </p>
+                <div class="flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-5 dark:border-white/10 dark:bg-slate-900/50">
+                    <div class="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-sky-500 text-2xl font-bold text-white shadow-inner">
+                        {{ modal.user.name.charAt(0) }}
+                    </div>
+                    <div class="flex flex-col">
+                        <h3 class="text-lg font-bold text-slate-900 dark:text-white">{{ modal.user.name }}</h3>
+                        <p class="text-sm text-slate-500">{{ modal.user.email }}</p>
+                        <div class="mt-2 flex items-center gap-2">
+                            <span
+                                class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold"
+                                :class="
+                                    modal.user.is_active
+                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                        : 'bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-300'
+                                "
+                            >
+                                {{ modal.user.status }}
+                            </span>
+                            <span v-if="modal.user.user_type" class="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-bold tracking-wide text-sky-700 uppercase dark:bg-sky-500/10 dark:text-sky-300">
+                                {{ modal.user.user_type }}
+                            </span>
+                        </div>
+                    </div>
                 </div>
-                <p class="truncate">
-                    <strong>SSO avatar:</strong>
-                    {{ modal.user.sso_avatar || 'None' }}
-                </p>
-                <p>
-                    <strong>Roles:</strong>
-                    {{ modal.user.roles.join(', ') || 'No role' }}
-                </p>
+
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                        <h4 class="mb-3 text-[10px] font-bold tracking-wider text-slate-400 uppercase">Organization & Location</h4>
+                        <div class="grid gap-3 text-sm">
+                            <div class="flex justify-between border-b border-slate-50 pb-2 dark:border-white/5">
+                                <span class="text-slate-500">Campus</span>
+                                <span class="font-medium text-slate-900 dark:text-slate-200">{{ modal.user.campus_name || 'None' }} <span v-if="modal.user.campus_id" class="text-[10px] text-slate-400">#{{ modal.user.campus_id }}</span></span>
+                            </div>
+                            <div class="flex justify-between border-b border-slate-50 pb-2 dark:border-white/5">
+                                <span class="text-slate-500">Office</span>
+                                <span class="font-medium text-slate-900 dark:text-slate-200">
+                                    <span v-if="modal.user.office_details">{{ modal.user.office_details.code || modal.user.office_details.name }}</span>
+                                    <span v-else>{{ modal.user.office || 'None' }}</span>
+                                    <span v-if="modal.user.office_id" class="text-[10px] text-slate-400"> #{{ modal.user.office_id }}</span>
+                                </span>
+                            </div>
+                            <div class="flex justify-between border-b border-slate-50 pb-2 dark:border-white/5">
+                                <span class="text-slate-500">Department</span>
+                                <span class="font-medium text-slate-900 dark:text-slate-200">{{ modal.user.department || 'None' }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Tenant ID</span>
+                                <span class="font-medium text-slate-900 dark:text-slate-200">{{ modal.user.tenant_id || 'N/A' }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                        <h4 class="mb-3 text-[10px] font-bold tracking-wider text-slate-400 uppercase">Identity & Roles</h4>
+                        <div class="grid gap-3 text-sm">
+                            <div class="flex justify-between border-b border-slate-50 pb-2 dark:border-white/5">
+                                <span class="text-slate-500">Student No.</span>
+                                <span class="font-medium text-slate-900 dark:text-slate-200">{{ modal.user.student_no || 'None' }}</span>
+                            </div>
+                            <div class="flex justify-between border-b border-slate-50 pb-2 dark:border-white/5">
+                                <span class="text-slate-500">Employee No.</span>
+                                <span class="font-medium text-slate-900 dark:text-slate-200">{{ modal.user.employee_no || 'None' }}</span>
+                            </div>
+                            <div class="flex justify-between border-b border-slate-50 pb-2 dark:border-white/5">
+                                <span class="text-slate-500">Roles</span>
+                                <span class="font-medium text-slate-900 dark:text-slate-200">
+                                    <span v-if="modal.user.roles.length === 0" class="text-slate-400">No roles</span>
+                                    <span v-else class="inline-flex flex-wrap items-center gap-1">
+                                        <span v-for="role in modal.user.roles" :key="role" class="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] dark:bg-white/10">{{ role }}</span>
+                                    </span>
+                                </span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Account ID</span>
+                                <span class="font-medium text-slate-900 dark:text-slate-200">#{{ modal.user.id }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                        <h4 class="mb-3 text-[10px] font-bold tracking-wider text-slate-400 uppercase">Single Sign-On (SSO)</h4>
+                        <div class="grid gap-3 text-sm">
+                            <div class="flex justify-between border-b border-slate-50 pb-2 dark:border-white/5">
+                                <span class="text-slate-500">Provider</span>
+                                <span class="font-medium text-slate-900 dark:text-slate-200">{{ modal.user.sso_account_type || 'None' }}</span>
+                            </div>
+                            <div class="flex justify-between border-b border-slate-50 pb-2 dark:border-white/5">
+                                <span class="text-slate-500">SSO ID</span>
+                                <span class="font-medium text-slate-900 dark:text-slate-200">{{ modal.user.sso_id || 'None' }}</span>
+                            </div>
+                            <div class="flex justify-between border-b border-slate-50 pb-2 dark:border-white/5">
+                                <span class="text-slate-500">Username</span>
+                                <span class="font-medium text-slate-900 dark:text-slate-200">{{ modal.user.sso_username || 'None' }}</span>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <span class="text-slate-500">SSO UUID</span>
+                                <span class="font-mono text-[10px] text-slate-400">{{ modal.user.sso_uuid || 'None' }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                        <h4 class="mb-3 text-[10px] font-bold tracking-wider text-slate-400 uppercase">Security & Activity</h4>
+                        <div class="grid gap-3 text-sm">
+                            <div class="flex justify-between border-b border-slate-50 pb-2 dark:border-white/5">
+                                <span class="text-slate-500">Email Verified</span>
+                                <span class="font-medium text-slate-900 dark:text-slate-200">
+                                    <span v-if="modal.user.email_verified_at" class="text-emerald-600">{{ modal.user.email_verified_at }}</span>
+                                    <span v-else class="text-amber-500">Unverified</span>
+                                </span>
+                            </div>
+                            <div class="flex justify-between border-b border-slate-50 pb-2 dark:border-white/5">
+                                <span class="text-slate-500">2FA Confirmed</span>
+                                <span class="font-medium text-slate-900 dark:text-slate-200">
+                                    <span v-if="modal.user.two_factor_confirmed_at" class="text-emerald-600">{{ modal.user.two_factor_confirmed_at }}</span>
+                                    <span v-else class="text-slate-400">Disabled</span>
+                                </span>
+                            </div>
+                            <div class="flex justify-between border-b border-slate-50 pb-2 dark:border-white/5">
+                                <span class="text-slate-500">Joined</span>
+                                <span class="font-medium text-slate-900 dark:text-slate-200">{{ modal.user.created_at_full || modal.user.created_at || 'N/A' }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Last Updated</span>
+                                <span class="font-medium text-slate-900 dark:text-slate-200">{{ modal.user.updated_at_full || 'N/A' }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <div v-if="modal.type === 'assign-office'" class="grid gap-4">
+            <div v-else-if="modal.type === 'assign-office'" class="grid gap-4">
                 <p class="text-xs text-slate-500">
                     Assign
                     <span class="font-bold text-slate-900 dark:text-white">{{

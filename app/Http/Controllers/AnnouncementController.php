@@ -174,7 +174,7 @@ class AnnouncementController extends Controller
 
         $this->service->logActivity(auth()->user(), 'Published', "Published announcement: {$announcement->title}", $announcement);
 
-        return back()->with('success', 'Announcement published successfully.');
+        return to_route('announcements.show', $announcement)->with('success', 'Announcement published successfully.');
     }
 
     public function archive(Announcement $announcement)
@@ -188,7 +188,7 @@ class AnnouncementController extends Controller
 
         $this->service->logActivity(auth()->user(), 'Archived', "Archived announcement: {$announcement->title}", $announcement);
 
-        return back()->with('success', 'Announcement archived successfully.');
+        return to_route('announcements.show', $announcement)->with('success', 'Announcement archived successfully.');
     }
 
     private function transformAnnouncement(Announcement $announcement, bool $includeAdminMetadata): array

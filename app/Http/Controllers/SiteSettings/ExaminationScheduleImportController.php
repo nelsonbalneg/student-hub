@@ -8,7 +8,6 @@ use App\Imports\ExaminationScheduleDataImport;
 use App\Imports\ExaminationSchedulePreviewImport;
 use App\Models\ExaminationSchedule;
 use App\Support\SpreadsheetAutoload;
-use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,7 +16,6 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
-use PhpOffice\PhpSpreadsheet\Shared\Date;
 use Throwable;
 
 class ExaminationScheduleImportController extends Controller
@@ -73,7 +71,7 @@ class ExaminationScheduleImportController extends Controller
             $array = Excel::toArray(new class {}, $path, 'local')[0] ?? [];
             $headingRow = 1;
             foreach ($array as $index => $row) {
-                if (isset($row[0]) && strtolower(trim((string)$row[0])) === 'subject code') {
+                if (isset($row[0]) && strtolower(trim((string) $row[0])) === 'subject code') {
                     $headingRow = $index + 1;
                     break;
                 }
@@ -192,7 +190,8 @@ class ExaminationScheduleImportController extends Controller
     private function previewRows($rows, ExaminationSchedule $examinationSchedule, int $headingRow): array
     {
         $lastSubjectCode = '';
-        return $rows->map(function (array $row, int $index) use ($examinationSchedule, &$lastSubjectCode, $headingRow): array {
+
+        return $rows->map(function (array $row, int $index) use (&$lastSubjectCode, $headingRow): array {
             $errors = [];
             $subjectCode = trim((string) ($row['subject_code'] ?? ''));
 
@@ -205,7 +204,7 @@ class ExaminationScheduleImportController extends Controller
             $time = trim((string) ($row['time'] ?? ''));
 
             $parsedTime = $this->parseTimeRange($time);
-            
+
             $startTime = $parsedTime ? $parsedTime['start'] : null;
             $endTime = $parsedTime ? $parsedTime['end'] : null;
 

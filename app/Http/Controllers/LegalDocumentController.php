@@ -163,7 +163,7 @@ class LegalDocumentController extends Controller
             ]);
         });
 
-        return back()->with('success', 'Legal document activated.');
+        return to_route('legal.show', $legalDocument)->with('success', 'Legal document activated.');
     }
 
     public function deactivate(Request $request, LegalDocument $legalDocument): RedirectResponse
@@ -175,7 +175,7 @@ class LegalDocumentController extends Controller
             'updated_by' => $request->user()->id,
         ]);
 
-        return back()->with('success', 'Legal document deactivated.');
+        return to_route('legal.show', $legalDocument)->with('success', 'Legal document deactivated.');
     }
 
     /**

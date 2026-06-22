@@ -42,7 +42,7 @@ class ExaminationScheduleController extends Controller
 
         ExaminationSchedule::create($this->schedulePayload($request->validated()));
 
-        return back()->with('success', 'Examination schedule created successfully.');
+        return redirect()->route('site-settings.examination-schedules.index')->with('success', 'Examination schedule created successfully.');
     }
 
     public function show(ExaminationSchedule $examinationSchedule)
@@ -70,7 +70,7 @@ class ExaminationScheduleController extends Controller
 
         $examinationSchedule->update($this->schedulePayload($request->validated()));
 
-        return back()->with('success', 'Examination schedule updated successfully.');
+        return redirect()->route('site-settings.examination-schedules.show', $examinationSchedule)->with('success', 'Examination schedule updated successfully.');
     }
 
     public function destroy(ExaminationSchedule $examinationSchedule)

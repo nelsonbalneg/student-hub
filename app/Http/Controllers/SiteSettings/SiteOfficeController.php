@@ -18,7 +18,7 @@ class SiteOfficeController extends Controller
     {
         $campus->offices()->create($request->validated());
 
-        return back()->with('success', 'Office created successfully.');
+        return redirect()->route('site-settings.campuses.show', $campus)->with('success', 'Office created successfully.');
     }
 
     public function update(UpdateOfficeRequest $request, SiteCampus $campus, Office $office): RedirectResponse
@@ -27,7 +27,7 @@ class SiteOfficeController extends Controller
 
         $office->update($request->validated());
 
-        return back()->with('success', 'Office updated successfully.');
+        return redirect()->route('site-settings.campuses.show', $campus)->with('success', 'Office updated successfully.');
     }
 
     public function destroy(SiteCampus $campus, Office $office): RedirectResponse
@@ -37,7 +37,7 @@ class SiteOfficeController extends Controller
 
         $office->delete();
 
-        return back()->with('success', 'Office deleted successfully.');
+        return redirect()->route('site-settings.campuses.show', $campus)->with('success', 'Office deleted successfully.');
     }
 
     public function fetchColleges(SiteCampus $campus, AcademicApiService $apiService): JsonResponse
@@ -88,6 +88,6 @@ class SiteOfficeController extends Controller
             }
         }
 
-        return back()->with('success', "{$importedCount} colleges imported as offices successfully.");
+        return redirect()->route('site-settings.campuses.show', $campus)->with('success', "{$importedCount} colleges imported as offices successfully.");
     }
 }

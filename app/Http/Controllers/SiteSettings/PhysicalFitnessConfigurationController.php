@@ -43,7 +43,7 @@ class PhysicalFitnessConfigurationController extends Controller
             'slug' => $validated['slug'] ?: Str::slug($validated['name']),
         ]));
 
-        return back()->with('success', 'PFT component created.');
+        return to_route('site-settings.physical-fitness.configuration.index')->with('success', 'PFT component created.');
     }
 
     public function updateComponent(Request $request, PftComponent $component): RedirectResponse
@@ -56,7 +56,7 @@ class PhysicalFitnessConfigurationController extends Controller
             'slug' => $validated['slug'] ?: Str::slug($validated['name']),
         ]));
 
-        return back()->with('success', 'PFT component updated.');
+        return to_route('site-settings.physical-fitness.configuration.index')->with('success', 'PFT component updated.');
     }
 
     public function destroyComponent(Request $request, PftComponent $component): RedirectResponse
@@ -73,7 +73,7 @@ class PhysicalFitnessConfigurationController extends Controller
             $component->delete();
         });
 
-        return back()->with('success', 'PFT component removed or deactivated.');
+        return to_route('site-settings.physical-fitness.configuration.index')->with('success', 'PFT component removed or deactivated.');
     }
 
     public function storeCategory(Request $request): RedirectResponse
@@ -86,7 +86,7 @@ class PhysicalFitnessConfigurationController extends Controller
             'slug' => $validated['slug'] ?: Str::slug($validated['name']),
         ]));
 
-        return back()->with('success', 'PFT category created.');
+        return to_route('site-settings.physical-fitness.configuration.index')->with('success', 'PFT category created.');
     }
 
     public function updateCategory(Request $request, PftCategory $category): RedirectResponse
@@ -99,7 +99,7 @@ class PhysicalFitnessConfigurationController extends Controller
             'slug' => $validated['slug'] ?: Str::slug($validated['name']),
         ]));
 
-        return back()->with('success', 'PFT category updated.');
+        return to_route('site-settings.physical-fitness.configuration.index')->with('success', 'PFT category updated.');
     }
 
     public function destroyCategory(Request $request, PftCategory $category): RedirectResponse
@@ -116,7 +116,7 @@ class PhysicalFitnessConfigurationController extends Controller
             $category->delete();
         });
 
-        return back()->with('success', 'PFT category removed or deactivated.');
+        return to_route('site-settings.physical-fitness.configuration.index')->with('success', 'PFT category removed or deactivated.');
     }
 
     public function storeTestType(Request $request): RedirectResponse
@@ -129,7 +129,7 @@ class PhysicalFitnessConfigurationController extends Controller
             'slug' => $validated['slug'] ?: Str::slug($validated['name']),
         ]));
 
-        return back()->with('success', 'PFT test type created.');
+        return to_route('site-settings.physical-fitness.configuration.index')->with('success', 'PFT test type created.');
     }
 
     public function updateTestType(Request $request, PftTestType $testType): RedirectResponse
@@ -142,7 +142,7 @@ class PhysicalFitnessConfigurationController extends Controller
             'slug' => $validated['slug'] ?: Str::slug($validated['name']),
         ]));
 
-        return back()->with('success', 'PFT test type updated.');
+        return to_route('site-settings.physical-fitness.configuration.index')->with('success', 'PFT test type updated.');
     }
 
     public function destroyTestType(Request $request, PftTestType $testType): RedirectResponse
@@ -159,7 +159,7 @@ class PhysicalFitnessConfigurationController extends Controller
             $testType->delete();
         });
 
-        return back()->with('success', 'PFT test type removed or deactivated.');
+        return to_route('site-settings.physical-fitness.configuration.index')->with('success', 'PFT test type removed or deactivated.');
     }
 
     public function storeConfiguration(Request $request): RedirectResponse
@@ -168,7 +168,7 @@ class PhysicalFitnessConfigurationController extends Controller
 
         DB::transaction(fn () => PftConfiguration::query()->create($this->validateConfiguration($request)));
 
-        return back()->with('success', 'PFT field created.');
+        return to_route('site-settings.physical-fitness.configuration.index')->with('success', 'PFT field created.');
     }
 
     public function updateConfiguration(Request $request, PftConfiguration $configuration): RedirectResponse
@@ -177,7 +177,7 @@ class PhysicalFitnessConfigurationController extends Controller
 
         DB::transaction(fn () => $configuration->update($this->validateConfiguration($request, $configuration)));
 
-        return back()->with('success', 'PFT field updated.');
+        return to_route('site-settings.physical-fitness.configuration.index')->with('success', 'PFT field updated.');
     }
 
     public function destroyConfiguration(Request $request, PftConfiguration $configuration): RedirectResponse
@@ -194,7 +194,7 @@ class PhysicalFitnessConfigurationController extends Controller
             $configuration->delete();
         });
 
-        return back()->with('success', 'PFT field removed or deactivated.');
+        return to_route('site-settings.physical-fitness.configuration.index')->with('success', 'PFT field removed or deactivated.');
     }
 
     public function storeInterpretationRule(Request $request): RedirectResponse
@@ -203,7 +203,7 @@ class PhysicalFitnessConfigurationController extends Controller
 
         DB::transaction(fn () => PftInterpretationRule::query()->create($this->validateInterpretationRule($request)));
 
-        return back()->with('success', 'PFT interpretation rule created.');
+        return to_route('site-settings.physical-fitness.configuration.index')->with('success', 'PFT interpretation rule created.');
     }
 
     public function updateInterpretationRule(Request $request, PftInterpretationRule $rule): RedirectResponse
@@ -212,7 +212,7 @@ class PhysicalFitnessConfigurationController extends Controller
 
         DB::transaction(fn () => $rule->update($this->validateInterpretationRule($request)));
 
-        return back()->with('success', 'PFT interpretation rule updated.');
+        return to_route('site-settings.physical-fitness.configuration.index')->with('success', 'PFT interpretation rule updated.');
     }
 
     public function destroyInterpretationRule(Request $request, PftInterpretationRule $rule): RedirectResponse
@@ -221,7 +221,7 @@ class PhysicalFitnessConfigurationController extends Controller
 
         DB::transaction(fn () => $rule->delete());
 
-        return back()->with('success', 'PFT interpretation rule deleted.');
+        return to_route('site-settings.physical-fitness.configuration.index')->with('success', 'PFT interpretation rule deleted.');
     }
 
     private function validateComponent(Request $request, ?PftComponent $component = null): array

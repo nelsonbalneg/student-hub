@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -52,7 +53,7 @@ class SiteCampusController extends Controller
     {
         $this->authorize('site-settings.create');
 
-        $validated = $request->validate([
+        $validator = Validator::make($request->all(), [
             'campus_name' => 'required|string|max:255',
             'campus_address' => 'nullable|string|max:500',
             'real_campus_id' => 'nullable|string|unique:site_campuses,real_campus_id',
@@ -61,6 +62,14 @@ class SiteCampusController extends Controller
             'status' => 'required|in:Active,Inactive',
             'logo' => 'nullable|image|max:3072',
         ]);
+
+        if ($validator->fails()) {
+            return redirect()->route('site-settings.campuses.index')
+                ->withErrors($validator)
+                ->withInput();
+        }
+
+        $validated = $validator->validated();
 
         if ($request->hasFile('logo')) {
             $file = $request->file('logo');
@@ -97,7 +106,7 @@ class SiteCampusController extends Controller
     {
         $this->authorize('site-settings.edit');
 
-        $validated = $request->validate([
+        $validator = Validator::make($request->all(), [
             'campus_name' => 'required|string|max:255',
             'campus_address' => 'nullable|string|max:500',
             'real_campus_id' => 'nullable|string|unique:site_campuses,real_campus_id,'.$campus->id,
@@ -106,6 +115,14 @@ class SiteCampusController extends Controller
             'status' => 'required|in:Active,Inactive',
             'logo' => 'nullable|image|max:3072',
         ]);
+
+        if ($validator->fails()) {
+            return redirect()->route('site-settings.campuses.show', $campus)
+                ->withErrors($validator)
+                ->withInput();
+        }
+
+        $validated = $validator->validated();
 
         if ($request->hasFile('logo')) {
             $file = $request->file('logo');

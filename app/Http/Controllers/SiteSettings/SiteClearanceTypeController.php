@@ -16,14 +16,14 @@ class SiteClearanceTypeController extends Controller
     {
         $campus->clearanceTypes()->create($request->validated());
 
-        return back()->with('success', 'Clearance type created successfully.');
+        return to_route('site-settings.campuses.show', $campus)->with('success', 'Clearance type created successfully.');
     }
 
     public function update(UpdateClearanceTypeRequest $request, SiteCampus $campus, ClearanceType $clearanceType): RedirectResponse
     {
         $clearanceType->update($request->validated());
 
-        return back()->with('success', 'Clearance type updated successfully.');
+        return to_route('site-settings.campuses.show', $campus)->with('success', 'Clearance type updated successfully.');
     }
 
     public function destroy(SiteCampus $campus, ClearanceType $clearanceType): RedirectResponse
@@ -31,7 +31,7 @@ class SiteClearanceTypeController extends Controller
         $this->authorize('site-settings.delete');
         $clearanceType->delete();
 
-        return back()->with('success', 'Clearance type deleted successfully.');
+        return to_route('site-settings.campuses.show', $campus)->with('success', 'Clearance type deleted successfully.');
     }
 
     public function syncOffices(Request $request, SiteCampus $campus, ClearanceType $clearanceType): RedirectResponse
@@ -45,6 +45,6 @@ class SiteClearanceTypeController extends Controller
 
         $clearanceType->offices()->sync($validated['office_ids'] ?? []);
 
-        return back()->with('success', 'Clearance type configurations updated successfully.');
+        return to_route('site-settings.campuses.show', $campus)->with('success', 'Clearance type configurations updated successfully.');
     }
 }

@@ -55,7 +55,7 @@ class AnnouncementCategoryController extends Controller
 
         AnnouncementCategory::create($validated);
 
-        return back()->with('success', 'Category created successfully.');
+        return to_route('announcements.categories.index')->with('success', 'Category created successfully.');
     }
 
     public function update(Request $request, AnnouncementCategory $category)
@@ -72,7 +72,7 @@ class AnnouncementCategoryController extends Controller
 
         $category->update($validated);
 
-        return back()->with('success', 'Category updated successfully.');
+        return to_route('announcements.categories.index')->with('success', 'Category updated successfully.');
     }
 
     public function destroy(AnnouncementCategory $category)
@@ -80,11 +80,11 @@ class AnnouncementCategoryController extends Controller
         $this->authorize('announcement.manage-categories');
 
         if ($category->announcements()->count() > 0) {
-            return back()->with('error', 'Cannot delete category with associated announcements.');
+            return to_route('announcements.categories.index')->with('error', 'Cannot delete category with associated announcements.');
         }
 
         $category->delete();
 
-        return back()->with('success', 'Category deleted successfully.');
+        return to_route('announcements.categories.index')->with('success', 'Category deleted successfully.');
     }
 }
