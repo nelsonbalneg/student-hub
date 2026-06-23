@@ -34,8 +34,10 @@ class RegistrarController extends Controller
         ]);
     }
 
-    public function reportOfGrades(Request $request): Response
-    {
+    public function reportOfGrades(
+        Request $request,
+        AcademicApiService $academicApi,
+    ): Response {
         if ($request->boolean('reset')) {
             $request->session()->forget([
                 'registrar_grade_report_filters',
@@ -49,13 +51,35 @@ class RegistrarController extends Controller
             'campus_id' => '',
         ]);
 
+        $result = $request->session()->get('registrar_grade_report');
+
+        if (
+            is_array($result)
+            && (
+                blank(data_get($result, 'academic_organization.program_name'))
+                || blank(data_get($result, 'academic_organization.college_name'))
+            )
+            && is_array(data_get($result, 'profile'))
+            && filled(data_get($result, 'campus.tenant_id'))
+            && filled($result['student_no'] ?? null)
+        ) {
+            $result['academic_organization'] = $this->academicOrganization(
+                $academicApi,
+                $result['profile'],
+                data_get($result, 'campus.tenant_id'),
+                $result['student_no'],
+            );
+
+            $request->session()->put('registrar_grade_report', $result);
+        }
+
         return Inertia::render('Registrar/ReportOfGrades', [
             'campuses' => $this->campuses(),
             'filters' => [
                 'student_no' => $request->old('student_no', $filters['student_no'] ?? ''),
                 'campus_id' => $request->old('campus_id', $filters['campus_id'] ?? ''),
             ],
-            'result' => session('registrar_grade_report'),
+            'result' => $result,
             'error' => session('registrar_grade_report_error'),
         ]);
     }
@@ -274,6 +298,13 @@ class RegistrarController extends Controller
             ]);
         }
 
+        $academicOrganization = $this->academicOrganization(
+            $academicApi,
+            $profile,
+            $tenantId,
+            $validated['student_no'],
+        );
+
         $curriculum = $academicApi->curriculumForStudent($validated['student_no'], $activeTermId, (string) $tenantId);
         $ceeDocuments = $ceeRequirements->forStudent($validated['student_no'], $validated['campus_id']);
 
@@ -303,6 +334,7 @@ class RegistrarController extends Controller
             'evaluation_error' => $evaluationError,
             'evaluation_error_type' => $evaluationErrorType,
             'profile' => $profile,
+            'academic_organization' => $academicOrganization,
             'curriculum' => $curriculum,
             'ceeDocuments' => $ceeDocuments,
             'clearanceApplications' => $clearanceApplications,
@@ -311,6 +343,53 @@ class RegistrarController extends Controller
 
         return to_route('admin.registrar.report-of-grades.index')
             ->withInput($validated);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $profile
+     * @return array<string, int|string|null>
+     */
+    private function academicOrganization(
+        AcademicApiService $academicApi,
+        ?array $profile,
+        int|string $tenantId,
+        string $studentNo,
+    ): array {
+        $programId = data_get($profile, 'program_id')
+            ?? data_get($profile, 'programId')
+            ?? data_get($profile, 'progId')
+            ?? data_get($profile, 'prog_id');
+
+        $program = null;
+        $college = null;
+        $collegeId = null;
+
+        if (filled($programId)) {
+            $programResponse = $academicApi->program($programId, $tenantId);
+            $program = empty($programResponse['error']) ? $programResponse['data'] : null;
+            $collegeId = data_get($program, 'collegeId')
+                ?? data_get($program, 'college_id');
+        }
+
+        if (filled($collegeId)) {
+            $collegeResponse = $academicApi->college($collegeId, $tenantId);
+            $college = empty($collegeResponse['error']) ? $collegeResponse['data'] : null;
+        }
+
+        if (blank($programId) || blank($program) || (filled($collegeId) && blank($college))) {
+            Log::info('Registrar grade report has incomplete academic organization data', [
+                'student_no' => $studentNo,
+                'program_id' => $programId,
+                'college_id' => $collegeId,
+            ]);
+        }
+
+        return [
+            'program_id' => $programId,
+            'program_name' => data_get($program, 'progName'),
+            'college_id' => $collegeId,
+            'college_name' => data_get($college, 'collegeName'),
+        ];
     }
 
     /**

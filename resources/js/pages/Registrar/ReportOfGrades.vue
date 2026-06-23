@@ -121,6 +121,12 @@ type SearchResult = {
     terms: TermRecord[];
     summary?: Record<string, any>;
     profile?: Record<string, any> | null;
+    academic_organization?: {
+        program_id?: number | string | null;
+        program_name?: string | null;
+        college_id?: number | string | null;
+        college_name?: string | null;
+    };
     curriculum?: {
         data: CurriculumRecord[] | Record<string, any>;
         error: string | null;
@@ -1046,7 +1052,6 @@ const buildTermReportHtml = async (term: TermRecord) => {
                     html, body { min-height: 100%; }
                     body { margin: 0; background: #e2e8f0; color: #111827; font-family: Arial, Helvetica, sans-serif; font-size: 11px; }
                     .sheet { position: relative; width: 210mm; min-height: 297mm; margin: 0 auto; overflow: hidden; background: #fff; padding: 14mm 14mm 36mm; box-shadow: 0 12px 32px rgba(15, 23, 42, .18); }
-                    .sheet::before { content: "STUDENTHUB"; position: absolute; left: 50%; top: 52%; z-index: 0; transform: translate(-50%, -50%) rotate(-32deg); color: rgba(15, 23, 42, .055); font-size: 58px; font-weight: 800; letter-spacing: .18em; white-space: nowrap; pointer-events: none; }
                     .report-content { position: relative; z-index: 1; }
                     .header { display: grid; grid-template-columns: 82px 1fr 82px; align-items: center; gap: 12px; text-align: center; }
                     .logo { width: 72px; height: 72px; object-fit: contain; }
@@ -1102,8 +1107,8 @@ const buildTermReportHtml = async (term: TermRecord) => {
                             <div class="details">
                                 <div class="label">Fullname</div><div>:</div><div class="value">${reportValue(studentFullName.value)}</div>
                                 <div class="label">Gender</div><div>:</div><div>${reportValue(genderLabel.value)}</div>
-                                <div class="label">College</div><div>:</div><div>${reportValue(valueFrom(profile, ['college', 'collegeName', 'college_name'], ''))}</div>
-                                <div class="label">Program</div><div>:</div><div>${reportValue(valueFrom(profile, ['program', 'programName', 'program_name', 'progName'], ''))}</div>
+                                <div class="label">College</div><div>:</div><div>${reportValue(result?.academic_organization?.college_name ?? valueFrom(profile, ['college', 'collegeName', 'college_name'], ''))}</div>
+                                <div class="label">Program</div><div>:</div><div>${reportValue(result?.academic_organization?.program_name ?? valueFrom(profile, ['program', 'programName', 'program_name', 'progName'], ''))}</div>
                                 <div class="label">Major</div><div>:</div><div>${reportValue(valueFrom(profile, ['major', 'majorName', 'major_name'], ''))}</div>
                             </div>
                             <div class="details">

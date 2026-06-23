@@ -278,6 +278,16 @@ class AcademicApiService
         }
     }
 
+    public function program(int|string|null $programId, int|string|null $tenantId): array
+    {
+        return $this->academicReference('Programs', $programId, $tenantId, 'program');
+    }
+
+    public function college(int|string|null $collegeId, int|string|null $tenantId): array
+    {
+        return $this->academicReference('College', $collegeId, $tenantId, 'college');
+    }
+
     public function updateProfileForStudent(?string $studentNo, int|string|null $campusId, ?string $tenantId, array $payload): array
     {
         if (blank($studentNo)) {
@@ -998,6 +1008,55 @@ class AcademicApiService
             ->accept('*/*')
             ->connectTimeout($this->connectTimeout)
             ->timeout($this->timeout);
+    }
+
+    private function academicReference(
+        string $resource,
+        int|string|null $id,
+        int|string|null $tenantId,
+        string $label,
+    ): array {
+        if (blank($id) || blank($tenantId)) {
+            return [
+                'data' => null,
+                'error' => "The {$label} reference is incomplete.",
+            ];
+        }
+
+        $endpoint = $resource.'/'.rawurlencode((string) $id);
+
+        try {
+            $response = $this->client()->get($endpoint, [
+                'tenantId' => $tenantId,
+            ]);
+
+            if ($response->status() === 404) {
+                return [
+                    'data' => null,
+                    'error' => ucfirst($label).' not found.',
+                ];
+            }
+
+            $response->throw();
+
+            return [
+                'data' => $response->json(),
+                'error' => null,
+            ];
+        } catch (Throwable $exception) {
+            Log::warning("Unable to load academic {$label}", [
+                "{$label}_id" => $id,
+                'tenant_id' => $tenantId,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+                'url' => $this->urlFor($endpoint),
+            ]);
+
+            return [
+                'data' => null,
+                'error' => "Unable to load the {$label} right now.",
+            ];
+        }
     }
 
     private function listFromPayload(mixed $payload): array
