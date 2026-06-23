@@ -1065,8 +1065,8 @@ const buildTermReportHtml = async (term: TermRecord) => {
                     .label { color: #334155; font-weight: 700; }
                     .value { color: #111827; font-weight: 700; }
                     table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-                    th, td { border: 1px solid #111827; padding: 5px 6px; vertical-align: top; }
-                    th { text-align: center; font-size: 10px; text-transform: uppercase; }
+                    th, td { border-top: 1px solid #111827; border-bottom: 1px solid #111827; padding: 5px 6px; vertical-align: top; }
+                    th { background: #e2e8f0; color: #334155; text-align: center; font-size: 10px; text-transform: uppercase; }
                     td { font-size: 10.5px; }
                     .center { text-align: center; }
                     .registrar-row-failed { background: #fee2e2; }

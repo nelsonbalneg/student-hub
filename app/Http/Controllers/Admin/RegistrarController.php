@@ -492,6 +492,17 @@ class RegistrarController extends Controller
             }
         }
 
+        $academicOrganization = $useSessionResult
+            && filled(data_get($sessionResult, 'academic_organization.program_name'))
+            && filled(data_get($sessionResult, 'academic_organization.college_name'))
+            ? $sessionResult['academic_organization']
+            : $this->academicOrganization(
+                $academicApi,
+                $profile,
+                $tenantId,
+                $validated['student_no'],
+            );
+
         $curriculum = $useSessionResult
             ? ($sessionResult['curriculum'] ?? null)
             : $academicApi->curriculumForStudent($validated['student_no'], $activeTermId, (string) $tenantId);
@@ -516,6 +527,7 @@ class RegistrarController extends Controller
             'studentNo' => $validated['student_no'],
             'studentName' => $this->profileFullName($profile) ?: $validated['student_no'],
             'profile' => $profile,
+            'academicOrganization' => $academicOrganization,
             'campus' => [
                 'name' => $campus->displayName(),
                 'address' => $siteCampus?->campus_address,
@@ -672,6 +684,19 @@ class RegistrarController extends Controller
 
         ksort($groups, SORT_NATURAL);
 
+        $subjectCodeLookup = collect($groups)
+            ->flatMap(fn (array $semesters) => collect($semesters)->flatten(1))
+            ->filter(fn ($row): bool => is_array($row))
+            ->mapWithKeys(function (array $row): array {
+                $subjectId = $this->curriculumPick($row, ['subjectId', 'subject_id'], '');
+                $subjectCode = $this->curriculumPick($row, ['subjectCode', 'courseCode', 'course_code', 'subject_code', 'code'], '');
+
+                return filled($subjectId) && filled($subjectCode)
+                    ? [$subjectId => $subjectCode]
+                    : [];
+            })
+            ->all();
+
         $years = [];
         foreach ($groups as $year => $semesters) {
             ksort($semesters, SORT_NATURAL);
@@ -682,7 +707,7 @@ class RegistrarController extends Controller
                     ->map(fn (array $rows, string $semester): array => [
                         'semester' => $semester,
                         'rows' => collect($rows)
-                            ->map(fn (array $row): array => $this->curriculumPrintRow($row))
+                            ->map(fn (array $row): array => $this->curriculumPrintRow($row, $subjectCodeLookup))
                             ->values()
                             ->all(),
                         'units' => collect($rows)->sum(fn (array $row): float|int => $this->curriculumSubjectUnits($row)),
@@ -778,7 +803,7 @@ class RegistrarController extends Controller
      * @param  array<string, mixed>  $row
      * @return array<string, mixed>
      */
-    private function curriculumPrintRow(array $row): array
+    private function curriculumPrintRow(array $row, array $subjectCodeLookup): array
     {
         $lectureUnits = $this->curriculumNumericPick($row, [
             'acadUnits',
@@ -802,7 +827,7 @@ class RegistrarController extends Controller
             'lecture_units' => $lectureUnits,
             'lab_units' => $labUnits,
             'units' => $this->curriculumSubjectUnits($row),
-            'prerequisites' => $this->curriculumPrerequisites($row),
+            'prerequisites' => $this->curriculumPrerequisites($row, $subjectCodeLookup),
             'taken_status' => $this->curriculumTakenStatus($row),
         ];
     }
@@ -845,14 +870,46 @@ class RegistrarController extends Controller
      * @param  array<string, mixed>  $row
      * @return array<int, string>
      */
-    private function curriculumPrerequisites(array $row): array
+    private function curriculumPrerequisites(array $row, array $subjectCodeLookup): array
     {
         $items = data_get($row, 'preRequisites') ?? data_get($row, 'pre_requisites');
 
         if (is_array($items) && $items !== []) {
+            $currentSubjectId = $this->curriculumPick($row, ['subjectId', 'subject_id'], '');
+
             return collect($items)
-                ->map(fn ($item): ?string => is_array($item) ? $this->curriculumPick($item, ['subjectCode', 'courseCode', 'subjectId', 'subject_id', 'prerequisiteSubjectId', 'prerequisite_subject_id']) : null)
+                ->filter(function ($item): bool {
+                    if (! is_array($item)) {
+                        return false;
+                    }
+
+                    $relationship = Str::lower($this->curriculumPick($item, ['options', 'type', 'relationship'], ''));
+
+                    return $relationship === '' || Str::contains($relationship, ['pre', 'co']);
+                })
+                ->map(function (array $item) use ($currentSubjectId, $subjectCodeLookup): ?string {
+                    $directCode = $this->curriculumPick($item, ['subjectCode', 'courseCode', 'subject_code', 'course_code'], '');
+
+                    if (filled($directCode)) {
+                        return $directCode;
+                    }
+
+                    $subjectId = $this->curriculumPick($item, ['subjectId', 'subject_id'], '');
+                    $curriculumSubjectId = $this->curriculumPick($item, [
+                        'subjectIdCurriculum',
+                        'subject_id_curriculum',
+                        'prerequisiteSubjectId',
+                        'prerequisite_subject_id',
+                    ], '');
+
+                    $prerequisiteId = $subjectId === $currentSubjectId
+                        ? $curriculumSubjectId
+                        : $subjectId;
+
+                    return $subjectCodeLookup[$prerequisiteId] ?? null;
+                })
                 ->filter()
+                ->unique()
                 ->values()
                 ->all();
         }
@@ -865,6 +922,7 @@ class RegistrarController extends Controller
 
         return collect(preg_split('/[,\\n;\\/]+/', $value) ?: [])
             ->map(fn (string $item): string => trim($item))
+            ->map(fn (string $item): string => $subjectCodeLookup[$item] ?? $item)
             ->filter()
             ->values()
             ->all();

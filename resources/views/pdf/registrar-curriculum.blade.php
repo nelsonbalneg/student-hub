@@ -36,7 +36,7 @@
     <style>
         @page {
             size: A4;
-            margin: 0;
+            margin: 12mm 14mm 16mm;
         }
 
         * {
@@ -54,26 +54,11 @@
 
         .sheet {
             position: relative;
-            width: 210mm;
-            min-height: 297mm;
-            overflow: hidden;
+            width: 100%;
+            min-height: auto;
+            overflow: visible;
             background: #ffffff;
-            padding: 14mm 14mm 35mm;
-        }
-
-        .sheet::before {
-            content: "STUDENTHUB";
-            position: fixed;
-            left: 50%;
-            top: 52%;
-            z-index: 0;
-            transform: translate(-50%, -50%) rotate(-32deg);
-            color: rgba(15, 23, 42, 0.055);
-            font-size: 58px;
-            font-weight: 800;
-            letter-spacing: 0.18em;
-            white-space: nowrap;
-            pointer-events: none;
+            padding: 0;
         }
 
         .content {
@@ -325,9 +310,12 @@
                     <div class="label">Student No.</div>
                     <div>:</div>
                     <div class="value">{{ $studentNo }}</div>
+                    <div class="label">College</div>
+                    <div>:</div>
+                    <div>{{ $academicOrganization['college_name'] ?? '-' }}</div>
                     <div class="label">Program</div>
                     <div>:</div>
-                    <div>{{ $profileValue('program', $profileValue('programName', $profileValue('progName'))) }}</div>
+                    <div>{{ $academicOrganization['program_name'] ?? $profileValue('program', $profileValue('programName', $profileValue('progName'))) }}</div>
                     <div class="label">Major</div>
                     <div>:</div>
                     <div>{{ $profileValue('major', $profileValue('majorName')) }}</div>
@@ -340,12 +328,12 @@
                     <div>:</div>
                     <div>{{ $profileValue('yearLevel', $profileValue('yearLevelName', $profileValue('yearLevelId'))) }}
                     </div>
-                    <div class="label">Curriculum ID</div>
+                    <div class="label">School Year</div>
                     <div>:</div>
-                    <div class="value">{{ $profileValue('curriculumId') }}</div>
-                    <div class="label">Term ID</div>
+                    <div>{{ $activeTerm?->school_year ?: '-' }}</div>
+                    <div class="label">Term</div>
                     <div>:</div>
-                    <div>{{ $profileValue('termId') }}</div>
+                    <div>{{ $activeTerm?->semester ?: '-' }}</div>
                 </div>
             </section>
 
