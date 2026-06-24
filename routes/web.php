@@ -59,6 +59,7 @@ use Inertia\Inertia;
 
 Route::match(['get', 'post'], 'api/sso-maintenance', [\App\Http\Controllers\SsoMaintenanceController::class, 'handle']);
 Route::match(['get', 'post'], 'api/sso-features', [\App\Http\Controllers\SsoFeaturesController::class, 'handle']);
+Route::get('api/sso-user-access', [\App\Http\Controllers\SsoUserAccessController::class, 'handle'])->name('api.sso-user-access');
 
 Route::get('/', function () {
     if (auth()->check()) {

@@ -32,6 +32,7 @@ class CheckFeatureAvailability
         'up',
         'api/sso-maintenance',
         'api/sso-features',
+        'api.sso-user-access',
     ];
 
     private array $alwaysAllowedPrefixes = [
