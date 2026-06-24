@@ -86,6 +86,16 @@ export default defineConfig({
             clientPort: 5173,
         },
     },
+    build: {
+        rolldownOptions: {
+            onwarn(warning, warn) {
+                if (warning.code === 'INVALID_ANNOTATION') {
+                    return;
+                }
+                warn(warning);
+            },
+        },
+    },
     resolve: {
         alias: {
             '@': fileURLToPath(new URL('./resources/js', import.meta.url)),
