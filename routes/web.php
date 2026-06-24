@@ -767,8 +767,18 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                 Route::get('/announcements', [SocietyAnnouncementController::class, 'adminIndex'])->name('announcements');
                 Route::get('/events', [SocietyEventController::class, 'adminIndex'])->name('events');
                 Route::get('/attendance', [SocietyEventController::class, 'adminAttendance'])->name('attendance');
-                Route::patch('/reopen', [SocietyController::class, 'reopen'])->name('reopen');
             });
+        });
+
+    // Feature Management Module
+    Route::prefix('settings/feature-management')
+        ->name('settings.feature-management.')
+        ->controller(App\Http\Controllers\Admin\FeatureController::class)
+        ->group(function () {
+            Route::get('/', 'index')->middleware('can:features.view')->name('index');
+            Route::patch('/{feature}/status', 'update')->middleware('can:features.edit')->name('update');
+            Route::get('/{feature}/history', 'history')->middleware('can:features.view')->name('history');
+            Route::post('/sync', 'sync')->middleware('can:features.sync')->name('sync');
         });
 });
 

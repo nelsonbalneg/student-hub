@@ -16,4 +16,5 @@ export type NavItem = {
     roles?: string | string[];
     download?: boolean;
     items?: NavItem[];
+    routeName?: string;
 };

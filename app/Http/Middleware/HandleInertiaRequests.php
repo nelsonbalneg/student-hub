@@ -68,6 +68,7 @@ class HandleInertiaRequests extends Middleware
                 $request->session()->pull('site_evaluation_suppressed_period_id'),
             ),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'systemFeatures' => fn () => \App\Models\SystemFeature::routeStatusMap(),
         ];
     }
 

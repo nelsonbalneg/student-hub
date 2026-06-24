@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AuditRequestLogger;
+use App\Http\Middleware\CheckFeatureAvailability;
 use App\Http\Middleware\EnsureTermsAccepted;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -50,6 +51,7 @@ return Application::configure(basePath: dirname(__DIR__))
             TrackCarbonFootprint::class,
             SecurityHeaders::class,
             AddLinkHeadersForPreloadedAssets::class,
+            CheckFeatureAvailability::class,
         ]);
 
         $middleware->alias([
@@ -57,6 +59,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
             'terms.accepted' => EnsureTermsAccepted::class,
+            'feature.check' => CheckFeatureAvailability::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

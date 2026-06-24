@@ -86,15 +86,23 @@ const can = (
     );
 };
 
+// Feature status helpers — reads from cached systemFeatures prop shared by HandleInertiaRequests
+const systemFeatures = computed(() => (page.props.systemFeatures as Record<string, string>) || {});
+const featureStatus = (routeName?: string) => routeName ? (systemFeatures.value[routeName] ?? 'active') : 'active';
+const featureVisible = (routeName?: string) => featureStatus(routeName) !== 'disabled';
+const featureMaintenance = (routeName?: string) => featureStatus(routeName) === 'maintenance';
+
 const visibleItems = (items: NavItem[]): NavItem[] =>
     items
         .map((item) => ({
             ...item,
+            badge: item.routeName && featureMaintenance(item.routeName) ? 'Maintenance' : item.badge,
             items: item.items ? visibleItems(item.items) : undefined,
         }))
         .filter(
             (item) =>
                 can(item.permission, item.roles) &&
+                (!item.routeName || featureVisible(item.routeName)) &&
                 (!item.items || item.items.length > 0),
         );
 
@@ -116,6 +124,7 @@ const overviewNavItems: NavItem[] = [
         href: dashboard(),
         icon: LayoutGrid,
         permission: 'dashboard.view',
+        routeName: 'dashboard',
     },
     {
         title: 'Academic',
@@ -127,12 +136,14 @@ const overviewNavItems: NavItem[] = [
                 href: '/grades',
                 // icon: Archive,
                 permission: 'grades.view',
+                routeName: 'grades.index',
             },
             {
                 title: 'Curriculum',
                 href: '/curriculum',
                 // icon: BookOpen,
                 permission: 'curriculum.view',
+                routeName: 'curriculum.index',
             },
             {
                 title: 'Class Schedule',
@@ -140,6 +151,7 @@ const overviewNavItems: NavItem[] = [
                 // icon: CalendarDays,
                 permission: 'view class schedule',
                 roles: ['Student', 'Super Admin'],
+                routeName: 'academic.class-schedule.index',
             },
         ],
     },
@@ -151,6 +163,7 @@ const overviewNavItems: NavItem[] = [
             {
                 title: 'Student Academic Registration',
                 href: '/student-academic-registration',
+                routeName: 'enrollment.student-academic-registration',
             },
         ],
     },
@@ -159,6 +172,7 @@ const overviewNavItems: NavItem[] = [
         href: '/student-profile',
         icon: User,
         permission: 'student-profile.view',
+        routeName: 'student-profile.index',
     },
     {
         title: 'Internet Account',
@@ -171,6 +185,7 @@ const overviewNavItems: NavItem[] = [
             'internet-accounts.cancel',
             'internet-accounts.delete',
         ],
+        routeName: 'internet-accounts.index',
     },
     {
         title: 'Evaluation',
@@ -182,11 +197,13 @@ const overviewNavItems: NavItem[] = [
                 title: 'My Evaluation',
                 href: '/student/evaluation',
                 permission: ['evaluation.view', 'evaluation.submit-intent'],
+                routeName: 'student.evaluation.index',
             },
             {
                 title: 'Management',
                 href: '/admin/evaluations',
                 permission: 'evaluation.manage-requests',
+                routeName: 'admin.evaluations.index',
             },
         ],
     },
@@ -200,11 +217,13 @@ const overviewNavItems: NavItem[] = [
                 title: 'All Announcements',
                 href: '/announcements',
                 permission: ['announcement.view', 'announcements.view'],
+                routeName: 'announcements.index',
             },
             {
                 title: 'Create Announcement',
                 href: '/announcements/create',
                 permission: ['announcement.create', 'announcements.create'],
+                routeName: 'announcements.create',
             },
             {
                 title: 'Categories',
@@ -213,6 +232,7 @@ const overviewNavItems: NavItem[] = [
                     'announcement.manage-categories',
                     'announcements.manage-categories',
                 ],
+                routeName: 'announcements.categories.index',
             },
         ],
     },
@@ -226,16 +246,19 @@ const overviewNavItems: NavItem[] = [
                 title: 'My Clearance',
                 href: '/student-services/clearance/my-clearance',
                 permission: 'clearance-application.view',
+                routeName: 'clearance.my-clearance',
             },
             {
                 title: 'Accountabilities Center',
                 href: '/student-services/clearance/accountabilities-center',
                 permission: 'clearance-update.view',
+                routeName: 'clearance.accountabilities-center',
             },
             {
                 title: 'Manage Clearance',
                 href: '/student-services/clearance/updates',
                 permission: 'clearance-update.view',
+                routeName: 'clearance.updates.index',
             },
         ],
     },
@@ -249,26 +272,31 @@ const overviewNavItems: NavItem[] = [
                 title: 'Browse Societies',
                 href: '/societies',
                 permission: 'society.view',
+                routeName: 'societies.index',
             },
             {
                 title: 'My Societies',
                 href: '/societies/my-societies',
                 permission: 'society.view',
+                routeName: 'societies.my-societies',
             },
             {
                 title: 'Registration',
                 href: '/societies/registration',
                 permission: ['society.create', 'society.update'],
+                routeName: 'societies.registration',
             },
             {
                 title: 'Society Events',
                 href: '/societies/events',
                 permission: 'society.view',
+                routeName: 'societies.events.index',
             },
             {
                 title: 'Announcements',
                 href: '/societies/announcements',
                 permission: 'society.view',
+                routeName: 'societies.announcements.index',
             },
         ],
     },
@@ -277,6 +305,7 @@ const overviewNavItems: NavItem[] = [
         href: '/my-carbon-footprint',
         icon: Leaf,
         permission: 'reporting.carbon_footprint.user_view',
+        routeName: 'reporting.my-carbon-footprint',
     },
 ];
 
@@ -290,20 +319,24 @@ const siteAdministrationNavItems: NavItem[] = [
             {
                 title: 'Dashboard',
                 href: '/admin/societies/dashboard',
+                routeName: 'admin.societies.dashboard',
             },
             {
                 title: 'Applications',
                 href: '/admin/societies/applications',
                 permission: 'society.review_accreditation',
+                routeName: 'admin.societies.applications.index',
             },
             {
                 title: 'Accredited Societies',
                 href: '/admin/societies/accredited',
+                routeName: 'admin.societies.accredited.index',
             },
             {
                 title: 'Reports',
                 href: '/admin/societies/reports',
                 permission: 'society.view_reports',
+                routeName: 'admin.societies.reports.index',
             },
         ],
     },
@@ -318,24 +351,28 @@ const siteAdministrationNavItems: NavItem[] = [
                 href: '/admin/reporting/overview',
                 icon: Activity,
                 permission: 'reporting.overview.view',
+                routeName: 'reporting.overview.index',
             },
             {
                 title: 'PFT Result',
                 href: '/admin/reporting/pft-result',
                 icon: Dumbbell,
                 permission: 'reporting.pft_result.view',
+                routeName: 'admin.reporting.pft-result.index',
             },
             {
                 title: 'Audit Logs',
                 href: '/admin/reporting/audit-logs',
                 icon: FileText,
                 permission: 'reporting.audit_logs.view',
+                routeName: 'reporting.audit-logs.index',
             },
             {
                 title: 'Carbon Footprint',
                 href: '/admin/reporting/carbon-footprint',
                 icon: Leaf,
                 permission: 'reporting.carbon_footprint.view',
+                routeName: 'reporting.carbon-footprint.index',
             },
             {
                 title: 'System Logs',
@@ -343,6 +380,7 @@ const siteAdministrationNavItems: NavItem[] = [
                 icon: FileText,
                 permission: 'system.logs.view',
                 roles: ['Super Admin', 'System Administrator'],
+                routeName: 'system.logs.index',
             },
         ],
     },
@@ -356,24 +394,28 @@ const siteAdministrationNavItems: NavItem[] = [
                 href: '/user-management',
                 icon: Users,
                 permission: 'users.view',
+                routeName: 'user-management.index',
             },
             {
                 title: 'Roles & Permissions',
                 href: '/user-management/roles',
                 icon: ShieldCheck,
                 permission: ['roles.view', 'permissions.view'],
+                routeName: 'user-management.roles.index',
             },
             {
                 title: 'Reference Lookups',
                 href: '/admin/reference-lookups',
                 icon: BookOpen,
                 permission: 'roles.view',
+                routeName: 'admin.reference-lookups.index',
             },
             {
                 title: 'Site Settings',
                 href: '/admin/site-settings/campuses',
                 icon: Building2,
                 permission: 'site-settings.view',
+                routeName: 'site-settings.campuses.index',
             },
             {
                 title: 'Student Profile',
@@ -383,12 +425,21 @@ const siteAdministrationNavItems: NavItem[] = [
                     'site-settings.student-profile.view',
                     'site-settings.view',
                 ],
+                routeName: 'site-settings.student-profile.index',
+            },
+            {
+                title: 'Feature Management',
+                href: '/settings/feature-management',
+                icon: ShieldCheck,
+                permission: 'features.view',
+                routeName: 'settings.feature-management.index',
             },
             {
                 title: 'Legal',
                 href: legalIndex(),
                 icon: FileText,
                 permission: 'legal.view',
+                routeName: 'legal.index',
             },
         ],
     },
@@ -402,16 +453,19 @@ const siteAdministrationNavItems: NavItem[] = [
                 title: 'All FAQs',
                 href: '/faqs/manage/faqs',
                 permission: 'faq.create',
+                routeName: 'faqs.manage.faqs.index',
             },
             {
                 title: 'Categories',
                 href: '/faqs/manage/categories',
                 permission: 'faq-category.view',
+                routeName: 'faqs.manage.categories.index',
             },
             {
                 title: 'Analytics',
                 href: '/faqs/manage/analytics',
                 permission: 'faq.analytics.view',
+                routeName: 'faqs.manage.analytics',
             },
         ],
     },
@@ -433,19 +487,8 @@ const registrarNavItems: NavItem[] = [
                     'registrar.report-of-grades.view',
                     'registrar.tag-graduating-student.view',
                 ],
+                routeName: 'admin.registrar.report-of-grades.index',
             },
-            // {
-            //     title: 'Report of Grades',
-            //     href: '/admin/registrar/report-of-grades',
-            //     icon: GraduationCap,
-            //     permission: 'registrar.report-of-grades.view',
-            // },
-            // {
-            //     title: 'Tag Graduating Student',
-            //     href: '/admin/registrar/tag-graduating-student',
-            //     icon: ClipboardCheck,
-            //     permission: 'registrar.tag-graduating-student.view',
-            // },
         ],
     },
 ];
@@ -467,12 +510,8 @@ const footerNavItems: NavItem[] = [
         href: '/faqs',
         icon: MessageSquareQuote,
         permission: 'faq.view',
+        routeName: 'faqs.index',
     },
-    // {
-    //     title: 'Help Center',
-    //     href: '#',
-    //     icon: HelpCircle,
-    // },
 ];
 </script>
 
