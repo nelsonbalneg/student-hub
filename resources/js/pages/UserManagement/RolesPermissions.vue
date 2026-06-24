@@ -3,6 +3,7 @@ import { Head, router, useForm } from '@inertiajs/vue3';
 import {
     ChevronDown,
     ChevronRight,
+    Copy,
     Key,
     Pencil,
     Plus,
@@ -294,6 +295,16 @@ const openCreateRole = () => {
     showRoleDrawer.value = true;
 };
 
+const duplicateRole = (role: Role) => {
+    editingRole.value = null;
+    roleForm.clearErrors();
+    roleForm.name = `${role.name} Copy`;
+    roleForm.permissions = role.permissions.map(
+        (permission) => permission.name,
+    );
+    showRoleDrawer.value = true;
+};
+
 const openEditRole = (role: Role) => {
     editingRole.value = role;
     roleForm.clearErrors();
@@ -393,7 +404,7 @@ const deletePermission = () => {
         class="flex h-[calc(100vh-3rem)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white md:flex-row dark:border-white/10 dark:bg-slate-950"
     >
         <aside
-            class="flex h-[35%] w-full shrink-0 flex-col border-b border-slate-100 md:h-full md:w-64 md:border-b-0 md:border-r dark:border-white/10"
+            class="flex h-[35%] w-full shrink-0 flex-col border-b border-slate-100 md:h-full md:w-64 md:border-r md:border-b-0 dark:border-white/10"
         >
             <div
                 class="flex items-center justify-between border-b border-slate-100 px-3 py-2.5 dark:border-white/10"
@@ -435,6 +446,14 @@ const deletePermission = () => {
                         v-if="activeRoleId === role.id"
                         class="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100"
                     >
+                        <button
+                            v-if="can.createRole"
+                            class="rounded p-0.5 hover:bg-emerald-100 dark:hover:bg-white/[0.06]"
+                            @click.stop="duplicateRole(role)"
+                            title="Duplicate Role"
+                        >
+                            <Copy class="h-3 w-3 text-slate-500" />
+                        </button>
                         <button
                             v-if="can.updateRole"
                             class="rounded p-0.5 hover:bg-emerald-100 dark:hover:bg-white/[0.06]"
@@ -668,7 +687,13 @@ const deletePermission = () => {
                         class="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"
                     >
                         <Shield class="h-4 w-4 text-emerald-600" />
-                        {{ editingRole ? 'Edit Role' : 'Create Role' }}
+                        {{
+                            editingRole
+                                ? 'Edit Role'
+                                : roleForm.permissions.length > 0
+                                  ? 'Duplicate Role'
+                                  : 'Create Role'
+                        }}
                     </h3>
                     <button
                         class="rounded p-1 text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06]"

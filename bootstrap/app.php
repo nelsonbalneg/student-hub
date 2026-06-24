@@ -26,10 +26,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->preventRequestsDuringMaintenance(except: [
             'api/sso-maintenance',
+            'api/sso-features',
         ]);
 
         $middleware->validateCsrfTokens(except: [
             'api/sso-maintenance',
+            'api/sso-features',
         ]);
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);

@@ -77,7 +77,6 @@ class FeatureService
     {
         return $feature->statusLogs()
             ->with('changedBy:id,name')
-            ->latest('created_at')
             ->limit(50)
             ->get()
             ->map(fn ($log) => [
