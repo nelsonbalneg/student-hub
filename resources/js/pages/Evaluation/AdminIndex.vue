@@ -19,11 +19,13 @@ import {
     X,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
-import { Button } from '@/components/ui/button';
 import InputError from '@/components/InputError.vue';
+import { Button } from '@/components/ui/button';
 
 type Period = {
     id: number;
+    campus_id: number | null;
+    office_id: number | null;
     title: string;
     description: string | null;
     academic_year: string;
@@ -33,6 +35,26 @@ type Period = {
     status: string;
     creator: { name: string } | null;
     requests_count: number | null;
+    campus: { id: number; name: string } | null;
+    office: {
+        id: number;
+        name: string;
+        code: string | null;
+        category: string;
+    } | null;
+};
+
+type Campus = {
+    id: number;
+    campus_name: string;
+};
+
+type Office = {
+    id: number;
+    campus_id: number;
+    name: string;
+    code: string | null;
+    category: string;
 };
 
 type EvaluationRequest = {
@@ -80,6 +102,8 @@ const props = defineProps<{
         done_requests: number;
         by_status: Record<string, number>;
     };
+    campuses: Campus[];
+    offices: Office[];
     can: {
         createPeriod: boolean;
         editPeriod: boolean;
@@ -89,6 +113,15 @@ const props = defineProps<{
         markDone: boolean;
     };
 }>();
+
+defineOptions({
+    layout: {
+        breadcrumbs: [
+            { title: 'Student Services', href: '#' },
+            { title: 'Manage Evaluations', href: '/admin/evaluations' },
+        ],
+    },
+});
 
 const activeTab = ref(props.filters.tab ?? 'periods');
 const periodSearch = ref(props.filters.period_search ?? '');
@@ -113,6 +146,8 @@ const feedbackTarget = ref<{
 } | null>(null);
 
 const periodForm = useForm({
+    campus_id: '' as number | string,
+    office_id: '' as number | string,
     title: '',
     description: '',
     academic_year: '',
@@ -121,6 +156,29 @@ const periodForm = useForm({
     end_date: '',
     status: 'draft',
 });
+
+const filteredOffices = computed(() => {
+    if (!periodForm.campus_id) {
+        return [];
+    }
+
+    return props.offices.filter(
+        (office) => office.campus_id === Number(periodForm.campus_id),
+    );
+});
+
+watch(
+    () => periodForm.campus_id,
+    (campusId) => {
+        const selectedOffice = props.offices.find(
+            (office) => office.id === Number(periodForm.office_id),
+        );
+
+        if (selectedOffice && selectedOffice.campus_id !== Number(campusId)) {
+            periodForm.office_id = '';
+        }
+    },
+);
 
 const actionForm = useForm({
     status: '',
@@ -140,7 +198,7 @@ const statusStyles: Record<string, string> = {
     submitted:
         'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-400/30 dark:bg-sky-500/10 dark:text-sky-200',
     under_evaluation:
-        'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-400/30 dark:bg-violet-500/10 dark:text-violet-200',
+        'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-200',
     needs_action:
         'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200',
     resolved:
@@ -155,7 +213,9 @@ const activeFilterCount = computed(
 );
 
 const formatDate = (value: string | null) => {
-    if (!value) return '-';
+    if (!value) {
+        return '-';
+    }
 
     return new Intl.DateTimeFormat('en-PH', {
         month: 'short',
@@ -168,11 +228,15 @@ const openCreatePeriod = () => {
     editingPeriod.value = null;
     periodForm.reset();
     periodForm.status = 'draft';
+    periodForm.campus_id = '';
+    periodForm.office_id = '';
     periodModal.value = true;
 };
 
 const openEditPeriod = (period: Period) => {
     editingPeriod.value = period;
+    periodForm.campus_id = period.campus_id ?? '';
+    periodForm.office_id = period.office_id ?? '';
     periodForm.title = period.title;
     periodForm.description = period.description ?? '';
     periodForm.academic_year = period.academic_year;
@@ -198,6 +262,7 @@ const savePeriod = () => {
             `/admin/evaluations/periods/${editingPeriod.value.id}`,
             options,
         );
+
         return;
     }
 
@@ -240,7 +305,9 @@ const clearRequestFilters = () => {
 };
 
 const updatePeriodStatus = () => {
-    if (!statusTarget.value) return;
+    if (!statusTarget.value) {
+        return;
+    }
 
     actionForm.status = statusTarget.value.status;
     actionForm.patch(
@@ -253,7 +320,9 @@ const updatePeriodStatus = () => {
 };
 
 const destroyPeriod = () => {
-    if (!deletePeriodTarget.value) return;
+    if (!deletePeriodTarget.value) {
+        return;
+    }
 
     actionForm.delete(
         `/admin/evaluations/periods/${deletePeriodTarget.value.id}`,
@@ -265,7 +334,9 @@ const destroyPeriod = () => {
 };
 
 const updateRequestStatus = () => {
-    if (!requestStatusTarget.value) return;
+    if (!requestStatusTarget.value) {
+        return;
+    }
 
     actionForm.status = requestStatusTarget.value.status;
     actionForm.patch(
@@ -288,7 +359,9 @@ const openFeedback = (
 };
 
 const saveFeedback = () => {
-    if (!feedbackTarget.value) return;
+    if (!feedbackTarget.value) {
+        return;
+    }
 
     feedbackForm.post(
         `/admin/evaluations/requests/${feedbackTarget.value.request.id}/feedback`,
@@ -301,111 +374,61 @@ const saveFeedback = () => {
         },
     );
 };
-
-const navigatePage = (url?: string | null) => {
-    if (!url) return;
-    router.visit(url, { preserveScroll: true, preserveState: true });
-};
 </script>
 
 <template>
     <Head title="Evaluation Management" />
 
-    <div
-        class="flex h-full flex-1 flex-col gap-5 bg-slate-50/60 p-4 lg:p-6 dark:bg-slate-950"
-    >
-        <section
-            class="sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 pb-5 backdrop-blur dark:border-white/10 dark:bg-slate-950/95"
-        >
-            <div
-                class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"
-            >
+    <div class="flex h-full flex-1 flex-col gap-3 p-3">
+        <section>
+            <div class="flex items-center justify-between gap-3">
                 <div>
-                    <div
-                        class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600 uppercase shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
-                    >
-                        <ClipboardCheck class="size-3.5 text-sky-600" />
-                        Registrar Workspace
-                    </div>
                     <h1
-                        class="mt-3 text-2xl font-bold tracking-normal text-slate-950 dark:text-white"
+                        class="text-base font-bold text-slate-800 dark:text-white"
                     >
-                        Evaluation Management
+                        Manage Evaluations
                     </h1>
-                    <p
-                        class="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400"
-                    >
-                        Manage evaluation periods, student intents, feedback,
-                        and resolution status.
+                    <p class="text-xs text-slate-400">
+                        Manage evaluation periods and process student requests.
                     </p>
                 </div>
 
-                <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <div
-                        class="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-white/10 dark:bg-slate-950"
-                    >
-                        <p
-                            class="text-[10px] font-bold text-slate-400 uppercase"
-                        >
-                            Periods
-                        </p>
-                        <p
-                            class="text-sm font-bold text-slate-900 dark:text-white"
-                        >
-                            {{ reports.periods_total }}
-                        </p>
-                    </div>
-                    <div
-                        class="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-white/10 dark:bg-slate-950"
-                    >
-                        <p
-                            class="text-[10px] font-bold text-slate-400 uppercase"
-                        >
-                            Active
-                        </p>
-                        <p
-                            class="text-sm font-bold text-slate-900 dark:text-white"
-                        >
-                            {{ reports.active_periods }}
-                        </p>
-                    </div>
-                    <div
-                        class="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-white/10 dark:bg-slate-950"
-                    >
-                        <p
-                            class="text-[10px] font-bold text-slate-400 uppercase"
-                        >
-                            Requests
-                        </p>
-                        <p
-                            class="text-sm font-bold text-slate-900 dark:text-white"
-                        >
-                            {{ reports.requests_total }}
-                        </p>
-                    </div>
-                    <div
-                        class="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-white/10 dark:bg-slate-950"
-                    >
-                        <p
-                            class="text-[10px] font-bold text-slate-400 uppercase"
-                        >
-                            Done
-                        </p>
-                        <p
-                            class="text-sm font-bold text-slate-900 dark:text-white"
-                        >
-                            {{ reports.done_requests }}
-                        </p>
-                    </div>
-                </div>
+                <Button
+                    v-if="can.createPeriod"
+                    class="h-8 gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700"
+                    @click="openCreatePeriod"
+                >
+                    <Plus class="size-3.5" />
+                    New Period
+                </Button>
             </div>
         </section>
 
-        <div
-            class="grid min-h-0 flex-1 grid-cols-1 gap-5 lg:grid-cols-[220px_minmax(0,1fr)]"
-        >
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div
+                v-for="item in [
+                    { label: 'Periods', value: reports.periods_total },
+                    { label: 'Active', value: reports.active_periods },
+                    { label: 'Requests', value: reports.requests_total },
+                    { label: 'Completed', value: reports.done_requests },
+                ]"
+                :key="item.label"
+                class="rounded-xl border border-slate-200 bg-white px-3 py-2.5 dark:border-white/10 dark:bg-slate-950"
+            >
+                <p class="text-[10px] font-medium text-slate-400 uppercase">
+                    {{ item.label }}
+                </p>
+                <p
+                    class="mt-0.5 text-lg font-semibold text-slate-800 dark:text-white"
+                >
+                    {{ item.value }}
+                </p>
+            </div>
+        </div>
+
+        <div class="flex min-h-0 flex-1 flex-col gap-3">
             <aside
-                class="rounded-lg border border-slate-200 bg-white p-2 shadow-sm dark:border-white/10 dark:bg-slate-950"
+                class="flex items-center gap-1 overflow-x-auto border-b border-slate-200 dark:border-white/10"
             >
                 <button
                     v-for="tab in [
@@ -422,11 +445,11 @@ const navigatePage = (url?: string | null) => {
                         { key: 'reports', label: 'Reports', icon: ShieldCheck },
                     ]"
                     :key="tab.key"
-                    class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-bold transition"
+                    class="flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-semibold transition"
                     :class="
                         activeTab === tab.key
-                            ? 'bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-200'
-                            : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-white/5'
+                            ? 'border-emerald-500 text-emerald-700 dark:text-emerald-300'
+                            : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
                     "
                     @click="activeTab = tab.key"
                 >
@@ -437,7 +460,7 @@ const navigatePage = (url?: string | null) => {
 
             <section
                 v-if="activeTab === 'periods'"
-                class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+                class="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
             >
                 <div
                     class="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 lg:flex-row lg:items-center lg:justify-between dark:border-white/10"
@@ -452,23 +475,17 @@ const navigatePage = (url?: string | null) => {
                             placeholder="Search periods..."
                         />
                     </div>
-                    <Button
-                        v-if="can.createPeriod"
-                        class="h-9 rounded-md px-4 text-xs font-bold"
-                        @click="openCreatePeriod"
-                    >
-                        <Plus class="mr-2 size-4" />
-                        Create Period
-                    </Button>
                 </div>
 
                 <div class="min-h-0 flex-1 overflow-auto">
                     <table class="w-full min-w-[1100px] text-sm">
                         <thead
-                            class="bg-slate-50 text-left text-[11px] font-bold text-slate-500 uppercase dark:bg-white/5"
+                            class="bg-slate-50/80 text-left text-[11px] font-semibold text-slate-500 uppercase dark:bg-white/[0.03]"
                         >
                             <tr>
                                 <th class="px-4 py-3">Title</th>
+                                <th class="px-4 py-3">Campus</th>
+                                <th class="px-4 py-3">College / Office</th>
                                 <th class="px-4 py-3">Academic Year</th>
                                 <th class="px-4 py-3">Semester</th>
                                 <th class="px-4 py-3">Start Date</th>
@@ -488,15 +505,41 @@ const navigatePage = (url?: string | null) => {
                             >
                                 <td class="px-4 py-3">
                                     <p
-                                        class="font-bold text-slate-900 dark:text-white"
+                                        class="font-semibold text-slate-900 dark:text-white"
                                     >
                                         {{ period.title }}
                                     </p>
                                     <p
-                                        class="text-[10px] font-bold text-slate-400 uppercase"
+                                        class="text-[10px] font-medium text-slate-400"
                                     >
                                         {{ period.requests_count ?? 0 }}
                                         requests
+                                    </p>
+                                </td>
+                                <td
+                                    class="px-4 py-3 text-xs text-slate-600 dark:text-slate-300"
+                                >
+                                    {{ period.campus?.name ?? '-' }}
+                                </td>
+                                <td class="px-4 py-3">
+                                    <p
+                                        class="text-xs font-medium text-slate-700 dark:text-slate-200"
+                                    >
+                                        {{ period.office?.name ?? '-' }}
+                                    </p>
+                                    <p
+                                        v-if="period.office"
+                                        class="mt-0.5 text-[10px] text-slate-400"
+                                    >
+                                        {{
+                                            period.office.category ===
+                                            'academic'
+                                                ? 'College'
+                                                : 'Office'
+                                        }}
+                                        <template v-if="period.office.code">
+                                            · {{ period.office.code }}
+                                        </template>
                                     </p>
                                 </td>
                                 <td
@@ -522,7 +565,7 @@ const navigatePage = (url?: string | null) => {
                                 <td class="px-4 py-3">
                                     <span
                                         :class="[
-                                            'inline-flex rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase',
+                                            'inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize',
                                             statusStyles[period.status],
                                         ]"
                                         >{{ period.status }}</span
@@ -609,7 +652,7 @@ const navigatePage = (url?: string | null) => {
                                 </td>
                             </tr>
                             <tr v-if="periods.data.length === 0">
-                                <td colspan="8" class="p-10 text-center">
+                                <td colspan="10" class="p-10 text-center">
                                     <ClipboardCheck
                                         class="mx-auto size-10 text-slate-300 dark:text-slate-600"
                                     />
@@ -627,7 +670,7 @@ const navigatePage = (url?: string | null) => {
 
             <section
                 v-else-if="activeTab === 'requests'"
-                class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+                class="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
             >
                 <div
                     class="border-b border-slate-100 px-4 py-3 dark:border-white/10"
@@ -654,7 +697,7 @@ const navigatePage = (url?: string | null) => {
                             Filters
                             <span
                                 v-if="activeFilterCount"
-                                class="ml-1 rounded-full bg-sky-600 px-1.5 text-[10px] text-white"
+                                class="ml-1 rounded-full bg-emerald-600 px-1.5 text-[10px] text-white"
                                 >{{ activeFilterCount }}</span
                             >
                         </Button>
@@ -716,7 +759,7 @@ const navigatePage = (url?: string | null) => {
                 <div class="min-h-0 flex-1 overflow-auto">
                     <table class="w-full min-w-[1180px] text-sm">
                         <thead
-                            class="bg-slate-50 text-left text-[11px] font-bold text-slate-500 uppercase dark:bg-white/5"
+                            class="bg-slate-50/80 text-left text-[11px] font-semibold text-slate-500 uppercase dark:bg-white/[0.03]"
                         >
                             <tr>
                                 <th class="px-4 py-3">Student No</th>
@@ -767,7 +810,7 @@ const navigatePage = (url?: string | null) => {
                                 <td class="px-4 py-3">
                                     <span
                                         :class="[
-                                            'inline-flex rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase',
+                                            'inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize',
                                             statusStyles[request.status],
                                         ]"
                                         >{{
@@ -805,7 +848,7 @@ const navigatePage = (url?: string | null) => {
                                             "
                                             variant="ghost"
                                             size="sm"
-                                            class="h-8 text-xs text-violet-600"
+                                            class="h-8 text-xs text-emerald-600"
                                             @click="
                                                 requestStatusTarget = {
                                                     request,
@@ -890,7 +933,7 @@ const navigatePage = (url?: string | null) => {
 
             <section
                 v-else
-                class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-950"
+                class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950"
             >
                 <h2 class="text-sm font-bold text-slate-950 dark:text-white">
                     Reports
@@ -899,7 +942,7 @@ const navigatePage = (url?: string | null) => {
                     <div
                         v-for="status in filterOptions.statuses"
                         :key="status"
-                        class="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5"
+                        class="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/5"
                     >
                         <p
                             class="text-[10px] font-bold text-slate-400 uppercase"
@@ -919,79 +962,192 @@ const navigatePage = (url?: string | null) => {
 
     <div
         v-if="periodModal"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+        class="fixed inset-0 z-50 flex justify-end bg-slate-950/40 backdrop-blur-[2px]"
+        @click.self="periodModal = false"
     >
         <div
-            class="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-xl border bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-slate-950"
+            class="flex h-full w-full max-w-xl flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-950"
         >
-            <div class="flex items-center justify-between">
-                <h2 class="text-lg font-bold text-slate-900 dark:text-white">
-                    {{ editingPeriod ? 'Edit Period' : 'Create Period' }}
-                </h2>
-                <button @click="periodModal = false">
-                    <X class="size-5 text-slate-400" />
+            <div
+                class="flex items-start justify-between border-b border-slate-200 px-5 py-4 dark:border-white/10"
+            >
+                <div>
+                    <p
+                        class="text-[10px] font-semibold text-emerald-600 uppercase"
+                    >
+                        Evaluation period
+                    </p>
+                    <h2
+                        class="mt-1 text-base font-semibold text-slate-900 dark:text-white"
+                    >
+                        {{
+                            editingPeriod ? 'Edit period' : 'Create new period'
+                        }}
+                    </h2>
+                    <p class="mt-1 text-xs text-slate-500">
+                        Set the academic term, availability, and publishing
+                        status.
+                    </p>
+                </div>
+                <button
+                    class="grid size-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10"
+                    @click="periodModal = false"
+                >
+                    <X class="size-4" />
                 </button>
             </div>
-            <div class="mt-5 grid gap-4 md:grid-cols-2">
+            <div
+                class="grid flex-1 content-start gap-4 overflow-y-auto p-5 md:grid-cols-2"
+            >
+                <label class="grid gap-2 md:col-span-2">
+                    <span
+                        class="text-[11px] font-semibold text-slate-500 uppercase"
+                    >
+                        Campus
+                    </span>
+                    <select
+                        v-model="periodForm.campus_id"
+                        class="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white"
+                    >
+                        <option value="" disabled>Select campus first</option>
+                        <option
+                            v-for="campus in campuses"
+                            :key="campus.id"
+                            :value="campus.id"
+                        >
+                            {{ campus.campus_name }}
+                        </option>
+                    </select>
+                    <InputError :message="periodForm.errors.campus_id" />
+                </label>
+                <label class="grid gap-2 md:col-span-2">
+                    <span
+                        class="text-[11px] font-semibold text-slate-500 uppercase"
+                    >
+                        College or Office
+                    </span>
+                    <select
+                        v-model="periodForm.office_id"
+                        :disabled="!periodForm.campus_id"
+                        class="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-emerald-400 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 dark:border-white/10 dark:bg-slate-900 dark:text-white dark:disabled:bg-slate-900/50"
+                    >
+                        <option value="" disabled>
+                            {{
+                                periodForm.campus_id
+                                    ? 'Select college or office'
+                                    : 'Select a campus first'
+                            }}
+                        </option>
+                        <optgroup
+                            v-if="
+                                filteredOffices.some(
+                                    (office) => office.category === 'academic',
+                                )
+                            "
+                            label="Colleges"
+                        >
+                            <option
+                                v-for="office in filteredOffices.filter(
+                                    (item) => item.category === 'academic',
+                                )"
+                                :key="office.id"
+                                :value="office.id"
+                            >
+                                {{ office.name }}
+                                {{ office.code ? `(${office.code})` : '' }}
+                            </option>
+                        </optgroup>
+                        <optgroup
+                            v-if="
+                                filteredOffices.some(
+                                    (office) => office.category !== 'academic',
+                                )
+                            "
+                            label="Offices"
+                        >
+                            <option
+                                v-for="office in filteredOffices.filter(
+                                    (item) => item.category !== 'academic',
+                                )"
+                                :key="office.id"
+                                :value="office.id"
+                            >
+                                {{ office.name }}
+                                {{ office.code ? `(${office.code})` : '' }}
+                            </option>
+                        </optgroup>
+                    </select>
+                    <p class="text-[10px] text-slate-400">
+                        Options are loaded from the selected campus.
+                    </p>
+                    <InputError :message="periodForm.errors.office_id" />
+                </label>
                 <label class="grid gap-2 md:col-span-2"
-                    ><span class="text-xs font-bold text-slate-500 uppercase"
+                    ><span
+                        class="text-[11px] font-semibold text-slate-500 uppercase"
                         >Title</span
                     ><input
                         v-model="periodForm.title"
-                        class="h-10 rounded-md border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900 dark:text-white" /><InputError
+                        class="h-9 rounded-lg border border-slate-200 px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white" /><InputError
                         :message="periodForm.errors.title"
                 /></label>
                 <label class="grid gap-2 md:col-span-2"
-                    ><span class="text-xs font-bold text-slate-500 uppercase"
+                    ><span
+                        class="text-[11px] font-semibold text-slate-500 uppercase"
                         >Description</span
                     ><textarea
                         v-model="periodForm.description"
-                        class="min-h-24 rounded-md border border-slate-200 p-3 text-sm dark:border-white/10 dark:bg-slate-900 dark:text-white"
+                        class="min-h-24 rounded-lg border border-slate-200 p-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white"
                     ></textarea
                     ><InputError :message="periodForm.errors.description"
                 /></label>
                 <label class="grid gap-2"
-                    ><span class="text-xs font-bold text-slate-500 uppercase"
+                    ><span
+                        class="text-[11px] font-semibold text-slate-500 uppercase"
                         >Academic Year</span
                     ><input
                         v-model="periodForm.academic_year"
-                        class="h-10 rounded-md border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900 dark:text-white"
+                        class="h-9 rounded-lg border border-slate-200 px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white"
                         placeholder="2026-2027" /><InputError
                         :message="periodForm.errors.academic_year"
                 /></label>
                 <label class="grid gap-2"
-                    ><span class="text-xs font-bold text-slate-500 uppercase"
+                    ><span
+                        class="text-[11px] font-semibold text-slate-500 uppercase"
                         >Semester</span
                     ><input
                         v-model="periodForm.semester"
-                        class="h-10 rounded-md border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900 dark:text-white"
+                        class="h-9 rounded-lg border border-slate-200 px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white"
                         placeholder="1st Semester" /><InputError
                         :message="periodForm.errors.semester"
                 /></label>
                 <label class="grid gap-2"
-                    ><span class="text-xs font-bold text-slate-500 uppercase"
+                    ><span
+                        class="text-[11px] font-semibold text-slate-500 uppercase"
                         >Start Date</span
                     ><input
                         v-model="periodForm.start_date"
                         type="date"
-                        class="h-10 rounded-md border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900 dark:text-white" /><InputError
+                        class="h-9 rounded-lg border border-slate-200 px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white" /><InputError
                         :message="periodForm.errors.start_date"
                 /></label>
                 <label class="grid gap-2"
-                    ><span class="text-xs font-bold text-slate-500 uppercase"
+                    ><span
+                        class="text-[11px] font-semibold text-slate-500 uppercase"
                         >End Date</span
                     ><input
                         v-model="periodForm.end_date"
                         type="date"
-                        class="h-10 rounded-md border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900 dark:text-white" /><InputError
+                        class="h-9 rounded-lg border border-slate-200 px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white" /><InputError
                         :message="periodForm.errors.end_date"
                 /></label>
                 <label class="grid gap-2"
-                    ><span class="text-xs font-bold text-slate-500 uppercase"
+                    ><span
+                        class="text-[11px] font-semibold text-slate-500 uppercase"
                         >Status</span
                     ><select
                         v-model="periodForm.status"
-                        class="h-10 rounded-md border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900 dark:text-white"
+                        class="h-9 rounded-lg border border-slate-200 px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white"
                     >
                         <option
                             v-for="status in filterOptions.periodStatuses"
@@ -1003,15 +1159,22 @@ const navigatePage = (url?: string | null) => {
                     ><InputError :message="periodForm.errors.status"
                 /></label>
             </div>
-            <div class="mt-5 flex justify-end gap-2">
+            <div
+                class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4 dark:border-white/10"
+            >
                 <Button variant="outline" @click="periodModal = false"
                     >Cancel</Button
                 >
-                <Button :disabled="periodForm.processing" @click="savePeriod"
+                <Button
+                    class="bg-emerald-600 text-white hover:bg-emerald-700"
+                    :disabled="periodForm.processing"
+                    @click="savePeriod"
                     ><Loader2
                         v-if="periodForm.processing"
                         class="mr-2 size-4 animate-spin"
-                    />Save Period</Button
+                    />{{
+                        editingPeriod ? 'Save changes' : 'Create draft'
+                    }}</Button
                 >
             </div>
         </div>
@@ -1019,39 +1182,57 @@ const navigatePage = (url?: string | null) => {
 
     <div
         v-if="feedbackTarget"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+        class="fixed inset-0 z-50 flex justify-end bg-slate-950/40 backdrop-blur-[2px]"
+        @click.self="feedbackTarget = null"
     >
         <div
-            class="w-full max-w-lg rounded-xl border bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-slate-950"
+            class="flex h-full w-full max-w-md flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-950"
         >
-            <div class="flex items-center justify-between">
-                <h2 class="text-lg font-bold text-slate-900 dark:text-white">
-                    Add Feedback
-                </h2>
-                <button @click="feedbackTarget = null">
-                    <X class="size-5 text-slate-400" />
+            <div
+                class="flex items-start justify-between border-b border-slate-200 px-5 py-4 dark:border-white/10"
+            >
+                <div>
+                    <p
+                        class="text-[10px] font-semibold text-emerald-600 uppercase"
+                    >
+                        Student request
+                    </p>
+                    <h2
+                        class="mt-1 text-base font-semibold text-slate-900 dark:text-white"
+                    >
+                        Add feedback
+                    </h2>
+                </div>
+                <button
+                    class="grid size-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100"
+                    @click="feedbackTarget = null"
+                >
+                    <X class="size-4" />
                 </button>
             </div>
-            <div class="mt-5 space-y-4">
+            <div class="flex-1 space-y-4 overflow-y-auto p-5">
                 <textarea
                     v-model="feedbackForm.message"
-                    class="min-h-32 w-full rounded-md border border-slate-200 p-3 text-sm dark:border-white/10 dark:bg-slate-900 dark:text-white"
+                    class="min-h-40 w-full rounded-lg border border-slate-200 p-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white"
                     placeholder="Feedback is required for needs action or resolved updates."
                 ></textarea>
                 <InputError :message="feedbackForm.errors.message" />
                 <select
                     v-model="feedbackForm.visibility"
-                    class="h-10 w-full rounded-md border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900 dark:text-white"
+                    class="h-9 w-full rounded-lg border border-slate-200 px-3 text-xs focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white"
                 >
                     <option value="student_visible">Student visible</option>
                     <option value="internal">Internal only</option>
                 </select>
             </div>
-            <div class="mt-5 flex justify-end gap-2">
+            <div
+                class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4 dark:border-white/10"
+            >
                 <Button variant="outline" @click="feedbackTarget = null"
                     >Cancel</Button
                 >
                 <Button
+                    class="bg-emerald-600 text-white hover:bg-emerald-700"
                     :disabled="feedbackForm.processing"
                     @click="saveFeedback"
                     ><Loader2

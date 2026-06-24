@@ -19,7 +19,8 @@
         "maatwebsite/excel": "*",
         "opcodesio/log-viewer": "^3.24",
         "spatie/browsershot": "^5.4",
-        "spatie/laravel-permission": "^7.4"
+        "spatie/laravel-permission": "^7.4",
+        "studenthub/evaluation-builder": "dev-main"
     },
     "require-dev": {
         "fakerphp/faker": "^1.24",
@@ -38,7 +39,8 @@
             "App\\": "app/",
             "Database\\Factories\\": "database/factories/",
             "Database\\Seeders\\": "database/seeders/",
-            "PhpOffice\\PhpSpreadsheet\\": "vendor/phpoffice/phpspreadsheet/src/PhpSpreadsheet/"
+            "PhpOffice\\PhpSpreadsheet\\": "vendor/phpoffice/phpspreadsheet/src/PhpSpreadsheet/",
+            "StudentHub\\EvaluationBuilder\\": "packages/studenthub/evaluation-builder/src/"
         }
     },
     "autoload-dev": {
@@ -102,6 +104,15 @@
             "dont-discover": []
         }
     },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "packages/studenthub/evaluation-builder",
+            "options": {
+                "symlink": true
+            }
+        }
+    ],
     "config": {
         "optimize-autoloader": true,
         "preferred-install": "dist",

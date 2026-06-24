@@ -1,0 +1,25 @@
+{
+    "name": "studenthub/evaluation-builder",
+    "description": "Reusable Laravel evaluation template builder core.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.2",
+        "illuminate/database": "^11.0|^12.0|^13.0",
+        "illuminate/support": "^11.0|^12.0|^13.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "StudentHub\\EvaluationBuilder\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "StudentHub\\EvaluationBuilder\\EvaluationBuilderServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

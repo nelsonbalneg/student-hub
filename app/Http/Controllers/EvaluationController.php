@@ -10,6 +10,8 @@ use App\Models\EvaluationActivityLog;
 use App\Models\EvaluationFeedback;
 use App\Models\EvaluationPeriod;
 use App\Models\EvaluationRequest;
+use App\Models\Office;
+use App\Models\SiteCampus;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,8 +25,15 @@ class EvaluationController extends Controller
         $this->authorize('viewAny', EvaluationPeriod::class);
 
         $user = $request->user();
+        $campusIds = SiteCampus::query()
+            ->where('id', $user->campus_id)
+            ->orWhere('real_campus_id', (string) $user->campus_id)
+            ->pluck('id');
+
         $activePeriod = EvaluationPeriod::query()
+            ->with(['campus:id,campus_name', 'office:id,name,code,category'])
             ->visibleToStudents()
+            ->whereIn('campus_id', $campusIds)
             ->latest('start_date')
             ->first();
 
@@ -37,7 +46,11 @@ class EvaluationController extends Controller
             : null;
 
         $history = EvaluationRequest::query()
-            ->with(['period', 'feedbacks' => fn ($query) => $query->where('visibility', 'student_visible')->latest()])
+            ->with([
+                'period.campus:id,campus_name',
+                'period.office:id,name,code,category',
+                'feedbacks' => fn ($query) => $query->where('visibility', 'student_visible')->latest(),
+            ])
             ->where('student_id', $user->id)
             ->latest()
             ->paginate(10)
@@ -102,13 +115,18 @@ class EvaluationController extends Controller
         $this->authorize('manage', EvaluationRequest::class);
 
         $periods = $this->periodsQuery($request)
-            ->with('creator:id,name')
+            ->with(['creator:id,name', 'campus:id,campus_name', 'office:id,name,code,category'])
             ->latest()
             ->paginate(10, ['*'], 'periods_page')
             ->withQueryString();
 
         $requests = $this->requestsQuery($request)
-            ->with(['period', 'student:id,name,email,student_no,campus_name', 'evaluator:id,name'])
+            ->with([
+                'period.campus:id,campus_name',
+                'period.office:id,name,code,category',
+                'student:id,name,email,student_no,campus_name',
+                'evaluator:id,name',
+            ])
             ->latest()
             ->paginate(10, ['*'], 'requests_page')
             ->withQueryString();
@@ -127,6 +145,15 @@ class EvaluationController extends Controller
                 'periodStatuses' => ['draft', 'active', 'closed', 'archived'],
                 'semesters' => EvaluationPeriod::query()->select('semester')->distinct()->orderBy('semester')->pluck('semester')->values(),
             ],
+            'campuses' => SiteCampus::query()
+                ->where('status', 'Active')
+                ->orderBy('campus_name')
+                ->get(['id', 'campus_name']),
+            'offices' => Office::query()
+                ->with('campus:id,campus_name')
+                ->orderBy('category')
+                ->orderBy('name')
+                ->get(['id', 'campus_id', 'name', 'code', 'category']),
             'reports' => $this->reports(),
             'can' => [
                 'createPeriod' => $request->user()->can('create', EvaluationPeriod::class),
@@ -143,7 +170,14 @@ class EvaluationController extends Controller
     {
         $this->authorize('view', $evaluationRequest);
 
-        $evaluationRequest->load(['period', 'student', 'evaluator', 'completer', 'feedbacks.author']);
+        $evaluationRequest->load([
+            'period.campus:id,campus_name',
+            'period.office:id,name,code,category',
+            'student',
+            'evaluator',
+            'completer',
+            'feedbacks.author',
+        ]);
 
         $logs = EvaluationActivityLog::query()
             ->where('model_type', EvaluationRequest::class)
@@ -213,13 +247,15 @@ class EvaluationController extends Controller
 
         if ($validated['status'] === EvaluationPeriod::STATUS_ACTIVE) {
             $duplicate = EvaluationPeriod::query()
+                ->where('campus_id', $evaluationPeriod->campus_id)
+                ->where('office_id', $evaluationPeriod->office_id)
                 ->where('academic_year', $evaluationPeriod->academic_year)
                 ->where('semester', $evaluationPeriod->semester)
                 ->where('status', EvaluationPeriod::STATUS_ACTIVE)
                 ->whereKeyNot($evaluationPeriod->id)
                 ->exists();
 
-            abort_if($duplicate, 422, 'Only one active evaluation period is allowed per semester.');
+            abort_if($duplicate, 422, 'Only one active evaluation period is allowed for this campus and college or office per semester.');
         }
 
         $evaluationPeriod->update([
@@ -296,7 +332,9 @@ class EvaluationController extends Controller
                 $query->where(function ($query) use ($search): void {
                     $query->where('title', 'like', "%{$search}%")
                         ->orWhere('academic_year', 'like', "%{$search}%")
-                        ->orWhere('semester', 'like', "%{$search}%");
+                        ->orWhere('semester', 'like', "%{$search}%")
+                        ->orWhereHas('campus', fn ($query) => $query->where('campus_name', 'like', "%{$search}%"))
+                        ->orWhereHas('office', fn ($query) => $query->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%"));
                 });
             });
     }
@@ -335,6 +373,18 @@ class EvaluationController extends Controller
             'id' => $period->id,
             'title' => $period->title,
             'description' => $period->description,
+            'campus_id' => $period->campus_id,
+            'office_id' => $period->office_id,
+            'campus' => $period->campus ? [
+                'id' => $period->campus->id,
+                'name' => $period->campus->campus_name,
+            ] : null,
+            'office' => $period->office ? [
+                'id' => $period->office->id,
+                'name' => $period->office->name,
+                'code' => $period->office->code,
+                'category' => $period->office->category,
+            ] : null,
             'academic_year' => $period->academic_year,
             'semester' => $period->semester,
             'start_date' => $period->start_date,

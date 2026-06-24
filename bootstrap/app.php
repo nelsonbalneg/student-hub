@@ -23,6 +23,14 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->preventRequestsDuringMaintenance(except: [
+            'api/sso-maintenance',
+        ]);
+
+        $middleware->validateCsrfTokens(except: [
+            'api/sso-maintenance',
+        ]);
+
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
         $middleware->trustProxies(

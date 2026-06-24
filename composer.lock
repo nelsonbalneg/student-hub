@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "88387aa729fae1644cd0d04ef57e2e74",
+    "content-hash": "f2dfe611568295155b51e35d8fb710f5",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -6103,6 +6103,41 @@
                 }
             ],
             "time": "2026-03-23T22:56:56+00:00"
+        },
+        {
+            "name": "studenthub/evaluation-builder",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/studenthub/evaluation-builder",
+                "reference": "bd1e1bf4c054996c8daee63a3bbbfff72f1714f2"
+            },
+            "require": {
+                "illuminate/database": "^11.0|^12.0|^13.0",
+                "illuminate/support": "^11.0|^12.0|^13.0",
+                "php": "^8.2"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "StudentHub\\EvaluationBuilder\\EvaluationBuilderServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "StudentHub\\EvaluationBuilder\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Reusable Laravel evaluation template builder core.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
         },
         {
             "name": "symfony/clock",
@@ -12989,7 +13024,9 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {},
+    "stability-flags": {
+        "studenthub/evaluation-builder": 20
+    },
     "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {

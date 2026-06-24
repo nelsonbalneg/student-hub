@@ -57,6 +57,8 @@ use App\Http\Controllers\UserManagementController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
+Route::match(['get', 'post'], 'api/sso-maintenance', [\App\Http\Controllers\SsoMaintenanceController::class, 'handle']);
+
 Route::get('/', function () {
     if (auth()->check()) {
         return redirect()->route('dashboard');

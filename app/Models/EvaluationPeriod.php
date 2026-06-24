@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 #[Fillable([
     'title',
     'description',
+    'campus_id',
+    'office_id',
     'academic_year',
     'semester',
     'start_date',
@@ -25,8 +27,11 @@ class EvaluationPeriod extends Model
     use HasFactory, SoftDeletes;
 
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_CLOSED = 'closed';
+
     public const STATUS_ARCHIVED = 'archived';
 
     protected function casts(): array
@@ -40,6 +45,16 @@ class EvaluationPeriod extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function campus(): BelongsTo
+    {
+        return $this->belongsTo(SiteCampus::class, 'campus_id');
+    }
+
+    public function office(): BelongsTo
+    {
+        return $this->belongsTo(Office::class);
     }
 
     public function updater(): BelongsTo
