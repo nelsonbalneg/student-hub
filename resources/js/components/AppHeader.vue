@@ -6,6 +6,7 @@ import AppLogo from '@/components/AppLogo.vue';
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import AppLauncher from '@/components/AppLauncher.vue';
 import Breadcrumbs from '@/components/Breadcrumbs.vue';
+import ImpersonationBanner from '@/components/ImpersonationBanner.vue';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -78,6 +79,8 @@ const rightNavItems: NavItem[] = [
 
 <template>
     <div>
+        <ImpersonationBanner />
+
         <div class="border-b border-sidebar-border/80">
             <div class="mx-auto flex h-16 items-center px-4 md:max-w-7xl">
                 <!-- Mobile Menu -->

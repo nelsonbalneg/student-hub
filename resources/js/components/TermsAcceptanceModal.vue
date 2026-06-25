@@ -27,6 +27,10 @@ const checked = ref(false);
 const processing = ref(false);
 
 const requiredTerms = computed<LegalDocument | null>(() => {
+    if (page.props.auth?.impersonation?.active) {
+        return null;
+    }
+
     const legal = page.props.legal as
         | { requiredTerms?: LegalDocument | null }
         | undefined;

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\FeatureController;
 use App\Http\Controllers\Admin\ReferenceLookupController;
 use App\Http\Controllers\Admin\RegistrarController;
 use App\Http\Controllers\Admin\Reporting\PftResultController;
@@ -48,6 +49,9 @@ use App\Http\Controllers\Society\SocietyDashboardController;
 use App\Http\Controllers\Society\SocietyEventController;
 use App\Http\Controllers\Society\SocietyMembershipController;
 use App\Http\Controllers\Society\SocietyReportController;
+use App\Http\Controllers\SsoFeaturesController;
+use App\Http\Controllers\SsoMaintenanceController;
+use App\Http\Controllers\SsoUserAccessController;
 use App\Http\Controllers\StudentPftResultController;
 use App\Http\Controllers\StudentProfileController;
 use App\Http\Controllers\StudentRecordsController;
@@ -57,9 +61,9 @@ use App\Http\Controllers\UserManagementController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::match(['get', 'post'], 'api/sso-maintenance', [\App\Http\Controllers\SsoMaintenanceController::class, 'handle']);
-Route::match(['get', 'post'], 'api/sso-features', [\App\Http\Controllers\SsoFeaturesController::class, 'handle']);
-Route::get('api/sso-user-access', [\App\Http\Controllers\SsoUserAccessController::class, 'handle'])->name('api.sso-user-access');
+Route::match(['get', 'post'], 'api/sso-maintenance', [SsoMaintenanceController::class, 'handle']);
+Route::match(['get', 'post'], 'api/sso-features', [SsoFeaturesController::class, 'handle']);
+Route::match(['get', 'post'], 'api/sso-user-access', [SsoUserAccessController::class, 'handle'])->name('api.sso-user-access');
 
 Route::get('/', function () {
     if (auth()->check()) {
@@ -82,6 +86,11 @@ Route::middleware('guest')->group(function () {
 
     Route::get('auth/callback', [SsoAuthenticatedSessionController::class, 'callback'])
         ->name('auth.callback');
+});
+
+Route::middleware('auth')->group(function () {
+    Route::post('user-management/impersonation/stop', [UserManagementController::class, 'stopImpersonating'])
+        ->name('user-management.impersonation.stop');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -330,6 +339,9 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
             Route::patch('/users/{user}/toggle', 'toggleUser')
                 ->middleware('can:users.update')
                 ->name('users.toggle');
+            Route::post('/users/{user}/impersonate', 'impersonate')
+                ->middleware('can:users.impersonate')
+                ->name('users.impersonate');
             Route::delete('/users/{user}', 'destroyUser')
                 ->middleware('can:users.delete')
                 ->name('users.destroy');
@@ -775,7 +787,7 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
     // Feature Management Module
     Route::prefix('settings/feature-management')
         ->name('settings.feature-management.')
-        ->controller(App\Http\Controllers\Admin\FeatureController::class)
+        ->controller(FeatureController::class)
         ->group(function () {
             Route::get('/', 'index')->middleware('can:features.view')->name('index');
             Route::patch('/{feature}/status', 'update')->middleware('can:features.edit')->name('update');

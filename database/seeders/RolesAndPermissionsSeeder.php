@@ -51,6 +51,7 @@ class RolesAndPermissionsSeeder extends Seeder
             ['module' => 'Users', 'name' => 'users.create'],
             ['module' => 'Users', 'name' => 'users.update'],
             ['module' => 'Users', 'name' => 'users.assign-role'],
+            ['module' => 'Users', 'name' => 'users.impersonate'],
             ['module' => 'Users', 'name' => 'users.delete'],
             ['module' => 'Roles', 'name' => 'roles.view'],
             ['module' => 'Roles', 'name' => 'roles.create'],

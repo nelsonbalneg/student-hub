@@ -26,6 +26,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -65,6 +66,7 @@ class UserManagementController extends Controller
                 'update' => $request->user()->can('users.update'),
                 'delete' => $request->user()->can('users.delete'),
                 'assignRole' => $request->user()->can('users.assign-role'),
+                'impersonate' => $request->user()->can('users.impersonate'),
             ],
             'lookupOffices' => Office::query()->orderBy('name')->get(['id', 'name', 'code']),
             'users' => $this->paginatedUsers($request),
@@ -201,6 +203,69 @@ class UserManagementController extends Controller
         }
 
         return to_route('user-management.index')->with('success', 'User status updated.');
+    }
+
+    public function impersonate(Request $request, User $user): RedirectResponse
+    {
+        abort_unless($request->user()->can('users.impersonate'), 403);
+
+        if ($request->user()->is($user)) {
+            return to_route('user-management.index')->with('error', 'You cannot impersonate your own account.');
+        }
+
+        if ($request->session()->has('impersonator_id')) {
+            return to_route('user-management.index')->with('error', 'You are already impersonating a user.');
+        }
+
+        if (Schema::hasColumn('users', 'is_active') && ! $user->is_active) {
+            return to_route('user-management.index')->with('error', 'You cannot impersonate an inactive account.');
+        }
+
+        $impersonator = $request->user();
+
+        if ($user->hasRole('Super Admin') && ! $impersonator->hasRole('Super Admin')) {
+            return to_route('user-management.index')->with('error', 'Only a Super Admin can impersonate another Super Admin.');
+        }
+
+        Log::notice('User impersonation started', [
+            'impersonator_id' => $impersonator->id,
+            'target_user_id' => $user->id,
+        ]);
+
+        $request->session()->put('impersonator_id', $impersonator->id);
+        Auth::login($user);
+        $request->session()->regenerate();
+
+        return to_route('dashboard')->with('success', "You are now impersonating {$user->name}.");
+    }
+
+    public function stopImpersonating(Request $request): RedirectResponse
+    {
+        $impersonatorId = $request->session()->pull('impersonator_id');
+
+        if (! $impersonatorId) {
+            return to_route('dashboard')->with('error', 'No active impersonation session found.');
+        }
+
+        $impersonator = User::query()->find($impersonatorId);
+
+        if (! $impersonator) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return to_route('auth.sso.redirect')->with('error', 'The original account could not be restored. Please sign in again.');
+        }
+
+        Log::notice('User impersonation stopped', [
+            'impersonator_id' => $impersonator->id,
+            'impersonated_user_id' => $request->user()?->id,
+        ]);
+
+        Auth::login($impersonator);
+        $request->session()->regenerate();
+
+        return to_route('user-management.index')->with('success', 'Impersonation ended.');
     }
 
     public function destroyUser(Request $request, User $user): RedirectResponse

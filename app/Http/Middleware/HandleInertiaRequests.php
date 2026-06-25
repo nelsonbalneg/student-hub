@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\SystemFeature;
+use App\Models\User;
 use App\Services\LegalDocumentService;
 use App\Services\SiteEvaluationPromptService;
 use App\Services\SiteSettingService;
@@ -53,6 +55,7 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
                 'permissions' => $this->permissionsFor($request),
                 'roles' => $this->rolesFor($request),
+                'impersonation' => fn () => $this->impersonationFor($request),
             ],
             'flash' => [
                 'toast' => $this->toastFor($request),
@@ -68,7 +71,7 @@ class HandleInertiaRequests extends Middleware
                 $request->session()->pull('site_evaluation_suppressed_period_id'),
             ),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
-            'systemFeatures' => fn () => \App\Models\SystemFeature::routeStatusMap(),
+            'systemFeatures' => fn () => SystemFeature::routeStatusMap(),
         ];
     }
 
@@ -128,5 +131,30 @@ class HandleInertiaRequests extends Middleware
             'model_has_roles',
             'role_has_permissions',
         ])->every(fn (string $table): bool => Schema::hasTable($table));
+    }
+
+    private function impersonationFor(Request $request): ?array
+    {
+        $impersonatorId = $request->session()->get('impersonator_id');
+
+        if (! $impersonatorId || ! $request->user()) {
+            return null;
+        }
+
+        $impersonator = User::query()->find($impersonatorId);
+
+        return [
+            'active' => true,
+            'impersonator' => $impersonator ? [
+                'id' => $impersonator->id,
+                'name' => $impersonator->name,
+                'email' => $impersonator->email,
+            ] : null,
+            'user' => [
+                'id' => $request->user()->id,
+                'name' => $request->user()->name,
+                'email' => $request->user()->email,
+            ],
+        ];
     }
 }

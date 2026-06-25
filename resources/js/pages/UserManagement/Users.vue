@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import {
     ChevronLeft,
     ChevronRight,
@@ -11,6 +11,7 @@ import {
     Search,
     SlidersHorizontal,
     Trash2,
+    UserCheck,
     X,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
@@ -20,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { index as userManagementIndex } from '@/routes/user-management';
 import {
     destroy as destroyUserRoute,
+    impersonate as impersonateUserRoute,
     store as storeUserRoute,
     tagOffice as tagOfficeUserRoute,
     toggle as toggleUserRoute,
@@ -92,9 +94,11 @@ const props = defineProps<{
         update: boolean;
         delete: boolean;
         assignRole: boolean;
+        impersonate: boolean;
     };
     lookupOffices: { id: number; name: string; code: string | null }[];
 }>();
+const page = usePage();
 
 defineOptions({
     layout: {
@@ -130,6 +134,7 @@ const modal = ref<
     | { type: 'assign-role'; user: ManagedUser }
     | { type: 'assign-office'; user: ManagedUser }
     | { type: 'delete'; user: ManagedUser }
+    | { type: 'impersonate'; user: ManagedUser }
 >(null);
 
 const userForm = useForm({
@@ -159,6 +164,7 @@ const userForm = useForm({
 const activeFilterCount = computed(
     () => Object.values(filters.value).filter(Boolean).length,
 );
+const currentUserId = computed(() => Number(page.props.auth?.user?.id ?? 0));
 const allChecked = computed(
     () =>
         props.users.data.length > 0 &&
@@ -348,6 +354,24 @@ const confirmDelete = (force = false) => {
                     toast.warning('Force delete is available for this user.');
                 }
             },
+        },
+    );
+};
+
+const openImpersonate = (user: ManagedUser) => {
+    modal.value = { type: 'impersonate', user };
+};
+
+const confirmImpersonate = () => {
+    if (modal.value?.type !== 'impersonate') {
+        return;
+    }
+
+    router.post(
+        impersonateUserRoute.url(modal.value.user.id),
+        {},
+        {
+            preserveScroll: true,
         },
     );
 };
@@ -759,6 +783,19 @@ const navigatePage = (url: string | null) => {
                                             }}
                                         </button>
                                         <button
+                                            v-if="
+                                                can.impersonate &&
+                                                user.id !== currentUserId
+                                            "
+                                            class="menu-item text-emerald-700"
+                                            @click="
+                                                openImpersonate(user);
+                                                menuUser = null;
+                                            "
+                                        >
+                                            Impersonate
+                                        </button>
+                                        <button
                                             v-if="can.delete"
                                             class="menu-item text-red-500"
                                             @click="
@@ -886,6 +923,8 @@ const navigatePage = (url: string | null) => {
                     {{
                         modal.type === 'delete'
                             ? 'Delete User'
+                            : modal.type === 'impersonate'
+                              ? 'Impersonate User'
                             : modal.type === 'assign-role'
                               ? 'Assign Role'
                               : modal.type === 'create'
@@ -1406,6 +1445,60 @@ const navigatePage = (url: string | null) => {
                     Assign Roles
                 </Button>
             </form>
+
+            <div v-else-if="modal.type === 'impersonate'" class="space-y-4">
+                <div
+                    class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+                >
+                    <div class="flex items-start gap-3">
+                        <UserCheck class="mt-0.5 h-5 w-5 shrink-0" />
+                        <div>
+                            <p class="font-medium">
+                                Continue as {{ modal.user.name }}?
+                            </p>
+                            <p class="mt-1 text-xs text-emerald-700 dark:text-emerald-200/80">
+                                You will be signed in as this user until you use
+                                the impersonation banner to return to your
+                                account.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div
+                    class="grid gap-2 rounded-lg border border-slate-200 p-3 text-xs text-slate-500 dark:border-white/10"
+                >
+                    <div class="flex justify-between gap-3">
+                        <span>Name</span>
+                        <span class="text-right font-medium text-slate-800 dark:text-slate-100">
+                            {{ modal.user.name }}
+                        </span>
+                    </div>
+                    <div class="flex justify-between gap-3">
+                        <span>Email</span>
+                        <span class="text-right font-medium text-slate-800 dark:text-slate-100">
+                            {{ modal.user.email }}
+                        </span>
+                    </div>
+                    <div class="flex justify-between gap-3">
+                        <span>Role</span>
+                        <span class="text-right font-medium text-slate-800 dark:text-slate-100">
+                            {{ modal.user.roles[0] || 'No role' }}
+                        </span>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2">
+                    <Button variant="secondary" @click="modal = null">
+                        Cancel
+                    </Button>
+                    <Button
+                        class="bg-emerald-600 text-white hover:bg-emerald-700"
+                        @click="confirmImpersonate"
+                    >
+                        <UserCheck class="size-4" />
+                        Start Impersonation
+                    </Button>
+                </div>
+            </div>
 
             <div v-else class="space-y-4">
                 <p class="text-sm text-slate-500">
