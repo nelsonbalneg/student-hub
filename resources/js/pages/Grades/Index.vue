@@ -415,8 +415,31 @@ const totalUnitsDisplay = computed(() => {
     return Number.isFinite(value) ? String(value).replace(/\.0$/, '') : '0';
 });
 
+const postedDateKeys = [
+    'datePosted',
+    'date_posted',
+    'postedDate',
+    'posted_date',
+    'datePostedAt',
+    'date_posted_at',
+];
+
+const isUnpostedGrade = (row: GradeRecord) =>
+    postedDateKeys.some(
+        (key) =>
+            Object.prototype.hasOwnProperty.call(row, key) &&
+            row[key] === null,
+    );
+
+const gradeRemark = (row: GradeRecord) =>
+    isUnpostedGrade(row) ? '***UNPOSTED' : pick(row, columns[6].keys);
+
 const remarkClass = (remark: string) => {
     const normalized = remark.toLowerCase();
+
+    if (normalized.includes('unposted')) {
+        return 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-400/30 dark:bg-orange-500/10 dark:text-orange-300';
+    }
 
     if (normalized.includes('pass') || normalized === 'completed') {
         return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-300';
@@ -1846,12 +1869,10 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                             v-else
                                             class="inline-flex rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase"
                                             :class="
-                                                remarkClass(
-                                                    pick(row, columns[6].keys),
-                                                )
+                                                remarkClass(gradeRemark(row))
                                             "
                                         >
-                                            {{ pick(row, columns[6].keys) }}
+                                            {{ gradeRemark(row) }}
                                         </span>
                                     </div>
                                 </article>
@@ -2110,19 +2131,11 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                     class="inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase"
                                                     :class="
                                                         remarkClass(
-                                                            pick(
-                                                                row,
-                                                                columns[6].keys,
-                                                            ),
+                                                            gradeRemark(row),
                                                         )
                                                     "
                                                 >
-                                                    {{
-                                                        pick(
-                                                            row,
-                                                            columns[6].keys,
-                                                        )
-                                                    }}
+                                                    {{ gradeRemark(row) }}
                                                 </span>
                                             </td>
                                         </tr>
