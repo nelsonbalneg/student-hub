@@ -424,7 +424,20 @@ const postedDateKeys = [
     'date_posted_at',
 ];
 
+const hasFinalGrade = (row: GradeRecord) =>
+    columns[4].keys.some((key) => {
+        const value = row[key];
+
+        return (
+            value !== null &&
+            value !== undefined &&
+            String(value).trim() !== '' &&
+            String(value).trim() !== '-'
+        );
+    });
+
 const isUnpostedGrade = (row: GradeRecord) =>
+    hasFinalGrade(row) &&
     postedDateKeys.some(
         (key) =>
             Object.prototype.hasOwnProperty.call(row, key) &&
