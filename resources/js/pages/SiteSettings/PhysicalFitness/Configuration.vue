@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, router, useForm, Link } from '@inertiajs/vue3';
 import { CheckCircle2, Dumbbell, Pencil, Plus, Trash2 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import SiteSettingsLayout from '@/layouts/SiteSettingsLayout.vue';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import * as physicalFitnessPermissionRoutes from '@/routes/site-settings/student-profile/physical-fitness-permission';
+import conditionRoutes from '@/routes/site-settings/medical-conditions';
+
 import * as categoryRoutes from '@/routes/site-settings/physical-fitness/configuration/categories';
 import * as componentRoutes from '@/routes/site-settings/physical-fitness/configuration/components';
 import * as fieldRoutes from '@/routes/site-settings/physical-fitness/configuration/fields';
@@ -49,6 +55,13 @@ type PftTestType = {
     interpretation_rules: PftInterpretationRule[];
 };
 
+type PftMedicalCondition = {
+    id: number;
+    name: string;
+    sort_order: number;
+    is_active: boolean;
+};
+
 type PftCategory = {
     id: number;
     pft_component_id: number;
@@ -73,7 +86,16 @@ type PftComponent = {
 const props = defineProps<{
     components: PftComponent[];
     fieldTypes: string[];
-    can: { create: boolean; update: boolean; delete: boolean };
+    medicalConditions: {
+        data: PftMedicalCondition[];
+        links: Array<{ url: string | null; label: string; active: boolean }>;
+    };
+    physicalFitnessSetting: {
+        enabled: boolean;
+        permission: string;
+        options: Array<{ label: string; value: string }>;
+    };
+    can: { create: boolean; update: boolean; delete: boolean; managePhysicalFitnessPermission?: boolean };
 }>();
 
 const selectedComponentId = ref(props.components[0]?.id ?? null);
@@ -109,6 +131,100 @@ watch(selectedCategoryId, () => {
     selectedTestTypeId.value =
         selectedCategory.value?.test_types[0]?.id ?? null;
 });
+
+const settingsVerticalTab = ref('general');
+
+const medicalConditionModalOpen = ref(false);
+const deleteConditionModalOpen = ref(false);
+const editingCondition = ref<PftMedicalCondition | null>(null);
+const conditionToDelete = ref<PftMedicalCondition | null>(null);
+
+const medicalConditionForm = useForm({
+    name: '',
+    is_active: true,
+    sort_order: 0,
+});
+
+const physicalFitnessForm = useForm({
+    enabled: Boolean(props.physicalFitnessSetting.enabled),
+    permission: props.physicalFitnessSetting.permission,
+});
+
+const submitPhysicalFitnessPermission = () => {
+    physicalFitnessForm.patch(physicalFitnessPermissionRoutes.update.url(), {
+        preserveScroll: true,
+        preserveState: true,
+    });
+};
+
+const openCreateConditionModal = () => {
+    medicalConditionForm.clearErrors();
+    medicalConditionForm.reset();
+    editingCondition.value = null;
+    medicalConditionModalOpen.value = true;
+};
+
+const openEditConditionModal = (condition: PftMedicalCondition) => {
+    medicalConditionForm.clearErrors();
+    medicalConditionForm.name = condition.name;
+    medicalConditionForm.is_active = condition.is_active;
+    medicalConditionForm.sort_order = condition.sort_order;
+    editingCondition.value = condition;
+    medicalConditionModalOpen.value = true;
+};
+
+const submitMedicalCondition = () => {
+    // We assume conditionRoutes is defined or we can use direct urls
+    // Wait, conditionRoutes is not defined in this file because this was moved!
+    // I need to define conditionRoutes or use router directly!
+    // Let's use direct router calls to be safe for now, or define the route.
+    if (editingCondition.value) {
+        medicalConditionForm.patch(conditionRoutes.update.url({ medicalCondition: editingCondition.value.id }), {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => {
+                medicalConditionModalOpen.value = false;
+            },
+        });
+    } else {
+        medicalConditionForm.post(conditionRoutes.store.url(), {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => {
+                medicalConditionModalOpen.value = false;
+            },
+        });
+    }
+};
+
+const confirmDeleteCondition = (condition: PftMedicalCondition) => {
+    conditionToDelete.value = condition;
+    deleteConditionModalOpen.value = true;
+};
+
+const executeDeleteCondition = () => {
+    if (conditionToDelete.value) {
+        router.delete(conditionRoutes.destroy.url({ medicalCondition: conditionToDelete.value.id }), {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => {
+                deleteConditionModalOpen.value = false;
+                conditionToDelete.value = null;
+            },
+        });
+    }
+};
+
+const toggleConditionActive = (condition: PftMedicalCondition, isActive: boolean) => {
+    router.patch(
+        conditionRoutes.update.url({ medicalCondition: condition.id }),
+        { is_active: isActive },
+        {
+            preserveScroll: true,
+            preserveState: true,
+        }
+    );
+};
 
 const componentForm = useForm({
     name: '',
@@ -342,11 +458,11 @@ const statusClass = (active: boolean) =>
                             Physical Fitness
                         </h1>
                         <p class="text-sm text-slate-500 dark:text-slate-400">
-                            Manage Components, Categories, Test Types, and
-                            dynamic form fields.
+                            Manage test structure, dynamic fields, and student
+                            Physical Fitness Test access.
                         </p>
                     </div>
-                    <button v-if="can.create" type="button"
+                    <button v-if="settingsVerticalTab === 'general' && can.create" type="button"
                         class="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white hover:bg-emerald-700"
                         @click="openComponent()">
                         <Plus class="size-4" /> Component
@@ -354,8 +470,97 @@ const statusClass = (active: boolean) =>
                 </div>
             </header>
 
-            <div
-                class="grid min-h-0 w-full min-w-0 flex-1 gap-4 overflow-y-auto p-4 xl:grid-cols-2 2xl:grid-cols-[260px_260px_300px_minmax(0,1fr)]">
+            <div class="flex min-h-0 w-full min-w-0 flex-1 flex-col lg:flex-row">
+                <aside class="w-full shrink-0 border-b border-slate-200 bg-slate-50/50 p-3 lg:w-56 lg:border-b-0 lg:border-r lg:p-4 dark:border-white/10 dark:bg-slate-900/20">
+                    <nav class="flex flex-row gap-1 overflow-x-auto lg:flex-col pb-2 lg:pb-0 hide-scrollbar">
+                        <button
+                            type="button"
+                            @click="settingsVerticalTab = 'general'"
+                            :class="[
+                                settingsVerticalTab === 'general' ? 'text-emerald-700 font-bold bg-white shadow-sm border border-slate-200/60 dark:bg-white/5 dark:text-emerald-400 dark:border-white/10' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white border border-transparent',
+                                'flex w-full text-left text-sm transition-all rounded-md px-3 py-2 shrink-0'
+                            ]"
+                        >
+                            General Settings
+                        </button>
+                        <button
+                            type="button"
+                            @click="settingsVerticalTab = 'medical-conditions'"
+                            :class="[
+                                settingsVerticalTab === 'medical-conditions' ? 'text-emerald-700 font-bold bg-white shadow-sm border border-slate-200/60 dark:bg-white/5 dark:text-emerald-400 dark:border-white/10' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white border border-transparent',
+                                'flex w-full text-left text-sm transition-all rounded-md px-3 py-2 shrink-0'
+                            ]"
+                        >
+                            Medical Conditions
+                        </button>
+                        <button
+                            type="button"
+                            @click="settingsVerticalTab = 'permissions'"
+                            :class="[
+                                settingsVerticalTab === 'permissions' ? 'text-emerald-700 font-bold bg-white shadow-sm border border-slate-200/60 dark:bg-white/5 dark:text-emerald-400 dark:border-white/10' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white border border-transparent',
+                                'flex w-full text-left text-sm transition-all rounded-md px-3 py-2 shrink-0'
+                            ]"
+                        >
+                            Student Access
+                        </button>
+                    </nav>
+                </aside>
+
+                <main class="min-h-0 flex-1 overflow-y-auto p-4 lg:p-8 bg-white dark:bg-slate-950">
+                    <section v-if="settingsVerticalTab === 'permissions'" class="flex flex-col gap-6">
+                        <div class="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950 max-w-3xl overflow-hidden">
+                            <div class="flex items-center justify-between border-b border-slate-100 p-6 dark:border-white/5">
+                                <div>
+                                    <p class="font-bold text-slate-900 dark:text-white">Show in Grades</p>
+                                    <p class="mt-1 text-sm text-slate-500">Display the Physical Fitness Test button beside eligible subjects for students with permission.</p>
+                                </div>
+                                
+                                <button 
+                                    type="button"
+                                    role="switch"
+                                    :aria-checked="physicalFitnessForm.enabled"
+                                    @click="physicalFitnessForm.enabled = !physicalFitnessForm.enabled; submitPhysicalFitnessPermission()"
+                                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                    :class="physicalFitnessForm.enabled ? 'bg-emerald-600' : 'bg-slate-200 dark:bg-slate-700'"
+                                    :disabled="!can.managePhysicalFitnessPermission || physicalFitnessForm.processing"
+                                >
+                                    <span class="sr-only">Toggle Show in Grades</span>
+                                    <span 
+                                        aria-hidden="true"
+                                        class="pointer-events-none inline-block size-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                                        :class="physicalFitnessForm.enabled ? 'translate-x-5' : 'translate-x-0'"
+                                    />
+                                </button>
+                            </div>
+                            
+                            <div class="p-6 bg-slate-50/50 dark:bg-slate-900/30">
+                                <p class="font-bold text-slate-900 dark:text-white">
+                                    PFT Fill-up Permission
+                                </p>
+                                <p class="mt-1 text-sm text-slate-500">
+                                    Choose whether only students enrolled in PE/PATHFIT subjects can encode PFT results, or all students can fill up the form.
+                                </p>
+
+                                <form class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end" @submit.prevent="submitPhysicalFitnessPermission">
+                                    <label class="flex-1">
+                                        <span class="text-xs font-bold text-slate-600 dark:text-slate-300">Permission</span>
+                                        <select v-model="physicalFitnessForm.permission" class="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:ring-emerald-500/20">
+                                            <option v-for="option in physicalFitnessSetting.options" :key="option.value" :value="option.value">
+                                                {{ option.label }}
+                                            </option>
+                                        </select>
+                                    </label>
+
+                                    <button type="submit" class="inline-flex h-10 items-center justify-center rounded-md bg-emerald-600 px-4 text-sm font-bold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60" :disabled="!can.managePhysicalFitnessPermission || physicalFitnessForm.processing">
+                                        Save Setting
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section v-if="settingsVerticalTab === 'general'" class="flex flex-col gap-6">
+                        <div class="grid min-h-0 w-full min-w-0 flex-1 gap-4 xl:grid-cols-2 2xl:grid-cols-[260px_260px_300px_minmax(0,1fr)]">
                 <section class="pft-panel">
                     <div class="pft-panel-head">
                         <h2>Components</h2>
@@ -603,8 +808,124 @@ const statusClass = (active: boolean) =>
                         </div>
                     </div>
                 </section>
+                        </div>
+                    </section>
+                    <section v-if="settingsVerticalTab === 'medical-conditions'" class="space-y-6">
+                        <div class="flex items-center justify-between">
+                            <h2 class="text-lg font-bold text-slate-900 dark:text-white">Medical Conditions</h2>
+                            <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-700" @click="openCreateConditionModal">
+                                <Plus class="size-4" />
+                                Add Condition
+                            </button>
+                        </div>
+                        <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950">
+                            <table class="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+                                <thead class="border-b border-slate-200 bg-slate-50/50 text-xs uppercase text-slate-500 dark:border-white/10 dark:bg-slate-900/50">
+                                    <tr>
+                                        <th class="px-6 py-4 font-bold text-slate-900 dark:text-white">Condition Name</th>
+                                        <th class="px-6 py-4 text-center font-bold text-slate-900 dark:text-white">Sort Order</th>
+                                        <th class="px-6 py-4 text-center font-bold text-slate-900 dark:text-white">Active</th>
+                                        <th class="px-6 py-4 text-right font-bold text-slate-900 dark:text-white">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 dark:divide-white/5">
+                                    <tr v-if="medicalConditions.data.length === 0">
+                                        <td colspan="4" class="px-6 py-8 text-center text-slate-500">
+                                            No medical conditions found.
+                                        </td>
+                                    </tr>
+                                    <tr v-for="condition in medicalConditions.data" :key="condition.id" class="hover:bg-slate-50 dark:hover:bg-white/5">
+                                        <td class="px-6 py-4 font-medium text-slate-900 dark:text-white">
+                                            {{ condition.name }}
+                                        </td>
+                                        <td class="px-6 py-4 text-center">
+                                            {{ condition.sort_order }}
+                                        </td>
+                                        <td class="px-6 py-4 text-center">
+                                            <input
+                                                type="checkbox"
+                                                class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                                :checked="condition.is_active"
+                                                @change="(e) => toggleConditionActive(condition, (e.target as HTMLInputElement).checked)"
+                                            />
+                                        </td>
+                                        <td class="px-6 py-4 text-right">
+                                            <div class="flex justify-end gap-2">
+                                                <button type="button" class="pft-icon-btn" @click="openEditConditionModal(condition)">
+                                                    <Pencil class="size-3.5" />
+                                                </button>
+                                                <button type="button" class="pft-icon-btn text-rose-600" @click="confirmDeleteCondition(condition)">
+                                                    <Trash2 class="size-3.5" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <div v-if="medicalConditions.links && medicalConditions.links.length > 0" class="flex items-center justify-between border-t border-slate-200 bg-white px-4 py-3 sm:px-6 dark:border-white/10 dark:bg-slate-900">
+                                <div class="flex flex-1 justify-between sm:hidden">
+                                    <Link
+                                        v-if="medicalConditions.links[0].url"
+                                        :href="medicalConditions.links[0].url"
+                                        preserve-state
+                                        preserve-scroll
+                                        class="relative inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                        v-html="medicalConditions.links[0].label"
+                                    />
+                                    <span
+                                        v-else
+                                        class="relative inline-flex items-center rounded-md border border-slate-300 bg-slate-100 px-4 py-2 text-sm font-medium text-slate-400 opacity-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-500"
+                                        v-html="medicalConditions.links[0].label"
+                                    />
+                                    <Link
+                                        v-if="medicalConditions.links[medicalConditions.links.length - 1].url"
+                                        :href="medicalConditions.links[medicalConditions.links.length - 1].url"
+                                        preserve-state
+                                        preserve-scroll
+                                        class="relative ml-3 inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                        v-html="medicalConditions.links[medicalConditions.links.length - 1].label"
+                                    />
+                                    <span
+                                        v-else
+                                        class="relative ml-3 inline-flex items-center rounded-md border border-slate-300 bg-slate-100 px-4 py-2 text-sm font-medium text-slate-400 opacity-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-500"
+                                        v-html="medicalConditions.links[medicalConditions.links.length - 1].label"
+                                    />
+                                </div>
+                                <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-end">
+                                    <div>
+                                        <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                                            <template v-for="(link, index) in medicalConditions.links" :key="index">
+                                                <Link
+                                                    v-if="link.url"
+                                                    :href="link.url"
+                                                    preserve-state
+                                                    preserve-scroll
+                                                    class="relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 border"
+                                                    :class="[
+                                                        link.active ? 'z-10 bg-emerald-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 border-emerald-600' : 'text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 border-slate-300 dark:text-slate-200 dark:border-white/10 dark:hover:bg-white/5 dark:ring-0',
+                                                        index === 0 ? 'rounded-l-md' : '',
+                                                        index === medicalConditions.links.length - 1 ? 'rounded-r-md' : ''
+                                                    ]"
+                                                    v-html="link.label"
+                                                />
+                                                <span
+                                                    v-else
+                                                    class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-slate-400 opacity-50 border border-slate-300 bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-500"
+                                                    :class="[
+                                                        index === 0 ? 'rounded-l-md' : '',
+                                                        index === medicalConditions.links.length - 1 ? 'rounded-r-md' : ''
+                                                    ]"
+                                                    v-html="link.label"
+                                                />
+                                            </template>
+                                        </nav>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </main>
             </div>
-        </div>
 
         <div v-if="modal" class="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4"
             @click.self="modal = null">
@@ -730,8 +1051,64 @@ const statusClass = (active: boolean) =>
                 </div>
             </form>
         </div>
+
+    <Dialog :open="medicalConditionModalOpen" @update:open="(val) => { if(!val) medicalConditionModalOpen = false; }">
+        <DialogContent class="sm:max-w-[425px]">
+            <form @submit.prevent="submitMedicalCondition">
+                <DialogHeader>
+                    <DialogTitle>{{ editingCondition ? 'Edit Condition' : 'Add Condition' }}</DialogTitle>
+                    <DialogDescription>
+                        {{ editingCondition ? 'Update the details below.' : 'Add a new medical condition.' }}
+                    </DialogDescription>
+                </DialogHeader>
+                <div class="grid gap-4 py-4">
+                    <div class="grid gap-2">
+                        <Label for="name">Name</Label>
+                        <Input id="name" v-model="medicalConditionForm.name" />
+                        <p v-if="medicalConditionForm.errors.name" class="text-xs text-rose-500">{{ medicalConditionForm.errors.name }}</p>
+                    </div>
+                    <div class="grid gap-2">
+                        <Label for="sort_order">Sort Order</Label>
+                        <Input id="sort_order" type="number" v-model="medicalConditionForm.sort_order" />
+                        <p v-if="medicalConditionForm.errors.sort_order" class="text-xs text-rose-500">{{ medicalConditionForm.errors.sort_order }}</p>
+                    </div>
+                    <div class="flex items-center gap-2 pt-2">
+                        <input
+                            type="checkbox"
+                            id="is_active"
+                            class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                            v-model="medicalConditionForm.is_active"
+                        />
+                        <Label for="is_active">Active (Show in questionnaire)</Label>
+                        <p v-if="medicalConditionForm.errors.is_active" class="text-xs text-rose-500">{{ medicalConditionForm.errors.is_active }}</p>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <button type="button" class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-50 dark:hover:bg-slate-800 dark:hover:text-slate-50" @click="medicalConditionModalOpen = false">Cancel</button>
+                    <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50" :disabled="medicalConditionForm.processing">Save</button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+    </Dialog>
+
+    <Dialog :open="deleteConditionModalOpen" @update:open="(val) => { if(!val) deleteConditionModalOpen = false; }">
+        <DialogContent class="sm:max-w-[425px]">
+            <DialogHeader>
+                <DialogTitle>Delete Medical Condition</DialogTitle>
+                <DialogDescription>
+                    Are you sure you want to delete the condition "<span class="font-bold text-slate-900 dark:text-white">{{ conditionToDelete?.name }}</span>"? This action cannot be undone.
+                </DialogDescription>
+            </DialogHeader>
+            <DialogFooter class="mt-4">
+                <button type="button" class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-50 dark:hover:bg-slate-800 dark:hover:text-slate-50" @click="deleteConditionModalOpen = false">Cancel</button>
+                <button type="button" class="inline-flex items-center justify-center rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-50" @click="executeDeleteCondition">Delete</button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+    </div>
     </SiteSettingsLayout>
 </template>
+
 
 <style scoped>
 @reference "tailwindcss";

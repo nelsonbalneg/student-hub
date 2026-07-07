@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\PftDataPrivacyConsent;
+use App\Models\PftHealthQuestionnaire;
 use App\Models\PftTestType;
 use App\Models\SiteAcademicTerm;
 use App\Models\StudentPftResult;
@@ -37,6 +39,99 @@ class StudentPftResultController extends Controller
         return response()->json($analytics->forStudent($request->user(), $filters));
     }
 
+    public function storeConsent(Request $request): RedirectResponse
+    {
+        $request->user()->can('pft.submit') || abort(403);
+
+        $validated = $request->validate([
+            'term_id' => ['required', 'string'],
+        ]);
+
+        $termId = (string) $validated['term_id'];
+        $termExists = SiteAcademicTerm::query()
+            ->where('term_id', $termId)
+            ->where('status', 'Active')
+            ->whereHas('campus', fn ($query) => $query->where('real_campus_id', (string) $request->user()->campus_id))
+            ->exists();
+
+        if (! $termExists) {
+            throw ValidationException::withMessages([
+                'term_id' => 'The selected academic term is not active for your campus.',
+            ]);
+        }
+
+        PftDataPrivacyConsent::query()->updateOrCreate(
+            [
+                'user_id' => $request->user()->id,
+                'term_id' => $termId,
+            ],
+            [
+                'accepted_at' => now(),
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ],
+        );
+
+        Log::info('PFT data privacy consent recorded.', [
+            'user_id' => $request->user()->id,
+            'term_id' => $termId,
+        ]);
+
+        return to_route('student-profile.index')
+            ->with('success', 'Data privacy consent recorded.');
+    }
+
+    public function storeHealthQuestionnaire(Request $request): RedirectResponse
+    {
+        $request->user()->can('pft.submit') || abort(403);
+
+        $validated = $request->validate([
+            'term_id' => ['required', 'string'],
+            'civil_status' => ['nullable', 'string', 'max:255'],
+            'household_monthly_income' => ['nullable', 'string', 'max:255'],
+            'father_occupation' => ['nullable', 'string', 'max:255'],
+            'mother_occupation' => ['nullable', 'string', 'max:255'],
+            'has_medical_condition' => ['required', 'boolean'],
+            'medical_condition_details' => ['nullable', 'string', 'max:1000'],
+            'has_medication' => ['required', 'boolean'],
+            'medication_details' => ['nullable', 'string', 'max:1000'],
+            'smoking_status' => ['nullable', 'string', 'max:255'],
+            'alcohol_consumption' => ['nullable', 'string', 'max:255'],
+            'specific_conditions' => ['nullable', 'array'],
+            'specific_conditions.*' => ['string', 'max:255'],
+            'other_condition' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $termId = (string) $validated['term_id'];
+        $termExists = SiteAcademicTerm::query()
+            ->where('term_id', $termId)
+            ->where('status', 'Active')
+            ->whereHas('campus', fn ($query) => $query->where('real_campus_id', (string) $request->user()->campus_id))
+            ->exists();
+
+        if (! $termExists) {
+            throw ValidationException::withMessages([
+                'term_id' => 'The selected academic term is not active for your campus.',
+            ]);
+        }
+
+        PftHealthQuestionnaire::query()->updateOrCreate(
+            [
+                'user_id' => $request->user()->id,
+                'term_id' => $termId,
+            ],
+            Arr::except($validated, ['term_id'])
+        );
+
+        Log::info('PFT health questionnaire recorded.', [
+            'user_id' => $request->user()->id,
+            'term_id' => $termId,
+        ]);
+
+        return to_route('student-profile.index')
+            ->with('success', 'Health questionnaire recorded.');
+    }
+
     public function store(
         Request $request,
         PftTestType $testType,
@@ -51,6 +146,29 @@ class StudentPftResultController extends Controller
             403,
             'You are currently not allowed to submit Physical Fitness Test records.',
         );
+
+        $submittedTermId = (string) $request->input('term_id', '');
+        $hasConsent = PftDataPrivacyConsent::query()
+            ->where('user_id', $request->user()->id)
+            ->where('term_id', $submittedTermId)
+            ->exists();
+
+        if (! $hasConsent) {
+            throw ValidationException::withMessages([
+                'term_id' => 'You must accept the data privacy consent before submitting results for this term.',
+            ]);
+        }
+
+        $hasQuestionnaire = PftHealthQuestionnaire::query()
+            ->where('user_id', $request->user()->id)
+            ->where('term_id', $submittedTermId)
+            ->exists();
+
+        if (! $hasQuestionnaire) {
+            throw ValidationException::withMessages([
+                'term_id' => 'You must complete the health questionnaire before submitting results for this term.',
+            ]);
+        }
 
         $testType->load([
             'category.component',

@@ -33,6 +33,7 @@ use App\Http\Controllers\SiteSettings\CcdCaresEvaluationController;
 use App\Http\Controllers\SiteSettings\EvaluationTemplateController;
 use App\Http\Controllers\SiteSettings\ExaminationScheduleController;
 use App\Http\Controllers\SiteSettings\ExaminationScheduleImportController;
+use App\Http\Controllers\SiteSettings\PftMedicalConditionController;
 use App\Http\Controllers\SiteSettings\PhysicalFitnessConfigurationController;
 use App\Http\Controllers\SiteSettings\SiteAcademicTermController;
 use App\Http\Controllers\SiteSettings\SiteBrandingController;
@@ -158,6 +159,12 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
     Route::get('student-profile/physical-fitness/analytics', [StudentPftResultController::class, 'analytics'])
         ->middleware(['can:student-profile.view', 'can:pft.view'])
         ->name('student-profile.physical-fitness.analytics');
+    Route::post('student-profile/physical-fitness/consent', [StudentPftResultController::class, 'storeConsent'])
+        ->middleware('can:pft.submit')
+        ->name('student-profile.physical-fitness.consent.store');
+    Route::post('student-profile/physical-fitness/health-questionnaire', [StudentPftResultController::class, 'storeHealthQuestionnaire'])
+        ->middleware('can:pft.submit')
+        ->name('student-profile.physical-fitness.health-questionnaire.store');
     Route::post('student-profile/physical-fitness/{testType}', [StudentPftResultController::class, 'store'])
         ->middleware('can:pft.submit')
         ->name('student-profile.physical-fitness.store');
@@ -210,6 +217,9 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
             Route::get('/analytics', 'analyticsPage')->name('analytics');
             Route::get('/analytics/data', 'analyticsData')->name('analytics-data');
             Route::get('/analytics/drilldown', 'analyticsDrilldown')->name('analytics-drilldown');
+            Route::patch('/{result}/status', 'updateStatus')->name('status.update');
+            Route::patch('/students/{user}/terms/{term}/status', 'updateStudentEntryStatus')->name('student-entry.status.update');
+            Route::delete('/students/{user}/terms/{term}', 'destroyStudentEntry')->name('student-entry.destroy');
             Route::get('/analytics/export/drilldown-excel', 'exportDrilldownExcel')
                 ->middleware('can:reporting.export')
                 ->name('export-drilldown-excel');
@@ -623,6 +633,16 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
             Route::patch('student-profile/physical-fitness-permission', [SiteStudentProfileController::class, 'updatePhysicalFitnessPermission'])
                 ->middleware('can:pft.permission.manage')
                 ->name('student-profile.physical-fitness-permission.update');
+            
+            Route::prefix('medical-conditions')
+                ->name('medical-conditions.')
+                ->controller(PftMedicalConditionController::class)
+                ->middleware('can:pft.configuration.view')
+                ->group(function () {
+                    Route::post('/', 'store')->middleware('can:pft.configuration.create')->name('store');
+                    Route::patch('{medicalCondition}', 'update')->middleware('can:pft.configuration.update')->name('update');
+                    Route::delete('{medicalCondition}', 'destroy')->middleware('can:pft.configuration.delete')->name('destroy');
+                });
 
             Route::prefix('physical-fitness/configuration')
                 ->name('physical-fitness.configuration.')

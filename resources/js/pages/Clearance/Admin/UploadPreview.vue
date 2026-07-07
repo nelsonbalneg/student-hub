@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import {
     ChevronLeft,
     CheckCircle,
@@ -8,6 +9,10 @@ import {
     Save,
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
+import {
+    index as accountabilitiesIndex,
+    uploadSave,
+} from '@/routes/clearance/accountabilities';
 
 const props = defineProps<{
     update: any;
@@ -16,15 +21,18 @@ const props = defineProps<{
     filename: string;
 }>();
 
+const updateId = computed(() => props.update?.id ?? props.update?.data?.id);
+
 const save = () => {
-    router.post(
-        `/student-services/clearance/updates/${props.update.id}/accountabilities/upload-save`,
-        {
-            data: props.results.data,
-            office_id: props.office.id,
-            filename: props.filename,
-        },
-    );
+    if (!updateId.value || !props.office?.id) {
+        return;
+    }
+
+    router.post(uploadSave.url(updateId.value), {
+        data: props.results.data,
+        office_id: props.office.id,
+        filename: props.filename,
+    });
 };
 </script>
 
@@ -35,7 +43,9 @@ const save = () => {
         <div class="flex items-center justify-between gap-3">
             <div class="flex items-center gap-3">
                 <Link
-                    :href="`/student-services/clearance/updates/${update.id}/accountabilities`"
+                    :href="
+                        updateId ? accountabilitiesIndex.url(updateId) : '#'
+                    "
                     class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50"
                 >
                     <ChevronLeft class="h-4 w-4" />
@@ -51,6 +61,7 @@ const save = () => {
             </div>
             <Button
                 @click="save"
+                :disabled="!updateId || !office?.id"
                 class="h-8 gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700"
             >
                 <Save class="h-3.5 w-3.5" />

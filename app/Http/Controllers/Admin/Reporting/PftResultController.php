@@ -7,6 +7,7 @@ use App\Models\PftTestType;
 use App\Models\SiteAcademicTerm;
 use App\Models\SiteCampus;
 use App\Models\StudentPftResult;
+use App\Models\User;
 use App\Services\AcademicApiService;
 use App\Services\PftInterpretationService;
 use Illuminate\Database\Eloquent\Builder;
@@ -16,6 +17,7 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Response as ResponseFactory;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 use Spatie\Browsershot\Browsershot;
@@ -571,6 +573,70 @@ class PftResultController extends Controller
                 'data' => $this->campusDrilldownNodes($query, $labels),
             ]),
         };
+    }
+
+    public function updateStatus(Request $request, StudentPftResult $result): JsonResponse
+    {
+        $validated = $request->validate([
+            'status' => ['required', 'string', Rule::in(['draft', 'completed'])],
+        ]);
+
+        $result->update([
+            'status' => $validated['status'],
+            'updated_by' => $request->user()->id,
+        ]);
+
+        return response()->json([
+            'message' => 'PFT result status updated.',
+        ]);
+    }
+
+    public function updateStudentEntryStatus(Request $request, User $user, string $term): JsonResponse
+    {
+        $validated = $request->validate([
+            'status' => ['required', 'string', Rule::in(['draft', 'completed'])],
+            'campus_id' => ['nullable', 'string', 'max:255'],
+            'college_id' => ['nullable', 'string', 'max:255'],
+            'section_id' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $updated = $this->studentEntryQuery($user, $term, $validated)
+            ->update([
+                'status' => $validated['status'],
+                'updated_by' => $request->user()->id,
+                'updated_at' => now(),
+            ]);
+
+        return response()->json([
+            'message' => "{$updated} PFT result records updated.",
+            'updated' => $updated,
+        ]);
+    }
+
+    public function destroyStudentEntry(Request $request, User $user, string $term): JsonResponse
+    {
+        $validated = $request->validate([
+            'campus_id' => ['nullable', 'string', 'max:255'],
+            'college_id' => ['nullable', 'string', 'max:255'],
+            'section_id' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $deleted = $this->studentEntryQuery($user, $term, $validated)->delete();
+
+        return response()->json([
+            'message' => "{$deleted} PFT result records deleted.",
+            'deleted' => $deleted,
+        ]);
+    }
+
+    private function studentEntryQuery(User $user, string $term, array $filters): Builder
+    {
+        return StudentPftResult::query()
+            ->where('user_id', $user->id)
+            ->where('term_id', $term)
+            ->when(filled($filters['campus_id'] ?? null), fn (Builder $query): Builder => $query->where('campus_id', $filters['campus_id']))
+            ->when(filled($filters['college_id'] ?? null), fn (Builder $query): Builder => $query->where('college_id', $filters['college_id']))
+            ->when(filled($filters['section_id'] ?? null), fn (Builder $query): Builder => $query->where('section_id', $filters['section_id']));
     }
 
     public function exportDrilldownExcel(Request $request): StreamedResponse

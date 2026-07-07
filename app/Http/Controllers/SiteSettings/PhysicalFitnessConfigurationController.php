@@ -7,7 +7,10 @@ use App\Models\PftCategory;
 use App\Models\PftComponent;
 use App\Models\PftConfiguration;
 use App\Models\PftInterpretationRule;
+use App\Models\PftMedicalCondition;
 use App\Models\PftTestType;
+use App\Models\SiteSetting;
+use App\Services\PhysicalFitnessPermissionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,16 +23,52 @@ class PhysicalFitnessConfigurationController extends Controller
 {
     private const FIELD_TYPES = ['text', 'number', 'decimal', 'select', 'radio', 'checkbox', 'date', 'time', 'textarea'];
 
-    public function index(): Response
+    public function __construct(
+        private readonly PhysicalFitnessPermissionService $physicalFitnessPermission,
+    ) {}
+
+    public function index(Request $request): Response
     {
+        $requestedTab = $request->string('tab')->value();
+        $activeTab = in_array($requestedTab, ['configuration', 'settings'], true)
+            ? $requestedTab
+            : 'configuration';
+
         return Inertia::render('SiteSettings/PhysicalFitness/Configuration', [
+            'activeTab' => $activeTab,
             'components' => $this->configurationTree(includeInactive: true),
             'fieldTypes' => self::FIELD_TYPES,
+            'medicalConditions' => PftMedicalCondition::query()
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->paginate(15)
+                ->withQueryString(),
+            'physicalFitnessSetting' => [
+                'enabled' => $this->physicalFitnessPermission->gradesShortcutEnabled(),
+                'permission' => SiteSetting::query()
+                    ->where('key', PhysicalFitnessPermissionService::SETTING_KEY)
+                    ->value('value') ?? PhysicalFitnessPermissionService::PERMISSION_PE_PATHFIT_ONLY,
+                'options' => [
+                    [
+                        'label' => 'PE/PATHFIT Students Only',
+                        'value' => PhysicalFitnessPermissionService::PERMISSION_PE_PATHFIT_ONLY,
+                    ],
+                    [
+                        'label' => 'All Students',
+                        'value' => PhysicalFitnessPermissionService::PERMISSION_ALL_STUDENTS,
+                    ],
+                ],
+            ],
             'can' => [
                 'create' => request()->user()->can('pft.configuration.create'),
                 'update' => request()->user()->can('pft.configuration.update'),
                 'delete' => request()->user()->can('pft.configuration.delete'),
+                'managePhysicalFitnessPermission' => request()->user()->can('pft.permission.manage'),
             ],
+            'medicalConditions' => PftMedicalCondition::query()
+                ->orderBy('sort_order')
+                ->paginate(10)
+                ->withQueryString(),
         ]);
     }
 

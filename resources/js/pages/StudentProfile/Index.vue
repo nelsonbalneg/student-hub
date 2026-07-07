@@ -49,6 +49,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import * as achievementsRoutes from '@/routes/achievements';
 import * as pftRoutes from '@/routes/student-profile/physical-fitness';
+import * as pftConsentRoutes from '@/routes/student-profile/physical-fitness/consent';
+import * as pftHealthRoutes from '@/routes/student-profile/physical-fitness/health-questionnaire';
 import * as trainingsRoutes from '@/routes/trainings';
 import { Heart } from 'lucide-vue-next';
 import * as ccdCaresEvaluationRoutes from '@/routes/student-profile/ccd-cares/evaluation';
@@ -215,6 +217,9 @@ const props = defineProps<{
         canView: boolean;
         canSubmit: boolean;
         canFillUp: boolean;
+        consentedTermIds: string[];
+        questionnaireTermIds: string[];
+        medicalConditions: string[];
     };
     ccdCares: {
         assessments: Array<{
@@ -709,6 +714,127 @@ const openPftTermDrawer = (term: PftTerm) => {
     nextTick(() => {
         pftDrawerOpen.value = true;
     });
+};
+
+const pftConsentModalOpen = ref(false);
+const pendingConsentTerm = ref<PftTerm | null>(null);
+const localConsentedTermIds = ref<string[]>([...props.physicalFitness.consentedTermIds]);
+
+const pftHealthModalOpen = ref(false);
+const pendingHealthTerm = ref<PftTerm | null>(null);
+const localQuestionnaireTermIds = ref<string[]>([...props.physicalFitness.questionnaireTermIds]);
+
+const pftConsentForm = useForm<{ term_id: string }>({
+    term_id: '',
+});
+
+const pftHealthForm = useForm({
+    term_id: '',
+    civil_status: '',
+    household_monthly_income: '',
+    father_occupation: '',
+    mother_occupation: '',
+    has_medical_condition: false,
+    medical_condition_details: '',
+    has_medication: false,
+    medication_details: '',
+    smoking_status: '',
+    alcohol_consumption: '',
+    specific_conditions: [] as string[],
+    other_condition: '',
+});
+
+const hasConsentForTerm = (termId: string) =>
+    localConsentedTermIds.value.includes(termId);
+
+const hasQuestionnaireForTerm = (termId: string) =>
+    localQuestionnaireTermIds.value.includes(termId);
+
+const handlePftTermAction = (term: PftTerm) => {
+    if (
+        !props.physicalFitness.canFillUp ||
+        pftTermPendingCount(term.term_id) === 0
+    ) {
+        openPftTermSummary(term);
+        return;
+    }
+
+    if (!hasConsentForTerm(term.term_id)) {
+        pendingConsentTerm.value = term;
+        pftConsentForm.term_id = term.term_id;
+        pftConsentModalOpen.value = true;
+        return;
+    }
+
+    if (!hasQuestionnaireForTerm(term.term_id)) {
+        pendingHealthTerm.value = term;
+        pftHealthForm.term_id = term.term_id;
+        pftHealthModalOpen.value = true;
+        return;
+    }
+
+    openPftTermDrawer(term);
+};
+
+const submitPftConsent = () => {
+    pftConsentForm.post(pftConsentRoutes.store.url(), {
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => {
+            localConsentedTermIds.value.push(pftConsentForm.term_id);
+            pftConsentModalOpen.value = false;
+
+            if (pendingConsentTerm.value) {
+                const term = pendingConsentTerm.value;
+                pendingConsentTerm.value = null;
+                handlePftTermAction(term);
+            }
+        },
+        onError: (errors) => {
+            const firstError = Object.values(errors)[0];
+            toast.error(
+                typeof firstError === 'string'
+                    ? firstError
+                    : 'Unable to record consent.',
+            );
+        },
+    });
+};
+
+const cancelPftConsent = () => {
+    pftConsentModalOpen.value = false;
+    pendingConsentTerm.value = null;
+    pftConsentForm.reset();
+};
+
+const submitPftHealth = () => {
+    pftHealthForm.post(pftHealthRoutes.store.url(), {
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => {
+            localQuestionnaireTermIds.value.push(pftHealthForm.term_id);
+            pftHealthModalOpen.value = false;
+
+            if (pendingHealthTerm.value) {
+                openPftTermDrawer(pendingHealthTerm.value);
+                pendingHealthTerm.value = null;
+            }
+        },
+        onError: (errors) => {
+            const firstError = Object.values(errors)[0];
+            toast.error(
+                typeof firstError === 'string'
+                    ? firstError
+                    : 'Unable to save questionnaire.',
+            );
+        },
+    });
+};
+
+const cancelPftHealth = () => {
+    pftHealthModalOpen.value = false;
+    pendingHealthTerm.value = null;
+    pftHealthForm.reset();
 };
 
 const pftSummaryModalOpen = ref(false);
@@ -3195,18 +3321,7 @@ watch(editMode, (val) => {
                                                     type="button"
                                                     size="sm"
                                                     class="h-8 w-full bg-emerald-600 text-xs text-white hover:bg-emerald-700"
-                                                    @click="
-                                                        !physicalFitness.canFillUp ||
-                                                        pftTermPendingCount(
-                                                            term.term_id,
-                                                        ) === 0
-                                                            ? openPftTermSummary(
-                                                                  term,
-                                                              )
-                                                            : openPftTermDrawer(
-                                                                  term,
-                                                              )
-                                                    "
+                                                    @click="handlePftTermAction(term)"
                                                 >
                                                     {{
                                                         pftTermPendingCount(
@@ -3343,18 +3458,7 @@ watch(editMode, (val) => {
                                                                 type="button"
                                                                 size="sm"
                                                                 class="h-8 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
-                                                                @click="
-                                                                    !physicalFitness.canFillUp ||
-                                                                    pftTermPendingCount(
-                                                                        term.term_id,
-                                                                    ) === 0
-                                                                        ? openPftTermSummary(
-                                                                              term,
-                                                                          )
-                                                                        : openPftTermDrawer(
-                                                                              term,
-                                                                          )
-                                                                "
+                                                                @click="handlePftTermAction(term)"
                                                             >
                                                                 {{
                                                                     pftTermPendingCount(
@@ -7737,6 +7841,287 @@ watch(editMode, (val) => {
                     @click="pftSummaryModalOpen = false"
                 >
                     Close
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+    <Dialog :open="pftConsentModalOpen" @update:open="(val: boolean) => { if (!val) cancelPftConsent(); }">
+        <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+            <DialogHeader>
+                <DialogTitle class="text-lg font-semibold text-slate-950 dark:text-white">
+                    DATA PRIVACY CONSENT
+                </DialogTitle>
+                <DialogDescription class="text-sm text-slate-600 dark:text-slate-400">
+                    Physical Fitness and Health Assessment Data Management System
+                </DialogDescription>
+            </DialogHeader>
+
+            <div class="space-y-4 py-4 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                <p>
+                    The University of Southern Mindanao is committed to
+                    protecting your privacy and ensuring that your personal
+                    information is collected, processed, stored, and used
+                    responsibly in accordance with the
+                    <strong>Data Privacy Act of 2012 (Republic Act No. 10173)</strong>
+                    and its implementing rules and regulations.
+                </p>
+
+                <p>By proceeding with this assessment, you acknowledge and agree to the following:</p>
+
+                <ol class="list-decimal space-y-3 pl-5">
+                    <li>
+                        I voluntarily consent to the collection and processing
+                        of my personal information, including my name, student
+                        ID number, age, sex, academic information, height,
+                        weight, physical fitness assessment results, and other
+                        health-related information required for this assessment.
+                    </li>
+                    <li>
+                        I understand that my information will be used solely for
+                        the purposes of conducting physical fitness and health
+                        assessments, generating individual fitness reports,
+                        monitoring my physical fitness and health status,
+                        supporting educational programs and wellness
+                        initiatives, and facilitating approved research and
+                        institutional planning.
+                    </li>
+                    <li>
+                        I understand that all information collected will be
+                        stored securely in the Physical Fitness and Health
+                        Assessment Data Management System and will only be
+                        accessible to authorized University personnel directly
+                        involved in the administration, management, research,
+                        and evaluation of the program.
+                    </li>
+                    <li>
+                        I understand that reports, research publications,
+                        presentations, and statistical summaries generated from
+                        this system will present data in aggregated or
+                        anonymized form, and my identity will not be disclosed
+                        without my prior consent unless otherwise required by
+                        law.
+                    </li>
+                    <li>
+                        I understand that reasonable administrative,
+                        organizational, physical, and technical safeguards will
+                        be implemented to protect my personal information
+                        against unauthorized access, disclosure, alteration,
+                        misuse, or loss.
+                    </li>
+                    <li>
+                        I understand that my participation is voluntary and that
+                        I may request access to, correction of, or, where
+                        legally permissible, deletion of my personal information
+                        by contacting the authorized system administrator or the
+                        University&rsquo;s Data Protection Officer.
+                    </li>
+                </ol>
+
+                <p class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200">
+                    By selecting <strong>&ldquo;I Agree&rdquo;</strong> and
+                    proceeding with the assessment, I confirm that I have read
+                    and understood this Data Privacy Consent and voluntarily
+                    consent to the collection, processing, storage, and use of
+                    my personal information for the purposes stated above.
+                </p>
+
+                <p
+                    v-if="pendingConsentTerm"
+                    class="text-xs text-slate-500 dark:text-slate-400"
+                >
+                    Term:
+                    {{ pendingConsentTerm.school_year }}
+                    &mdash;
+                    {{ pendingConsentTerm.semester }}
+                </p>
+            </div>
+
+            <DialogFooter class="flex flex-col gap-2 sm:flex-row">
+                <Button
+                    type="button"
+                    variant="outline"
+                    class="font-light"
+                    :disabled="pftConsentForm.processing"
+                    @click="cancelPftConsent"
+                >
+                    Cancel
+                </Button>
+                <Button
+                    type="button"
+                    class="bg-emerald-600 font-light text-white hover:bg-emerald-700"
+                    :disabled="pftConsentForm.processing"
+                    @click="submitPftConsent"
+                >
+                    <template v-if="pftConsentForm.processing">
+                        Processing...
+                    </template>
+                    <template v-else>
+                        I Agree
+                    </template>
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+    <Dialog :open="pftHealthModalOpen" @update:open="(val: boolean) => { if (!val) cancelPftHealth(); }">
+        <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+            <DialogHeader>
+                <DialogTitle class="text-lg font-semibold text-slate-950 dark:text-white">
+                    Health Questionnaire
+                </DialogTitle>
+                <DialogDescription class="text-sm text-slate-600 dark:text-slate-400">
+                    Please provide your updated health and socio-demographic information.
+                </DialogDescription>
+            </DialogHeader>
+
+            <div class="space-y-6 py-4 text-sm text-slate-700 dark:text-slate-300">
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="space-y-2">
+                        <Label>Civil Status</Label>
+                        <select
+                            v-model="pftHealthForm.civil_status"
+                            class="pft-profile-input"
+                        >
+                            <option value="">Select...</option>
+                            <option value="Single">Single</option>
+                            <option value="Married">Married</option>
+                            <option value="Widowed">Widowed</option>
+                            <option value="Separated">Separated</option>
+                            <option value="Prefer not to say">Prefer not to say</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-2">
+                        <Label>Household Monthly Income</Label>
+                        <select
+                            v-model="pftHealthForm.household_monthly_income"
+                            class="pft-profile-input"
+                        >
+                            <option value="">Select...</option>
+                            <option value="Less than ₱10,000">Less than ₱10,000</option>
+                            <option value="₱10,000–₱19,999">₱10,000–₱19,999</option>
+                            <option value="₱20,000–₱39,999">₱20,000–₱39,999</option>
+                            <option value="₱40,000–₱59,999">₱40,000–₱59,999</option>
+                            <option value="₱60,000–₱99,999">₱60,000–₱99,999</option>
+                            <option value="₱100,000 and above">₱100,000 and above</option>
+                            <option value="Prefer not to answer">Prefer not to answer</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="space-y-2">
+                        <Label>Father's Occupation</Label>
+                        <Input v-model="pftHealthForm.father_occupation" class="pft-profile-input" />
+                    </div>
+                    <div class="space-y-2">
+                        <Label>Mother's Occupation</Label>
+                        <Input v-model="pftHealthForm.mother_occupation" class="pft-profile-input" />
+                    </div>
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="space-y-2">
+                        <Label>Smoking Status</Label>
+                        <select
+                            v-model="pftHealthForm.smoking_status"
+                            class="pft-profile-input"
+                        >
+                            <option value="">Select...</option>
+                            <option value="Never">Never</option>
+                            <option value="Former">Former</option>
+                            <option value="Current">Current</option>
+                        </select>
+                    </div>
+                    <div class="space-y-2">
+                        <Label>Alcohol Consumption</Label>
+                        <select
+                            v-model="pftHealthForm.alcohol_consumption"
+                            class="pft-profile-input"
+                        >
+                            <option value="">Select...</option>
+                            <option value="Never">Never</option>
+                            <option value="Occasional">Occasional</option>
+                            <option value="Regular">Regular</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <Label class="text-base font-medium">Do you have any existing medical condition?</Label>
+                    <div class="flex items-center space-x-6">
+                        <label class="flex items-center space-x-2">
+                            <input type="radio" :value="false" v-model="pftHealthForm.has_medical_condition" class="text-emerald-600 focus:ring-emerald-500 h-4 w-4 rounded-full border-slate-300" />
+                            <span>No</span>
+                        </label>
+                        <label class="flex items-center space-x-2">
+                            <input type="radio" :value="true" v-model="pftHealthForm.has_medical_condition" class="text-emerald-600 focus:ring-emerald-500 h-4 w-4 rounded-full border-slate-300" />
+                            <span>Yes</span>
+                        </label>
+                    </div>
+                    <div v-if="pftHealthForm.has_medical_condition" class="space-y-3 rounded-md bg-slate-50 p-4 dark:bg-white/5">
+                        <Label class="font-medium">Select all that apply:</Label>
+                        <div class="grid gap-2 sm:grid-cols-2">
+                            <label v-for="condition in physicalFitness.medicalConditions" :key="condition" class="flex items-start space-x-2">
+                                <input type="checkbox" :value="condition" v-model="pftHealthForm.specific_conditions" class="text-emerald-600 focus:ring-emerald-500 mt-1 h-4 w-4 rounded border-slate-300" />
+                                <span class="text-sm leading-tight">{{ condition }}</span>
+                            </label>
+                        </div>
+                        
+                        <div class="space-y-2 pt-2">
+                            <Label>Other Condition (Specify)</Label>
+                            <Input v-model="pftHealthForm.other_condition" class="pft-profile-input" />
+                        </div>
+                        
+                        <div class="space-y-2 pt-2">
+                            <Label>Further Details (Optional)</Label>
+                            <Input v-model="pftHealthForm.medical_condition_details" class="pft-profile-input" placeholder="Additional details..." />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <Label class="text-base font-medium">Current Medication Affecting Exercise</Label>
+                    <div class="flex items-center space-x-6">
+                        <label class="flex items-center space-x-2">
+                            <input type="radio" :value="false" v-model="pftHealthForm.has_medication" class="text-emerald-600 focus:ring-emerald-500 h-4 w-4 rounded-full border-slate-300" />
+                            <span>No</span>
+                        </label>
+                        <label class="flex items-center space-x-2">
+                            <input type="radio" :value="true" v-model="pftHealthForm.has_medication" class="text-emerald-600 focus:ring-emerald-500 h-4 w-4 rounded-full border-slate-300" />
+                            <span>Yes</span>
+                        </label>
+                    </div>
+                    <div v-if="pftHealthForm.has_medication" class="space-y-2">
+                        <Label>If Yes, Please Specify</Label>
+                        <Input v-model="pftHealthForm.medication_details" class="pft-profile-input" />
+                    </div>
+                </div>
+            </div>
+
+            <DialogFooter class="flex flex-col gap-2 sm:flex-row">
+                <Button
+                    type="button"
+                    variant="outline"
+                    class="font-light"
+                    :disabled="pftHealthForm.processing"
+                    @click="cancelPftHealth"
+                >
+                    Cancel
+                </Button>
+                <Button
+                    type="button"
+                    class="bg-emerald-600 font-light text-white hover:bg-emerald-700"
+                    :disabled="pftHealthForm.processing"
+                    @click="submitPftHealth"
+                >
+                    <template v-if="pftHealthForm.processing">
+                        Saving...
+                    </template>
+                    <template v-else>
+                        Submit & Proceed
+                    </template>
                 </Button>
             </DialogFooter>
         </DialogContent>

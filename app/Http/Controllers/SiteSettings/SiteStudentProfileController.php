@@ -17,16 +17,16 @@ use Inertia\Response;
 
 class SiteStudentProfileController extends Controller
 {
-    public function __construct(
-        private readonly PhysicalFitnessPermissionService $physicalFitnessPermission,
-    ) {}
-
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse
     {
         ($request->user()->can('site-settings.student-profile.view') || $request->user()->can('site-settings.view')) || abort(403);
 
         $requestedTab = $request->string('tab')->value();
-        $activeTab = in_array($requestedTab, ['awards', 'trainings', 'physical-fitness'], true)
+        if ($requestedTab === 'physical-fitness') {
+            return to_route('site-settings.physical-fitness.configuration.index', ['tab' => 'settings']);
+        }
+
+        $activeTab = in_array($requestedTab, ['awards', 'trainings'], true)
             ? $requestedTab
             : 'awards';
         $search = trim($request->string('search')->value());
@@ -38,27 +38,10 @@ class SiteStudentProfileController extends Controller
             ],
             'awards' => $this->awardPaginator($search),
             'trainings' => $this->trainingPaginator($search),
-            'physicalFitnessSetting' => [
-                'enabled' => $this->physicalFitnessPermission->gradesShortcutEnabled(),
-                'permission' => SiteSetting::query()
-                    ->where('key', PhysicalFitnessPermissionService::SETTING_KEY)
-                    ->value('value') ?? PhysicalFitnessPermissionService::PERMISSION_PE_PATHFIT_ONLY,
-                'options' => [
-                    [
-                        'label' => 'PE/PATHFIT Students Only',
-                        'value' => PhysicalFitnessPermissionService::PERMISSION_PE_PATHFIT_ONLY,
-                    ],
-                    [
-                        'label' => 'All Students',
-                        'value' => PhysicalFitnessPermissionService::PERMISSION_ALL_STUDENTS,
-                    ],
-                ],
-            ],
             'can' => [
                 'create' => $request->user()->can('site-settings.student-profile.create'),
                 'update' => $request->user()->can('site-settings.student-profile.update'),
                 'delete' => $request->user()->can('site-settings.student-profile.delete'),
-                'managePhysicalFitnessPermission' => $request->user()->can('pft.permission.manage'),
             ],
         ]);
     }
@@ -193,7 +176,7 @@ class SiteStudentProfileController extends Controller
             ],
         );
 
-        return to_route('site-settings.student-profile.index', ['tab' => 'physical-fitness']);
+        return to_route('site-settings.physical-fitness.configuration.index', ['tab' => 'settings']);
     }
 
     private function awardPaginator(string $search): LengthAwarePaginator

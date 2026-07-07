@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Achievement;
 use App\Models\CcdCaresEvaluationPeriod;
 use App\Models\PftComponent;
+use App\Models\PftDataPrivacyConsent;
+use App\Models\PftHealthQuestionnaire;
+use App\Models\PftMedicalCondition;
 use App\Models\SiteAcademicTerm;
 use App\Models\StudentPftResult;
 use App\Models\Training;
@@ -113,6 +116,29 @@ class StudentProfileController extends Controller
                 'canView' => $canViewPft,
                 'canSubmit' => $canSubmitPft,
                 'canFillUp' => $canFillUpPft,
+                'consentedTermIds' => $canFillUpPft
+                    ? PftDataPrivacyConsent::query()
+                        ->where('user_id', $user->id)
+                        ->whereIn('term_id', $pftTermIds)
+                        ->pluck('term_id')
+                        ->map(fn ($termId): string => (string) $termId)
+                        ->values()
+                        ->all()
+                    : [],
+                'questionnaireTermIds' => $canFillUpPft
+                    ? PftHealthQuestionnaire::query()
+                        ->where('user_id', $user->id)
+                        ->whereIn('term_id', $pftTermIds)
+                        ->pluck('term_id')
+                        ->map(fn ($termId): string => (string) $termId)
+                        ->values()
+                        ->all()
+                    : [],
+                'medicalConditions' => PftMedicalCondition::query()
+                    ->where('is_active', true)
+                    ->orderBy('sort_order')
+                    ->pluck('name')
+                    ->all(),
             ],
             'ccdCares' => [
                 'assessments' => $ccdCaresPeriods->map(function (CcdCaresEvaluationPeriod $period): array {

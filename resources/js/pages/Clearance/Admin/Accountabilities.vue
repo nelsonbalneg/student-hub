@@ -27,6 +27,7 @@ import {
     unfinalizeOffice,
     index,
     store,
+    uploadPreview,
 } from '@/routes/clearance/accountabilities';
 import { search as searchStudentsRoute } from '@/routes/clearance/accountabilities/students';
 import {
@@ -354,12 +355,9 @@ const deleteAcc = (id: number) => {
 };
 
 const handleUpload = () => {
-    uploadForm.post(
-        `/student-services/clearance/updates/${props.update.id}/accountabilities/upload-preview`,
-        {
-            onSuccess: () => (uploadModal.value = false),
-        },
-    );
+    uploadForm.post(uploadPreview.url(props.update.id), {
+        onSuccess: () => (uploadModal.value = false),
+    });
 };
 
 const handleIndividualAdd = () => {

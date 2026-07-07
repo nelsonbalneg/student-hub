@@ -10,8 +10,10 @@ import {
     Layers,
     Loader2,
     RefreshCw,
+    RotateCcw,
     Search,
     Table2,
+    Trash2,
     Users,
     X,
 } from 'lucide-vue-next';
@@ -23,6 +25,9 @@ import {
     exportPdf as pftExportPdf,
     index as pftIndex,
 } from '@/routes/admin/reporting/pft-result';
+import * as pftStatus from '@/routes/admin/reporting/pft-result/status';
+import * as pftStudentEntry from '@/routes/admin/reporting/pft-result/student-entry';
+import * as pftStudentEntryStatus from '@/routes/admin/reporting/pft-result/student-entry/status';
 import {
     campuses as filterCampuses,
     colleges as filterColleges,
@@ -377,6 +382,7 @@ const tableSummary = ref<TableSummary>({
     students: 0,
 });
 const tableLoading = ref(false);
+const actionLoading = ref(false);
 const activeRow = ref<PftRow | null>(null);
 const activeComponentGroups = computed<ComponentGroup[]>(() => {
     if (!activeRow.value) {
@@ -467,6 +473,11 @@ const clearResults = () => {
     };
 };
 
+const csrfToken = () =>
+    document
+        .querySelector<HTMLMetaElement>('meta[name="csrf-token"]')
+        ?.getAttribute('content') ?? '';
+
 const fetchTable = async () => {
     if (!requiredFiltersSelected.value) {
         clearResults();
@@ -548,6 +559,136 @@ const openDrawer = (row: PftRow) => {
 
 const closeDrawer = () => {
     activeRow.value = null;
+};
+
+const studentEntryPayload = (row: PftRow) => ({
+    campus_id: row.campus ?? undefined,
+    college_id: row.college ?? undefined,
+    section_id: row.section_id ?? undefined,
+});
+
+const updateDetailStatus = async (detail: PftDetail, status: string) => {
+    if (detail.status?.toLowerCase() === status) {
+        return;
+    }
+
+    actionLoading.value = true;
+
+    try {
+        const response = await fetch(pftStatus.update.url(detail.id), {
+            method: 'PATCH',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken(),
+            },
+            body: JSON.stringify({ status }),
+        });
+
+        if (!response.ok) {
+            throw new Error('Unable to update PFT result status.');
+        }
+
+        await fetchTable();
+        const refreshedRow = rows.value.find(
+            (row) =>
+                row.user_id === activeRow.value?.user_id &&
+                row.term === activeRow.value?.term,
+        );
+        activeRow.value = refreshedRow ?? activeRow.value;
+    } finally {
+        actionLoading.value = false;
+    }
+};
+
+const deleteStudentEntry = async (row: PftRow) => {
+    if (
+        !confirm(
+            `Delete all visible PFT result records for ${row.student_name}? This cannot be undone.`,
+        )
+    ) {
+        return;
+    }
+
+    actionLoading.value = true;
+
+    try {
+        const response = await fetch(
+            pftStudentEntry.destroy.url({
+                user: row.user_id,
+                term: row.term ?? '',
+            }),
+            {
+                method: 'DELETE',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken(),
+                },
+                body: JSON.stringify(studentEntryPayload(row)),
+            },
+        );
+
+        if (!response.ok) {
+            throw new Error('Unable to delete PFT result records.');
+        }
+
+        if (activeRow.value?.user_id === row.user_id && activeRow.value?.term === row.term) {
+            activeRow.value = null;
+        }
+
+        await fetchTable();
+    } finally {
+        actionLoading.value = false;
+    }
+};
+
+const markStudentEntryDraft = async (row: PftRow) => {
+    if (
+        !confirm(
+            `Mark all visible PFT result records for ${row.student_name} as draft so the student can resubmit?`,
+        )
+    ) {
+        return;
+    }
+
+    actionLoading.value = true;
+
+    try {
+        const response = await fetch(
+            pftStudentEntryStatus.update.url({
+                user: row.user_id,
+                term: row.term ?? '',
+            }),
+            {
+                method: 'PATCH',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken(),
+                },
+                body: JSON.stringify({
+                    ...studentEntryPayload(row),
+                    status: 'draft',
+                }),
+            },
+        );
+
+        if (!response.ok) {
+            throw new Error('Unable to update PFT entry status.');
+        }
+
+        await fetchTable();
+        const refreshedRow = rows.value.find(
+            (item) => item.user_id === row.user_id && item.term === row.term,
+        );
+
+        if (activeRow.value?.user_id === row.user_id && activeRow.value?.term === row.term) {
+            activeRow.value = refreshedRow ?? activeRow.value;
+        }
+    } finally {
+        actionLoading.value = false;
+    }
 };
 
 const sortBy = (column: number) => {
@@ -817,7 +958,7 @@ onMounted(() => {
             </div>
             <div v-else class="overflow-x-auto">
                 <table
-                    class="min-w-[1100px] divide-y divide-slate-100 text-sm dark:divide-white/10"
+                    class="min-w-[1180px] divide-y divide-slate-100 text-sm dark:divide-white/10"
                 >
                     <thead class="bg-slate-50/80 dark:bg-white/[0.03]">
                         <tr>
@@ -849,6 +990,7 @@ onMounted(() => {
                             <th class="report-th sortable" @click="sortBy(10)">
                                 Latest Created
                             </th>
+                            <th class="report-th">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-50 dark:divide-white/5">
@@ -895,10 +1037,34 @@ onMounted(() => {
                             <td class="report-td">
                                 {{ row.latest_created_at ?? '-' }}
                             </td>
+                            <td class="report-td">
+                                <div class="flex items-center gap-1">
+                                    <button
+                                        type="button"
+                                        class="report-icon-btn"
+                                        :disabled="actionLoading"
+                                        title="Mark as draft for resubmission"
+                                        aria-label="Mark PFT entry as draft for resubmission"
+                                        @click="markStudentEntryDraft(row)"
+                                    >
+                                        <RotateCcw class="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="report-icon-danger-btn"
+                                        :disabled="actionLoading"
+                                        title="Delete student PFT entry"
+                                        aria-label="Delete student PFT entry"
+                                        @click="deleteStudentEntry(row)"
+                                    >
+                                        <Trash2 class="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
+                            </td>
                         </tr>
                         <tr v-if="rows.length === 0">
                             <td
-                                colspan="10"
+                                colspan="11"
                                 class="py-12 text-center text-sm text-slate-400"
                             >
                                 No PFT results found for the selected filters.
@@ -1079,14 +1245,32 @@ onMounted(() => {
                                             {{ detail.tested_date ?? '-' }}
                                         </p>
                                     </div>
-                                    <span
-                                        class="w-fit rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-600 uppercase dark:bg-slate-900 dark:text-slate-300"
-                                    >
-                                        {{
-                                            detail.interpretation?.label ??
-                                            'Unclassified'
-                                        }}
-                                    </span>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span
+                                            class="w-fit rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-600 uppercase dark:bg-slate-900 dark:text-slate-300"
+                                        >
+                                            {{
+                                                detail.interpretation?.label ??
+                                                'Unclassified'
+                                            }}
+                                        </span>
+                                        <select
+                                            class="report-status-select"
+                                            :value="detail.status?.toLowerCase() ?? 'completed'"
+                                            :disabled="actionLoading"
+                                            @change="
+                                                updateDetailStatus(
+                                                    detail,
+                                                    ($event.target as HTMLSelectElement).value,
+                                                )
+                                            "
+                                        >
+                                            <option value="completed">
+                                                Completed
+                                            </option>
+                                            <option value="draft">Draft</option>
+                                        </select>
+                                    </div>
                                 </div>
 
                                 <div
@@ -1189,6 +1373,27 @@ onMounted(() => {
 }
 .report-btn-primary {
     @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50;
+}
+.report-icon-btn,
+.report-icon-danger-btn {
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg border text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-50;
+}
+.report-icon-btn {
+    @apply border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10;
+}
+.report-icon-danger-btn {
+    @apply border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20;
+}
+.report-status-select {
+    @apply h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-700 outline-none focus:border-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200;
+    color-scheme: light;
+    background-color: #ffffff !important;
+    color: #334155 !important;
+    border-color: #e2e8f0 !important;
+}
+.report-status-select option {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
 }
 .report-th {
     @apply px-3 py-2 text-left text-[10px] font-bold tracking-wide text-slate-500 uppercase;
@@ -1509,6 +1714,18 @@ onMounted(() => {
 }
 .dark .report-input option,
 .report-input:is(.dark *) option {
+    background-color: #0f172a !important;
+    color: #f1f5f9 !important;
+}
+.dark .report-status-select,
+.report-status-select:is(.dark *) {
+    color-scheme: dark;
+    background-color: #0f172a !important;
+    color: #e2e8f0 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+.dark .report-status-select option,
+.report-status-select:is(.dark *) option {
     background-color: #0f172a !important;
     color: #f1f5f9 !important;
 }
