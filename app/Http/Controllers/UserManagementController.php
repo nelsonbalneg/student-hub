@@ -12,6 +12,7 @@ use App\Http\Requests\UserManagement\UpdateUserRequest;
 use App\Http\Resources\UserManagement\PermissionResource;
 use App\Http\Resources\UserManagement\RoleResource;
 use App\Http\Resources\UserManagement\UserResource;
+use App\Models\AuditLog;
 use App\Models\ClearanceAccountability;
 use App\Models\ClearanceAccountabilityUpload;
 use App\Models\ClearanceCertificate;
@@ -27,6 +28,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -44,6 +46,7 @@ use Spatie\Permission\PermissionRegistrar;
 class UserManagementController extends Controller
 {
     private const USER_PAGE_SIZES = [10, 25, 50, 100];
+    private const USER_MANAGEMENT_CACHE_TTL = 300;
 
     public function index(Request $request): Response
     {
@@ -54,13 +57,13 @@ class UserManagementController extends Controller
         return Inertia::render('UserManagement/Users', [
             'filters' => $request->only(['user_search', 'status', 'role', 'office', 'department', 'user_type', 'per_page']),
             'filterOptions' => [
-                'roles' => $hasRoles ? Role::query()->orderBy('name')->pluck('name') : [],
-                'offices' => $this->userColumnOptions('office'),
-                'departments' => $this->userColumnOptions('department'),
-                'userTypes' => $this->userColumnOptions('user_type'),
+                'roles' => $hasRoles ? $this->cachedRoleNames() : [],
+                'offices' => $this->cachedUserColumnOptions('office'),
+                'departments' => $this->cachedUserColumnOptions('department'),
+                'userTypes' => $this->cachedUserColumnOptions('user_type'),
             ],
             'pageSizeOptions' => self::USER_PAGE_SIZES,
-            'allRoles' => $hasRoles ? Role::query()->orderBy('name')->get(['id', 'name']) : [],
+            'allRoles' => $hasRoles ? $this->cachedAssignableRoles() : [],
             'can' => [
                 'create' => Gate::allows('create', User::class),
                 'update' => $request->user()->can('users.update'),
@@ -68,7 +71,7 @@ class UserManagementController extends Controller
                 'assignRole' => $request->user()->can('users.assign-role'),
                 'impersonate' => $request->user()->can('users.impersonate'),
             ],
-            'lookupOffices' => Office::query()->orderBy('name')->get(['id', 'name', 'code']),
+            'lookupOffices' => $this->cachedLookupOffices(),
             'users' => $this->paginatedUsers($request),
         ]);
     }
@@ -151,6 +154,7 @@ class UserManagementController extends Controller
         ]);
 
         $user->syncRoles($validated['roles'] ?? []);
+        $this->forgetUserManagementLookups();
 
         return to_route('user-management.index')->with('success', 'User created.');
     }
@@ -170,6 +174,7 @@ class UserManagementController extends Controller
         if ($request->user()->can('users.assign-role') && array_key_exists('roles', $validated)) {
             $user->syncRoles($validated['roles'] ?? []);
         }
+        $this->forgetUserManagementLookups();
 
         return to_route('user-management.index')->with('success', 'User updated.');
     }
@@ -177,6 +182,7 @@ class UserManagementController extends Controller
     public function assignRoles(AssignRoleRequest $request, User $user): RedirectResponse
     {
         $user->syncRoles($request->validated('roles') ?? []);
+        $this->forgetUserManagementLookups();
 
         return to_route('user-management.index')->with('success', 'User roles updated.');
     }
@@ -190,6 +196,7 @@ class UserManagementController extends Controller
         ]);
 
         $user->update($validated);
+        $this->forgetUserManagementLookups();
 
         return to_route('user-management.index')->with('success', 'User office updated.');
     }
@@ -200,6 +207,7 @@ class UserManagementController extends Controller
 
         if (Schema::hasColumn('users', 'is_active')) {
             $user->update(['is_active' => ! $user->is_active]);
+            $this->forgetUserManagementLookups();
         }
 
         return to_route('user-management.index')->with('success', 'User status updated.');
@@ -208,6 +216,11 @@ class UserManagementController extends Controller
     public function impersonate(Request $request, User $user): RedirectResponse
     {
         abort_unless($request->user()->can('users.impersonate'), 403);
+
+        $validated = $request->validate([
+            'reference_number' => ['required', 'string', 'max:100'],
+            'reason' => ['required', 'string', 'max:1000'],
+        ]);
 
         if ($request->user()->is($user)) {
             return to_route('user-management.index')->with('error', 'You cannot impersonate your own account.');
@@ -230,9 +243,14 @@ class UserManagementController extends Controller
         Log::notice('User impersonation started', [
             'impersonator_id' => $impersonator->id,
             'target_user_id' => $user->id,
+            'reference_number' => $validated['reference_number'],
+            'reason' => $validated['reason'],
         ]);
+        $this->auditImpersonationStarted($request, $impersonator, $user, $validated);
 
         $request->session()->put('impersonator_id', $impersonator->id);
+        $request->session()->put('impersonation_reference_number', $validated['reference_number']);
+        $request->session()->put('impersonation_reason', $validated['reason']);
         Auth::login($user);
         $request->session()->regenerate();
 
@@ -261,6 +279,8 @@ class UserManagementController extends Controller
             'impersonator_id' => $impersonator->id,
             'impersonated_user_id' => $request->user()?->id,
         ]);
+        $this->auditImpersonationStopped($request, $impersonator);
+        $request->session()->forget(['impersonation_reference_number', 'impersonation_reason']);
 
         Auth::login($impersonator);
         $request->session()->regenerate();
@@ -344,6 +364,7 @@ class UserManagementController extends Controller
             'force' => $force,
             'deleted_history_counts' => $deletedHistoryCounts,
         ]);
+        $this->forgetUserManagementLookups();
 
         return to_route('user-management.index')->with('success', $force ? 'User and linked records deleted.' : 'User deleted.');
     }
@@ -358,6 +379,7 @@ class UserManagementController extends Controller
 
         $role->syncPermissions($request->validated('permissions') ?? []);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
+        $this->forgetUserManagementLookups();
 
         return to_route('user-management.roles.index')->with('success', 'Role created.');
     }
@@ -376,6 +398,7 @@ class UserManagementController extends Controller
         ]);
         $role->syncPermissions($request->validated('permissions') ?? []);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
+        $this->forgetUserManagementLookups();
 
         return to_route('user-management.roles.index')->with('success', 'Role updated.');
     }
@@ -406,6 +429,7 @@ class UserManagementController extends Controller
 
         $role->delete();
         app(PermissionRegistrar::class)->forgetCachedPermissions();
+        $this->forgetUserManagementLookups();
 
         return to_route('user-management.roles.index')->with('success', 'Role deleted.');
     }
@@ -561,6 +585,125 @@ class UserManagementController extends Controller
             ->orderBy($column)
             ->pluck($column)
             ->all();
+    }
+
+    private function cachedUserColumnOptions(string $column): array
+    {
+        return Cache::remember(
+            "user_management.options.users.{$column}",
+            self::USER_MANAGEMENT_CACHE_TTL,
+            fn (): array => $this->userColumnOptions($column),
+        );
+    }
+
+    private function cachedRoleNames(): array
+    {
+        return Cache::remember(
+            'user_management.options.roles.names',
+            self::USER_MANAGEMENT_CACHE_TTL,
+            fn (): array => Role::query()->orderBy('name')->pluck('name')->all(),
+        );
+    }
+
+    private function cachedAssignableRoles(): array
+    {
+        return Cache::remember(
+            'user_management.options.roles.assignable',
+            self::USER_MANAGEMENT_CACHE_TTL,
+            fn (): array => Role::query()->orderBy('name')->get(['id', 'name'])->all(),
+        );
+    }
+
+    private function cachedLookupOffices(): array
+    {
+        return Cache::remember(
+            'user_management.options.offices.lookup',
+            self::USER_MANAGEMENT_CACHE_TTL,
+            fn (): array => Office::query()->orderBy('name')->get(['id', 'name', 'code'])->all(),
+        );
+    }
+
+    private function forgetUserManagementLookups(): void
+    {
+        collect([
+            'user_management.options.users.office',
+            'user_management.options.users.department',
+            'user_management.options.users.user_type',
+            'user_management.options.roles.names',
+            'user_management.options.roles.assignable',
+            'user_management.options.offices.lookup',
+        ])->each(fn (string $key): bool => Cache::forget($key));
+    }
+
+    /**
+     * @param  array{reference_number: string, reason: string}  $values
+     */
+    private function auditImpersonationStarted(Request $request, User $impersonator, User $target, array $values): void
+    {
+        if (! Schema::hasTable('audit_logs')) {
+            return;
+        }
+
+        AuditLog::query()->create([
+            'user_id' => $impersonator->id,
+            'actor_name' => $impersonator->name,
+            'actor_email' => $impersonator->email,
+            'module' => 'User Management',
+            'action' => 'impersonation_started',
+            'description' => "{$impersonator->name} started impersonating {$target->name}.",
+            'auditable_type' => User::class,
+            'auditable_id' => $target->id,
+            'new_values' => [
+                'reference_number' => $values['reference_number'],
+                'reason' => $values['reason'],
+                'impersonator_id' => $impersonator->id,
+                'impersonator_name' => $impersonator->name,
+                'impersonator_email' => $impersonator->email,
+                'target_user_id' => $target->id,
+                'target_user_name' => $target->name,
+                'target_user_email' => $target->email,
+            ],
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'route_name' => $request->route()?->getName(),
+            'url' => $request->fullUrl(),
+            'method' => $request->method(),
+        ]);
+    }
+
+    private function auditImpersonationStopped(Request $request, User $impersonator): void
+    {
+        if (! Schema::hasTable('audit_logs')) {
+            return;
+        }
+
+        $impersonatedUser = $request->user();
+
+        AuditLog::query()->create([
+            'user_id' => $impersonator->id,
+            'actor_name' => $impersonator->name,
+            'actor_email' => $impersonator->email,
+            'module' => 'User Management',
+            'action' => 'impersonation_stopped',
+            'description' => "{$impersonator->name} stopped impersonating {$impersonatedUser?->name}.",
+            'auditable_type' => $impersonatedUser instanceof User ? User::class : null,
+            'auditable_id' => $impersonatedUser?->id,
+            'new_values' => [
+                'reference_number' => $request->session()->get('impersonation_reference_number'),
+                'reason' => $request->session()->get('impersonation_reason'),
+                'impersonator_id' => $impersonator->id,
+                'impersonator_name' => $impersonator->name,
+                'impersonator_email' => $impersonator->email,
+                'target_user_id' => $impersonatedUser?->id,
+                'target_user_name' => $impersonatedUser?->name,
+                'target_user_email' => $impersonatedUser?->email,
+            ],
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'route_name' => $request->route()?->getName(),
+            'url' => $request->fullUrl(),
+            'method' => $request->method(),
+        ]);
     }
 
     private function userPageSize(Request $request): int

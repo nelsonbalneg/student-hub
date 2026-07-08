@@ -8,6 +8,7 @@ use App\Models\PftComponent;
 use App\Models\PftDataPrivacyConsent;
 use App\Models\PftHealthQuestionnaire;
 use App\Models\PftMedicalCondition;
+use App\Models\PftParq;
 use App\Models\SiteAcademicTerm;
 use App\Models\StudentPftResult;
 use App\Models\Training;
@@ -133,6 +134,25 @@ class StudentProfileController extends Controller
                         ->map(fn ($termId): string => (string) $termId)
                         ->values()
                         ->all()
+                    : [],
+                'unclearedQuestionnaireTermIds' => $canFillUpPft
+                    ? PftHealthQuestionnaire::query()
+                        ->where('user_id', $user->id)
+                        ->whereIn('term_id', $pftTermIds)
+                        ->where(function ($query) {
+                            $query->where('has_medical_condition', true)
+                                  ->orWhere('has_medication', true);
+                        })
+                        ->pluck('term_id')
+                        ->map(fn ($termId): string => (string) $termId)
+                        ->values()
+                        ->all()
+                    : [],
+                'parqs' => $canFillUpPft
+                    ? PftParq::query()
+                        ->where('user_id', $user->id)
+                        ->whereIn('term_id', $pftTermIds)
+                        ->get()
                     : [],
                 'medicalConditions' => PftMedicalCondition::query()
                     ->where('is_active', true)

@@ -21,6 +21,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'alcohol_consumption',
     'specific_conditions',
     'other_condition',
+    'medical_clearance_path',
 ])]
 class PftHealthQuestionnaire extends Model
 {

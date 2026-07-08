@@ -160,6 +160,10 @@ const userForm = useForm({
     two_factor_confirmed_at: '',
     roles: [] as string[],
 });
+const impersonationForm = useForm({
+    reference_number: '',
+    reason: '',
+});
 
 const activeFilterCount = computed(
     () => Object.values(filters.value).filter(Boolean).length,
@@ -359,6 +363,8 @@ const confirmDelete = (force = false) => {
 };
 
 const openImpersonate = (user: ManagedUser) => {
+    impersonationForm.reset();
+    impersonationForm.clearErrors();
     modal.value = { type: 'impersonate', user };
 };
 
@@ -367,9 +373,8 @@ const confirmImpersonate = () => {
         return;
     }
 
-    router.post(
+    impersonationForm.post(
         impersonateUserRoute.url(modal.value.user.id),
-        {},
         {
             preserveScroll: true,
         },
@@ -1446,7 +1451,11 @@ const navigatePage = (url: string | null) => {
                 </Button>
             </form>
 
-            <div v-else-if="modal.type === 'impersonate'" class="space-y-4">
+            <form
+                v-else-if="modal.type === 'impersonate'"
+                class="space-y-4"
+                @submit.prevent="confirmImpersonate"
+            >
                 <div
                     class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100"
                 >
@@ -1486,19 +1495,49 @@ const navigatePage = (url: string | null) => {
                         </span>
                     </div>
                 </div>
+                <div class="grid gap-3">
+                    <label class="form-field">
+                        Reference #
+                        <input
+                            v-model="impersonationForm.reference_number"
+                            class="form-input"
+                            autocomplete="off"
+                            required
+                        />
+                        <InputError
+                            :message="
+                                impersonationForm.errors.reference_number
+                            "
+                        />
+                    </label>
+                    <label class="form-field">
+                        Reason for impersonation
+                        <textarea
+                            v-model="impersonationForm.reason"
+                            class="min-h-24 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"
+                            required
+                        />
+                        <InputError :message="impersonationForm.errors.reason" />
+                    </label>
+                </div>
                 <div class="flex justify-end gap-2">
-                    <Button variant="secondary" @click="modal = null">
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        @click="modal = null"
+                    >
                         Cancel
                     </Button>
                     <Button
+                        type="submit"
                         class="bg-emerald-600 text-white hover:bg-emerald-700"
-                        @click="confirmImpersonate"
+                        :disabled="impersonationForm.processing"
                     >
                         <UserCheck class="size-4" />
                         Start Impersonation
                     </Button>
                 </div>
-            </div>
+            </form>
 
             <div v-else class="space-y-4">
                 <p class="text-sm text-slate-500">

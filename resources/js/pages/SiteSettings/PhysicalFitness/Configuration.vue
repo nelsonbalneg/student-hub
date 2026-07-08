@@ -132,7 +132,14 @@ watch(selectedCategoryId, () => {
         selectedCategory.value?.test_types[0]?.id ?? null;
 });
 
-const settingsVerticalTab = ref('general');
+const urlParams = new URLSearchParams(window.location.search);
+const settingsVerticalTab = ref(urlParams.get('tab') || 'general');
+
+watch(settingsVerticalTab, (newTab) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', newTab);
+    window.history.replaceState(window.history.state, '', url);
+});
 
 const medicalConditionModalOpen = ref(false);
 const deleteConditionModalOpen = ref(false);
@@ -218,7 +225,11 @@ const executeDeleteCondition = () => {
 const toggleConditionActive = (condition: PftMedicalCondition, isActive: boolean) => {
     router.patch(
         conditionRoutes.update.url({ medicalCondition: condition.id }),
-        { is_active: isActive },
+        { 
+            name: condition.name,
+            sort_order: condition.sort_order,
+            is_active: isActive 
+        },
         {
             preserveScroll: true,
             preserveState: true,

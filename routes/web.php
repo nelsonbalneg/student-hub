@@ -165,6 +165,15 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
     Route::post('student-profile/physical-fitness/health-questionnaire', [StudentPftResultController::class, 'storeHealthQuestionnaire'])
         ->middleware('can:pft.submit')
         ->name('student-profile.physical-fitness.health-questionnaire.store');
+    Route::post('student-profile/physical-fitness/health-questionnaire/{questionnaire}/clearance', [StudentPftResultController::class, 'uploadMedicalClearance'])
+        ->middleware('can:pft.submit')
+        ->name('student-profile.physical-fitness.health-questionnaire.clearance');
+    Route::post('student-profile/physical-fitness/parq', [StudentPftResultController::class, 'storeParq'])
+        ->middleware('can:pft.submit')
+        ->name('student-profile.physical-fitness.parq.store');
+    Route::post('student-profile/physical-fitness/parq/{parq}/clearance', [StudentPftResultController::class, 'uploadParqMedicalClearance'])
+        ->middleware('can:pft.submit')
+        ->name('student-profile.physical-fitness.parq.clearance');
     Route::post('student-profile/physical-fitness/{testType}', [StudentPftResultController::class, 'store'])
         ->middleware('can:pft.submit')
         ->name('student-profile.physical-fitness.store');

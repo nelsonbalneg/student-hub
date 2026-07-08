@@ -13,6 +13,7 @@ import {
     Edit,
     ExternalLink,
     FileText,
+    FileCheck,
     GraduationCap,
     Home,
     IdCard,
@@ -219,6 +220,8 @@ const props = defineProps<{
         canFillUp: boolean;
         consentedTermIds: string[];
         questionnaireTermIds: string[];
+        unclearedQuestionnaireTermIds: string[];
+        parqs: any[];
         medicalConditions: string[];
     };
     ccdCares: {
@@ -264,6 +267,11 @@ const baseTabs = [
         id: 'physical-fitness-test',
         label: 'Physical Fitness Test',
         icon: Dumbbell,
+    },
+    {
+        id: 'par-q',
+        label: 'PAR-Q & Clearance',
+        icon: FileCheck,
     },
     {
         id: 'ccd-cares',
@@ -723,6 +731,7 @@ const localConsentedTermIds = ref<string[]>([...props.physicalFitness.consentedT
 const pftHealthModalOpen = ref(false);
 const pendingHealthTerm = ref<PftTerm | null>(null);
 const localQuestionnaireTermIds = ref<string[]>([...props.physicalFitness.questionnaireTermIds]);
+const localUnclearedQuestionnaireTermIds = ref<string[]>([...props.physicalFitness.unclearedQuestionnaireTermIds]);
 
 const pftConsentForm = useForm<{ term_id: string }>({
     term_id: '',
@@ -742,6 +751,8 @@ const pftHealthForm = useForm({
     alcohol_consumption: '',
     specific_conditions: [] as string[],
     other_condition: '',
+    medical_clearance: null as File | null,
+    declaration_agreed: false,
 });
 
 const hasConsentForTerm = (termId: string) =>
@@ -749,6 +760,9 @@ const hasConsentForTerm = (termId: string) =>
 
 const hasQuestionnaireForTerm = (termId: string) =>
     localQuestionnaireTermIds.value.includes(termId);
+
+const hasUnclearedQuestionnaireForTerm = (termId: string) =>
+    localUnclearedQuestionnaireTermIds.value.includes(termId);
 
 const handlePftTermAction = (term: PftTerm) => {
     if (
@@ -770,6 +784,22 @@ const handlePftTermAction = (term: PftTerm) => {
         pendingHealthTerm.value = term;
         pftHealthForm.term_id = term.term_id;
         pftHealthModalOpen.value = true;
+        return;
+    }
+
+    // The Health Questionnaire no longer blocks for medical clearance, as PAR-Q handles it.
+
+    const hasParq = props.physicalFitness.parqs.some(p => p.term_id === term.term_id);
+    if (!hasParq) {
+        openParqModal(term);
+        return;
+    }
+
+    const parq = props.physicalFitness.parqs.find(p => p.term_id === term.term_id);
+    const requiresParqClearance = parq && (parq.q1 || parq.q2 || parq.q3 || parq.q4 || parq.q5 || parq.q6 || parq.q7) && !parq.medical_clearance_path;
+    
+    if (requiresParqClearance) {
+        toast.error('You cannot take the physical fitness test because your PAR-Q requires medical clearance.');
         return;
     }
 
@@ -809,15 +839,20 @@ const cancelPftConsent = () => {
 
 const submitPftHealth = () => {
     pftHealthForm.post(pftHealthRoutes.store.url(), {
+        forceFormData: true,
         preserveScroll: true,
         preserveState: true,
         onSuccess: () => {
             localQuestionnaireTermIds.value.push(pftHealthForm.term_id);
+            if (pftHealthForm.has_medical_condition || pftHealthForm.has_medication) {
+                localUnclearedQuestionnaireTermIds.value.push(pftHealthForm.term_id);
+            }
             pftHealthModalOpen.value = false;
 
             if (pendingHealthTerm.value) {
-                openPftTermDrawer(pendingHealthTerm.value);
+                const term = pendingHealthTerm.value;
                 pendingHealthTerm.value = null;
+                handlePftTermAction(term);
             }
         },
         onError: (errors) => {
@@ -835,6 +870,105 @@ const cancelPftHealth = () => {
     pftHealthModalOpen.value = false;
     pendingHealthTerm.value = null;
     pftHealthForm.reset();
+};
+
+const pftClearanceModalOpen = ref(false);
+const pendingClearanceQuestionnaireId = ref<number | null>(null);
+const pftClearanceForm = useForm({
+    medical_clearance: null as File | null,
+});
+
+const parqModalOpen = ref(false);
+const pendingParqTerm = ref<PftTerm | null>(null);
+const parqForm = useForm({
+    term_id: '',
+    q1: false,
+    q2: false,
+    q3: false,
+    q4: false,
+    q5: false,
+    q6: false,
+    q7: false,
+    declaration_agreed: false,
+    medical_clearance: null as File | null,
+});
+
+const openParqModal = (term: PftTerm) => {
+    pendingParqTerm.value = term;
+    parqForm.reset();
+    parqForm.term_id = term.term_id;
+    parqModalOpen.value = true;
+};
+
+const cancelParq = () => {
+    parqModalOpen.value = false;
+    pendingParqTerm.value = null;
+    parqForm.reset();
+};
+
+const submitParq = () => {
+    parqForm.post(route('student-profile.physical-fitness.parq.store'), {
+        forceFormData: true,
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => {
+            parqModalOpen.value = false;
+            toast.success('PAR-Q saved successfully');
+
+            if (pendingParqTerm.value) {
+                const term = pendingParqTerm.value;
+                pendingParqTerm.value = null;
+
+                const requiresParqClearance =
+                    (parqForm.q1 || parqForm.q2 || parqForm.q3 || parqForm.q4 || parqForm.q5 || parqForm.q6 || parqForm.q7) && !parqForm.medical_clearance;
+
+                if (requiresParqClearance) {
+                    toast.error('You cannot take the physical fitness test because your PAR-Q requires medical clearance.');
+                } else {
+                    handlePftTermAction(term);
+                }
+            }
+        },
+        onError: (errors) => {
+            const firstError = Object.values(errors)[0];
+            toast.error(
+                typeof firstError === 'string'
+                    ? firstError
+                    : 'Unable to save PAR-Q.',
+            );
+        },
+    });
+};
+
+const openClearanceModal = (questionnaireId: number) => {
+    pendingClearanceQuestionnaireId.value = questionnaireId;
+    pftClearanceForm.reset();
+    pftClearanceModalOpen.value = true;
+};
+
+const submitPftClearance = () => {
+    if (!pendingClearanceQuestionnaireId.value) return;
+    
+    pftClearanceForm.post(
+        route('student-profile.physical-fitness.parq.clearance', {
+            parq: pendingClearanceQuestionnaireId.value
+        }),
+        {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                pftClearanceModalOpen.value = false;
+            },
+            onError: (errors) => {
+                const firstError = Object.values(errors)[0];
+                toast.error(
+                    typeof firstError === 'string'
+                        ? firstError
+                        : 'Unable to upload clearance.',
+                );
+            },
+        }
+    );
 };
 
 const pftSummaryModalOpen = ref(false);
@@ -5037,6 +5171,99 @@ watch(editMode, (val) => {
                                 </template>
                             </div>
 
+                            <!-- PAR-Q & Clearance Tab -->
+                            <div
+                                v-if="activeTab === 'par-q'"
+                                class="space-y-4 font-light"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h3 class="text-lg font-light text-slate-950 dark:text-white">PAR-Q Records</h3>
+                                        <p class="text-xs text-slate-500 dark:text-slate-400">Physical Activity Readiness Questionnaire</p>
+                                    </div>
+                                    <Button
+                                        v-if="physicalFitness.canFillUp && activePftTerm && !physicalFitness.parqs.some(p => p.term_id === activePftTerm?.term_id)"
+                                        size="sm"
+                                        class="bg-emerald-600 text-white hover:bg-emerald-700"
+                                        @click="openParqModal(activePftTerm)"
+                                    >
+                                        Answer PAR-Q for {{ activePftTerm.school_year }}
+                                    </Button>
+                                </div>
+
+                                <div
+                                    v-if="physicalFitness.parqs.length"
+                                    class="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 dark:divide-white/10 dark:border-white/10"
+                                >
+                                    <article
+                                        v-for="parq in physicalFitness.parqs"
+                                        :key="parq.id"
+                                        class="space-y-3 p-4"
+                                    >
+                                        <div class="flex items-start justify-between gap-2">
+                                            <div class="min-w-0">
+                                                <p class="text-sm font-bold text-slate-900 dark:text-white">
+                                                    Term ID: {{ parq.term_id }}
+                                                </p>
+                                                <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                                    Submitted: {{ new Date(parq.created_at).toLocaleDateString() }}
+                                                </p>
+                                            </div>
+                                            <span
+                                                v-if="parq.q1 || parq.q2 || parq.q3 || parq.q4 || parq.q5 || parq.q6 || parq.q7"
+                                                class="inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[9px] font-semibold border-amber-200/50 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300"
+                                            >
+                                                Clearance Required
+                                            </span>
+                                            <span
+                                                v-else
+                                                class="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200/50 bg-emerald-50 px-2 py-1 text-[9px] font-semibold text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300"
+                                            >
+                                                Cleared
+                                            </span>
+                                        </div>
+
+                                        <div class="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-white/5 dark:text-slate-300 space-y-1">
+                                            <p><strong>Heart Condition / Doctor Recommendation:</strong> {{ parq.q1 ? 'Yes' : 'No' }}</p>
+                                            <p><strong>Chest Pain During Activity:</strong> {{ parq.q2 ? 'Yes' : 'No' }}</p>
+                                            <p><strong>Chest Pain (Past Month):</strong> {{ parq.q3 ? 'Yes' : 'No' }}</p>
+                                            <p><strong>Dizziness / Loss of Consciousness:</strong> {{ parq.q4 ? 'Yes' : 'No' }}</p>
+                                            <p><strong>Bone/Joint Problem:</strong> {{ parq.q5 ? 'Yes' : 'No' }}</p>
+                                            <p><strong>Prescribed BP/Heart Drugs:</strong> {{ parq.q6 ? 'Yes' : 'No' }}</p>
+                                            <p><strong>Other Reason Not To Do Physical Activity:</strong> {{ parq.q7 ? 'Yes' : 'No' }}</p>
+                                        </div>
+
+                                        <div class="flex flex-col gap-2 mt-2">
+                                            <div v-if="parq.medical_clearance_path" class="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400">
+                                                <FileCheck class="size-4" />
+                                                <a :href="`/storage/${parq.medical_clearance_path}`" target="_blank" class="hover:underline">
+                                                    View Uploaded Clearance
+                                                </a>
+                                            </div>
+                                            <Button
+                                                v-if="parq.q1 || parq.q2 || parq.q3 || parq.q4 || parq.q5 || parq.q6 || parq.q7"
+                                                type="button"
+                                                size="sm"
+                                                class="w-full sm:w-auto self-start"
+                                                variant="outline"
+                                                @click="openClearanceModal(parq.id)"
+                                            >
+                                                {{ parq.medical_clearance_path ? 'Update Clearance Document' : 'Upload Clearance Document' }}
+                                            </Button>
+                                        </div>
+                                    </article>
+                                </div>
+                                <div
+                                    v-else
+                                    class="flex min-h-[240px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-200 p-6 text-center dark:border-white/10"
+                                >
+                                    <FileCheck class="size-9 text-slate-300" />
+                                    <p class="text-sm font-light text-slate-900 dark:text-white">
+                                        No PAR-Q records found
+                                    </p>
+                                </div>
+                            </div>
+
                             <!-- CCD Cares Evaluation Tab -->
                             <div
                                 v-if="activeTab === 'ccd-cares'"
@@ -8100,7 +8327,43 @@ watch(editMode, (val) => {
                 </div>
             </div>
 
-            <DialogFooter class="flex flex-col gap-2 sm:flex-row">
+            <div class="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                <h3 class="mb-2 font-semibold text-slate-800 dark:text-slate-200">Result Interpretation</h3>
+                
+                <div v-if="pftHealthForm.has_medical_condition || pftHealthForm.has_medication" class="space-y-4">
+                    <div class="flex items-start space-x-3 text-amber-700 dark:text-amber-400">
+                        <AlertCircle class="mt-0.5 h-5 w-5 shrink-0" />
+                        <p class="text-sm font-medium leading-relaxed">
+                            Consult a physician or the school health personnel before participating in vigorous physical activity or physical fitness testing. Clearance may be required.
+                        </p>
+                    </div>
+                    <div class="space-y-2">
+                        <Label>Medical Clearance Upload (Optional / If Required)</Label>
+                        <Input type="file" accept=".pdf,.jpg,.jpeg,.png" @change="e => pftHealthForm.medical_clearance = (e.target as HTMLInputElement).files?.[0] || null" class="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer" />
+                        <p v-if="pftHealthForm.errors.medical_clearance" class="text-xs text-red-600">{{ pftHealthForm.errors.medical_clearance }}</p>
+                    </div>
+                </div>
+
+                <div v-else class="flex items-start space-x-3 text-emerald-700 dark:text-emerald-400">
+                    <CheckCircle2 class="mt-0.5 h-5 w-5 shrink-0" />
+                    <p class="text-sm font-medium leading-relaxed">
+                        You may participate in the physical fitness assessment.
+                    </p>
+                </div>
+            </div>
+
+            <div class="mt-6 space-y-3">
+                <h3 class="font-semibold text-slate-800 dark:text-slate-200">Student Declaration</h3>
+                <label class="flex items-start space-x-3 cursor-pointer">
+                    <input type="checkbox" v-model="pftHealthForm.declaration_agreed" class="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                    <span class="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                        I certify that the information I have provided is accurate and complete to the best of my knowledge. I understand that withholding or falsifying health information may lead to adverse health outcomes during physical activities.
+                    </span>
+                </label>
+                <p v-if="pftHealthForm.errors.declaration_agreed" class="text-xs text-red-600">{{ pftHealthForm.errors.declaration_agreed }}</p>
+            </div>
+
+            <DialogFooter class="flex flex-col gap-2 sm:flex-row mt-6">
                 <Button
                     type="button"
                     variant="outline"
@@ -8124,6 +8387,167 @@ watch(editMode, (val) => {
                     </template>
                 </Button>
             </DialogFooter>
+        </DialogContent>
+    </Dialog>
+    <Dialog
+        :open="pftClearanceModalOpen"
+        @update:open="
+            (val: boolean) => {
+                if (!val) pftClearanceModalOpen = false;
+            }
+        "
+    >
+        <DialogContent class="sm:max-w-[425px]">
+            <DialogHeader>
+                <DialogTitle>Upload Medical Clearance</DialogTitle>
+                <DialogDescription>
+                    Please upload a valid medical clearance document for your health condition.
+                </DialogDescription>
+            </DialogHeader>
+
+            <form @submit.prevent="submitPftClearance" class="space-y-4">
+                <div class="space-y-2">
+                    <Label for="clearance-file">Clearance Document (PDF/Image, max 5MB)</Label>
+                    <Input
+                        id="clearance-file"
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        @input="pftClearanceForm.medical_clearance = ($event.target as HTMLInputElement).files?.[0] || null"
+                    />
+                    <p
+                        v-if="pftClearanceForm.errors.medical_clearance"
+                        class="text-xs text-red-500"
+                    >
+                        {{ pftClearanceForm.errors.medical_clearance }}
+                    </p>
+                </div>
+
+                <DialogFooter>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        @click="pftClearanceModalOpen = false"
+                        :disabled="pftClearanceForm.processing"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        type="submit"
+                        :disabled="pftClearanceForm.processing || !pftClearanceForm.medical_clearance"
+                    >
+                        {{ pftClearanceForm.processing ? 'Uploading...' : 'Upload' }}
+                    </Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+    </Dialog>
+    <Dialog
+        :open="parqModalOpen"
+        @update:open="val => { if (!val) cancelParq(); }"
+    >
+        <DialogContent class="sm:max-w-[500px]">
+            <DialogHeader>
+                <DialogTitle>Physical Activity Readiness Questionnaire</DialogTitle>
+                <DialogDescription>
+                    Please answer the following questions to determine if you should consult a doctor before increasing your physical activity.
+                </DialogDescription>
+            </DialogHeader>
+
+            <form @submit.prevent="submitParq" class="space-y-4">
+                <div class="space-y-4 max-h-[50vh] overflow-y-auto pr-2">
+                    <div class="flex items-start space-x-2">
+                        <Checkbox id="q1" :checked="parqForm.q1" @update:checked="parqForm.q1 = $event" />
+                        <label for="q1" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            Has your doctor ever said that you have a heart condition and that you should only do physical activity recommended by a doctor?
+                        </label>
+                    </div>
+                    <div class="flex items-start space-x-2">
+                        <Checkbox id="q2" :checked="parqForm.q2" @update:checked="parqForm.q2 = $event" />
+                        <label for="q2" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            Do you feel pain in your chest when you do physical activity?
+                        </label>
+                    </div>
+                    <div class="flex items-start space-x-2">
+                        <Checkbox id="q3" :checked="parqForm.q3" @update:checked="parqForm.q3 = $event" />
+                        <label for="q3" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            In the past month, have you had chest pain when you were not doing physical activity?
+                        </label>
+                    </div>
+                    <div class="flex items-start space-x-2">
+                        <Checkbox id="q4" :checked="parqForm.q4" @update:checked="parqForm.q4 = $event" />
+                        <label for="q4" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            Do you lose your balance because of dizziness or do you ever lose consciousness?
+                        </label>
+                    </div>
+                    <div class="flex items-start space-x-2">
+                        <Checkbox id="q5" :checked="parqForm.q5" @update:checked="parqForm.q5 = $event" />
+                        <label for="q5" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            Do you have a bone or joint problem (for example, back, knee or hip) that could be made worse by a change in your physical activity?
+                        </label>
+                    </div>
+                    <div class="flex items-start space-x-2">
+                        <Checkbox id="q6" :checked="parqForm.q6" @update:checked="parqForm.q6 = $event" />
+                        <label for="q6" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            Is your doctor currently prescribing drugs (for example, water pills) for your blood pressure or heart condition?
+                        </label>
+                    </div>
+                    <div class="flex items-start space-x-2">
+                        <Checkbox id="q7" :checked="parqForm.q7" @update:checked="parqForm.q7 = $event" />
+                        <label for="q7" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            Do you know of any other reason why you should not do physical activity?
+                        </label>
+                    </div>
+                </div>
+                
+                <div
+                    v-if="parqForm.q1 || parqForm.q2 || parqForm.q3 || parqForm.q4 || parqForm.q5 || parqForm.q6 || parqForm.q7"
+                    class="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200"
+                >
+                    <p class="font-bold">Medical Clearance Required</p>
+                    <p class="mt-1 text-xs">Since you answered YES to one or more questions, you must consult a physician and upload a medical clearance before participating in the physical fitness test.</p>
+                    
+                    <div class="mt-3 space-y-2">
+                        <Label for="parq-clearance-file" class="text-xs">Upload Clearance Document (PDF/Image, max 5MB)</Label>
+                        <Input
+                            id="parq-clearance-file"
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            class="h-8 text-xs"
+                            @input="parqForm.medical_clearance = ($event.target as HTMLInputElement).files?.[0] || null"
+                        />
+                        <p v-if="parqForm.errors.medical_clearance" class="text-xs text-red-500">
+                            {{ parqForm.errors.medical_clearance }}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-start space-x-2 pt-2 border-t">
+                    <Checkbox id="parq-declare" :checked="parqForm.declaration_agreed" @update:checked="parqForm.declaration_agreed = $event" />
+                    <label for="parq-declare" class="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                        I have read, understood, and completed this questionnaire. Any questions I had were answered to my full satisfaction.
+                    </label>
+                </div>
+                <p v-if="parqForm.errors.declaration_agreed" class="text-xs text-red-500">
+                    You must agree to the declaration.
+                </p>
+
+                <DialogFooter>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        @click="cancelParq"
+                        :disabled="parqForm.processing"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        type="submit"
+                        :disabled="parqForm.processing || !parqForm.declaration_agreed || ((parqForm.q1 || parqForm.q2 || parqForm.q3 || parqForm.q4 || parqForm.q5 || parqForm.q6 || parqForm.q7) && !parqForm.medical_clearance)"
+                    >
+                        {{ parqForm.processing ? 'Saving...' : 'Save & Submit' }}
+                    </Button>
+                </DialogFooter>
+            </form>
         </DialogContent>
     </Dialog>
 </template>

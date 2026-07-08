@@ -100,6 +100,8 @@ class StudentPftResultController extends Controller
             'specific_conditions' => ['nullable', 'array'],
             'specific_conditions.*' => ['string', 'max:255'],
             'other_condition' => ['nullable', 'string', 'max:255'],
+            'declaration_agreed' => ['accepted'],
+            'medical_clearance' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
         ]);
 
         $termId = (string) $validated['term_id'];
@@ -115,21 +117,150 @@ class StudentPftResultController extends Controller
             ]);
         }
 
+        $medicalClearancePath = null;
+        if ($request->hasFile('medical_clearance')) {
+            $medicalClearancePath = $request->file('medical_clearance')->store('pft-clearances', 'public');
+        }
+
+        $dataToStore = Arr::except($validated, ['term_id', 'declaration_agreed', 'medical_clearance']);
+        if ($medicalClearancePath) {
+            $dataToStore['medical_clearance_path'] = $medicalClearancePath;
+        }
+
         PftHealthQuestionnaire::query()->updateOrCreate(
             [
                 'user_id' => $request->user()->id,
                 'term_id' => $termId,
             ],
-            Arr::except($validated, ['term_id'])
+            $dataToStore
         );
 
         Log::info('PFT health questionnaire recorded.', [
             'user_id' => $request->user()->id,
             'term_id' => $termId,
+            'medical_clearance_uploaded' => (bool)$medicalClearancePath,
         ]);
 
         return to_route('student-profile.index')
             ->with('success', 'Health questionnaire recorded.');
+    }
+
+    public function uploadMedicalClearance(Request $request, PftHealthQuestionnaire $questionnaire): RedirectResponse
+    {
+        $request->user()->can('pft.submit') || abort(403);
+
+        if ($questionnaire->user_id !== $request->user()->id) {
+            abort(403, 'Unauthorized access to this health questionnaire.');
+        }
+
+        $request->validate([
+            'medical_clearance' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+        ]);
+
+        if ($request->hasFile('medical_clearance')) {
+            $path = $request->file('medical_clearance')->store('pft-clearances', 'public');
+            
+            $questionnaire->update([
+                'medical_clearance_path' => $path,
+            ]);
+
+            Log::info('PFT medical clearance uploaded via separate endpoint.', [
+                'user_id' => $request->user()->id,
+                'term_id' => $questionnaire->term_id,
+                'questionnaire_id' => $questionnaire->id,
+            ]);
+        }
+
+        return to_route('student-profile.index')->with('success', 'Medical clearance uploaded successfully.');
+    }
+
+    public function uploadParqMedicalClearance(Request $request, \App\Models\PftParq $parq): RedirectResponse
+    {
+        $request->user()->can('pft.submit') || abort(403);
+
+        if ($parq->user_id !== $request->user()->id) {
+            abort(403, 'Unauthorized access to this PAR-Q record.');
+        }
+
+        $request->validate([
+            'medical_clearance' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+        ]);
+
+        if ($request->hasFile('medical_clearance')) {
+            $path = $request->file('medical_clearance')->store('pft-clearances', 'public');
+            
+            $parq->update([
+                'medical_clearance_path' => $path,
+            ]);
+
+            Log::info('PFT PAR-Q medical clearance uploaded via separate endpoint.', [
+                'user_id' => $request->user()->id,
+                'term_id' => $parq->term_id,
+                'parq_id' => $parq->id,
+            ]);
+        }
+
+        return to_route('student-profile.index')->with('success', 'Medical clearance uploaded successfully.');
+    }
+
+    public function storeParq(Request $request): RedirectResponse
+    {
+        $request->user()->can('pft.submit') || abort(403);
+
+        $validated = $request->validate([
+            'term_id' => ['required', 'string'],
+            'q1' => ['required', 'boolean'],
+            'q2' => ['required', 'boolean'],
+            'q3' => ['required', 'boolean'],
+            'q4' => ['required', 'boolean'],
+            'q5' => ['required', 'boolean'],
+            'q6' => ['required', 'boolean'],
+            'q7' => ['required', 'boolean'],
+            'declaration_agreed' => ['accepted'],
+            'medical_clearance' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+        ]);
+
+        $termId = (string) $validated['term_id'];
+        $termExists = SiteAcademicTerm::query()
+            ->where('term_id', $termId)
+            ->where('status', 'Active')
+            ->whereHas('campus', fn ($query) => $query->where('real_campus_id', (string) $request->user()->campus_id))
+            ->exists();
+
+        if (! $termExists) {
+            throw ValidationException::withMessages([
+                'term_id' => 'The selected academic term is not active for your campus.',
+            ]);
+        }
+
+        $medicalClearancePath = null;
+        if ($request->hasFile('medical_clearance')) {
+            $medicalClearancePath = $request->file('medical_clearance')->store('pft-clearances', 'public');
+        }
+
+        $dataToStore = Arr::except($validated, ['term_id', 'declaration_agreed', 'medical_clearance']);
+        $dataToStore['declaration_agreed'] = true;
+        
+        if ($medicalClearancePath) {
+            $dataToStore['medical_clearance_path'] = $medicalClearancePath;
+        }
+
+        \App\Models\PftParq::query()->updateOrCreate(
+            [
+                'user_id' => $request->user()->id,
+                'term_id' => $termId,
+            ],
+            $dataToStore
+        );
+
+        Log::info('PFT PAR-Q recorded.', [
+            'user_id' => $request->user()->id,
+            'term_id' => $termId,
+            'medical_clearance_uploaded' => (bool)$medicalClearancePath,
+        ]);
+
+        return to_route('student-profile.index')
+            ->with('success', 'PAR-Q recorded successfully.');
     }
 
     public function store(
@@ -167,6 +298,17 @@ class StudentPftResultController extends Controller
         if (! $hasQuestionnaire) {
             throw ValidationException::withMessages([
                 'term_id' => 'You must complete the health questionnaire before submitting results for this term.',
+            ]);
+        }
+
+        $hasParq = \App\Models\PftParq::query()
+            ->where('user_id', $request->user()->id)
+            ->where('term_id', $submittedTermId)
+            ->exists();
+
+        if (! $hasParq) {
+            throw ValidationException::withMessages([
+                'term_id' => 'You must complete the PAR-Q before submitting results for this term.',
             ]);
         }
 
