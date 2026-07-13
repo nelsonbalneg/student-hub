@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import FitnessIntelligenceSidebar from '@/components/FitnessIntelligenceSidebar.vue';
+import AppearanceToggle from '@/components/AppearanceToggle.vue';
 import * as physicalFitnessPermissionRoutes from '@/routes/site-settings/student-profile/physical-fitness-permission';
 import conditionRoutes from '@/routes/site-settings/medical-conditions';
 
@@ -105,6 +106,12 @@ const props = defineProps<{
         enabled: boolean;
         permission: string;
         options: Array<{ label: string; value: string }>;
+    };
+    branding: {
+        fitness_intelligence_name: string | null;
+        fitness_intelligence_tagline: string | null;
+        fitness_intelligence_logo: string | null;
+        fitness_intelligence_logo_url: string | null;
     };
     can: { create: boolean; update: boolean; delete: boolean; managePhysicalFitnessPermission?: boolean };
 }>();
@@ -226,10 +233,47 @@ const physicalFitnessForm = useForm({
     permission: props.physicalFitnessSetting.permission,
 });
 
+const brandingForm = useForm({
+    fitness_intelligence_name: props.branding.fitness_intelligence_name || 'Fitness Intelligence',
+    fitness_intelligence_tagline: props.branding.fitness_intelligence_tagline || 'Physical Fitness & Health Assessment Analytics',
+    fitness_intelligence_logo: null as File | null,
+    remove_fitness_intelligence_logo: false,
+});
+
+const selectedLogoPreview = ref<string | null>(null);
+
 const submitPhysicalFitnessPermission = () => {
     physicalFitnessForm.patch(physicalFitnessPermissionRoutes.update.url(), {
         preserveScroll: true,
         preserveState: true,
+    });
+};
+
+const handleBrandingLogo = (event: Event) => {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+
+    brandingForm.fitness_intelligence_logo = file;
+    brandingForm.remove_fitness_intelligence_logo = false;
+    selectedLogoPreview.value = file ? URL.createObjectURL(file) : null;
+};
+
+const removeBrandingLogo = () => {
+    brandingForm.fitness_intelligence_logo = null;
+    brandingForm.remove_fitness_intelligence_logo = true;
+    selectedLogoPreview.value = null;
+};
+
+const submitFitnessBranding = () => {
+    brandingForm.post('/admin/site-settings/physical-fitness/configuration/site-settings', {
+        forceFormData: true,
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => {
+            brandingForm.fitness_intelligence_logo = null;
+            brandingForm.remove_fitness_intelligence_logo = false;
+            selectedLogoPreview.value = null;
+        },
     });
 };
 
@@ -586,6 +630,7 @@ defineOptions({
                         </p>
                     </div>
                     <div class="flex items-center gap-2">
+                        <AppearanceToggle />
                         <button v-if="settingsVerticalTab === 'general' && can.create" type="button"
                             class="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 text-xs font-bold text-white hover:bg-blue-700"
                             @click="openComponent()">
@@ -638,10 +683,116 @@ defineOptions({
                         >
                             Student Access
                         </button>
+                        <button
+                            type="button"
+                            @click="settingsVerticalTab = 'site-settings'"
+                            :class="[
+                                settingsVerticalTab === 'site-settings' ? 'text-blue-700 font-bold bg-white shadow-sm border border-slate-200/60 dark:bg-white/5 dark:text-blue-400 dark:border-white/10' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white border border-transparent',
+                                'flex w-full text-left text-sm transition-all rounded-md px-3 py-2 shrink-0'
+                            ]"
+                        >
+                            Site Settings
+                        </button>
                     </nav>
                 </aside>
 
                 <main class="min-h-0 flex-1 overflow-y-auto p-4 lg:p-8 bg-white dark:bg-slate-950">
+                    <section v-if="settingsVerticalTab === 'site-settings'" class="flex flex-col gap-6">
+                        <form class="max-w-4xl rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950" @submit.prevent="submitFitnessBranding">
+                            <div class="border-b border-slate-100 p-6 dark:border-white/10">
+                                <h2 class="text-lg font-bold text-slate-900 dark:text-white">Fitness Intelligence Site Settings</h2>
+                                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                                    Configure the logo, name, and tagline shown in the Fitness Intelligence sidebar.
+                                </p>
+                            </div>
+
+                            <div class="grid gap-6 p-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+                                <div>
+                                    <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Preview</p>
+                                    <div class="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                                        <div class="flex items-center gap-3">
+                                            <div class="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white text-blue-600 ring-1 ring-slate-200">
+                                                <img
+                                                    v-if="selectedLogoPreview || (!brandingForm.remove_fitness_intelligence_logo && branding.fitness_intelligence_logo_url)"
+                                                    :src="selectedLogoPreview || branding.fitness_intelligence_logo_url || ''"
+                                                    alt="Fitness Intelligence logo preview"
+                                                    class="h-full w-full object-cover"
+                                                />
+                                                <span v-else class="text-lg font-black">USM</span>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <p class="truncate text-base font-bold text-slate-950 dark:text-white">
+                                                    {{ brandingForm.fitness_intelligence_name || 'Fitness Intelligence' }}
+                                                </p>
+                                                <p class="text-xs leading-5 text-slate-500 dark:text-slate-300">
+                                                    {{ brandingForm.fitness_intelligence_tagline || 'Physical Fitness & Health Assessment Analytics' }}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-5">
+                                    <label class="block">
+                                        <span class="text-xs font-bold text-slate-600 dark:text-slate-300">Logo</span>
+                                        <input
+                                            type="file"
+                                            accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                                            class="mt-1 block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100 dark:border-white/10 dark:bg-slate-950 dark:text-slate-300 dark:file:bg-blue-500/10 dark:file:text-blue-300"
+                                            @change="handleBrandingLogo"
+                                        />
+                                        <p v-if="brandingForm.errors.fitness_intelligence_logo" class="mt-1 text-xs text-red-600">
+                                            {{ brandingForm.errors.fitness_intelligence_logo }}
+                                        </p>
+                                    </label>
+
+                                    <button
+                                        v-if="branding.fitness_intelligence_logo_url || selectedLogoPreview"
+                                        type="button"
+                                        class="inline-flex h-8 items-center rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+                                        @click="removeBrandingLogo"
+                                    >
+                                        Remove Logo
+                                    </button>
+
+                                    <label class="block">
+                                        <span class="text-xs font-bold text-slate-600 dark:text-slate-300">Name</span>
+                                        <Input
+                                            v-model="brandingForm.fitness_intelligence_name"
+                                            class="mt-1"
+                                            placeholder="Fitness Intelligence"
+                                        />
+                                        <p v-if="brandingForm.errors.fitness_intelligence_name" class="mt-1 text-xs text-red-600">
+                                            {{ brandingForm.errors.fitness_intelligence_name }}
+                                        </p>
+                                    </label>
+
+                                    <label class="block">
+                                        <span class="text-xs font-bold text-slate-600 dark:text-slate-300">Tagline</span>
+                                        <Input
+                                            v-model="brandingForm.fitness_intelligence_tagline"
+                                            class="mt-1"
+                                            placeholder="Physical Fitness & Health Assessment Analytics"
+                                        />
+                                        <p v-if="brandingForm.errors.fitness_intelligence_tagline" class="mt-1 text-xs text-red-600">
+                                            {{ brandingForm.errors.fitness_intelligence_tagline }}
+                                        </p>
+                                    </label>
+
+                                    <div class="flex justify-end">
+                                        <button
+                                            type="submit"
+                                            class="inline-flex h-10 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-bold text-white shadow-sm shadow-blue-600/20 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                            :disabled="brandingForm.processing"
+                                        >
+                                            Save Site Settings
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </section>
+
                     <section v-if="settingsVerticalTab === 'permissions'" class="flex flex-col gap-6">
                         <div class="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950 max-w-3xl overflow-hidden">
                             <div class="flex items-center justify-between border-b border-slate-100 p-6 dark:border-white/5">

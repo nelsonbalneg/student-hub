@@ -164,78 +164,18 @@ class PftResultController extends Controller
     public function comparativeAnalyticsData(Request $request): JsonResponse
     {
         $filters = $this->analyticsFilters($request);
-        if (!$filters['campus_id'] || !$filters['term_id']) {
+        if (! ($filters['campus_id'] ?? null) || ! ($filters['term_id'] ?? null)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Please select a campus and academic term.',
             ]);
         }
 
-        // --- Mock foundational data for the UI ---
-        // Once the UI is built, this data structure will be populated dynamically from the DB or a Python microservice via API.
+        $rows = $this->filteredAnalyticsQuery($filters)
+            ->with(['testType.category.component'])
+            ->get();
 
-        $data = [
-            'filters' => $filters,
-            'summary' => [
-                'total_campuses' => 5,
-                'total_colleges' => 12,
-                'total_programs' => 67,
-                'average_fitness_index' => 72.8,
-                'best_campus' => 'Main Campus',
-                'lowest_campus' => "M'lang",
-                'highest_growth' => 'College of Engineering'
-            ],
-            'campus_comparison' => [
-                'labels' => ['Main', 'PALMA', 'KCC', "M'lang", 'Antipas'],
-                'fitness_index' => [75, 71, 70, 68, 72],
-                'participation' => [85, 80, 82, 75, 78],
-                'bmi' => [23.5, 24.1, 23.8, 25.2, 24.5]
-            ],
-            'college_comparison' => [
-                // We'll map real colleges if selected, else mock
-                ['name' => 'College of Engineering', 'students' => 1200, 'participation' => 95, 'fitness_index' => 78, 'bmi' => 22.5, 'rank' => 1],
-                ['name' => 'College of Arts', 'students' => 800, 'participation' => 88, 'fitness_index' => 74, 'bmi' => 24.1, 'rank' => 2],
-                ['name' => 'College of Agriculture', 'students' => 600, 'participation' => 92, 'fitness_index' => 76, 'bmi' => 23.8, 'rank' => 3],
-            ],
-            'demographics' => [
-                'male' => [
-                    'bmi' => 24.5,
-                    'push_up' => 35,
-                    'curl_up' => 40
-                ],
-                'female' => [
-                    'bmi' => 23.2,
-                    'push_up' => 20,
-                    'curl_up' => 38
-                ]
-            ],
-            'ai_insights' => [
-                'Main Campus consistently performs higher in Cardio.',
-                'College of Agriculture shows strongest endurance.',
-                'Female students perform better in flexibility.',
-                'Reaction Time is the weakest component university-wide.'
-            ],
-            'bmi_distribution' => [
-                'labels' => ['Underweight', 'Normal', 'Overweight', 'Obese'],
-                'series' => [15, 55, 20, 10]
-            ],
-            'health_components' => [
-                'labels' => ['Body Composition', 'Flexibility', 'Cardiovascular', 'Muscular Strength', 'Muscular Endurance'],
-                'series' => [
-                    ['name' => 'Campus Average', 'data' => [75, 60, 80, 65, 70]],
-                    ['name' => 'Target', 'data' => [80, 80, 80, 80, 80]]
-                ]
-            ],
-            'performance_distribution' => [
-                'categories' => ['Main', 'PALMA', 'KCC', "M'lang", 'Antipas'],
-                'series' => [
-                    ['name' => 'Excellent', 'data' => [20, 15, 10, 5, 12]],
-                    ['name' => 'Good', 'data' => [40, 35, 30, 25, 38]],
-                    ['name' => 'Fair', 'data' => [30, 35, 40, 50, 35]],
-                    ['name' => 'Poor', 'data' => [10, 15, 20, 20, 15]]
-                ]
-            ]
-        ];
+        $data = $this->comparativeAnalyticsPayload($filters, $rows);
 
         return response()->json([
             'success' => true,
@@ -1049,6 +989,263 @@ class PftResultController extends Controller
             ->when($filters['sex'] ?? null, fn ($q, $v) => $q->where('student_pft_results.sex', $v))
             ->when($filters['test_type_id'] ?? null, fn ($q, $v) => $q->where('student_pft_results.pft_test_type_id', $v))
             ->when($filters['component_id'] ?? null, fn ($q, $v) => $q->whereHas('testType.category', fn ($sq) => $sq->where('pft_component_id', $v)));
+    }
+
+    private function comparativeAnalyticsPayload(array $filters, Collection $rows): array
+    {
+        $campusLabels = $this->drilldownLabels()['campuses'];
+        $collegeLabels = $this->drilldownLabels()['colleges'];
+        $campusComparison = $this->comparativeCampusComparison($rows, $campusLabels);
+        $collegeComparison = $this->comparativeCollegeComparison($rows, $collegeLabels);
+        $averageFitnessIndex = $rows->isEmpty() ? 0 : round((float) $rows->avg(fn (StudentPftResult $row): int => $this->pftScore($row)), 1);
+        $bestCampus = collect($campusComparison['rows'])->sortByDesc('fitness_index')->first();
+        $lowestCampus = collect($campusComparison['rows'])->sortBy('fitness_index')->first();
+        $highestCollege = collect($collegeComparison)->sortByDesc('fitness_index')->first();
+
+        return [
+            'filters' => $filters,
+            'summary' => [
+                'total_campuses' => $rows->pluck('campus_id')->filter()->unique()->count(),
+                'total_colleges' => $rows->pluck('college_id')->filter()->unique()->count(),
+                'total_programs' => $rows->pluck('section_id')->filter()->unique()->count(),
+                'average_fitness_index' => $averageFitnessIndex,
+                'best_campus' => $bestCampus['name'] ?? 'No records',
+                'lowest_campus' => $lowestCampus['name'] ?? 'No records',
+                'highest_growth' => $highestCollege['name'] ?? 'No records',
+            ],
+            'campus_comparison' => collect($campusComparison)->except('rows')->all(),
+            'college_comparison' => $collegeComparison,
+            'demographics' => $this->comparativeDemographics($rows),
+            'ai_insights' => $this->comparativeInsights($rows, $bestCampus, $lowestCampus, $highestCollege),
+            'bmi_distribution' => $this->comparativeBmiDistribution($rows),
+            'health_components' => $this->comparativeHealthComponents($rows),
+            'performance_distribution' => $this->comparativePerformanceDistribution($rows, $campusLabels),
+        ];
+    }
+
+    private function comparativeCampusComparison(Collection $rows, array $campusLabels): array
+    {
+        $items = $rows
+            ->groupBy(fn (StudentPftResult $row): string => (string) ($row->campus_id ?: 'unassigned'))
+            ->map(function (Collection $group, string $campusId) use ($campusLabels): array {
+                return [
+                    'name' => $campusLabels[$campusId] ?? ($campusId === 'unassigned' ? 'Unassigned Campus' : $campusId),
+                    'fitness_index' => $this->averagePftScore($group),
+                    'participation' => $this->participationRate($group),
+                    'bmi' => $this->averageBmi($group) ?? 0,
+                ];
+            })
+            ->values();
+
+        return [
+            'labels' => $items->pluck('name')->all(),
+            'fitness_index' => $items->pluck('fitness_index')->all(),
+            'participation' => $items->pluck('participation')->all(),
+            'bmi' => $items->pluck('bmi')->all(),
+            'rows' => $items->all(),
+        ];
+    }
+
+    private function comparativeCollegeComparison(Collection $rows, array $collegeLabels): array
+    {
+        return $rows
+            ->groupBy(fn (StudentPftResult $row): string => (string) ($row->college_id ?: 'unassigned'))
+            ->map(function (Collection $group, string $collegeId) use ($collegeLabels): array {
+                return [
+                    'name' => $collegeLabels[$collegeId] ?? ($collegeId === 'unassigned' ? 'Unassigned College' : $collegeId),
+                    'students' => $group->pluck('user_id')->unique()->count(),
+                    'participation' => $this->participationRate($group),
+                    'fitness_index' => $this->averagePftScore($group),
+                    'bmi' => $this->averageBmi($group) ?? 0,
+                ];
+            })
+            ->sortByDesc('fitness_index')
+            ->values()
+            ->map(function (array $row, int $index): array {
+                $row['rank'] = $index + 1;
+
+                return $row;
+            })
+            ->all();
+    }
+
+    private function comparativeDemographics(Collection $rows): array
+    {
+        $empty = ['bmi' => 0, 'push_up' => 0, 'curl_up' => 0];
+
+        return [
+            'male' => $this->demographicMetrics($rows->filter(fn (StudentPftResult $row): bool => Str::lower((string) $row->sex) === 'male')) ?: $empty,
+            'female' => $this->demographicMetrics($rows->filter(fn (StudentPftResult $row): bool => Str::lower((string) $row->sex) === 'female')) ?: $empty,
+        ];
+    }
+
+    private function demographicMetrics(Collection $rows): array
+    {
+        return [
+            'bmi' => $this->averageBmi($rows) ?? 0,
+            'push_up' => $this->averageResultForTestName($rows, ['push']),
+            'curl_up' => $this->averageResultForTestName($rows, ['curl']),
+        ];
+    }
+
+    private function comparativeBmiDistribution(Collection $rows): array
+    {
+        $labels = ['Underweight', 'Normal', 'Overweight', 'Obese'];
+        $counts = array_fill_keys($labels, 0);
+
+        $rows->each(function (StudentPftResult $row) use (&$counts): void {
+            $bmi = $this->bmiValue($row);
+            if ($bmi === null) {
+                return;
+            }
+
+            $label = match (true) {
+                $bmi < 18.5 => 'Underweight',
+                $bmi < 25 => 'Normal',
+                $bmi < 30 => 'Overweight',
+                default => 'Obese',
+            };
+
+            $counts[$label]++;
+        });
+
+        return [
+            'labels' => $labels,
+            'series' => array_values($counts),
+        ];
+    }
+
+    private function comparativeHealthComponents(Collection $rows): array
+    {
+        $components = $rows
+            ->groupBy(fn (StudentPftResult $row): string => $row->testType?->category?->component?->name ?? 'Uncategorized')
+            ->map(fn (Collection $group): float => $this->averagePftScore($group))
+            ->sortKeys();
+
+        return [
+            'labels' => $components->keys()->all(),
+            'series' => [
+                ['name' => 'Campus Average', 'data' => $components->values()->all()],
+                ['name' => 'Target', 'data' => $components->map(fn (): int => 80)->values()->all()],
+            ],
+        ];
+    }
+
+    private function comparativePerformanceDistribution(Collection $rows, array $campusLabels): array
+    {
+        $buckets = ['Excellent', 'Good', 'Fair', 'Poor'];
+        $grouped = $rows->groupBy(fn (StudentPftResult $row): string => (string) ($row->campus_id ?: 'unassigned'));
+        $categories = $grouped
+            ->keys()
+            ->map(fn (string $campusId): string => $campusLabels[$campusId] ?? ($campusId === 'unassigned' ? 'Unassigned Campus' : $campusId))
+            ->values()
+            ->all();
+
+        return [
+            'categories' => $categories,
+            'series' => collect($buckets)->map(fn (string $bucket): array => [
+                'name' => $bucket,
+                'data' => $grouped
+                    ->map(fn (Collection $group): int => $group->filter(fn (StudentPftResult $row): bool => $this->performanceBucket($row) === $bucket)->count())
+                    ->values()
+                    ->all(),
+            ])->all(),
+        ];
+    }
+
+    private function comparativeInsights(Collection $rows, ?array $bestCampus, ?array $lowestCampus, ?array $highestCollege): array
+    {
+        if ($rows->isEmpty()) {
+            return ['No PFT result records matched the selected filters.'];
+        }
+
+        return array_values(array_filter([
+            isset($bestCampus['name']) ? "{$bestCampus['name']} has the highest fitness index in the selected records." : null,
+            isset($lowestCampus['name']) ? "{$lowestCampus['name']} has the lowest fitness index in the selected records." : null,
+            isset($highestCollege['name']) ? "{$highestCollege['name']} is the top ranked college by fitness index." : null,
+            'Average BMI is '.($this->averageBmi($rows) ?? 0).' across matched BMI records.',
+        ]));
+    }
+
+    private function averagePftScore(Collection $rows): float
+    {
+        return $rows->isEmpty() ? 0 : round((float) $rows->avg(fn (StudentPftResult $row): int => $this->pftScore($row)), 1);
+    }
+
+    private function pftScore(StudentPftResult $row): int
+    {
+        $color = Str::lower((string) $row->color_class);
+        if ($color) {
+            return match ($color) {
+                'emerald', 'green' => 100,
+                'lime' => 80,
+                'amber' => 55,
+                'orange' => 40,
+                'red', 'rose' => 20,
+                default => 50,
+            };
+        }
+
+        $classification = Str::lower((string) $row->classification);
+
+        return match (true) {
+            Str::contains($classification, ['excellent', 'very good']) => 100,
+            Str::contains($classification, ['good', 'normal']) => 80,
+            Str::contains($classification, ['average', 'fair']) => 55,
+            Str::contains($classification, ['poor', 'obese']) => 20,
+            default => 50,
+        };
+    }
+
+    private function participationRate(Collection $rows): int
+    {
+        $students = $rows->pluck('user_id')->filter()->unique()->count();
+        if ($students === 0) {
+            return 0;
+        }
+
+        $completed = $rows
+            ->filter(fn (StudentPftResult $row): bool => Str::lower((string) $row->status) === 'completed')
+            ->pluck('user_id')
+            ->unique()
+            ->count();
+
+        return (int) round(($completed / $students) * 100);
+    }
+
+    private function averageResultForTestName(Collection $rows, array $needles): float
+    {
+        $values = $rows
+            ->filter(function (StudentPftResult $row) use ($needles): bool {
+                $name = Str::lower((string) $row->testType?->name);
+
+                return collect($needles)->contains(fn (string $needle): bool => Str::contains($name, $needle));
+            })
+            ->map(fn (StudentPftResult $row): ?float => $this->primaryNumericResult($row))
+            ->filter(fn (?float $value): bool => $value !== null)
+            ->values();
+
+        return $values->isEmpty() ? 0 : round((float) $values->avg(), 1);
+    }
+
+    private function bmiValue(StudentPftResult $row): ?float
+    {
+        $data = json_decode($row->getRawOriginal('results_json'), true) ?? [];
+        $value = $data['bmi'] ?? null;
+
+        return is_numeric($value) ? (float) $value : null;
+    }
+
+    private function performanceBucket(StudentPftResult $row): string
+    {
+        $score = $this->pftScore($row);
+
+        return match (true) {
+            $score >= 90 => 'Excellent',
+            $score >= 70 => 'Good',
+            $score >= 45 => 'Fair',
+            default => 'Poor',
+        };
     }
 
     public function exportExcel(Request $request): StreamedResponse

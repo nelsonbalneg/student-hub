@@ -12,10 +12,15 @@ use App\Models\PftProcedure;
 use App\Models\PftTestType;
 use App\Models\SiteSetting;
 use App\Services\PhysicalFitnessPermissionService;
+use App\Services\SiteSettingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -26,6 +31,7 @@ class PhysicalFitnessConfigurationController extends Controller
 
     public function __construct(
         private readonly PhysicalFitnessPermissionService $physicalFitnessPermission,
+        private readonly SiteSettingService $siteSettings,
     ) {}
 
     public function index(Request $request): Response
@@ -60,6 +66,7 @@ class PhysicalFitnessConfigurationController extends Controller
                     ],
                 ],
             ],
+            'branding' => $this->siteSettings->branding(),
             'can' => [
                 'create' => request()->user()->can('pft.configuration.create'),
                 'update' => request()->user()->can('pft.configuration.update'),
@@ -71,6 +78,36 @@ class PhysicalFitnessConfigurationController extends Controller
                 ->paginate(10)
                 ->withQueryString(),
         ]);
+    }
+
+    public function updateSiteSettings(Request $request): RedirectResponse
+    {
+        $request->user()->can('pft.configuration.update') || abort(403);
+
+        $validated = $request->validate([
+            'fitness_intelligence_name' => ['required', 'string', 'max:120'],
+            'fitness_intelligence_tagline' => ['nullable', 'string', 'max:180'],
+            'fitness_intelligence_logo' => ['nullable', 'file', 'mimes:png,jpg,jpeg,svg,webp', 'max:3072'],
+            'remove_fitness_intelligence_logo' => ['nullable', 'boolean'],
+        ]);
+
+        $settings = $this->siteSettings->all();
+        $userId = $request->user()->id;
+
+        foreach (['fitness_intelligence_name', 'fitness_intelligence_tagline'] as $key) {
+            $this->siteSettings->set($key, $validated[$key] ?? null, 'string', $userId);
+        }
+
+        $this->syncFitnessLogo(
+            $request,
+            (bool) ($validated['remove_fitness_intelligence_logo'] ?? false),
+            $settings['fitness_intelligence_logo'] ?? null,
+            $userId,
+        );
+
+        return redirect()
+            ->route('site-settings.physical-fitness.configuration.index', ['tab' => 'site-settings'])
+            ->with('success', 'Fitness Intelligence site settings updated.');
     }
 
     public function storeComponent(Request $request): RedirectResponse
@@ -289,6 +326,43 @@ class PhysicalFitnessConfigurationController extends Controller
         DB::transaction(fn () => $procedure->delete());
 
         return to_route('site-settings.physical-fitness.configuration.index')->with('success', 'PFT procedure step deleted.');
+    }
+
+    private function syncFitnessLogo(Request $request, bool $remove, ?string $currentPath, int $userId): void
+    {
+        if ($request->hasFile('fitness_intelligence_logo')) {
+            $file = $request->file('fitness_intelligence_logo');
+
+            if ($file instanceof UploadedFile && $file->isValid()) {
+                $tempPath = $file->getPathname();
+
+                if (! $tempPath || ! file_exists($tempPath)) {
+                    throw ValidationException::withMessages([
+                        'fitness_intelligence_logo' => 'The uploaded logo could not be processed. Please try again or choose a different file.',
+                    ]);
+                }
+
+                $directory = 'branding/fitness-intelligence';
+                File::ensureDirectoryExists(Storage::disk('public')->path($directory));
+
+                $filename = Str::uuid()->toString().'.'.strtolower($file->getClientOriginalExtension() ?: 'png');
+                $file->move(Storage::disk('public')->path($directory), $filename);
+                $path = $directory.'/'.$filename;
+
+                $this->siteSettings->set('fitness_intelligence_logo', $path, 'file', $userId);
+
+                if ($currentPath) {
+                    Storage::disk('public')->delete($currentPath);
+                }
+            }
+
+            return;
+        }
+
+        if ($remove && $currentPath) {
+            Storage::disk('public')->delete($currentPath);
+            $this->siteSettings->set('fitness_intelligence_logo', null, 'file', $userId);
+        }
     }
 
     private function validateProcedure(Request $request): array

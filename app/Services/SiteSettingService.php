@@ -20,6 +20,9 @@ class SiteSettingService
             'site_footer_name' => 'ONE USM SSO Facility • Secure • Unified • Connected',
             'site_logo' => null,
             'site_favicon' => null,
+            'fitness_intelligence_name' => 'Fitness Intelligence',
+            'fitness_intelligence_tagline' => 'Physical Fitness & Health Assessment Analytics',
+            'fitness_intelligence_logo' => null,
         ];
     }
 
@@ -55,6 +58,7 @@ class SiteSettingService
             ...$settings,
             'site_logo_url' => $this->assetUrl($settings['site_logo']),
             'site_favicon_url' => $this->assetUrl($settings['site_favicon']) ?? '/favicon.png',
+            'fitness_intelligence_logo_url' => $this->assetUrl($settings['fitness_intelligence_logo']),
         ];
     }
 

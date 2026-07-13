@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import FitnessIntelligenceSidebar from '@/components/FitnessIntelligenceSidebar.vue';
+import AppearanceToggle from '@/components/AppearanceToggle.vue';
 
 const props = defineProps<{
     parqs: any;
@@ -158,17 +159,25 @@ const exportCSV = () => {
         <main id="parq" class="flex min-w-0 flex-1 flex-col gap-4 bg-slate-50/60 p-4 dark:bg-slate-950">
         <!-- 1. HEADER & KPI STATS -->
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-                <h1 class="text-lg font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <Activity class="h-5 w-5 text-blue-600" /> PFT PAR-Q Entries
-                </h1>
-                <p class="text-xs text-slate-500 mt-0.5">
-                    Review and verify student physical activity readiness questionnaires and medical clearances.
-                </p>
+            <div class="flex items-start justify-between gap-3 lg:block">
+                <div>
+                    <h1 class="text-lg font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <Activity class="h-5 w-5 text-blue-600" /> PFT PAR-Q Entries
+                    </h1>
+                    <p class="text-xs text-slate-500 mt-0.5">
+                        Review and verify student physical activity readiness questionnaires and medical clearances.
+                    </p>
+                </div>
+                <div class="lg:hidden">
+                    <AppearanceToggle />
+                </div>
             </div>
             
             <!-- Compact Statistic Cards -->
             <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex lg:items-center">
+                <div class="hidden lg:block">
+                    <AppearanceToggle />
+                </div>
                 <!-- Total Records -->
                 <div class="rounded-xl border border-slate-200 bg-white p-2 px-3 shadow-xs dark:border-white/10 dark:bg-slate-900 min-w-[100px] flex-1">
                     <div class="text-[9px] font-semibold uppercase tracking-wider text-slate-500">Total</div>

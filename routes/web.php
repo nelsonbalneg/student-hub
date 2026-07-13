@@ -690,6 +690,7 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                     Route::post('procedures', 'storeProcedure')->middleware('can:pft.configuration.create')->name('procedures.store');
                     Route::patch('procedures/{procedure}', 'updateProcedure')->middleware('can:pft.configuration.update')->name('procedures.update');
                     Route::delete('procedures/{procedure}', 'destroyProcedure')->middleware('can:pft.configuration.delete')->name('procedures.destroy');
+                    Route::post('site-settings', 'updateSiteSettings')->middleware('can:pft.configuration.update')->name('site-settings.update');
                 });
 
             Route::get('sar', fn () => Inertia::render('SiteSettings/Placeholder', ['title' => 'SAR']))->name('sar');

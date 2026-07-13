@@ -22,6 +22,7 @@ import VueApexCharts from 'vue3-apexcharts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import FitnessIntelligenceSidebar from '@/components/FitnessIntelligenceSidebar.vue';
+import AppearanceToggle from '@/components/AppearanceToggle.vue';
 import {
     data as pftData,
     exportExcel as pftExportExcel,
@@ -611,6 +612,7 @@ onMounted(() => {
                 </p>
             </div>
             <div class="flex flex-wrap gap-2 items-center">
+                <AppearanceToggle />
                 <Link
                     class="inline-flex items-center justify-center gap-1.5 h-8.5 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-medium shadow-xs transition duration-150 cursor-pointer"
                     href="/admin/reporting/pft-result/analytics"

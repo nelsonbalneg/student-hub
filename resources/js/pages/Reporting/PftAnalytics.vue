@@ -35,6 +35,7 @@ import {
 } from '@/routes/admin/reporting/pft-result/filter';
 import AsyncSelect from '@/components/AsyncSelect.vue';
 import FitnessIntelligenceSidebar from '@/components/FitnessIntelligenceSidebar.vue';
+import AppearanceToggle from '@/components/AppearanceToggle.vue';
 import { useAppearance } from '@/composables/useAppearance';
 
 type SelectOption = { id: string; text: string };
@@ -1792,20 +1793,7 @@ onMounted(() => {
                     </div>
 
                     <div class="flex items-center gap-2">
-                        <Link
-                            class="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-                            href="/admin/reporting/pft-result"
-                        >
-                            <ChevronLeft class="h-4 w-4" /> Back
-                        </Link>
-                        
-                        <Link
-                            :href="`/admin/reporting/pft-result/analytics/comparative?campus_id=${campusId}&term_id=${termId}`"
-                            class="hidden items-center gap-2 rounded-xl bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-100 md:flex border border-indigo-200"
-                        >
-                            <Layers class="h-4 w-4" /> Comparative Analytics
-                        </Link>
-                        
+                        <AppearanceToggle />
                         <a
                             v-if="apiData && canExport"
                             class="hidden items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 md:flex"

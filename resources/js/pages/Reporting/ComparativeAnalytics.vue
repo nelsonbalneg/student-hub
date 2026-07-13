@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
 import { ref, onMounted, computed } from 'vue';
-import { 
+import {
     Activity, Dumbbell, Layers, Users, ChevronDown, ChevronRight, FileDown,
     ArrowLeft, BrainCircuit, RefreshCw, BarChart3, PieChart, Loader2
 } from 'lucide-vue-next';
 import VueApexCharts from 'vue3-apexcharts';
 import AsyncSelect from '@/components/AsyncSelect.vue';
 import FitnessIntelligenceSidebar from '@/components/FitnessIntelligenceSidebar.vue';
+import AppearanceToggle from '@/components/AppearanceToggle.vue';
 import { useAppearance } from '@/composables/useAppearance';
-import { 
+import {
     comparative,
-    comparativeData as getComparativeData 
+    comparativeData as getComparativeData
 } from '@/routes/admin/reporting/pft-result/analytics';
 import {
     campuses as filterCampuses,
@@ -236,7 +237,7 @@ const performanceStackedSeries = computed(() => apiData.value?.performance_distr
 <template>
     <Head title="Comparative Analytics" />
     <div class="pft-comparative-page min-h-screen font-sans bg-slate-50 text-slate-800 lg:flex dark:bg-slate-950 dark:text-slate-100">
-        
+
         <FitnessIntelligenceSidebar
             active="comparative"
             :campus-id="campusId"
@@ -259,13 +260,8 @@ const performanceStackedSeries = computed(() => apiData.value?.performance_distr
                     </div>
 
                     <div class="flex items-center gap-2">
-                        <Link
-                            class="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-                            :href="`/admin/reporting/pft-result/analytics?campus_id=${campusId}&term_id=${termId}`"
-                        >
-                            <ArrowLeft class="h-4 w-4" /> Back to Dashboard
-                        </Link>
-                        
+                        <AppearanceToggle />
+
                         <button class="hidden items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 md:flex">
                             <FileDown class="h-4 w-4" /> Export View
                         </button>
@@ -350,7 +346,7 @@ const performanceStackedSeries = computed(() => apiData.value?.performance_distr
 
         <!-- Main Dashboard Content -->
         <div class="p-4 sm:p-6 lg:px-8 space-y-8 pb-20">
-            
+
             <div v-if="loading" class="flex h-64 items-center justify-center">
                 <Loader2 class="h-8 w-8 animate-spin text-blue-500" />
             </div>
@@ -499,7 +495,7 @@ const performanceStackedSeries = computed(() => apiData.value?.performance_distr
                         <div class="absolute -right-6 -top-6 text-indigo-100 opacity-50">
                             <BrainCircuit class="h-32 w-32" />
                         </div>
-                        
+
                         <div class="relative z-10 flex-1 flex flex-col">
                             <div class="flex items-center justify-between mb-6">
                                 <div class="flex items-center gap-2">
@@ -507,9 +503,9 @@ const performanceStackedSeries = computed(() => apiData.value?.performance_distr
                                     <h3 class="text-base font-bold text-indigo-900">AI Comparative Insights</h3>
                                 </div>
                             </div>
-                            
+
                             <ul class="space-y-4 flex-1">
-                                <li v-for="(insight, idx) in apiData.ai_insights" :key="idx" 
+                                <li v-for="(insight, idx) in apiData.ai_insights" :key="idx"
                                     class="flex items-start gap-3 bg-white/80 p-4 rounded-xl border border-indigo-100 shadow-sm backdrop-blur">
                                     <div class="mt-0.5 rounded-full bg-indigo-100 p-1">
                                         <Activity class="h-3 w-3 text-indigo-600" />
