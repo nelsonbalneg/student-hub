@@ -15,6 +15,7 @@ import {
     FileText,
     FileCheck,
     GraduationCap,
+    HelpCircle,
     Home,
     IdCard,
     Info,
@@ -55,6 +56,7 @@ import * as pftHealthRoutes from '@/routes/student-profile/physical-fitness/heal
 import * as trainingsRoutes from '@/routes/trainings';
 import { Heart } from 'lucide-vue-next';
 import * as ccdCaresEvaluationRoutes from '@/routes/student-profile/ccd-cares/evaluation';
+import * as parqRoutes from '@/routes/student-profile/physical-fitness/parq';
 
 const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
 
@@ -142,6 +144,14 @@ type PftInterpretationRule = {
     is_active: boolean;
 };
 
+type PftProcedure = {
+    id: number;
+    pft_test_type_id: number;
+    step_no: number;
+    description: string;
+    is_active: boolean;
+};
+
 type PftTestType = {
     id: number;
     name: string;
@@ -150,6 +160,7 @@ type PftTestType = {
     unit: string | null;
     configurations: PftConfiguration[];
     interpretation_rules: PftInterpretationRule[];
+    procedures: PftProcedure[];
 };
 
 type PftCategory = {
@@ -194,6 +205,27 @@ type PftRequirementRow = {
     result: PftResult | null;
 };
 
+type EvaluationTemplateStatement = {
+    id: number;
+    statement: string;
+    help_text: string | null;
+    statement_type: string;
+    is_required: boolean;
+    choices: Array<{ id: number; label: string; value: string }>;
+};
+
+type EvaluationTemplatePayload = {
+    id: number;
+    name: string;
+    description: string | null;
+    categories: Array<{
+        id: number | null;
+        name: string;
+        description: string | null;
+        statements: EvaluationTemplateStatement[];
+    }>;
+};
+
 const props = defineProps<{
     profile: {
         data: ProfileData | null;
@@ -223,6 +255,7 @@ const props = defineProps<{
         unclearedQuestionnaireTermIds: string[];
         parqs: any[];
         medicalConditions: string[];
+        parqTemplate: EvaluationTemplatePayload | null;
     };
     ccdCares: {
         assessments: Array<{
@@ -267,11 +300,6 @@ const baseTabs = [
         id: 'physical-fitness-test',
         label: 'Physical Fitness Test',
         icon: Dumbbell,
-    },
-    {
-        id: 'par-q',
-        label: 'PAR-Q & Clearance',
-        icon: FileCheck,
     },
     {
         id: 'ccd-cares',
@@ -544,6 +572,11 @@ watch(selectedPftCategoryId, () => {
         selectedPftCategory.value?.test_types[0]?.id ?? null;
 });
 
+const showProcedures = ref(false);
+watch(selectedPftTestTypeId, () => {
+    showProcedures.value = false;
+});
+
 const pftResultKey = (termId?: string | null, testTypeId?: number | null) =>
     termId && testTypeId ? `${termId}:${testTypeId}` : '';
 
@@ -730,8 +763,13 @@ const localConsentedTermIds = ref<string[]>([...props.physicalFitness.consentedT
 
 const pftHealthModalOpen = ref(false);
 const pendingHealthTerm = ref<PftTerm | null>(null);
+const pftHealthModalStep = ref<'health' | 'parq'>('health');
+const showParqPanel = ref(false);
 const localQuestionnaireTermIds = ref<string[]>([...props.physicalFitness.questionnaireTermIds]);
 const localUnclearedQuestionnaireTermIds = ref<string[]>([...props.physicalFitness.unclearedQuestionnaireTermIds]);
+const localParqTermIds = ref<string[]>(
+    props.physicalFitness.parqs.map((parq) => String(parq.term_id)),
+);
 
 const pftConsentForm = useForm<{ term_id: string }>({
     term_id: '',
@@ -752,7 +790,80 @@ const pftHealthForm = useForm({
     specific_conditions: [] as string[],
     other_condition: '',
     medical_clearance: null as File | null,
-    declaration_agreed: false,
+});
+
+const fallbackParqStatements: EvaluationTemplateStatement[] = [
+    {
+        id: 1,
+        statement:
+            'Has your doctor ever said that you have a heart condition and that you should only do physical activity recommended by a doctor?',
+        help_text: null,
+        statement_type: 'yes_no',
+        is_required: true,
+        choices: [],
+    },
+    {
+        id: 2,
+        statement: 'Do you feel pain in your chest when you do physical activity?',
+        help_text: null,
+        statement_type: 'yes_no',
+        is_required: true,
+        choices: [],
+    },
+    {
+        id: 3,
+        statement:
+            'In the past month, have you had chest pain when you were not doing physical activity?',
+        help_text: null,
+        statement_type: 'yes_no',
+        is_required: true,
+        choices: [],
+    },
+    {
+        id: 4,
+        statement:
+            'Do you lose your balance because of dizziness or do you ever lose consciousness?',
+        help_text: null,
+        statement_type: 'yes_no',
+        is_required: true,
+        choices: [],
+    },
+    {
+        id: 5,
+        statement:
+            'Do you have a bone or joint problem that could be made worse by a change in your physical activity?',
+        help_text: null,
+        statement_type: 'yes_no',
+        is_required: true,
+        choices: [],
+    },
+    {
+        id: 6,
+        statement:
+            'Is your doctor currently prescribing drugs for your blood pressure or heart condition?',
+        help_text: null,
+        statement_type: 'yes_no',
+        is_required: true,
+        choices: [],
+    },
+    {
+        id: 7,
+        statement:
+            'Do you know of any other reason why you should not do physical activity?',
+        help_text: null,
+        statement_type: 'yes_no',
+        is_required: true,
+        choices: [],
+    },
+];
+
+const parqTemplateStatements = computed(() => {
+    const statements =
+        props.physicalFitness.parqTemplate?.categories.flatMap(
+            (category) => category.statements,
+        ) ?? [];
+
+    return statements.length > 0 ? statements : fallbackParqStatements;
 });
 
 const hasConsentForTerm = (termId: string) =>
@@ -763,6 +874,9 @@ const hasQuestionnaireForTerm = (termId: string) =>
 
 const hasUnclearedQuestionnaireForTerm = (termId: string) =>
     localUnclearedQuestionnaireTermIds.value.includes(termId);
+
+const hasParqForTerm = (termId: string) =>
+    localParqTermIds.value.includes(String(termId));
 
 const handlePftTermAction = (term: PftTerm) => {
     if (
@@ -782,6 +896,7 @@ const handlePftTermAction = (term: PftTerm) => {
 
     if (!hasQuestionnaireForTerm(term.term_id)) {
         pendingHealthTerm.value = term;
+        pftHealthModalStep.value = 'health';
         pftHealthForm.term_id = term.term_id;
         pftHealthModalOpen.value = true;
         return;
@@ -789,17 +904,18 @@ const handlePftTermAction = (term: PftTerm) => {
 
     // The Health Questionnaire no longer blocks for medical clearance, as PAR-Q handles it.
 
-    const hasParq = props.physicalFitness.parqs.some(p => p.term_id === term.term_id);
-    if (!hasParq) {
+    if (!hasParqForTerm(term.term_id)) {
         openParqModal(term);
         return;
     }
 
     const parq = props.physicalFitness.parqs.find(p => p.term_id === term.term_id);
-    const requiresParqClearance = parq && (parq.q1 || parq.q2 || parq.q3 || parq.q4 || parq.q5 || parq.q6 || parq.q7) && !parq.medical_clearance_path;
     
-    if (requiresParqClearance) {
-        toast.error('You cannot take the physical fitness test because your PAR-Q requires medical clearance.');
+    if (parq && parq.clearance_status !== 'verified') {
+        const message = parq.clearance_status === 'pending_evaluation' 
+            ? 'Your PAR-Q medical clearance is pending evaluation by an administrator. You cannot take the test yet.'
+            : 'You cannot take the physical fitness test because your PAR-Q requires medical clearance.';
+        toast.error(message);
         return;
     }
 
@@ -843,16 +959,22 @@ const submitPftHealth = () => {
         preserveScroll: true,
         preserveState: true,
         onSuccess: () => {
-            localQuestionnaireTermIds.value.push(pftHealthForm.term_id);
-            if (pftHealthForm.has_medical_condition || pftHealthForm.has_medication) {
+            if (!localQuestionnaireTermIds.value.includes(pftHealthForm.term_id)) {
+                localQuestionnaireTermIds.value.push(pftHealthForm.term_id);
+            }
+            if (
+                (pftHealthForm.has_medical_condition || pftHealthForm.has_medication) &&
+                !localUnclearedQuestionnaireTermIds.value.includes(pftHealthForm.term_id)
+            ) {
                 localUnclearedQuestionnaireTermIds.value.push(pftHealthForm.term_id);
             }
-            pftHealthModalOpen.value = false;
+            parqForm.reset();
+            parqTemplateAnswers.value = {};
+            parqForm.term_id = pftHealthForm.term_id;
+            pftHealthModalStep.value = 'parq';
 
             if (pendingHealthTerm.value) {
-                const term = pendingHealthTerm.value;
-                pendingHealthTerm.value = null;
-                handlePftTermAction(term);
+                pendingParqTerm.value = pendingHealthTerm.value;
             }
         },
         onError: (errors) => {
@@ -868,8 +990,12 @@ const submitPftHealth = () => {
 
 const cancelPftHealth = () => {
     pftHealthModalOpen.value = false;
+    pftHealthModalStep.value = 'health';
     pendingHealthTerm.value = null;
+    pendingParqTerm.value = null;
     pftHealthForm.reset();
+    parqForm.reset();
+    parqTemplateAnswers.value = {};
 };
 
 const pftClearanceModalOpen = ref(false);
@@ -878,7 +1004,6 @@ const pftClearanceForm = useForm({
     medical_clearance: null as File | null,
 });
 
-const parqModalOpen = ref(false);
 const pendingParqTerm = ref<PftTerm | null>(null);
 const parqForm = useForm({
     term_id: '',
@@ -889,38 +1014,126 @@ const parqForm = useForm({
     q5: false,
     q6: false,
     q7: false,
-    declaration_agreed: false,
     medical_clearance: null as File | null,
 });
+
+const parqAnswerKeys = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7'] as const;
+const parqTemplateAnswers = ref<Record<number, boolean | string | string[]>>({});
+
+const isStoredParqQuestion = (index: number) => index < parqAnswerKeys.length;
+
+const parqAnswerFor = (index: number) =>
+    isStoredParqQuestion(index)
+        ? Boolean(parqForm[parqAnswerKeys[index]])
+        : Boolean(parqTemplateAnswers.value[parqTemplateStatements.value[index]?.id]);
+
+const setParqAnswer = (index: number, value: boolean) => {
+    if (isStoredParqQuestion(index)) {
+        parqForm[parqAnswerKeys[index]] = value;
+
+        return;
+    }
+
+    const statement = parqTemplateStatements.value[index];
+
+    if (statement) {
+        parqTemplateAnswers.value[statement.id] = value;
+    }
+};
+
+const toggleParqTemplateAnswer = (statementId: number, checked: boolean) => {
+    parqTemplateAnswers.value[statementId] = checked;
+};
+
+const parqTemplateAnswerMatches = (
+    statementId: number,
+    value: string | boolean,
+) => parqTemplateAnswers.value[statementId] === value;
+
+const setParqTemplateChoice = (
+    statementId: number,
+    value: string | boolean,
+) => {
+    parqTemplateAnswers.value[statementId] = value;
+};
+
+const parqTemplateCheckboxChecked = (statementId: number, value: string) => {
+    const current = parqTemplateAnswers.value[statementId];
+
+    return Array.isArray(current) && current.includes(value);
+};
+
+const toggleParqTemplateCheckbox = (
+    statementId: number,
+    value: string,
+    checked: boolean,
+) => {
+    const current = parqTemplateAnswers.value[statementId];
+    const selected = Array.isArray(current) ? current : [];
+
+    parqTemplateAnswers.value[statementId] = checked
+        ? [...selected, value]
+        : selected.filter((item) => item !== value);
+};
+
+const parqHasYesAnswer = computed(() =>
+    parqAnswerKeys.some((key) => Boolean(parqForm[key])),
+);
+
+const parqIsComplete = computed(() =>
+    parqTemplateStatements.value.every((statement, index) => {
+        if (!statement.is_required) return true;
+
+        if (isStoredParqQuestion(index)) {
+            return typeof parqForm[parqAnswerKeys[index]] === 'boolean';
+        }
+
+        const answer = parqTemplateAnswers.value[statement.id];
+
+        if (Array.isArray(answer)) {
+            return answer.length > 0;
+        }
+
+        return answer !== undefined && answer !== false && String(answer).trim() !== '';
+    }),
+);
 
 const openParqModal = (term: PftTerm) => {
     pendingParqTerm.value = term;
     parqForm.reset();
+    parqTemplateAnswers.value = {};
     parqForm.term_id = term.term_id;
-    parqModalOpen.value = true;
+    pftHealthModalStep.value = 'parq';
+    pftHealthModalOpen.value = true;
 };
 
 const cancelParq = () => {
-    parqModalOpen.value = false;
+    pftHealthModalOpen.value = false;
+    pftHealthModalStep.value = 'health';
     pendingParqTerm.value = null;
+    pendingHealthTerm.value = null;
     parqForm.reset();
+    parqTemplateAnswers.value = {};
 };
 
 const submitParq = () => {
-    parqForm.post(route('student-profile.physical-fitness.parq.store'), {
+    parqForm.post(parqRoutes.store.url(), {
         forceFormData: true,
         preserveScroll: true,
         preserveState: true,
         onSuccess: () => {
-            parqModalOpen.value = false;
+            if (!localParqTermIds.value.includes(parqForm.term_id)) {
+                localParqTermIds.value.push(parqForm.term_id);
+            }
+            pftHealthModalOpen.value = false;
+            pftHealthModalStep.value = 'health';
             toast.success('PAR-Q saved successfully');
 
             if (pendingParqTerm.value) {
                 const term = pendingParqTerm.value;
                 pendingParqTerm.value = null;
 
-                const requiresParqClearance =
-                    (parqForm.q1 || parqForm.q2 || parqForm.q3 || parqForm.q4 || parqForm.q5 || parqForm.q6 || parqForm.q7) && !parqForm.medical_clearance;
+                const requiresParqClearance = parqHasYesAnswer.value && !parqForm.medical_clearance;
 
                 if (requiresParqClearance) {
                     toast.error('You cannot take the physical fitness test because your PAR-Q requires medical clearance.');
@@ -1023,7 +1236,15 @@ const pftSummaryFields = computed(() => {
 });
 
 const pftPrimaryScore = (row: PftRequirementRow) => {
-    const rawScore = row.result?.results_json.score;
+    const rawScore =
+        row.result?.results_json.score ??
+        row.result?.results_json.distance_cm ??
+        row.result?.results_json.distance_m ??
+        row.result?.results_json.height_cm ??
+        row.result?.results_json.time_seconds ??
+        row.result?.results_json.heart_rate ??
+        row.result?.results_json.repetitions ??
+        row.result?.results_json.successful_catches;
 
     if (rawScore === null || rawScore === undefined || rawScore === '') {
         return null;
@@ -1066,7 +1287,7 @@ const pftResultInterpretation = (row?: PftRequirementRow | null) => {
     }
 
     if (
-        ['shuttle-run', '40-meter-sprint', 'stick-drop-test'].includes(
+        ['50-meter-sprint', 'hexagon-agility-test', 'ruler-drop-test'].includes(
             row.testType.slug,
         )
     ) {
@@ -1078,8 +1299,10 @@ const pftResultInterpretation = (row?: PftRequirementRow | null) => {
             'push-up-test',
             'curl-up-test',
             'standing-long-jump',
+            'vertical-jump-test',
+            'seated-medicine-ball-chest-pass-test',
+            'alternate-hand-wall-toss-test',
             'stork-balance-stand-test',
-            'juggling-test',
             'zipper-test',
             'sit-and-reach-test',
             '3-minute-step-test',
@@ -1605,6 +1828,13 @@ const interpretPftResults = (
     results: Record<string, any>,
 ) => {
     for (const rule of testType?.interpretation_rules ?? []) {
+        const ruleSex = rule.sex?.toLowerCase();
+        const userGender = props.profile.gender?.toLowerCase();
+
+        if (ruleSex && ruleSex !== userGender) {
+            continue;
+        }
+
         const rawValue = results[rule.field_name];
         const value = Number(rawValue);
 
@@ -3347,6 +3577,16 @@ watch(editMode, (val) => {
                                                 />
                                                 View My Analytics
                                             </Button>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                class="h-9 w-full border-emerald-200 bg-white px-4 text-xs font-light sm:w-auto dark:border-emerald-500/30 dark:bg-white/10 dark:hover:bg-emerald-500/10"
+                                                :class="showParqPanel ? 'text-emerald-700 bg-emerald-50 dark:text-emerald-300' : 'text-slate-600 dark:text-slate-300'"
+                                                @click="showParqPanel = !showParqPanel"
+                                            >
+                                                <FileCheck class="mr-2 h-4 w-4" />
+                                                PAR-Q &amp; Clearance
+                                            </Button>
                                         </div>
                                     </div>
 
@@ -3381,12 +3621,7 @@ watch(editMode, (val) => {
                                                             ·
                                                             {{ term.semester }}
                                                         </p>
-                                                        <p
-                                                            class="mt-0.5 truncate font-mono text-[10px] text-slate-500"
-                                                        >
-                                                            Term
-                                                            {{ term.term_id }}
-                                                        </p>
+
                                                     </div>
                                                     <span
                                                         class="inline-flex shrink-0 rounded-full px-2 py-1 text-[9px] font-light"
@@ -3451,24 +3686,31 @@ watch(editMode, (val) => {
                                                     </div>
                                                 </div>
 
+                                                <template v-if="physicalFitness.canFillUp && pftTermPendingCount(term.term_id) > 0">
+                                                    <div v-if="physicalFitness.parqs.find(p => p.term_id === term.term_id)?.clearance_status === 'pending_evaluation'" class="text-[10px] text-slate-500 dark:text-slate-400 italic font-medium text-center bg-slate-50 dark:bg-white/5 py-2 rounded-md">
+                                                        For Verification of the uploaded Medical Clearance
+                                                    </div>
+                                                    <div v-else-if="physicalFitness.parqs.find(p => p.term_id === term.term_id)?.clearance_status === 'pending'" class="text-[10px] text-amber-600 dark:text-amber-400 font-medium text-center bg-amber-50 dark:bg-amber-500/10 py-2 rounded-md">
+                                                        Clearance Required
+                                                    </div>
+                                                    <Button
+                                                        v-else
+                                                        type="button"
+                                                        size="sm"
+                                                        class="h-8 w-full bg-emerald-600 text-xs text-white hover:bg-emerald-700"
+                                                        @click="handlePftTermAction(term)"
+                                                    >
+                                                        {{ pftTermSavedCount(term.term_id) > 0 ? 'Open' : 'Fill Up' }}
+                                                    </Button>
+                                                </template>
                                                 <Button
+                                                    v-else
                                                     type="button"
                                                     size="sm"
                                                     class="h-8 w-full bg-emerald-600 text-xs text-white hover:bg-emerald-700"
                                                     @click="handlePftTermAction(term)"
                                                 >
-                                                    {{
-                                                        pftTermPendingCount(
-                                                            term.term_id,
-                                                        ) === 0 ||
-                                                        !physicalFitness.canFillUp
-                                                            ? 'View Summary'
-                                                            : pftTermSavedCount(
-                                                                    term.term_id,
-                                                                ) > 0
-                                                              ? 'Open'
-                                                              : 'Fill Up'
-                                                    }}
+                                                    View Summary
                                                 </Button>
                                             </article>
                                         </div>
@@ -3487,9 +3729,7 @@ watch(editMode, (val) => {
                                                         <th class="px-3 py-3">
                                                             Semester
                                                         </th>
-                                                        <th class="px-3 py-3">
-                                                            Term ID
-                                                        </th>
+
                                                         <th class="px-3 py-3">
                                                             Tests
                                                         </th>
@@ -3540,11 +3780,7 @@ watch(editMode, (val) => {
                                                         >
                                                             {{ term.semester }}
                                                         </td>
-                                                        <td
-                                                            class="px-3 py-3 font-mono text-xs text-slate-500"
-                                                        >
-                                                            {{ term.term_id }}
-                                                        </td>
+
                                                         <td
                                                             class="px-3 py-3 text-slate-600 dark:text-slate-300"
                                                         >
@@ -3588,25 +3824,31 @@ watch(editMode, (val) => {
                                                         <td
                                                             class="px-3 py-3 text-right"
                                                         >
+                                                            <template v-if="physicalFitness.canFillUp && pftTermPendingCount(term.term_id) > 0">
+                                                                <div v-if="physicalFitness.parqs.find(p => p.term_id === term.term_id)?.clearance_status === 'pending_evaluation'" class="text-[10px] text-slate-500 dark:text-slate-400 italic font-medium">
+                                                                    For Verification of the uploaded Medical Clearance
+                                                                </div>
+                                                                <div v-else-if="physicalFitness.parqs.find(p => p.term_id === term.term_id)?.clearance_status === 'pending'" class="text-[10px] text-amber-600 dark:text-amber-500 font-medium">
+                                                                    Clearance Required
+                                                                </div>
+                                                                <Button
+                                                                    v-else
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    class="h-8 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
+                                                                    @click="handlePftTermAction(term)"
+                                                                >
+                                                                    {{ pftTermSavedCount(term.term_id) > 0 ? 'Open' : 'Fill Up' }}
+                                                                </Button>
+                                                            </template>
                                                             <Button
+                                                                v-else
                                                                 type="button"
                                                                 size="sm"
                                                                 class="h-8 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
                                                                 @click="handlePftTermAction(term)"
                                                             >
-                                                                {{
-                                                                    pftTermPendingCount(
-                                                                        term.term_id,
-                                                                    ) === 0 ||
-                                                                    !physicalFitness.canFillUp
-                                                                        ? 'View Summary'
-                                                                        : pftTermSavedCount(
-                                                                                term.term_id,
-                                                                            ) >
-                                                                            0
-                                                                          ? 'Open'
-                                                                          : 'Fill Up'
-                                                                }}
+                                                                View Summary
                                                             </Button>
                                                         </td>
                                                     </tr>
@@ -4485,20 +4727,16 @@ watch(editMode, (val) => {
                                                             >
                                                         </h3>
                                                         <p
-                                                            class="text-xs font-light text-slate-500 dark:text-slate-400"
+                                                            class="mt-0.5 text-xs text-slate-500 dark:text-slate-400"
                                                         >
                                                             AY
                                                             {{
                                                                 selectedPftTerm.school_year
                                                             }}
                                                             ·
-                                                            {{
+                                                            <span class="font-medium text-slate-700 dark:text-slate-300">{{
                                                                 selectedPftTerm.semester
-                                                            }}
-                                                            · Term ID
-                                                            {{
-                                                                selectedPftTerm.term_id
-                                                            }}
+                                                            }}</span>
                                                         </p>
                                                     </div>
                                                     <Button
@@ -4909,26 +5147,55 @@ watch(editMode, (val) => {
                                                                 class="flex h-full flex-col"
                                                             >
                                                                 <div
-                                                                    class="mb-4"
+                                                                    class="mb-4 flex items-start justify-between"
                                                                 >
-                                                                    <h4
-                                                                        class="text-xs font-light tracking-wide text-slate-500 uppercase dark:text-slate-400"
+                                                                    <div>
+                                                                        <h4
+                                                                            class="text-xs font-light tracking-wide text-slate-500 uppercase dark:text-slate-400"
+                                                                        >
+                                                                            Configurations
+                                                                            ({{
+                                                                                selectedPftTestType.name
+                                                                            }})
+                                                                        </h4>
+                                                                        <p
+                                                                            class="mt-1 text-sm font-light text-slate-900 dark:text-white"
+                                                                        >
+                                                                            Fill up
+                                                                            the
+                                                                            scores
+                                                                            and
+                                                                            remarks.
+                                                                        </p>
+                                                                    </div>
+                                                                    <button
+                                                                        v-if="selectedPftTestType.description || (selectedPftTestType.procedures && selectedPftTestType.procedures.length)"
+                                                                        type="button"
+                                                                        title="View Procedures"
+                                                                        @click="showProcedures = !showProcedures"
+                                                                        class="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300 transition-colors"
                                                                     >
-                                                                        Configurations
-                                                                        ({{
-                                                                            selectedPftTestType.name
-                                                                        }})
-                                                                    </h4>
-                                                                    <p
-                                                                        class="mt-1 text-sm font-light text-slate-900 dark:text-white"
-                                                                    >
-                                                                        Fill up
-                                                                        the
-                                                                        scores
-                                                                        and
-                                                                        remarks.
-                                                                    </p>
+                                                                        <HelpCircle class="size-5" />
+                                                                    </button>
                                                                 </div>
+
+                                                                <div
+                                                                     v-if="showProcedures && (selectedPftTestType.description || (selectedPftTestType.procedures && selectedPftTestType.procedures.length))"
+                                                                     class="mb-4 rounded-lg border border-slate-100 bg-slate-50/50 p-3 text-xs dark:border-white/5 dark:bg-slate-900/30"
+                                                                 >
+                                                                     <div v-if="selectedPftTestType.description" class="mb-2">
+                                                                         <span class="font-semibold text-slate-700 dark:text-slate-300">Description:</span>
+                                                                         <p class="mt-0.5 text-slate-600 dark:text-slate-400 font-light">{{ selectedPftTestType.description }}</p>
+                                                                     </div>
+                                                                     <div v-if="selectedPftTestType.procedures && selectedPftTestType.procedures.length">
+                                                                         <span class="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Procedure:</span>
+                                                                         <ol class="list-decimal pl-4 space-y-1 text-slate-600 dark:text-slate-400 font-light">
+                                                                             <li v-for="step in selectedPftTestType.procedures.filter(p => p.is_active)" :key="step.id">
+                                                                                 {{ step.description }}
+                                                                             </li>
+                                                                         </ol>
+                                                                     </div>
+                                                                 </div>
 
                                                                 <form
                                                                     @submit.prevent="
@@ -5171,12 +5438,12 @@ watch(editMode, (val) => {
                                 </template>
                             </div>
 
-                            <!-- PAR-Q & Clearance Tab -->
+                            <!-- PAR-Q & Clearance Panel (inside Physical Fitness Test tab) -->
                             <div
-                                v-if="activeTab === 'par-q'"
+                                v-if="activeTab === 'physical-fitness-test' && showParqPanel"
                                 class="space-y-4 font-light"
                             >
-                                <div class="flex items-center justify-between">
+                                <div class="flex items-center justify-between mt-4">
                                     <div>
                                         <h3 class="text-lg font-light text-slate-950 dark:text-white">PAR-Q Records</h3>
                                         <p class="text-xs text-slate-500 dark:text-slate-400">Physical Activity Readiness Questionnaire</p>
@@ -5203,23 +5470,34 @@ watch(editMode, (val) => {
                                         <div class="flex items-start justify-between gap-2">
                                             <div class="min-w-0">
                                                 <p class="text-sm font-bold text-slate-900 dark:text-white">
-                                                    Term ID: {{ parq.term_id }}
+                                                    {{
+                                                        (() => {
+                                                            const term = physicalFitness.terms.find(t => String(t.term_id) === String(parq.term_id));
+                                                    return term ? `${term.school_year}, ${term.semester}` : `Term ${parq.term_id}`;
+                                                        })()
+                                                    }}
                                                 </p>
                                                 <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
                                                     Submitted: {{ new Date(parq.created_at).toLocaleDateString() }}
                                                 </p>
                                             </div>
                                             <span
-                                                v-if="parq.q1 || parq.q2 || parq.q3 || parq.q4 || parq.q5 || parq.q6 || parq.q7"
-                                                class="inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[9px] font-semibold border-amber-200/50 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300"
+                                                v-if="parq.clearance_status === 'verified'"
+                                                class="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200/50 bg-emerald-50 px-2 py-1 text-[9px] font-semibold text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300"
                                             >
-                                                Clearance Required
+                                                Verified
+                                            </span>
+                                            <span
+                                                v-else-if="parq.clearance_status === 'pending_evaluation'"
+                                                class="inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[9px] font-semibold border-blue-200/50 bg-blue-50 text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300"
+                                            >
+                                                Pending Evaluation
                                             </span>
                                             <span
                                                 v-else
-                                                class="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200/50 bg-emerald-50 px-2 py-1 text-[9px] font-semibold text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300"
+                                                class="inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[9px] font-semibold border-amber-200/50 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300"
                                             >
-                                                Cleared
+                                                Clearance Required
                                             </span>
                                         </div>
 
@@ -5241,7 +5519,7 @@ watch(editMode, (val) => {
                                                 </a>
                                             </div>
                                             <Button
-                                                v-if="parq.q1 || parq.q2 || parq.q3 || parq.q4 || parq.q5 || parq.q6 || parq.q7"
+                                                v-if="parq.clearance_status !== 'verified'"
                                                 type="button"
                                                 size="sm"
                                                 class="w-full sm:w-auto self-start"
@@ -7443,16 +7721,15 @@ watch(editMode, (val) => {
                     >
                         Physical Fitness Test
                     </p>
-                    <h3 class="mt-1 text-lg text-slate-950 dark:text-white">
+                    <h3 class="mt-1 text-lg font-medium text-slate-950 dark:text-white">
                         Summary
                     </h3>
                     <p
                         v-if="selectedPftSummaryTerm"
-                        class="text-xs text-slate-500 dark:text-slate-400"
+                        class="mt-1 text-xs text-slate-500 dark:text-slate-400"
                     >
                         AY {{ selectedPftSummaryTerm.school_year }} ·
-                        {{ selectedPftSummaryTerm.semester }} · Term ID
-                        {{ selectedPftSummaryTerm.term_id }}
+                        <span class="font-medium text-slate-700 dark:text-slate-300">{{ selectedPftSummaryTerm.semester }}</span>
                     </p>
                 </div>
                 <Button
@@ -7567,23 +7844,72 @@ watch(editMode, (val) => {
                             <article
                                 v-for="row in group.rows"
                                 :key="row.key"
-                                class="p-4"
+                                class="flex flex-col gap-4 p-4 transition-colors hover:bg-slate-50/50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-white/[0.02]"
                             >
-                                <div
-                                    class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
-                                >
-                                    <div class="min-w-0">
-                                        <p
-                                            class="truncate text-sm text-slate-950 dark:text-white"
+                                <div class="min-w-0 flex-1">
+                                    <p
+                                        class="text-sm font-medium text-slate-900 dark:text-white"
+                                    >
+                                        {{ row.testType.name }}
+                                    </p>
+                                    <div
+                                        class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400"
+                                    >
+                                        <span>{{ row.category.name }}</span>
+                                        <span
+                                            v-if="row.result?.tested_at"
+                                            class="hidden sm:inline"
+                                            >&bull;</span
                                         >
-                                            {{ row.testType.name }}
-                                        </p>
-                                        <p
-                                            class="mt-1 text-xs text-slate-500 dark:text-slate-400"
-                                        >
-                                            {{ row.category.name }}
-                                        </p>
+                                        <span v-if="row.result?.tested_at">
+                                            Tested {{ formatDate(row.result.tested_at) }}
+                                        </span>
                                     </div>
+                                </div>
+
+                                <div
+                                    class="mt-2 flex flex-wrap items-center gap-4 sm:mt-0 sm:gap-6"
+                                >
+                                    <div class="flex flex-col">
+                                        <span
+                                            class="text-[10px] tracking-wider text-slate-500 uppercase dark:text-slate-400"
+                                            >Score</span
+                                        >
+                                        <span
+                                            class="mt-0.5 text-sm font-medium text-slate-900 dark:text-white"
+                                        >
+                                            <template
+                                                v-if="
+                                                    pftPrimaryScore(row) !==
+                                                    null
+                                                "
+                                            >
+                                                {{ pftPrimaryScore(row)
+                                                }}<span
+                                                    v-if="row.testType.unit"
+                                                    class="ml-1 font-normal text-slate-500"
+                                                    >{{ row.testType.unit }}</span
+                                                >
+                                            </template>
+                                            <template v-else>-</template>
+                                        </span>
+                                    </div>
+
+                                    <div class="flex flex-col sm:max-w-[200px]">
+                                        <span
+                                            class="text-[10px] tracking-wider text-slate-500 uppercase dark:text-slate-400"
+                                            >Interpretation</span
+                                        >
+                                        <span
+                                            class="mt-0.5 text-sm font-medium text-emerald-600 dark:text-emerald-400"
+                                            :title="
+                                                pftResultInterpretation(row)
+                                            "
+                                        >
+                                            {{ pftResultInterpretation(row) }}
+                                        </span>
+                                    </div>
+
                                     <Button
                                         type="button"
                                         variant="outline"
@@ -7594,62 +7920,6 @@ watch(editMode, (val) => {
                                         View Details
                                     </Button>
                                 </div>
-
-                                <dl
-                                    class="mt-3 grid gap-3 text-xs sm:grid-cols-2"
-                                >
-                                    <div>
-                                        <dt
-                                            class="text-slate-500 dark:text-slate-400"
-                                        >
-                                            Tested at
-                                        </dt>
-                                        <dd
-                                            class="text-slate-900 dark:text-white"
-                                        >
-                                            {{
-                                                formatDate(
-                                                    row.result?.tested_at ??
-                                                        undefined,
-                                                )
-                                            }}
-                                        </dd>
-                                    </div>
-                                    <div>
-                                        <dt
-                                            class="text-slate-500 dark:text-slate-400"
-                                        >
-                                            Interpretation
-                                        </dt>
-                                        <dd
-                                            class="text-slate-900 dark:text-white"
-                                        >
-                                            {{ pftResultInterpretation(row) }}
-                                        </dd>
-                                    </div>
-                                    <div
-                                        v-for="field in row.testType
-                                            .configurations"
-                                        :key="`${row.key}:${field.id}`"
-                                    >
-                                        <dt
-                                            class="text-slate-500 dark:text-slate-400"
-                                        >
-                                            {{ field.field_label }}
-                                        </dt>
-                                        <dd
-                                            class="text-slate-900 dark:text-white"
-                                        >
-                                            {{
-                                                pftResultValue(
-                                                    row.result?.results_json[
-                                                        field.field_name
-                                                    ],
-                                                )
-                                            }}
-                                        </dd>
-                                    </div>
-                                </dl>
                             </article>
                         </div>
                     </section>
@@ -7985,8 +8255,7 @@ watch(editMode, (val) => {
                         <span class="text-slate-900 dark:text-white">
                             AY
                             {{ selectedPftSummaryRow.term.school_year }} ·
-                            {{ selectedPftSummaryRow.term.semester }} · Term ID
-                            {{ selectedPftSummaryRow.term.term_id }}
+                            <span class="font-medium">{{ selectedPftSummaryRow.term.semester }}</span>
                         </span>
                     </div>
                     <div class="grid gap-1 sm:grid-cols-[120px_1fr]">
@@ -8198,11 +8467,19 @@ watch(editMode, (val) => {
                     Health Questionnaire
                 </DialogTitle>
                 <DialogDescription class="text-sm text-slate-600 dark:text-slate-400">
-                    Please provide your updated health and socio-demographic information.
+                    <template v-if="pftHealthModalStep === 'health'">
+                        Please provide your updated health and socio-demographic information.
+                    </template>
+                    <template v-else>
+                        {{ physicalFitness.parqTemplate?.description || 'Please answer the PARQ questionnaire.' }}
+                    </template>
                 </DialogDescription>
             </DialogHeader>
 
-            <div class="space-y-6 py-4 text-sm text-slate-700 dark:text-slate-300">
+            <div
+                v-if="pftHealthModalStep === 'health'"
+                class="space-y-6 py-4 text-sm text-slate-700 dark:text-slate-300"
+            >
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div class="space-y-2">
                         <Label>Civil Status</Label>
@@ -8327,40 +8604,155 @@ watch(editMode, (val) => {
                 </div>
             </div>
 
-            <div class="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-                <h3 class="mb-2 font-semibold text-slate-800 dark:text-slate-200">Result Interpretation</h3>
-                
-                <div v-if="pftHealthForm.has_medical_condition || pftHealthForm.has_medication" class="space-y-4">
-                    <div class="flex items-start space-x-3 text-amber-700 dark:text-amber-400">
-                        <AlertCircle class="mt-0.5 h-5 w-5 shrink-0" />
-                        <p class="text-sm font-medium leading-relaxed">
-                            Consult a physician or the school health personnel before participating in vigorous physical activity or physical fitness testing. Clearance may be required.
+            <div
+                v-else
+                class="space-y-4 py-4 text-sm text-slate-700 dark:text-slate-300"
+            >
+                <div
+                    v-for="(statement, index) in parqTemplateStatements"
+                    :key="statement.id"
+                    class="rounded-lg border border-slate-200 p-4 dark:border-white/10"
+                >
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <p class="font-medium leading-relaxed text-slate-900 dark:text-slate-100">
+                                {{ statement.statement }}
+                                <span v-if="statement.is_required" class="text-red-500">*</span>
+                            </p>
+                            <p v-if="statement.help_text" class="mt-1 text-xs text-slate-500">
+                                {{ statement.help_text }}
+                            </p>
+                        </div>
+                    </div>
+                    <div v-if="isStoredParqQuestion(index)" class="mt-3 flex gap-2">
+                        <button
+                            type="button"
+                            class="rounded-lg border px-4 py-2 text-xs font-semibold transition"
+                            :class="
+                                parqAnswerFor(index)
+                                    ? 'border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                    : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5'
+                            "
+                            @click="setParqAnswer(index, true)"
+                        >
+                            Yes
+                        </button>
+                        <button
+                            type="button"
+                            class="rounded-lg border px-4 py-2 text-xs font-semibold transition"
+                            :class="
+                                !parqAnswerFor(index)
+                                    ? 'border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                    : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5'
+                            "
+                            @click="setParqAnswer(index, false)"
+                        >
+                            No
+                        </button>
+                    </div>
+                    <div
+                        v-else-if="statement.statement_type === 'checkbox'"
+                        class="mt-3 space-y-2"
+                    >
+                        <label
+                            v-for="choice in statement.choices"
+                            :key="choice.id"
+                            class="flex cursor-pointer items-center gap-3 rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
+                            :class="
+                                parqTemplateCheckboxChecked(statement.id, choice.value)
+                                    ? 'border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                    : ''
+                            "
+                        >
+                            <input
+                                type="checkbox"
+                                class="size-4 rounded border-slate-300 text-emerald-600 accent-emerald-600"
+                                :checked="parqTemplateCheckboxChecked(statement.id, choice.value)"
+                                @change="toggleParqTemplateCheckbox(statement.id, choice.value, ($event.target as HTMLInputElement).checked)"
+                            />
+                            {{ choice.label }}
+                        </label>
+                    </div>
+                    <div
+                        v-else-if="statement.statement_type === 'multiple_choice'"
+                        class="mt-3 space-y-2"
+                    >
+                        <button
+                            v-for="choice in statement.choices"
+                            :key="choice.id"
+                            type="button"
+                            class="flex w-full items-center gap-3 rounded-full border border-slate-200 px-4 py-2 text-left text-xs font-semibold transition hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
+                            :class="
+                                parqTemplateAnswerMatches(statement.id, choice.value)
+                                    ? 'border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                    : 'text-slate-700 dark:text-slate-200'
+                            "
+                            @click="setParqTemplateChoice(statement.id, choice.value)"
+                        >
+                            <span class="flex size-4 items-center justify-center rounded-full border border-slate-300">
+                                <span
+                                    v-if="parqTemplateAnswerMatches(statement.id, choice.value)"
+                                    class="size-2 rounded-full bg-emerald-600"
+                                />
+                            </span>
+                            {{ choice.label }}
+                        </button>
+                    </div>
+                    <div
+                        v-else-if="statement.statement_type === 'yes_no'"
+                        class="mt-3 flex gap-2"
+                    >
+                        <button
+                            v-for="choice in statement.choices"
+                            :key="choice.id"
+                            type="button"
+                            class="rounded-lg border px-4 py-2 text-xs font-semibold transition"
+                            :class="
+                                parqTemplateAnswerMatches(statement.id, choice.value)
+                                    ? 'border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                    : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5'
+                            "
+                            @click="setParqTemplateChoice(statement.id, choice.value)"
+                        >
+                            {{ choice.label }}
+                        </button>
+                    </div>
+                    <textarea
+                        v-else-if="statement.statement_type === 'text_answer' || statement.statement_type === 'long_answer'"
+                        v-model="parqTemplateAnswers[statement.id] as string"
+                        class="mt-3 min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"
+                    />
+                    <input
+                        v-else-if="statement.statement_type === 'short_answer' || statement.statement_type === 'numeric_score'"
+                        v-model="parqTemplateAnswers[statement.id] as string"
+                        class="mt-3 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-emerald-400 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"
+                    />
+                </div>
+
+                <div
+                    v-if="parqHasYesAnswer"
+                    class="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200"
+                >
+                    <p class="font-bold">Medical Clearance Required</p>
+                    <p class="mt-1 text-xs">
+                        Since you answered YES to one or more questions, you must consult a physician and upload a medical clearance before participating in the physical fitness test.
+                    </p>
+                    <div class="mt-3 space-y-2">
+                        <Label for="parq-clearance-file" class="text-xs">
+                            Upload Clearance Document (PDF/Image, max 5MB)
+                        </Label>
+                        <Input
+                            id="parq-clearance-file"
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            class="h-8 text-xs"
+                            @input="parqForm.medical_clearance = ($event.target as HTMLInputElement).files?.[0] || null"
+                        />
+                        <p v-if="parqForm.errors.medical_clearance" class="text-xs text-red-500">
+                            {{ parqForm.errors.medical_clearance }}
                         </p>
                     </div>
-                    <div class="space-y-2">
-                        <Label>Medical Clearance Upload (Optional / If Required)</Label>
-                        <Input type="file" accept=".pdf,.jpg,.jpeg,.png" @change="e => pftHealthForm.medical_clearance = (e.target as HTMLInputElement).files?.[0] || null" class="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer" />
-                        <p v-if="pftHealthForm.errors.medical_clearance" class="text-xs text-red-600">{{ pftHealthForm.errors.medical_clearance }}</p>
-                    </div>
                 </div>
-
-                <div v-else class="flex items-start space-x-3 text-emerald-700 dark:text-emerald-400">
-                    <CheckCircle2 class="mt-0.5 h-5 w-5 shrink-0" />
-                    <p class="text-sm font-medium leading-relaxed">
-                        You may participate in the physical fitness assessment.
-                    </p>
-                </div>
-            </div>
-
-            <div class="mt-6 space-y-3">
-                <h3 class="font-semibold text-slate-800 dark:text-slate-200">Student Declaration</h3>
-                <label class="flex items-start space-x-3 cursor-pointer">
-                    <input type="checkbox" v-model="pftHealthForm.declaration_agreed" class="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
-                    <span class="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-                        I certify that the information I have provided is accurate and complete to the best of my knowledge. I understand that withholding or falsifying health information may lead to adverse health outcomes during physical activities.
-                    </span>
-                </label>
-                <p v-if="pftHealthForm.errors.declaration_agreed" class="text-xs text-red-600">{{ pftHealthForm.errors.declaration_agreed }}</p>
             </div>
 
             <DialogFooter class="flex flex-col gap-2 sm:flex-row mt-6">
@@ -8368,7 +8760,7 @@ watch(editMode, (val) => {
                     type="button"
                     variant="outline"
                     class="font-light"
-                    :disabled="pftHealthForm.processing"
+                    :disabled="pftHealthForm.processing || parqForm.processing"
                     @click="cancelPftHealth"
                 >
                     Cancel
@@ -8376,11 +8768,18 @@ watch(editMode, (val) => {
                 <Button
                     type="button"
                     class="bg-emerald-600 font-light text-white hover:bg-emerald-700"
-                    :disabled="pftHealthForm.processing"
-                    @click="submitPftHealth"
+                    :disabled="
+                        pftHealthModalStep === 'health'
+                            ? pftHealthForm.processing
+                            : parqForm.processing || !parqIsComplete || (parqHasYesAnswer && !parqForm.medical_clearance)
+                    "
+                    @click="pftHealthModalStep === 'health' ? submitPftHealth() : submitParq()"
                 >
-                    <template v-if="pftHealthForm.processing">
+                    <template v-if="pftHealthForm.processing || parqForm.processing">
                         Saving...
+                    </template>
+                    <template v-else-if="pftHealthModalStep === 'parq'">
+                        Save & Submit
                     </template>
                     <template v-else>
                         Submit & Proceed
@@ -8436,115 +8835,6 @@ watch(editMode, (val) => {
                         :disabled="pftClearanceForm.processing || !pftClearanceForm.medical_clearance"
                     >
                         {{ pftClearanceForm.processing ? 'Uploading...' : 'Upload' }}
-                    </Button>
-                </DialogFooter>
-            </form>
-        </DialogContent>
-    </Dialog>
-    <Dialog
-        :open="parqModalOpen"
-        @update:open="val => { if (!val) cancelParq(); }"
-    >
-        <DialogContent class="sm:max-w-[500px]">
-            <DialogHeader>
-                <DialogTitle>Physical Activity Readiness Questionnaire</DialogTitle>
-                <DialogDescription>
-                    Please answer the following questions to determine if you should consult a doctor before increasing your physical activity.
-                </DialogDescription>
-            </DialogHeader>
-
-            <form @submit.prevent="submitParq" class="space-y-4">
-                <div class="space-y-4 max-h-[50vh] overflow-y-auto pr-2">
-                    <div class="flex items-start space-x-2">
-                        <Checkbox id="q1" :checked="parqForm.q1" @update:checked="parqForm.q1 = $event" />
-                        <label for="q1" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                            Has your doctor ever said that you have a heart condition and that you should only do physical activity recommended by a doctor?
-                        </label>
-                    </div>
-                    <div class="flex items-start space-x-2">
-                        <Checkbox id="q2" :checked="parqForm.q2" @update:checked="parqForm.q2 = $event" />
-                        <label for="q2" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                            Do you feel pain in your chest when you do physical activity?
-                        </label>
-                    </div>
-                    <div class="flex items-start space-x-2">
-                        <Checkbox id="q3" :checked="parqForm.q3" @update:checked="parqForm.q3 = $event" />
-                        <label for="q3" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                            In the past month, have you had chest pain when you were not doing physical activity?
-                        </label>
-                    </div>
-                    <div class="flex items-start space-x-2">
-                        <Checkbox id="q4" :checked="parqForm.q4" @update:checked="parqForm.q4 = $event" />
-                        <label for="q4" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                            Do you lose your balance because of dizziness or do you ever lose consciousness?
-                        </label>
-                    </div>
-                    <div class="flex items-start space-x-2">
-                        <Checkbox id="q5" :checked="parqForm.q5" @update:checked="parqForm.q5 = $event" />
-                        <label for="q5" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                            Do you have a bone or joint problem (for example, back, knee or hip) that could be made worse by a change in your physical activity?
-                        </label>
-                    </div>
-                    <div class="flex items-start space-x-2">
-                        <Checkbox id="q6" :checked="parqForm.q6" @update:checked="parqForm.q6 = $event" />
-                        <label for="q6" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                            Is your doctor currently prescribing drugs (for example, water pills) for your blood pressure or heart condition?
-                        </label>
-                    </div>
-                    <div class="flex items-start space-x-2">
-                        <Checkbox id="q7" :checked="parqForm.q7" @update:checked="parqForm.q7 = $event" />
-                        <label for="q7" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                            Do you know of any other reason why you should not do physical activity?
-                        </label>
-                    </div>
-                </div>
-                
-                <div
-                    v-if="parqForm.q1 || parqForm.q2 || parqForm.q3 || parqForm.q4 || parqForm.q5 || parqForm.q6 || parqForm.q7"
-                    class="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200"
-                >
-                    <p class="font-bold">Medical Clearance Required</p>
-                    <p class="mt-1 text-xs">Since you answered YES to one or more questions, you must consult a physician and upload a medical clearance before participating in the physical fitness test.</p>
-                    
-                    <div class="mt-3 space-y-2">
-                        <Label for="parq-clearance-file" class="text-xs">Upload Clearance Document (PDF/Image, max 5MB)</Label>
-                        <Input
-                            id="parq-clearance-file"
-                            type="file"
-                            accept=".pdf,.jpg,.jpeg,.png"
-                            class="h-8 text-xs"
-                            @input="parqForm.medical_clearance = ($event.target as HTMLInputElement).files?.[0] || null"
-                        />
-                        <p v-if="parqForm.errors.medical_clearance" class="text-xs text-red-500">
-                            {{ parqForm.errors.medical_clearance }}
-                        </p>
-                    </div>
-                </div>
-
-                <div class="flex items-start space-x-2 pt-2 border-t">
-                    <Checkbox id="parq-declare" :checked="parqForm.declaration_agreed" @update:checked="parqForm.declaration_agreed = $event" />
-                    <label for="parq-declare" class="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                        I have read, understood, and completed this questionnaire. Any questions I had were answered to my full satisfaction.
-                    </label>
-                </div>
-                <p v-if="parqForm.errors.declaration_agreed" class="text-xs text-red-500">
-                    You must agree to the declaration.
-                </p>
-
-                <DialogFooter>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        @click="cancelParq"
-                        :disabled="parqForm.processing"
-                    >
-                        Cancel
-                    </Button>
-                    <Button
-                        type="submit"
-                        :disabled="parqForm.processing || !parqForm.declaration_agreed || ((parqForm.q1 || parqForm.q2 || parqForm.q3 || parqForm.q4 || parqForm.q5 || parqForm.q6 || parqForm.q7) && !parqForm.medical_clearance)"
-                    >
-                        {{ parqForm.processing ? 'Saving...' : 'Save & Submit' }}
                     </Button>
                 </DialogFooter>
             </form>

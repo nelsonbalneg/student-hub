@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { Head, router, useForm, Link } from '@inertiajs/vue3';
-import { CheckCircle2, Dumbbell, Pencil, Plus, Trash2 } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
-import SiteSettingsLayout from '@/layouts/SiteSettingsLayout.vue';
+import { CheckCircle2, Dumbbell, Maximize2, Minimize2, Pencil, Plus, Trash2 } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import FitnessIntelligenceSidebar from '@/components/FitnessIntelligenceSidebar.vue';
 import * as physicalFitnessPermissionRoutes from '@/routes/site-settings/student-profile/physical-fitness-permission';
 import conditionRoutes from '@/routes/site-settings/medical-conditions';
 
@@ -13,6 +13,7 @@ import * as categoryRoutes from '@/routes/site-settings/physical-fitness/configu
 import * as componentRoutes from '@/routes/site-settings/physical-fitness/configuration/components';
 import * as fieldRoutes from '@/routes/site-settings/physical-fitness/configuration/fields';
 import * as interpretationRuleRoutes from '@/routes/site-settings/physical-fitness/configuration/interpretation-rules';
+import * as procedureRoutes from '@/routes/site-settings/physical-fitness/configuration/procedures';
 import * as testTypeRoutes from '@/routes/site-settings/physical-fitness/configuration/test-types';
 
 type PftField = {
@@ -33,11 +34,20 @@ type PftInterpretationRule = {
     id: number;
     pft_test_type_id: number;
     field_name: string;
+    sex: 'male' | 'female' | null;
     label: string;
     min_value: number | null;
     max_value: number | null;
     color: string | null;
     sort_order: number;
+    is_active: boolean;
+};
+
+type PftProcedure = {
+    id: number;
+    pft_test_type_id: number;
+    step_no: number;
+    description: string;
     is_active: boolean;
 };
 
@@ -53,6 +63,7 @@ type PftTestType = {
     results_count?: number;
     configurations: PftField[];
     interpretation_rules: PftInterpretationRule[];
+    procedures: PftProcedure[];
 };
 
 type PftMedicalCondition = {
@@ -120,6 +131,36 @@ const selectedTestType = computed(() =>
     ),
 );
 
+type RuleSexFilter = 'all' | 'general' | 'male' | 'female';
+
+const selectedRuleSex = ref<RuleSexFilter>('all');
+const ruleSexOptions = [
+    { value: 'all', label: 'All' },
+    { value: 'female', label: 'Female' },
+    { value: 'male', label: 'Male' },
+    { value: 'general', label: 'General' },
+] as const;
+
+const rulesForSex = (sex: RuleSexFilter) => {
+    const rules = selectedTestType.value?.interpretation_rules ?? [];
+
+    if (sex === 'all') {
+        return rules;
+    }
+
+    if (sex === 'general') {
+        return rules.filter((rule) => !rule.sex);
+    }
+
+    return rules.filter((rule) => rule.sex === sex);
+};
+
+const visibleInterpretationRules = computed(() => rulesForSex(selectedRuleSex.value));
+
+watch(selectedTestTypeId, () => {
+    selectedRuleSex.value = 'all';
+});
+
 watch(selectedComponentId, () => {
     selectedCategoryId.value =
         selectedComponent.value?.categories[0]?.id ?? null;
@@ -134,6 +175,34 @@ watch(selectedCategoryId, () => {
 
 const urlParams = new URLSearchParams(window.location.search);
 const settingsVerticalTab = ref(urlParams.get('tab') || 'general');
+const physicalFitnessPanel = ref<HTMLElement | null>(null);
+const isFullscreen = ref(false);
+
+const syncFullscreenState = () => {
+    isFullscreen.value = document.fullscreenElement === physicalFitnessPanel.value;
+};
+
+const toggleFullscreen = async () => {
+    if (!physicalFitnessPanel.value) {
+        return;
+    }
+
+    if (document.fullscreenElement) {
+        await document.exitFullscreen();
+
+        return;
+    }
+
+    await physicalFitnessPanel.value.requestFullscreen();
+};
+
+onMounted(() => {
+    document.addEventListener('fullscreenchange', syncFullscreenState);
+});
+
+onBeforeUnmount(() => {
+    document.removeEventListener('fullscreenchange', syncFullscreenState);
+});
 
 watch(settingsVerticalTab, (newTab) => {
     const url = new URL(window.location.href);
@@ -225,10 +294,10 @@ const executeDeleteCondition = () => {
 const toggleConditionActive = (condition: PftMedicalCondition, isActive: boolean) => {
     router.patch(
         conditionRoutes.update.url({ medicalCondition: condition.id }),
-        { 
+        {
             name: condition.name,
             sort_order: condition.sort_order,
-            is_active: isActive 
+            is_active: isActive
         },
         {
             preserveScroll: true,
@@ -280,11 +349,19 @@ const fieldForm = useForm({
 const interpretationRuleForm = useForm({
     pft_test_type_id: selectedTestTypeId.value,
     field_name: '',
+    sex: null as 'male' | 'female' | null,
     label: '',
     min_value: null as number | null,
     max_value: null as number | null,
     color: '',
     sort_order: 0,
+    is_active: true,
+});
+
+const procedureForm = useForm({
+    pft_test_type_id: selectedTestTypeId.value,
+    step_no: 1,
+    description: '',
     is_active: true,
 });
 
@@ -295,6 +372,7 @@ const modal = ref<
     | { type: 'testType'; record?: PftTestType }
     | { type: 'field'; record?: PftField }
     | { type: 'interpretationRule'; record?: PftInterpretationRule }
+    | { type: 'procedure'; record?: PftProcedure }
 >(null);
 
 const fillCommon = (form: any, record: any = {}) => {
@@ -328,6 +406,16 @@ const openTestType = (record?: PftTestType) => {
     modal.value = { type: 'testType', record };
 };
 
+const openProcedure = (record?: PftProcedure) => {
+    procedureForm.clearErrors();
+    procedureForm.pft_test_type_id =
+        record?.pft_test_type_id ?? selectedTestTypeId.value;
+    procedureForm.step_no = record?.step_no ?? (selectedTestType.value?.procedures?.length ? Math.max(...selectedTestType.value.procedures.map(p => p.step_no)) + 1 : 1);
+    procedureForm.description = record?.description ?? '';
+    procedureForm.is_active = record?.is_active ?? true;
+    modal.value = { type: 'procedure', record };
+};
+
 const openField = (record?: PftField) => {
     fieldForm.clearErrors();
     fieldForm.pft_test_type_id =
@@ -352,6 +440,7 @@ const openInterpretationRule = (record?: PftInterpretationRule) => {
         record?.field_name ??
         selectedTestType.value?.configurations[0]?.field_name ??
         '';
+    interpretationRuleForm.sex = record?.sex ?? null;
     interpretationRuleForm.label = record?.label ?? '';
     interpretationRuleForm.min_value = record?.min_value ?? null;
     interpretationRuleForm.max_value = record?.max_value ?? null;
@@ -410,6 +499,18 @@ const submitModal = () => {
             );
     }
 
+    if (modal.value.type === 'procedure') {
+        return modal.value.record
+            ? procedureForm.patch(
+                procedureRoutes.update.url(modal.value.record.id),
+                close,
+            )
+            : procedureForm.post(
+                procedureRoutes.store.url(),
+                close,
+            );
+    }
+
     return modal.value.record
         ? fieldForm.patch(fieldRoutes.update.url(modal.value.record.id), close)
         : fieldForm.post(fieldRoutes.store.url(), close);
@@ -445,22 +546,33 @@ const destroyRecord = (type: string, id: number) => {
     if (type === 'interpretationRule') {
         router.delete(interpretationRuleRoutes.destroy.url(id), options);
     }
+
+    if (type === 'procedure') {
+        router.delete(procedureRoutes.destroy.url(id), options);
+    }
 };
 
 const statusClass = (active: boolean) =>
     active
-        ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20'
+        ? 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:ring-blue-500/20'
         : 'bg-slate-100 text-slate-500 ring-slate-200 dark:bg-white/5 dark:text-slate-400 dark:ring-white/10';
+
+defineOptions({
+    layout: null,
+});
 </script>
 
 <template>
 
     <Head title="Physical Fitness Configuration" />
 
-    <SiteSettingsLayout>
-        <div class="flex min-h-0 w-full min-w-0 flex-1 flex-col text-slate-900 dark:text-slate-100">
+    <div class="min-h-screen font-sans bg-slate-50 text-slate-800 lg:flex dark:bg-slate-950">
+        <FitnessIntelligenceSidebar active="settings" />
+
+        <main id="settings" class="flex min-w-0 flex-1 flex-col bg-slate-50/60 p-4 dark:bg-slate-950">
+        <div ref="physicalFitnessPanel" class="flex min-h-0 w-full min-w-0 flex-1 flex-col bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
             <header class="border-b border-slate-100 px-5 py-4 dark:border-white/10">
-                <p class="text-[11px] font-bold tracking-[0.2em] text-emerald-600 uppercase dark:text-emerald-300">
+                <p class="text-[11px] font-bold tracking-[0.2em] text-blue-600 uppercase dark:text-blue-300">
                     Site Settings
                 </p>
                 <div class="mt-1 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -469,15 +581,27 @@ const statusClass = (active: boolean) =>
                             Physical Fitness
                         </h1>
                         <p class="text-sm text-slate-500 dark:text-slate-400">
-                            Manage test structure, dynamic fields, and student
+                            Manage test structure, fields, and student
                             Physical Fitness Test access.
                         </p>
                     </div>
-                    <button v-if="settingsVerticalTab === 'general' && can.create" type="button"
-                        class="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white hover:bg-emerald-700"
-                        @click="openComponent()">
-                        <Plus class="size-4" /> Component
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <button v-if="settingsVerticalTab === 'general' && can.create" type="button"
+                            class="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 text-xs font-bold text-white hover:bg-blue-700"
+                            @click="openComponent()">
+                            <Plus class="size-4" /> Component
+                        </button>
+                        <button
+                            type="button"
+                            class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+                            :title="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+                            :aria-label="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+                            @click="toggleFullscreen"
+                        >
+                            <Minimize2 v-if="isFullscreen" class="size-4" />
+                            <Maximize2 v-else class="size-4" />
+                        </button>
+                    </div>
                 </div>
             </header>
 
@@ -488,7 +612,7 @@ const statusClass = (active: boolean) =>
                             type="button"
                             @click="settingsVerticalTab = 'general'"
                             :class="[
-                                settingsVerticalTab === 'general' ? 'text-emerald-700 font-bold bg-white shadow-sm border border-slate-200/60 dark:bg-white/5 dark:text-emerald-400 dark:border-white/10' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white border border-transparent',
+                                settingsVerticalTab === 'general' ? 'text-blue-700 font-bold bg-white shadow-sm border border-slate-200/60 dark:bg-white/5 dark:text-blue-400 dark:border-white/10' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white border border-transparent',
                                 'flex w-full text-left text-sm transition-all rounded-md px-3 py-2 shrink-0'
                             ]"
                         >
@@ -498,7 +622,7 @@ const statusClass = (active: boolean) =>
                             type="button"
                             @click="settingsVerticalTab = 'medical-conditions'"
                             :class="[
-                                settingsVerticalTab === 'medical-conditions' ? 'text-emerald-700 font-bold bg-white shadow-sm border border-slate-200/60 dark:bg-white/5 dark:text-emerald-400 dark:border-white/10' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white border border-transparent',
+                                settingsVerticalTab === 'medical-conditions' ? 'text-blue-700 font-bold bg-white shadow-sm border border-slate-200/60 dark:bg-white/5 dark:text-blue-400 dark:border-white/10' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white border border-transparent',
                                 'flex w-full text-left text-sm transition-all rounded-md px-3 py-2 shrink-0'
                             ]"
                         >
@@ -508,7 +632,7 @@ const statusClass = (active: boolean) =>
                             type="button"
                             @click="settingsVerticalTab = 'permissions'"
                             :class="[
-                                settingsVerticalTab === 'permissions' ? 'text-emerald-700 font-bold bg-white shadow-sm border border-slate-200/60 dark:bg-white/5 dark:text-emerald-400 dark:border-white/10' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white border border-transparent',
+                                settingsVerticalTab === 'permissions' ? 'text-blue-700 font-bold bg-white shadow-sm border border-slate-200/60 dark:bg-white/5 dark:text-blue-400 dark:border-white/10' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white border border-transparent',
                                 'flex w-full text-left text-sm transition-all rounded-md px-3 py-2 shrink-0'
                             ]"
                         >
@@ -525,25 +649,25 @@ const statusClass = (active: boolean) =>
                                     <p class="font-bold text-slate-900 dark:text-white">Show in Grades</p>
                                     <p class="mt-1 text-sm text-slate-500">Display the Physical Fitness Test button beside eligible subjects for students with permission.</p>
                                 </div>
-                                
-                                <button 
+
+                                <button
                                     type="button"
                                     role="switch"
                                     :aria-checked="physicalFitnessForm.enabled"
                                     @click="physicalFitnessForm.enabled = !physicalFitnessForm.enabled; submitPhysicalFitnessPermission()"
-                                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                    :class="physicalFitnessForm.enabled ? 'bg-emerald-600' : 'bg-slate-200 dark:bg-slate-700'"
+                                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                    :class="physicalFitnessForm.enabled ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'"
                                     :disabled="!can.managePhysicalFitnessPermission || physicalFitnessForm.processing"
                                 >
                                     <span class="sr-only">Toggle Show in Grades</span>
-                                    <span 
+                                    <span
                                         aria-hidden="true"
                                         class="pointer-events-none inline-block size-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
                                         :class="physicalFitnessForm.enabled ? 'translate-x-5' : 'translate-x-0'"
                                     />
                                 </button>
                             </div>
-                            
+
                             <div class="p-6 bg-slate-50/50 dark:bg-slate-900/30">
                                 <p class="font-bold text-slate-900 dark:text-white">
                                     PFT Fill-up Permission
@@ -555,14 +679,14 @@ const statusClass = (active: boolean) =>
                                 <form class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end" @submit.prevent="submitPhysicalFitnessPermission">
                                     <label class="flex-1">
                                         <span class="text-xs font-bold text-slate-600 dark:text-slate-300">Permission</span>
-                                        <select v-model="physicalFitnessForm.permission" class="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:ring-emerald-500/20">
+                                        <select v-model="physicalFitnessForm.permission" class="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:ring-blue-500/20">
                                             <option v-for="option in physicalFitnessSetting.options" :key="option.value" :value="option.value">
                                                 {{ option.label }}
                                             </option>
                                         </select>
                                     </label>
 
-                                    <button type="submit" class="inline-flex h-10 items-center justify-center rounded-md bg-emerald-600 px-4 text-sm font-bold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60" :disabled="!can.managePhysicalFitnessPermission || physicalFitnessForm.processing">
+                                    <button type="submit" class="inline-flex h-10 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-bold text-white shadow-sm shadow-blue-600/20 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60" :disabled="!can.managePhysicalFitnessPermission || physicalFitnessForm.processing">
                                         Save Setting
                                     </button>
                                 </form>
@@ -678,6 +802,13 @@ const statusClass = (active: boolean) =>
                         </button>
                     </div>
 
+                    <div v-if="selectedTestType && selectedTestType.description" class="border-b border-slate-100 p-4 bg-slate-50/50 dark:border-white/10 dark:bg-slate-900/30 text-xs">
+                        <div>
+                            <span class="font-bold text-slate-800 dark:text-slate-200 block mb-0.5">Description:</span>
+                            <span class="text-slate-600 dark:text-slate-400 font-light">{{ selectedTestType.description }}</span>
+                        </div>
+                    </div>
+
                     <div class="overflow-x-auto">
                         <table class="min-w-full text-left text-sm">
                             <thead
@@ -705,7 +836,7 @@ const statusClass = (active: boolean) =>
                                         {{ field.field_type }}
                                     </td>
                                     <td class="px-3 py-3">
-                                        <CheckCircle2 v-if="field.is_required" class="size-4 text-emerald-600" />
+                                        <CheckCircle2 v-if="field.is_required" class="size-4 text-blue-600" />
                                     </td>
                                     <td class="px-3 py-3">
                                         <div class="flex justify-end gap-1">
@@ -736,17 +867,17 @@ const statusClass = (active: boolean) =>
                     </div>
 
                     <div class="mt-5 border-t border-slate-100 pt-4 dark:border-white/10">
-                        <div class="mb-3 flex items-center justify-between p-4">
+                        <div class="mb-3 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <h3 class="text-sm font-bold text-slate-950 dark:text-white">
-                                    Interpretation Rules
+                                    Procedures
                                 </h3>
                                 <p class="text-xs text-slate-500">
-                                    Dynamic labels based on result ranges.
+                                   Steps on how to execute this test type.
                                 </p>
                             </div>
                             <button v-if="can.create && selectedTestType" class="pft-icon-btn"
-                                @click="openInterpretationRule()">
+                                @click="openProcedure()">
                                 <Plus class="size-4" />
                             </button>
                         </div>
@@ -756,7 +887,95 @@ const statusClass = (active: boolean) =>
                                 <thead
                                     class="border-b border-slate-100 text-[10px] font-bold tracking-wide text-slate-400 uppercase dark:border-white/10">
                                     <tr>
+                                        <th class="px-3 py-2 w-16">Step</th>
+                                        <th class="px-3 py-2">Description</th>
+                                        <th class="px-3 py-2 w-20">Active</th>
+                                        <th class="px-3 py-2 text-right w-24">
+                                            Actions
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 dark:divide-white/10">
+                                    <tr v-for="step in selectedTestType?.procedures ?? []" :key="step.id">
+                                        <td class="px-3 py-3 font-semibold text-slate-800 dark:text-slate-100">
+                                            {{ step.step_no }}
+                                        </td>
+                                        <td class="px-3 py-3 text-slate-600 dark:text-slate-300 whitespace-pre-wrap">
+                                            {{ step.description }}
+                                        </td>
+                                        <td class="px-3 py-3 text-slate-500">
+                                            <span class="pft-badge" :class="statusClass(step.is_active)">
+                                                {{ step.is_active ? 'Yes' : 'No' }}
+                                            </span>
+                                        </td>
+                                        <td class="px-3 py-3">
+                                            <div class="flex justify-end gap-1">
+                                                <button v-if="can.update" class="pft-icon-btn" @click="openProcedure(step)">
+                                                    <Pencil class="size-3.5" />
+                                                </button>
+                                                <button v-if="can.delete" class="pft-icon-btn text-red-600" @click="
+                                                    destroyRecord(
+                                                        'procedure',
+                                                        step.id,
+                                                    )
+                                                    ">
+                                                    <Trash2 class="size-3.5" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr v-if="
+                                        (selectedTestType?.procedures ?? []).length === 0
+                                    ">
+                                        <td colspan="4" class="px-3 py-8 text-center text-sm text-slate-500">
+                                            No procedure steps yet.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="mt-5 border-t border-slate-100 pt-4 dark:border-white/10">
+                        <div class="mb-3 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-950 dark:text-white">
+                                    Interpretation Rules
+                                </h3>
+                                <p class="text-xs text-slate-500">
+                                    Labels based on result ranges.
+                                </p>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <div class="inline-flex rounded-lg border border-slate-200 bg-white p-1 dark:border-white/10 dark:bg-slate-950">
+                                    <button
+                                        v-for="option in ruleSexOptions"
+                                        :key="option.value"
+                                        type="button"
+                                        class="rounded-md px-3 py-1.5 text-xs font-semibold transition"
+                                        :class="selectedRuleSex === option.value
+                                            ? 'bg-blue-600 text-white shadow-sm'
+                                            : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white'"
+                                        @click="selectedRuleSex = option.value"
+                                    >
+                                        {{ option.label }}
+                                        <span class="ml-1 text-[10px] opacity-75">({{ rulesForSex(option.value).length }})</span>
+                                    </button>
+                                </div>
+                                <button v-if="can.create && selectedTestType" class="pft-icon-btn"
+                                    @click="openInterpretationRule()">
+                                    <Plus class="size-4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full text-left text-sm">
+                                <thead
+                                    class="border-b border-slate-100 text-[10px] font-bold tracking-wide text-slate-400 uppercase dark:border-white/10">
+                                    <tr>
                                         <th class="px-3 py-2">Field</th>
+                                        <th class="px-3 py-2">Sex</th>
                                         <th class="px-3 py-2">Label</th>
                                         <th class="px-3 py-2">Min</th>
                                         <th class="px-3 py-2">Max</th>
@@ -767,10 +986,12 @@ const statusClass = (active: boolean) =>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-100 dark:divide-white/10">
-                                    <tr v-for="rule in selectedTestType?.interpretation_rules ??
-                                        []" :key="rule.id">
+                                    <tr v-for="rule in visibleInterpretationRules" :key="rule.id">
                                         <td class="px-3 py-3 font-mono text-xs">
                                             {{ rule.field_name }}
+                                        </td>
+                                        <td class="px-3 py-3 text-slate-500">
+                                            {{ rule.sex ? rule.sex.charAt(0).toUpperCase() + rule.sex.slice(1) : 'General' }}
                                         </td>
                                         <td class="px-3 py-3 font-semibold text-slate-800 dark:text-slate-100">
                                             {{ rule.label }}
@@ -806,12 +1027,11 @@ const statusClass = (active: boolean) =>
                                     </tr>
                                     <tr v-if="
                                         (
-                                            selectedTestType?.interpretation_rules ??
-                                            []
+                                            visibleInterpretationRules
                                         ).length === 0
                                     ">
-                                        <td colspan="6" class="px-3 py-8 text-center text-sm text-slate-500">
-                                            No interpretation rules yet.
+                                        <td colspan="7" class="px-3 py-8 text-center text-sm text-slate-500">
+                                            No interpretation rules found for this view.
                                         </td>
                                     </tr>
                                 </tbody>
@@ -824,7 +1044,7 @@ const statusClass = (active: boolean) =>
                     <section v-if="settingsVerticalTab === 'medical-conditions'" class="space-y-6">
                         <div class="flex items-center justify-between">
                             <h2 class="text-lg font-bold text-slate-900 dark:text-white">Medical Conditions</h2>
-                            <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-700" @click="openCreateConditionModal">
+                            <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700" @click="openCreateConditionModal">
                                 <Plus class="size-4" />
                                 Add Condition
                             </button>
@@ -855,7 +1075,7 @@ const statusClass = (active: boolean) =>
                                         <td class="px-6 py-4 text-center">
                                             <input
                                                 type="checkbox"
-                                                class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                                class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                                                 :checked="condition.is_active"
                                                 @change="(e) => toggleConditionActive(condition, (e.target as HTMLInputElement).checked)"
                                             />
@@ -913,7 +1133,7 @@ const statusClass = (active: boolean) =>
                                                     preserve-scroll
                                                     class="relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 border"
                                                     :class="[
-                                                        link.active ? 'z-10 bg-emerald-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 border-emerald-600' : 'text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 border-slate-300 dark:text-slate-200 dark:border-white/10 dark:hover:bg-white/5 dark:ring-0',
+                                                        link.active ? 'z-10 bg-blue-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 border-blue-600' : 'text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 border-slate-300 dark:text-slate-200 dark:border-white/10 dark:hover:bg-white/5 dark:ring-0',
                                                         index === 0 ? 'rounded-l-md' : '',
                                                         index === medicalConditions.links.length - 1 ? 'rounded-r-md' : ''
                                                     ]"
@@ -953,7 +1173,9 @@ const statusClass = (active: boolean) =>
                                     ? 'Configuration Field'
                                     : modal.type === 'interpretationRule'
                                         ? 'Interpretation Rule'
-                                        : modal.type
+                                        : modal.type === 'procedure'
+                                            ? 'Procedure Step'
+                                            : modal.type
                         }}
                     </h3>
                     <button type="button"
@@ -1028,12 +1250,17 @@ const statusClass = (active: boolean) =>
                         Active</label>
                 </div>
 
-                <div v-else class="grid gap-3 md:grid-cols-2">
+                <div v-else-if="modal.type === 'interpretationRule'" class="grid gap-3 md:grid-cols-2">
                     <select v-model="interpretationRuleForm.field_name" class="pft-input">
                         <option v-for="field in selectedTestType?.configurations ??
                             []" :key="field.id" :value="field.field_name">
                             {{ field.field_label }} ({{ field.field_name }})
                         </option>
+                    </select>
+                    <select v-model="interpretationRuleForm.sex" class="pft-input">
+                        <option :value="null">General</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
                     </select>
                     <input v-model="interpretationRuleForm.label" class="pft-input"
                         placeholder="Interpretation label" />
@@ -1042,11 +1269,19 @@ const statusClass = (active: boolean) =>
                     <input v-model.number="interpretationRuleForm.max_value" class="pft-input" type="number"
                         step="0.0001" placeholder="Max value" />
                     <input v-model="interpretationRuleForm.color" class="pft-input"
-                        placeholder="Color token, e.g. emerald" />
+                        placeholder="Color token, e.g. blue" />
                     <input v-model.number="interpretationRuleForm.sort_order" class="pft-input" type="number"
                         placeholder="Sort order" />
                     <label class="pft-check"><input v-model="interpretationRuleForm.is_active" type="checkbox" />
                         Active</label>
+                </div>
+
+                <div v-else class="grid gap-3 md:grid-cols-2">
+                    <input v-model.number="procedureForm.step_no" class="pft-input" type="number" min="1" placeholder="Step No." />
+                    <label class="pft-check"><input v-model="procedureForm.is_active" type="checkbox" />
+                        Active</label>
+                    <textarea v-model="procedureForm.description" class="pft-input md:col-span-2 min-h-24"
+                        placeholder="Description / Instruction Step"></textarea>
                 </div>
 
                 <div class="mt-5 flex justify-end gap-2">
@@ -1056,7 +1291,7 @@ const statusClass = (active: boolean) =>
                         Cancel
                     </button>
                     <button type="submit"
-                        class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700">
+                        class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
                         Save
                     </button>
                 </div>
@@ -1087,7 +1322,7 @@ const statusClass = (active: boolean) =>
                         <input
                             type="checkbox"
                             id="is_active"
-                            class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                            class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                             v-model="medicalConditionForm.is_active"
                         />
                         <Label for="is_active">Active (Show in questionnaire)</Label>
@@ -1096,7 +1331,7 @@ const statusClass = (active: boolean) =>
                 </div>
                 <DialogFooter>
                     <button type="button" class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-50 dark:hover:bg-slate-800 dark:hover:text-slate-50" @click="medicalConditionModalOpen = false">Cancel</button>
-                    <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50" :disabled="medicalConditionForm.processing">Save</button>
+                    <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50" :disabled="medicalConditionForm.processing">Save</button>
                 </DialogFooter>
             </form>
         </DialogContent>
@@ -1117,7 +1352,8 @@ const statusClass = (active: boolean) =>
         </DialogContent>
     </Dialog>
     </div>
-    </SiteSettingsLayout>
+        </main>
+    </div>
 </template>
 
 
@@ -1133,11 +1369,11 @@ const statusClass = (active: boolean) =>
 }
 
 .pft-row {
-    @apply flex w-full items-center gap-2 border-b border-slate-50 px-4 py-3 text-left text-sm text-slate-600 transition hover:bg-emerald-50 hover:text-emerald-800;
+    @apply flex w-full items-center gap-2 border-b border-slate-50 px-4 py-3 text-left text-sm text-slate-600 transition hover:bg-blue-50 hover:text-blue-800;
 }
 
 .pft-row-active {
-    @apply bg-emerald-50 text-emerald-800;
+    @apply bg-blue-50 text-blue-800;
 }
 
 .pft-actions {
@@ -1146,7 +1382,7 @@ const statusClass = (active: boolean) =>
 
 .pft-actions button,
 .pft-icon-btn {
-    @apply inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700;
+    @apply inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700;
     color-scheme: light;
 }
 
@@ -1155,7 +1391,7 @@ const statusClass = (active: boolean) =>
 }
 
 .pft-input {
-    @apply min-h-9 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10;
+    @apply min-h-9 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10;
     color-scheme: light;
 }
 
@@ -1164,7 +1400,7 @@ const statusClass = (active: boolean) =>
 }
 
 .pft-check input {
-    @apply size-4 rounded border-slate-300 text-emerald-600 accent-emerald-600;
+    @apply size-4 rounded border-slate-300 text-blue-600 accent-blue-600;
 }
 
 .pft-input option {
@@ -1181,11 +1417,11 @@ const statusClass = (active: boolean) =>
 }
 
 .dark .pft-row {
-    @apply border-white/5 text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-200;
+    @apply border-white/5 text-slate-300 hover:bg-blue-500/10 hover:text-blue-200;
 }
 
 .dark .pft-row-active {
-    @apply bg-emerald-500/10 text-emerald-200;
+    @apply bg-blue-500/10 text-blue-200;
 }
 
 .dark .pft-actions {
@@ -1194,7 +1430,7 @@ const statusClass = (active: boolean) =>
 
 .dark .pft-actions button,
 .dark .pft-icon-btn {
-    @apply border-white/10 bg-white/5 text-slate-300 shadow-none hover:border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-200;
+    @apply border-white/10 bg-white/5 text-slate-300 shadow-none hover:border-blue-500/30 hover:bg-blue-500/10 hover:text-blue-200;
     color-scheme: dark;
 }
 
@@ -1208,3 +1444,4 @@ const statusClass = (active: boolean) =>
     color: #f1f5f9;
 }
 </style>
+

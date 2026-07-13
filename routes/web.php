@@ -216,6 +216,17 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                 ->name('carbon-footprint.index');
         });
 
+    Route::prefix('admin/reporting/pft-parq')
+        ->name('admin.reporting.pft-parq.')
+        ->controller(App\Http\Controllers\Admin\Reporting\PftParqController::class)
+        ->middleware('can:reporting.pft_result.view')
+        ->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::patch('/{parq}/verify', 'verify')->name('verify');
+            Route::patch('/{parq}/reject', 'reject')->name('reject');
+            Route::patch('/{parq}/update-status', 'updateStatus')->name('update-status');
+        });
+
     Route::prefix('admin/reporting/pft-result')
         ->name('admin.reporting.pft-result.')
         ->controller(PftResultController::class)
@@ -225,6 +236,8 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
             Route::get('/data', 'data')->name('data');
             Route::get('/analytics', 'analyticsPage')->name('analytics');
             Route::get('/analytics/data', 'analyticsData')->name('analytics-data');
+            Route::get('/analytics/comparative', 'comparativeAnalyticsPage')->name('analytics.comparative');
+            Route::get('/analytics/comparative/data', 'comparativeAnalyticsData')->name('analytics.comparative-data');
             Route::get('/analytics/drilldown', 'analyticsDrilldown')->name('analytics-drilldown');
             Route::patch('/{result}/status', 'updateStatus')->name('status.update');
             Route::patch('/students/{user}/terms/{term}/status', 'updateStudentEntryStatus')->name('student-entry.status.update');
@@ -674,6 +687,9 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                     Route::post('interpretation-rules', 'storeInterpretationRule')->middleware('can:pft.configuration.create')->name('interpretation-rules.store');
                     Route::patch('interpretation-rules/{rule}', 'updateInterpretationRule')->middleware('can:pft.configuration.update')->name('interpretation-rules.update');
                     Route::delete('interpretation-rules/{rule}', 'destroyInterpretationRule')->middleware('can:pft.configuration.delete')->name('interpretation-rules.destroy');
+                    Route::post('procedures', 'storeProcedure')->middleware('can:pft.configuration.create')->name('procedures.store');
+                    Route::patch('procedures/{procedure}', 'updateProcedure')->middleware('can:pft.configuration.update')->name('procedures.update');
+                    Route::delete('procedures/{procedure}', 'destroyProcedure')->middleware('can:pft.configuration.delete')->name('procedures.destroy');
                 });
 
             Route::get('sar', fn () => Inertia::render('SiteSettings/Placeholder', ['title' => 'SAR']))->name('sar');

@@ -29,6 +29,11 @@ class PftTestType extends Model
         return $this->hasMany(PftInterpretationRule::class);
     }
 
+    public function procedures(): HasMany
+    {
+        return $this->hasMany(PftProcedure::class);
+    }
+
     public function results(): HasMany
     {
         return $this->hasMany(StudentPftResult::class);

@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 use Throwable;
 
 class StudentPftResultController extends Controller
@@ -100,7 +101,6 @@ class StudentPftResultController extends Controller
             'specific_conditions' => ['nullable', 'array'],
             'specific_conditions.*' => ['string', 'max:255'],
             'other_condition' => ['nullable', 'string', 'max:255'],
-            'declaration_agreed' => ['accepted'],
             'medical_clearance' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
         ]);
 
@@ -118,8 +118,18 @@ class StudentPftResultController extends Controller
         }
 
         $medicalClearancePath = null;
-        if ($request->hasFile('medical_clearance')) {
-            $medicalClearancePath = $request->file('medical_clearance')->store('pft-clearances', 'public');
+        $clearanceFile = $request->file('medical_clearance');
+        if ($clearanceFile instanceof \Illuminate\Http\UploadedFile && $clearanceFile->isValid()) {
+            $extension = strtolower(
+                pathinfo($clearanceFile->getClientOriginalName(), PATHINFO_EXTENSION) ?: 'bin'
+            );
+            $storedFilename = Str::uuid()->toString() . '.' . $extension;
+            $destination = storage_path('app/public/pft-clearances');
+            if (! is_dir($destination)) {
+                mkdir($destination, 0755, true);
+            }
+            $clearanceFile->move($destination, $storedFilename);
+            $medicalClearancePath = 'pft-clearances/' . $storedFilename;
         }
 
         $dataToStore = Arr::except($validated, ['term_id', 'declaration_agreed', 'medical_clearance']);
@@ -158,17 +168,29 @@ class StudentPftResultController extends Controller
         ]);
 
         if ($request->hasFile('medical_clearance')) {
-            $path = $request->file('medical_clearance')->store('pft-clearances', 'public');
-            
-            $questionnaire->update([
-                'medical_clearance_path' => $path,
-            ]);
+            $uploadedFile = $request->file('medical_clearance');
+            if ($uploadedFile instanceof \Illuminate\Http\UploadedFile && $uploadedFile->isValid()) {
+                $extension = strtolower(
+                    pathinfo($uploadedFile->getClientOriginalName(), PATHINFO_EXTENSION) ?: 'bin'
+                );
+                $storedFilename = Str::uuid()->toString() . '.' . $extension;
+                $destination = storage_path('app/public/pft-clearances');
+                if (! is_dir($destination)) {
+                    mkdir($destination, 0755, true);
+                }
+                $uploadedFile->move($destination, $storedFilename);
+                $path = 'pft-clearances/' . $storedFilename;
 
-            Log::info('PFT medical clearance uploaded via separate endpoint.', [
-                'user_id' => $request->user()->id,
-                'term_id' => $questionnaire->term_id,
-                'questionnaire_id' => $questionnaire->id,
-            ]);
+                $questionnaire->update([
+                    'medical_clearance_path' => $path,
+                ]);
+
+                Log::info('PFT medical clearance uploaded via separate endpoint.', [
+                    'user_id' => $request->user()->id,
+                    'term_id' => $questionnaire->term_id,
+                    'questionnaire_id' => $questionnaire->id,
+                ]);
+            }
         }
 
         return to_route('student-profile.index')->with('success', 'Medical clearance uploaded successfully.');
@@ -187,17 +209,30 @@ class StudentPftResultController extends Controller
         ]);
 
         if ($request->hasFile('medical_clearance')) {
-            $path = $request->file('medical_clearance')->store('pft-clearances', 'public');
-            
-            $parq->update([
-                'medical_clearance_path' => $path,
-            ]);
+            $uploadedFile = $request->file('medical_clearance');
+            if ($uploadedFile instanceof \Illuminate\Http\UploadedFile && $uploadedFile->isValid()) {
+                $extension = strtolower(
+                    pathinfo($uploadedFile->getClientOriginalName(), PATHINFO_EXTENSION) ?: 'bin'
+                );
+                $storedFilename = Str::uuid()->toString() . '.' . $extension;
+                $destination = storage_path('app/public/pft-clearances');
+                if (! is_dir($destination)) {
+                    mkdir($destination, 0755, true);
+                }
+                $uploadedFile->move($destination, $storedFilename);
+                $path = 'pft-clearances/' . $storedFilename;
 
-            Log::info('PFT PAR-Q medical clearance uploaded via separate endpoint.', [
-                'user_id' => $request->user()->id,
-                'term_id' => $parq->term_id,
-                'parq_id' => $parq->id,
-            ]);
+                $parq->update([
+                    'medical_clearance_path' => $path,
+                    'clearance_status' => $parq->clearance_status === 'pending' ? 'pending_evaluation' : $parq->clearance_status,
+                ]);
+
+                Log::info('PFT PAR-Q medical clearance uploaded via separate endpoint.', [
+                    'user_id' => $request->user()->id,
+                    'term_id' => $parq->term_id,
+                    'parq_id' => $parq->id,
+                ]);
+            }
         }
 
         return to_route('student-profile.index')->with('success', 'Medical clearance uploaded successfully.');
@@ -216,7 +251,6 @@ class StudentPftResultController extends Controller
             'q5' => ['required', 'boolean'],
             'q6' => ['required', 'boolean'],
             'q7' => ['required', 'boolean'],
-            'declaration_agreed' => ['accepted'],
             'medical_clearance' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
         ]);
 
@@ -234,8 +268,20 @@ class StudentPftResultController extends Controller
         }
 
         $medicalClearancePath = null;
-        if ($request->hasFile('medical_clearance')) {
-            $medicalClearancePath = $request->file('medical_clearance')->store('pft-clearances', 'public');
+        $clearanceFile = $request->file('medical_clearance');
+        if ($clearanceFile instanceof \Illuminate\Http\UploadedFile && $clearanceFile->isValid()) {
+            $extension = strtolower(
+                pathinfo($clearanceFile->getClientOriginalName(), PATHINFO_EXTENSION) ?: 'bin'
+            );
+            $storedFilename = Str::uuid()->toString() . '.' . $extension;
+            $destination = storage_path('app/public/pft-clearances');
+
+            if (! is_dir($destination)) {
+                mkdir($destination, 0755, true);
+            }
+
+            $clearanceFile->move($destination, $storedFilename);
+            $medicalClearancePath = 'pft-clearances/' . $storedFilename;
         }
 
         $dataToStore = Arr::except($validated, ['term_id', 'declaration_agreed', 'medical_clearance']);
@@ -243,6 +289,15 @@ class StudentPftResultController extends Controller
         
         if ($medicalClearancePath) {
             $dataToStore['medical_clearance_path'] = $medicalClearancePath;
+        }
+
+        $requiresClearance = $dataToStore['q1'] || $dataToStore['q2'] || $dataToStore['q3'] || $dataToStore['q4'] || $dataToStore['q5'] || $dataToStore['q6'] || $dataToStore['q7'];
+        
+        if ($requiresClearance) {
+            $dataToStore['clearance_status'] = $medicalClearancePath ? 'pending_evaluation' : 'pending';
+        } else {
+            $dataToStore['clearance_status'] = 'verified';
+            $dataToStore['verified_at'] = now();
         }
 
         \App\Models\PftParq::query()->updateOrCreate(
@@ -396,7 +451,20 @@ class StudentPftResultController extends Controller
             }
         }
 
-        $interpretation = $interpretationService->interpret($testType, $results);
+        if ($testType->slug === 'sit-and-reach-test') {
+            $score = collect(['trial_1', 'trial_2', 'trial_3'])
+                ->map(fn (string $field): mixed => $results[$field] ?? null)
+                ->filter(fn (mixed $value): bool => is_numeric($value))
+                ->map(fn (mixed $value): float => (float) $value)
+                ->max();
+
+            if ($score !== null) {
+                $results['score'] = $score;
+            }
+        }
+
+        $academicContext = $this->academicContext($request, $academicApi, $termId);
+        $interpretation = $interpretationService->interpret($testType, $results, $academicContext['sex'] ?? null);
         if ($interpretation) {
             $validated['remarks'] = $interpretation['label'];
             $results['interpretation'] = $interpretation['label'];
@@ -409,8 +477,6 @@ class StudentPftResultController extends Controller
             'tested_at' => $validated['tested_at'] ?? ($results['date_tested'] ?? null),
             'has_remarks' => filled($validated['remarks'] ?? ($results['remarks'] ?? null)),
         ]);
-
-        $academicContext = $this->academicContext($request, $academicApi, $termId);
 
         try {
             $result = DB::transaction(function () use ($request, $testType, $validated, $results, $termId, $isDraft, $academicContext, $interpretation): StudentPftResult {
@@ -490,7 +556,7 @@ class StudentPftResultController extends Controller
         }
 
         $context = [
-            'college_id' => $this->stringValue($registration, [
+            'college_id' => $user->office_id ? (string) $user->office_id : $this->stringValue($registration, [
                 'collegeId',
                 'college_id',
                 'collegeID',

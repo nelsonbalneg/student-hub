@@ -22,6 +22,9 @@ class PftParq extends Model
         'q7',
         'declaration_agreed',
         'medical_clearance_path',
+        'clearance_status',
+        'verified_by',
+        'verified_at',
     ];
 
     protected $casts = [
@@ -33,11 +36,17 @@ class PftParq extends Model
         'q6' => 'boolean',
         'q7' => 'boolean',
         'declaration_agreed' => 'boolean',
+        'verified_at' => 'datetime',
     ];
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function verifier(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'verified_by');
     }
 
     public function term(): BelongsTo

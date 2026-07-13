@@ -12,13 +12,28 @@ class PftInterpretationService
      * @param  array<string, mixed>  $results
      * @return array{label: string, color: string|null, field_name: string, rule_id: int}|null
      */
-    public function interpret(PftTestType $testType, array $results): ?array
+    public function interpret(PftTestType $testType, array $results, ?string $sex = null): ?array
     {
         $rules = $testType->relationLoaded('interpretationRules')
             ? $testType->interpretationRules
             : $testType->interpretationRules()->active()->orderBy('sort_order')->orderBy('id')->get();
 
-        return $this->matchRule($rules, $results);
+        $normalizedSex = $this->normalizeSex($sex);
+        if ($normalizedSex) {
+            $sexSpecificMatch = $this->matchRule(
+                $rules->filter(fn (PftInterpretationRule $rule): bool => $rule->sex === $normalizedSex),
+                $results,
+            );
+
+            if ($sexSpecificMatch) {
+                return $sexSpecificMatch;
+            }
+        }
+
+        return $this->matchRule(
+            $rules->filter(fn (PftInterpretationRule $rule): bool => blank($rule->sex)),
+            $results,
+        );
     }
 
     /**
@@ -32,6 +47,20 @@ class PftInterpretationService
             $value = $results[$rule->field_name] ?? null;
 
             if (! is_numeric($value)) {
+                if ($rule->min_value === null && $rule->max_value === null && $this->matchesTextRule($value, $rule)) {
+                    return [
+                        'label' => $rule->label,
+                        'sex' => $rule->sex,
+                        'classification' => $rule->label,
+                        'interpretation' => $rule->interpretation,
+                        'suggested_intervention' => $rule->suggested_intervention,
+                        'color' => $rule->color,
+                        'color_class' => $rule->color_class ?: $rule->color,
+                        'field_name' => $rule->field_name,
+                        'rule_id' => $rule->id,
+                    ];
+                }
+
                 continue;
             }
 
@@ -49,6 +78,7 @@ class PftInterpretationService
 
             return [
                 'label' => $rule->label,
+                'sex' => $rule->sex,
                 'classification' => $rule->classification ?: $rule->label,
                 'interpretation' => $rule->interpretation,
                 'suggested_intervention' => $rule->suggested_intervention,
@@ -60,5 +90,31 @@ class PftInterpretationService
         }
 
         return null;
+    }
+
+    private function normalizeSex(?string $sex): ?string
+    {
+        $value = strtolower(trim((string) $sex));
+
+        return match ($value) {
+            'm', 'male' => 'male',
+            'f', 'female' => 'female',
+            default => null,
+        };
+    }
+
+    private function matchesTextRule(mixed $value, PftInterpretationRule $rule): bool
+    {
+        $normalizedValue = $this->normalizeText((string) $value);
+
+        return in_array($normalizedValue, array_filter([
+            $this->normalizeText($rule->label),
+            $this->normalizeText($rule->classification),
+        ]), true);
+    }
+
+    private function normalizeText(?string $value): string
+    {
+        return strtolower(trim((string) $value));
     }
 }

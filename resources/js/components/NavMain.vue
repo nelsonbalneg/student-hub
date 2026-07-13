@@ -126,50 +126,92 @@ const hasCurrentChild = (item: NavItem): boolean =>
                             <SidebarMenuSub
                                 class="mr-0 ml-4 gap-1 border-slate-200 px-2.5 py-1 dark:border-white/5"
                             >
-                                <SidebarMenuSubItem
+                                <template
                                     v-for="subItem in item.items"
                                     :key="subItem.title"
                                 >
-                                    <SidebarMenuSubButton
+                                    <Collapsible
+                                        v-if="subItem.items && subItem.items.length > 0"
                                         as-child
-                                        :is-active="
-                                            isCurrentNavigationItem(
-                                                subItem.href,
-                                            )
-                                        "
-                                        class="h-8 rounded-md px-2 text-[12px] font-semibold text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-950 data-[active=true]:bg-emerald-50 data-[active=true]:text-emerald-700 dark:text-slate-500 dark:hover:bg-white/[0.05] dark:hover:text-slate-300 dark:data-[active=true]:bg-emerald-500/10 dark:data-[active=true]:text-emerald-300"
+                                        :default-open="isCurrentNavigationItem(subItem.href) || hasCurrentChild(subItem)"
+                                        class="group/sub-collapsible"
                                     >
-                                        <a
-                                            v-if="subItem.download"
-                                            :href="toUrl(subItem.href)"
+                                        <SidebarMenuSubItem>
+                                            <CollapsibleTrigger as-child>
+                                                <SidebarMenuSubButton
+                                                    :is-active="isCurrentNavigationItem(subItem.href) || hasCurrentChild(subItem)"
+                                                    class="h-8 rounded-md px-2 text-[12px] font-semibold text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-950 data-[active=true]:bg-emerald-50 data-[active=true]:text-emerald-700 dark:text-slate-500 dark:hover:bg-white/[0.05] dark:hover:text-slate-300 dark:data-[active=true]:bg-emerald-500/10 dark:data-[active=true]:text-emerald-300"
+                                                >
+                                                    <component :is="subItem.icon" v-if="subItem.icon" class="mr-1 size-3.5" />
+                                                    <span>{{ subItem.title }}</span>
+                                                    <ChevronDown class="ml-auto size-3.5 text-slate-400 transition-transform duration-200 group-data-[state=open]/sub-collapsible:rotate-180 dark:text-slate-600" />
+                                                </SidebarMenuSubButton>
+                                            </CollapsibleTrigger>
+                                            <CollapsibleContent>
+                                                <SidebarMenuSub class="mr-0 ml-2 gap-1 border-slate-200 border-l px-2.5 py-1 dark:border-white/5">
+                                                    <SidebarMenuSubItem v-for="nestedItem in subItem.items" :key="nestedItem.title">
+                                                        <SidebarMenuSubButton
+                                                            as-child
+                                                            :is-active="isCurrentNavigationItem(nestedItem.href)"
+                                                            class="h-8 rounded-md px-2 text-[12px] font-semibold text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-950 data-[active=true]:bg-emerald-50 data-[active=true]:text-emerald-700 dark:text-slate-500 dark:hover:bg-white/[0.05] dark:hover:text-slate-300 dark:data-[active=true]:bg-emerald-500/10 dark:data-[active=true]:text-emerald-300"
+                                                        >
+                                                            <a v-if="nestedItem.download" :href="toUrl(nestedItem.href)">
+                                                                <component :is="nestedItem.icon" v-if="nestedItem.icon" class="mr-1 size-3.5" />
+                                                                <span>{{ nestedItem.title }}</span>
+                                                            </a>
+                                                            <Link v-else :href="nestedItem.href">
+                                                                <component :is="nestedItem.icon" v-if="nestedItem.icon" class="mr-1 size-3.5" />
+                                                                <span>{{ nestedItem.title }}</span>
+                                                            </Link>
+                                                        </SidebarMenuSubButton>
+                                                    </SidebarMenuSubItem>
+                                                </SidebarMenuSub>
+                                            </CollapsibleContent>
+                                        </SidebarMenuSubItem>
+                                    </Collapsible>
+
+                                    <SidebarMenuSubItem v-else>
+                                        <SidebarMenuSubButton
+                                            as-child
+                                            :is-active="
+                                                isCurrentNavigationItem(
+                                                    subItem.href,
+                                                )
+                                            "
+                                            class="h-8 rounded-md px-2 text-[12px] font-semibold text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-950 data-[active=true]:bg-emerald-50 data-[active=true]:text-emerald-700 dark:text-slate-500 dark:hover:bg-white/[0.05] dark:hover:text-slate-300 dark:data-[active=true]:bg-emerald-500/10 dark:data-[active=true]:text-emerald-300"
                                         >
-                                            <component
-                                                :is="subItem.icon"
-                                                v-if="subItem.icon"
-                                            />
-                                            <span>{{ subItem.title }}</span>
-                                            <span
-                                                v-if="subItem.badge"
-                                                class="ml-auto text-sm font-medium text-slate-400 dark:text-slate-500"
+                                            <a
+                                                v-if="subItem.download"
+                                                :href="toUrl(subItem.href)"
                                             >
-                                                {{ subItem.badge }}
-                                            </span>
-                                        </a>
-                                        <Link v-else :href="subItem.href">
-                                            <component
-                                                :is="subItem.icon"
-                                                v-if="subItem.icon"
-                                            />
-                                            <span>{{ subItem.title }}</span>
-                                            <span
-                                                v-if="subItem.badge"
-                                                class="ml-auto text-sm font-medium text-slate-400 dark:text-slate-500"
-                                            >
-                                                {{ subItem.badge }}
-                                            </span>
-                                        </Link>
-                                    </SidebarMenuSubButton>
-                                </SidebarMenuSubItem>
+                                                <component
+                                                    :is="subItem.icon"
+                                                    v-if="subItem.icon"
+                                                />
+                                                <span>{{ subItem.title }}</span>
+                                                <span
+                                                    v-if="subItem.badge"
+                                                    class="ml-auto text-sm font-medium text-slate-400 dark:text-slate-500"
+                                                >
+                                                    {{ subItem.badge }}
+                                                </span>
+                                            </a>
+                                            <Link v-else :href="subItem.href">
+                                                <component
+                                                    :is="subItem.icon"
+                                                    v-if="subItem.icon"
+                                                />
+                                                <span>{{ subItem.title }}</span>
+                                                <span
+                                                    v-if="subItem.badge"
+                                                    class="ml-auto text-sm font-medium text-slate-400 dark:text-slate-500"
+                                                >
+                                                    {{ subItem.badge }}
+                                                </span>
+                                            </Link>
+                                        </SidebarMenuSubButton>
+                                    </SidebarMenuSubItem>
+                                </template>
                             </SidebarMenuSub>
                         </CollapsibleContent>
                     </SidebarMenuItem>

@@ -19,7 +19,7 @@ import {
     Users,
     X,
 } from 'lucide-vue-next';
-import { computed, defineComponent, h, onMounted, ref, watch } from 'vue';
+import { computed, defineComponent, h, onMounted, ref, watch, unref } from 'vue';
 import VueApexCharts from 'vue3-apexcharts';
 import {
     analyticsPage as pftAnalyticsPage,
@@ -33,6 +33,9 @@ import {
     sections as filterSections,
     terms as filterTerms,
 } from '@/routes/admin/reporting/pft-result/filter';
+import AsyncSelect from '@/components/AsyncSelect.vue';
+import FitnessIntelligenceSidebar from '@/components/FitnessIntelligenceSidebar.vue';
+import { useAppearance } from '@/composables/useAppearance';
 
 type SelectOption = { id: string; text: string };
 type Select2Payload = {
@@ -49,6 +52,12 @@ type ExecutiveStats = {
     total_sections: number;
     requiring_intervention: number;
     target_performance: number;
+    cleared?: number;
+    clearance_required?: number;
+    clearance_uploaded?: number;
+    average_bmi?: number;
+    fitness_index?: number;
+    total_programs?: number;
 };
 
 type ClassificationStat = {
@@ -136,6 +145,32 @@ type AnalyticsData = {
     classifications: ClassificationStat[];
     interventions: InterventionItem[];
     executive_stats: ExecutiveStats;
+    bmi_analytics?: {
+        distribution: Record<string, number>;
+        by_campus: { campus: string; avg_bmi: number; overweight_prevalence: number }[];
+        lifestyle_risk: Record<string, number>;
+    };
+    comparisons?: {
+        year_level_progression: { year: string; score: number }[];
+        male_female: { Male: number; Female: number };
+        program_performance: { program: string; score: number }[];
+        college_ranking: {
+            college: string;
+            students: number;
+            fitness: number;
+            bmi: number;
+            participation: string;
+            risk: { label: string; color: string };
+        }[];
+        heatmap: {
+            unit: string;
+            'Cardiovascular Endurance': { label: string; color_class: string; score: number };
+            'Muscular Strength': { label: string; color_class: string; score: number };
+            'Muscular Endurance': { label: string; color_class: string; score: number };
+            'Flexibility': { label: string; color_class: string; score: number };
+            'Body Composition': { label: string; color_class: string; score: number };
+        }[];
+    };
     college_comparison: { college: string; score: number }[];
     section_comparison: { section: string; score: number }[];
     term_trends: { term: string; score: number }[];
@@ -237,6 +272,7 @@ const reportFooterName = computed(
         siteSettings.value?.site_footer_name ||
         'University of Southern Mindanao',
 );
+const { resolvedAppearance } = useAppearance();
 
 defineOptions({
     layout: {
@@ -251,177 +287,7 @@ defineOptions({
     },
 });
 
-// Reusable AsyncSelect helper
-const AsyncSelect = defineComponent({
-    props: {
-        modelValue: { type: String, default: '' },
-        selected: { type: Object as () => SelectOption | null, default: null },
-        endpoint: { type: String, required: true },
-        params: {
-            type: Object as () => Record<string, string | number | undefined>,
-            default: () => ({}),
-        },
-        placeholder: { type: String, required: true },
-        disabled: { type: Boolean, default: false },
-        minInput: { type: Number, default: 0 },
-    },
-    emits: ['update:modelValue', 'select'],
-    setup(componentProps, { emit }) {
-        const term = ref('');
-        const page = ref(1);
-        const options = ref<SelectOption[]>(
-            componentProps.selected ? [componentProps.selected] : [],
-        );
-        const loading = ref(false);
-        const more = ref(false);
-        let timer: ReturnType<typeof setTimeout> | null = null;
 
-        const fetchOptions = async (reset = true) => {
-            if (componentProps.disabled) {
-                return;
-            }
-
-            if (term.value.length < componentProps.minInput) {
-                options.value = componentProps.selected
-                    ? [componentProps.selected]
-                    : [];
-                more.value = false;
-                return;
-            }
-
-            loading.value = true;
-            const nextPage = reset ? 1 : page.value + 1;
-            const params = new URLSearchParams();
-            params.set('page', String(nextPage));
-
-            if (term.value) {
-                params.set('q', term.value);
-            }
-
-            Object.entries(componentProps.params).forEach(([key, value]) => {
-                if (value !== undefined && value !== '') {
-                    params.set(key, String(value));
-                }
-            });
-
-            const response = await fetch(
-                `${componentProps.endpoint}?${params.toString()}`,
-                {
-                    headers: { Accept: 'application/json' },
-                },
-            );
-            const payload = (await response.json()) as Select2Payload;
-            page.value = nextPage;
-            options.value = reset
-                ? payload.results
-                : [...options.value, ...payload.results];
-            more.value = payload.pagination.more;
-            loading.value = false;
-        };
-
-        const debouncedFetch = () => {
-            if (timer) {
-                clearTimeout(timer);
-            }
-            timer = setTimeout(() => void fetchOptions(true), 300);
-        };
-
-        watch(
-            () => componentProps.selected,
-            (selected) => {
-                options.value = selected ? [selected] : [];
-            },
-        );
-
-        watch(
-            () => componentProps.params,
-            () => {
-                term.value = '';
-                options.value = componentProps.selected
-                    ? [componentProps.selected]
-                    : [];
-                more.value = false;
-            },
-            { deep: true },
-        );
-
-        watch(term, debouncedFetch);
-        onMounted(() => void fetchOptions(true));
-
-        return () =>
-            h('div', { class: 'grid gap-1' }, [
-                h('div', { class: 'relative animate-fade-in' }, [
-                    h('input', {
-                        value: term.value,
-                        disabled: componentProps.disabled,
-                        placeholder: componentProps.placeholder,
-                        class: 'report-input pr-8 bg-white/70 backdrop-blur-sm focus:bg-white transition-all duration-300 border-slate-200 dark:border-slate-800 dark:bg-slate-900/50',
-                        onInput: (event: Event) => {
-                            term.value = (
-                                event.target as HTMLInputElement
-                            ).value;
-                        },
-                        onFocus: () => void fetchOptions(true),
-                    }),
-                    loading.value
-                        ? h(Loader2, {
-                              class: 'absolute top-2.5 right-2.5 h-4 w-4 animate-spin text-emerald-600',
-                          })
-                        : null,
-                ]),
-                h('div', { class: 'relative min-w-0' }, [
-                    h(
-                        'select',
-                        {
-                            value: componentProps.modelValue,
-                            disabled: componentProps.disabled,
-                            class: 'report-input border-slate-200 dark:border-slate-800 dark:bg-slate-900',
-                            onChange: (event: Event) => {
-                                const value = (
-                                    event.target as HTMLSelectElement
-                                ).value;
-                                const selected =
-                                    options.value.find(
-                                        (option) => option.id === value,
-                                    ) ?? null;
-                                emit('update:modelValue', value);
-                                emit('select', selected);
-                            },
-                            onFocus: () => void fetchOptions(true),
-                            onMousedown: () => void fetchOptions(true),
-                        },
-                        [
-                            h(
-                                'option',
-                                { value: '' },
-                                componentProps.disabled
-                                    ? 'Select previous filter first'
-                                    : 'Select option',
-                            ),
-                            ...options.value.map((option) =>
-                                h(
-                                    'option',
-                                    { key: option.id, value: option.id },
-                                    option.text,
-                                ),
-                            ),
-                        ],
-                    ),
-                ]),
-                more.value
-                    ? h(
-                          'button',
-                          {
-                              type: 'button',
-                              class: 'report-link-btn text-[11px] mt-1 text-emerald-600 font-semibold text-left',
-                              onClick: () => void fetchOptions(false),
-                          },
-                          'Load more...',
-                      )
-                    : null,
-            ]);
-    },
-});
 
 // Page level state filters
 const campusId = ref(props.filters.campus_id ?? '');
@@ -578,6 +444,16 @@ const expandedCollegeProfiles = ref<string[]>([]);
 const expandedCollegeComponents = ref<string[]>([]);
 const expandedCollegeCategories = ref<string[]>([]);
 const expandedCollegeTestTypes = ref<string[]>([]);
+const interventionPanelOpen = ref(false);
+const filtersPanelOpen = ref(true);
+
+const toggleInterventionPanel = () => {
+    interventionPanelOpen.value = !interventionPanelOpen.value;
+};
+
+const toggleFiltersPanel = () => {
+    filtersPanelOpen.value = !filtersPanelOpen.value;
+};
 
 const toggleComponent = (id: number) => {
     if (expandedComponents.value.includes(id)) {
@@ -695,6 +571,15 @@ const getClassificationColor = (name: string) => {
     );
     return found?.color_class ?? 'slate';
 };
+
+const groupedInterventions = computed(() => {
+    if (!apiData.value) return {};
+    return apiData.value.interventions.reduce((acc, item) => {
+        if (!acc[item.test_type]) acc[item.test_type] = [];
+        acc[item.test_type].push(item);
+        return acc;
+    }, {} as Record<string, InterventionItem[]>);
+});
 
 // Drilldown Modal logic
 const drilldownOpen = ref(false);
@@ -1506,7 +1391,7 @@ const makeOptions = (config: ApexOptions): ApexOptions => ({
         background: 'transparent',
         toolbar: { show: false },
     },
-    theme: { mode: 'light' },
+    theme: { mode: resolvedAppearance.value },
     ...config,
 });
 
@@ -1711,6 +1596,125 @@ const campusComparisonOptions = computed<ApexOptions>(() =>
     }),
 );
 
+// Year Level Progression (Line chart)
+const yearLevelProgressionSeries = computed(() => [
+    { name: 'Fitness Index', data: apiData.value?.comparisons?.year_level_progression.map((item) => item.score) ?? [] }
+]);
+const yearLevelProgressionOptions = computed<ApexOptions>(() =>
+    makeOptions({
+        chart: { type: 'line' },
+        colors: ['#3b82f6'],
+        stroke: { curve: 'smooth', width: 3 },
+        markers: { size: 4 },
+        xaxis: { categories: apiData.value?.comparisons?.year_level_progression.map((item) => item.year) ?? [] },
+        yaxis: { min: 0, max: 100 },
+    }),
+);
+
+// Program Performance Matrix (Horizontal Bar)
+const programPerformanceSeries = computed(() => [
+    { name: 'Fitness Score', data: apiData.value?.comparisons?.program_performance.map((item) => item.score) ?? [] }
+]);
+const programPerformanceOptions = computed<ApexOptions>(() =>
+    makeOptions({
+        chart: { type: 'bar' },
+        colors: ['#3b82f6', '#10b981', '#8b5cf6', '#06b6d4', '#f59e0b', '#f97316'],
+        plotOptions: {
+            bar: { horizontal: true, barHeight: '60%', borderRadius: 4, distributed: true },
+        },
+        xaxis: { min: 0, max: 100 },
+        yaxis: { categories: apiData.value?.comparisons?.program_performance.map((item) => item.program) ?? [] },
+        legend: { show: false }
+    }),
+);
+
+// Male vs Female Performance (Grouped Bar)
+const maleFemalePerformanceSeries = computed(() => [
+    { name: 'Male', data: [apiData.value?.comparisons?.male_female.Male ?? 0] },
+    { name: 'Female', data: [apiData.value?.comparisons?.male_female.Female ?? 0] },
+]);
+const maleFemalePerformanceOptions = computed<ApexOptions>(() =>
+    makeOptions({
+        chart: { type: 'bar' },
+        colors: ['#3b82f6', '#ec4899'],
+        plotOptions: {
+            bar: { horizontal: false, columnWidth: '60%', borderRadius: 4 },
+        },
+        xaxis: { categories: ['Overall Average'] },
+        yaxis: { min: 0, max: 100 },
+    }),
+);
+
+// BMI Distribution (Donut)
+const bmiDistributionSeries = computed(() => {
+    const dist = apiData.value?.bmi_analytics?.distribution ?? {};
+    return [
+        dist['Underweight'] ?? 0,
+        dist['Normal'] ?? 0,
+        dist['Overweight'] ?? 0,
+        dist['Obese I'] ?? 0,
+        dist['Obese II'] ?? 0,
+    ];
+});
+const bmiDistributionOptions = computed<ApexOptions>(() =>
+    makeOptions({
+        chart: { type: 'donut' },
+        labels: ['Underweight', 'Normal', 'Overweight', 'Obese I', 'Obese II'],
+        colors: ['#3b82f6', '#10b981', '#f59e0b', '#f97316', '#8b5cf6'],
+        legend: { position: 'bottom' },
+    }),
+);
+
+// BMI by Campus (Grouped Bar)
+const bmiByCampusSeries = computed(() => [
+    { name: 'Avg. BMI', data: apiData.value?.bmi_analytics?.by_campus.map(c => c.avg_bmi) ?? [] },
+    { name: 'Overweight/Obese %', data: apiData.value?.bmi_analytics?.by_campus.map(c => c.overweight_prevalence) ?? [] },
+]);
+const bmiByCampusOptions = computed<ApexOptions>(() =>
+    makeOptions({
+        chart: { type: 'bar' },
+        colors: ['#06b6d4', '#f97316'],
+        plotOptions: {
+            bar: { horizontal: false, columnWidth: '55%', borderRadius: 4 },
+        },
+        xaxis: { categories: apiData.value?.bmi_analytics?.by_campus.map(c => c.campus) ?? [] },
+        yaxis: { min: 0, max: 100 },
+    }),
+);
+
+// Lifestyle Risk Profile (Polar Area)
+const lifestyleRiskSeries = computed(() => {
+    const risk = apiData.value?.bmi_analytics?.lifestyle_risk ?? {};
+    return [
+        risk['Medical Condition'] ?? 0,
+        risk['Medication'] ?? 0,
+        risk['Current Smoking'] ?? 0,
+        risk['Former Smoking'] ?? 0,
+        risk['Regular Alcohol'] ?? 0,
+    ];
+});
+const lifestyleRiskOptions = computed<ApexOptions>(() =>
+    makeOptions({
+        chart: { type: 'polarArea' },
+        labels: ['Medical Condition', 'Medication', 'Current Smoking', 'Former Smoking', 'Regular Alcohol'],
+        colors: ['#ef4444', '#f97316', '#94a3b8', '#8b5cf6', '#f59e0b'],
+        stroke: { colors: ['#fff'] },
+        fill: { opacity: 0.8 },
+        legend: { position: 'bottom' },
+    }),
+);
+
+const heatmapClass = (colorClass?: string) => {
+    switch (colorClass) {
+        case 'emerald': return 'bg-emerald-50 font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400';
+        case 'blue': return 'bg-blue-50 font-bold text-blue-700 dark:bg-blue-950/30 dark:text-blue-400';
+        case 'amber': return 'bg-amber-50 font-bold text-amber-700 dark:bg-amber-950/30 dark:text-amber-400';
+        case 'orange': return 'bg-orange-50 font-bold text-orange-700 dark:bg-orange-950/30 dark:text-orange-400';
+        case 'red': return 'bg-red-50 font-bold text-red-700 dark:bg-red-950/30 dark:text-red-400';
+        default: return 'text-slate-500';
+    }
+};
+
 const getComponentTestTypeData = (
     componentName: string,
     testTypeName: string,
@@ -1767,554 +1771,667 @@ onMounted(() => {
 <template>
     <Head title="Physical Fitness Intelligence Dashboard" />
 
-    <div
-        class="flex h-full flex-1 flex-col gap-4 bg-slate-50/60 p-4 dark:bg-slate-950/80"
-    >
-        <!-- Dashboard Header -->
-        <div
-            class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
-        >
-            <div>
-                <div class="flex items-center gap-2">
-                    <Link
-                        class="report-btn flex items-center gap-1 border-slate-200 px-2 py-1 text-xs hover:bg-slate-100"
-                        href="/admin/reporting/pft-result"
-                    >
-                        <ChevronLeft class="h-3.5 w-3.5" />Back to Results
-                    </Link>
-                </div>
-                <h1
-                    class="mt-1 text-lg font-extrabold text-slate-900 dark:text-white"
-                >
-                    Physical Fitness Intelligence Dashboard
-                </h1>
-                <p class="text-xs text-slate-500">
-                    Accreditation-ready overall campus analytics, comparison
-                    modules, and interventions.
-                </p>
-            </div>
+    <div class="pft-analytics-page min-h-screen font-sans bg-slate-50 text-slate-800 lg:flex dark:bg-slate-950 dark:text-slate-100">
+        <FitnessIntelligenceSidebar
+            active="executive"
+            :campus-id="campusId"
+            :term-id="termId"
+        />
 
-            <div v-if="apiData && canExport" class="flex items-center gap-2">
-                <a
-                    class="report-btn-primary flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white shadow-md shadow-emerald-600/10 hover:bg-emerald-700"
-                    :href="`/admin/reporting/pft-result/export/analytics-pdf?campus_id=${campusId}&term_id=${termId}&college_id=${collegeId}&section_id=${sectionId}`"
-                    target="_blank"
-                >
-                    <FileDown class="h-4 w-4" />Export Analytics PDF
-                </a>
-            </div>
-        </div>
-
-        <!-- Filters Section -->
-        <section
-            class="report-card rounded-xl border border-slate-200/80 bg-white/70 p-4 shadow-sm backdrop-blur-md dark:border-white/5 dark:bg-slate-900/50"
-        >
-            <h2
-                class="mb-3 text-xs font-bold tracking-wider text-slate-700 uppercase dark:text-slate-300"
-            >
-                Dashboard Queries & Filters
-            </h2>
-            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div>
-                    <label
-                        class="text-[10px] font-bold tracking-wider text-slate-500 uppercase"
-                        >Campus</label
-                    >
-                    <AsyncSelect
-                        v-model="campusId"
-                        :selected="selectedCampus"
-                        :endpoint="filterEndpoints.campuses"
-                        placeholder="Search campus"
-                        @select="onCampusChange"
-                    />
-                </div>
-                <div>
-                    <label
-                        class="text-[10px] font-bold tracking-wider text-slate-500 uppercase"
-                        >Academic Term</label
-                    >
-                    <AsyncSelect
-                        v-model="termId"
-                        :selected="selectedTerm"
-                        :endpoint="filterEndpoints.terms"
-                        :params="{ campus_id: campusId }"
-                        :disabled="!campusId"
-                        placeholder="Search academic term"
-                        @select="onTermChange"
-                    />
-                </div>
-                <div>
-                    <label
-                        class="text-[10px] font-bold tracking-wider text-slate-500 uppercase"
-                        >College</label
-                    >
-                    <AsyncSelect
-                        v-model="collegeId"
-                        :selected="selectedCollege"
-                        :endpoint="filterEndpoints.colleges"
-                        :params="{ campus_id: campusId }"
-                        :disabled="!campusId"
-                        placeholder="Search college"
-                        @select="onCollegeChange"
-                    />
-                </div>
-                <div>
-                    <label
-                        class="text-[10px] font-bold tracking-wider text-slate-500 uppercase"
-                        >Section</label
-                    >
-                    <AsyncSelect
-                        v-model="sectionId"
-                        :selected="selectedSection"
-                        :endpoint="filterEndpoints.sections"
-                        :params="{
-                            campus_id: campusId,
-                            term_id: termId,
-                            college_id: collegeId,
-                        }"
-                        :disabled="!campusId || !termId || !collegeId"
-                        placeholder="Search section"
-                        @select="onSectionChange"
-                    />
-                </div>
-            </div>
-
-            <!-- Optional secondary filters -->
-            <div
-                v-if="campusId && termId"
-                class="mt-3 grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-4 dark:border-slate-800"
-            >
-                <div>
-                    <label
-                        class="text-[10px] font-bold tracking-wider text-slate-500 uppercase"
-                        >Year Level</label
-                    >
-                    <select
-                        v-model="yearLevelId"
-                        class="report-input border-slate-200 dark:border-slate-800 dark:bg-slate-900"
-                    >
-                        <option value="">All Years</option>
-                        <option value="1">1st Year</option>
-                        <option value="2">2nd Year</option>
-                        <option value="3">3rd Year</option>
-                        <option value="4">4th Year</option>
-                        <option value="5">5th Year</option>
-                    </select>
-                </div>
-                <div>
-                    <label
-                        class="text-[10px] font-bold tracking-wider text-slate-500 uppercase"
-                        >Sex</label
-                    >
-                    <select
-                        v-model="sex"
-                        class="report-input border-slate-200 dark:border-slate-800 dark:bg-slate-900"
-                    >
-                        <option value="">All Genders</option>
-                        <option value="M">Male</option>
-                        <option value="F">Female</option>
-                    </select>
-                </div>
-                <div>
-                    <label
-                        class="text-[10px] font-bold tracking-wider text-slate-500 uppercase"
-                        >Component</label
-                    >
-                    <select
-                        v-model="componentId"
-                        class="report-input border-slate-200 dark:border-slate-800 dark:bg-slate-900"
-                    >
-                        <option value="">All Components</option>
-                        <option
-                            v-for="c in apiData?.components ?? []"
-                            :key="c.id"
-                            :value="c.id"
-                        >
-                            {{ c.name }}
-                        </option>
-                    </select>
-                </div>
-                <div>
-                    <label
-                        class="text-[10px] font-bold tracking-wider text-slate-500 uppercase"
-                        >Test Type</label
-                    >
-                    <select
-                        v-model="testTypeId"
-                        class="report-input border-slate-200 dark:border-slate-800 dark:bg-slate-900"
-                    >
-                        <option value="">All Test Types</option>
-                        <option
-                            v-for="t in apiData?.test_types ?? []"
-                            :key="t.id"
-                            :value="t.id"
-                        >
-                            {{ t.name }}
-                        </option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
-                <p class="text-xs font-semibold text-slate-500">
-                    <span
-                        v-if="!campusId || !termId"
-                        class="font-bold text-amber-600"
-                        >Please select Campus and Academic Term to query
-                        statistics.</span
-                    >
-                    <span v-else class="text-emerald-600"
-                        >Filters applied. Dashboard refreshed.</span
-                    >
-                </p>
-                <button
-                    class="report-btn px-3 py-1 text-xs"
-                    @click="resetFilters"
-                >
-                    <RefreshCw class="mr-1 h-3 w-3" />Reset
-                </button>
-            </div>
-        </section>
-
-        <!-- Loading spinner -->
-        <div
-            v-if="loading"
-            class="flex flex-col items-center justify-center rounded-xl bg-white/50 py-20 backdrop-blur-sm dark:bg-slate-950/20"
-        >
-            <Loader2 class="mb-3 h-10 w-10 animate-spin text-emerald-600" />
-            <p class="text-sm font-semibold text-slate-600 dark:text-slate-400">
-                Loading fitness intelligence...
-            </p>
-        </div>
-
-        <!-- No data panel -->
-        <div
-            v-else-if="!apiData"
-            class="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-white py-20 dark:border-slate-900 dark:bg-slate-950"
-        >
-            <BarChart3 class="mb-3 h-12 w-12 text-slate-300" />
-            <p class="text-sm font-bold text-slate-600 dark:text-slate-400">
-                No Query Results
-            </p>
-            <p class="mt-1 text-xs text-slate-400">
-                Provide query parameters to aggregate reporting data.
-            </p>
-        </div>
-
-        <!-- Dashboard Contents -->
-        <div v-else class="animate-fade-in flex flex-col gap-4">
-            <!-- Executive Statistics Cards -->
-            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div
-                    class="stat-card flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900"
-                >
-                    <div class="flex items-center justify-between">
-                        <span
-                            class="text-xs font-bold tracking-wider text-slate-500 uppercase"
-                            >Students Tested</span
-                        >
-                        <Users class="h-5 w-5 text-emerald-600" />
-                    </div>
-                    <strong
-                        class="mt-2 text-2xl font-black text-slate-800 dark:text-white"
-                        >{{ apiData.executive_stats.total_students }}</strong
-                    >
-                </div>
-
-                <div
-                    class="stat-card flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900"
-                >
-                    <div class="flex items-center justify-between">
-                        <span
-                            class="text-xs font-bold tracking-wider text-slate-500 uppercase"
-                            >Components Covered</span
-                        >
-                        <Dumbbell class="h-5 w-5 text-violet-600" />
-                    </div>
-                    <strong
-                        class="mt-2 text-2xl font-black text-slate-800 dark:text-white"
-                        >{{ apiData.executive_stats.total_components }}</strong
-                    >
-                </div>
-
-                <div
-                    class="stat-card flex cursor-pointer flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:border-orange-200 dark:border-white/5 dark:bg-slate-900"
-                    @click="
-                        openDrilldown({
-                            title: 'Students Requiring Intervention',
-                        })
-                    "
-                >
-                    <div class="flex items-center justify-between">
-                        <span
-                            class="text-xs font-bold tracking-wider text-slate-500 uppercase"
-                            >Requiring Intervention</span
-                        >
-                        <Layers class="h-5 w-5 animate-pulse text-orange-600" />
-                    </div>
-                    <strong class="mt-2 text-2xl font-black text-orange-600">{{
-                        apiData.executive_stats.requiring_intervention
-                    }}</strong>
-                </div>
-
-                <div
-                    class="stat-card flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900"
-                >
-                    <div class="flex items-center justify-between">
-                        <span
-                            class="text-xs font-bold tracking-wider text-slate-500 uppercase"
-                            >Target Performance</span
-                        >
-                        <Activity class="h-5 w-5 text-emerald-600" />
-                    </div>
-                    <strong class="mt-2 text-2xl font-black text-emerald-600">{{
-                        apiData.executive_stats.target_performance
-                    }}</strong>
-                </div>
-            </div>
-
-            <!-- Executive Graphs -->
-            <div class="grid gap-4 lg:grid-cols-2">
-                <!-- Campus Physical Fitness Profile (Overall Classification Distribution) -->
-                <section
-                    class="report-card rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900"
-                >
-                    <div class="mb-3 flex items-center justify-between">
+        <!-- Main Content -->
+        <main class="min-w-0 flex-1 relative flex flex-col h-screen overflow-y-auto">
+            <!-- Header -->
+            <header class="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
+                <div class="flex min-h-16 items-center justify-between gap-3 px-4 sm:px-6">
+                    <div class="flex items-center gap-3">
+                        <button class="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 lg:hidden">☰</button>
                         <div>
-                            <h2
-                                class="text-sm font-bold text-slate-800 dark:text-white"
-                            >
-                                Campus Physical Fitness Profile
-                            </h2>
-                            <p class="text-[11px] text-slate-400">
-                                Distribution of students across classification
-                                rules. Click bars to drill down.
-                            </p>
+                            <h2 class="text-lg font-bold text-slate-900">Physical Fitness Intelligence Dashboard</h2>
+                            <p class="hidden text-xs text-slate-500 sm:block">University-wide decision support and analytics</p>
                         </div>
                     </div>
-                    <VueApexCharts
-                        height="300"
-                        type="bar"
-                        :options="overallDistributionOptions"
-                        :series="overallDistributionSeries"
-                    />
-                </section>
+
+                    <div class="flex items-center gap-2">
+                        <Link
+                            class="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                            href="/admin/reporting/pft-result"
+                        >
+                            <ChevronLeft class="h-4 w-4" /> Back
+                        </Link>
+                        
+                        <Link
+                            :href="`/admin/reporting/pft-result/analytics/comparative?campus_id=${campusId}&term_id=${termId}`"
+                            class="hidden items-center gap-2 rounded-xl bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-100 md:flex border border-indigo-200"
+                        >
+                            <Layers class="h-4 w-4" /> Comparative Analytics
+                        </Link>
+                        
+                        <a
+                            v-if="apiData && canExport"
+                            class="hidden items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 md:flex"
+                            :href="`/admin/reporting/pft-result/export/analytics-pdf?campus_id=${campusId}&term_id=${termId}&college_id=${collegeId}&section_id=${sectionId}`"
+                            target="_blank"
+                        >
+                            <FileDown class="h-4 w-4" /> Export Report
+                        </a>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Global Analytics Filters -->
+            <section class="sticky top-16 z-20 border-b border-slate-200 bg-slate-50/95 px-4 py-4 backdrop-blur sm:px-6">
+                <div class="rounded-xl border border-slate-200 bg-white shadow-soft">
+                    <div class="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between cursor-pointer" @click="toggleFiltersPanel">
+                        <div>
+                            <h3 class="text-sm font-extrabold uppercase tracking-wide text-slate-700">Dashboard Queries & Filters</h3>
+                            <p class="mt-1 text-xs text-slate-500">All charts, KPIs, tables, insights, and reports use the selected filters.</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <button class="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700" @click.stop="fetchAnalyticsData">
+                                Apply Filters
+                            </button>
+                            <button class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50" @click.stop="resetFilters">
+                                ↻ Reset
+                            </button>
+                            <button type="button" class="ml-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                                <ChevronDown v-if="filtersPanelOpen" class="h-5 w-5" />
+                                <ChevronRight v-else class="h-5 w-5" />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div v-show="filtersPanelOpen">
+                        <div class="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-4">
+                            <label class="block">
+                                <span class="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Campus</span>
+                                <AsyncSelect
+                                    v-model="campusId"
+                                    :selected="selectedCampus"
+                                    :endpoint="filterEndpoints.campuses"
+                                    placeholder="Search campus"
+                                    @select="onCampusChange"
+                                />
+                            </label>
+                            <label class="block">
+                                <span class="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Academic Term</span>
+                                <AsyncSelect
+                                    v-model="termId"
+                                    :selected="selectedTerm"
+                                    :endpoint="filterEndpoints.terms"
+                                    :params="{ campus_id: campusId }"
+                                    :disabled="!campusId"
+                                    placeholder="Search academic term"
+                                    @select="onTermChange"
+                                />
+                            </label>
+                            <label class="block">
+                                <span class="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-500">College</span>
+                                <AsyncSelect
+                                    v-model="collegeId"
+                                    :selected="selectedCollege"
+                                    :endpoint="filterEndpoints.colleges"
+                                    :params="{ campus_id: campusId }"
+                                    :disabled="!campusId"
+                                    placeholder="Search college"
+                                    @select="onCollegeChange"
+                                />
+                            </label>
+                            <label class="block">
+                                <span class="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Section</span>
+                                <AsyncSelect
+                                    v-model="sectionId"
+                                    :selected="selectedSection"
+                                    :endpoint="filterEndpoints.sections"
+                                    :params="{
+                                        campus_id: campusId,
+                                        term_id: termId,
+                                        college_id: collegeId,
+                                    }"
+                                    :disabled="!campusId || !termId || !collegeId"
+                                    placeholder="Search section"
+                                    @select="onSectionChange"
+                                />
+                            </label>
+                        </div>
+
+                        <div v-if="campusId && termId" class="grid gap-4 p-4 pt-0 md:grid-cols-2 xl:grid-cols-4">
+                            <label class="block">
+                                <span class="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Year Level</span>
+                                <select v-model="yearLevelId" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
+                                    <option value="">All Years</option>
+                                    <option value="1">1st Year</option>
+                                    <option value="2">2nd Year</option>
+                                    <option value="3">3rd Year</option>
+                                    <option value="4">4th Year</option>
+                                    <option value="5">5th Year</option>
+                                </select>
+                            </label>
+                            <label class="block">
+                                <span class="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Sex</span>
+                                <select v-model="sex" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
+                                    <option value="">All Sexes</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                </select>
+                            </label>
+                            <label class="block">
+                                <span class="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Component</span>
+                                <select v-model="componentId" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
+                                    <option value="">All Components</option>
+                                    <option value="1">Health-Related</option>
+                                    <option value="2">Skill-Related</option>
+                                </select>
+                            </label>
+                            <label class="block">
+                                <span class="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Test Type</span>
+                                <AsyncSelect
+                                    v-model="testTypeId"
+                                    :selected="selectedTestType"
+                                    :endpoint="filterEndpoints.testTypes"
+                                    placeholder="Search test type"
+                                />
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="space-y-6 p-4 sm:p-6">
+                <div v-if="loading" class="flex h-64 items-center justify-center">
+                    <Loader2 class="h-8 w-8 animate-spin text-slate-400" />
+                </div>
+
+                <div v-else-if="!apiData" class="flex h-64 flex-col items-center justify-center text-slate-500">
+                    <Activity class="mb-2 h-12 w-12 opacity-50" />
+                    <p class="font-medium">No analytics data available</p>
+                    <p class="text-sm">Please select a campus and academic term to load data.</p>
+                </div>
+
+                <div v-else class="grid gap-4 animate-fade-in">
+                    <!-- Old dashboard content will render here -->
+            <!-- Executive Statistics Cards -->
+            <section id="executive" class="space-y-4">
+                <div>
+                    <h3 class="text-xl font-extrabold text-slate-900">Executive Overview</h3>
+                    <p class="text-sm text-slate-500">Participation, risk, readiness, health, and fitness performance summary</p>
+                </div>
+
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+                    <!-- Students Assessed -->
+                    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900 xl:col-span-1">
+                        <p class="text-[11px] font-bold tracking-wide text-slate-500 uppercase dark:text-slate-400">Students Assessed</p>
+                        <p class="mt-2 text-2xl font-black text-slate-800 dark:text-white">{{ apiData.executive_stats.total_students }}</p>
+                        <p class="mt-1 text-xs font-semibold text-emerald-600">↑ 8.6%</p>
+                    </article>
+
+                    <!-- Cleared -->
+                    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900 xl:col-span-1">
+                        <p class="text-[11px] font-bold tracking-wide text-slate-500 uppercase dark:text-slate-400">Cleared</p>
+                        <p class="mt-2 text-2xl font-black text-slate-800 dark:text-white">{{ apiData.executive_stats.cleared ?? 0 }}</p>
+                        <p class="mt-1 text-xs font-semibold text-emerald-600">{{ apiData.executive_stats.total_students ? Math.round(((apiData.executive_stats.cleared ?? 0) / apiData.executive_stats.total_students) * 100) : 0 }}%</p>
+                    </article>
+
+                    <!-- Clearance Required -->
+                    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900 xl:col-span-1">
+                        <p class="text-[11px] font-bold tracking-wide text-slate-500 uppercase dark:text-slate-400">Clearance Required</p>
+                        <p class="mt-2 text-2xl font-black text-slate-800 dark:text-white">{{ apiData.executive_stats.clearance_required ?? 0 }}</p>
+                        <p class="mt-1 text-xs font-semibold text-orange-600">{{ apiData.executive_stats.total_students ? Math.round(((apiData.executive_stats.clearance_required ?? 0) / apiData.executive_stats.total_students) * 100) : 0 }}%</p>
+                    </article>
+
+                    <!-- Clearance Uploaded -->
+                    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900 xl:col-span-1">
+                        <p class="text-[11px] font-bold tracking-wide text-slate-500 uppercase dark:text-slate-400">Clearance Uploaded</p>
+                        <p class="mt-2 text-2xl font-black text-slate-800 dark:text-white">{{ apiData.executive_stats.clearance_uploaded ?? 0 }}</p>
+                        <p class="mt-1 text-xs font-semibold text-violet-600">{{ apiData.executive_stats.clearance_required ? Math.round(((apiData.executive_stats.clearance_uploaded ?? 0) / apiData.executive_stats.clearance_required) * 100) : 0 }}% of required</p>
+                    </article>
+
+                    <!-- Average BMI -->
+                    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900 xl:col-span-1">
+                        <p class="text-[11px] font-bold tracking-wide text-slate-500 uppercase dark:text-slate-400">Average BMI</p>
+                        <p class="mt-2 text-2xl font-black text-slate-800 dark:text-white">{{ apiData.executive_stats.average_bmi?.toFixed(1) ?? 'N/A' }}</p>
+                        <p class="mt-1 text-xs font-semibold text-emerald-600">Overall</p>
+                    </article>
+
+                    <!-- Fitness Index -->
+                    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900 xl:col-span-1">
+                        <p class="text-[11px] font-bold tracking-wide text-slate-500 uppercase dark:text-slate-400">Fitness Index</p>
+                        <p class="mt-2 text-2xl font-black text-slate-800 dark:text-white">{{ apiData.executive_stats.fitness_index?.toFixed(1) ?? 'N/A' }}</p>
+                        <p class="mt-1 text-xs font-semibold text-emerald-600">Overall Score</p>
+                    </article>
+
+                    <!-- Campuses -->
+                    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900 xl:col-span-1">
+                        <p class="text-[11px] font-bold tracking-wide text-slate-500 uppercase dark:text-slate-400">Campuses</p>
+                        <p class="mt-2 text-2xl font-black text-slate-800 dark:text-white">{{ apiData.executive_stats.total_campuses }}</p>
+                        <p class="mt-1 text-xs text-slate-500">Participating</p>
+                    </article>
+
+                    <!-- Programs -->
+                    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900 xl:col-span-1">
+                        <p class="text-[11px] font-bold tracking-wide text-slate-500 uppercase dark:text-slate-400">Programs</p>
+                        <p class="mt-2 text-2xl font-black text-slate-800 dark:text-white">{{ apiData.executive_stats.total_programs ?? apiData.executive_stats.total_colleges }}</p>
+                        <p class="mt-1 text-xs text-slate-500">With records</p>
+                    </article>
+                </div>
+            </section>
+
+            <!-- Executive Graphs -->
+            <div class="grid gap-4 xl:grid-cols-12">
+                <!-- Campus Physical Fitness Profile (Overall Classification Distribution) -->
+                <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:col-span-5">
+                    <div class="mb-4">
+                        <h4 class="text-sm font-bold text-slate-900">Campus Physical Fitness Profile</h4>
+                        <p class="text-xs text-slate-500">Distribution of students across classification rules.</p>
+                    </div>
+                    <div class="h-[300px]">
+                        <VueApexCharts
+                            height="100%"
+                            type="bar"
+                            :options="overallDistributionOptions"
+                            :series="overallDistributionSeries"
+                        />
+                    </div>
+                </article>
 
                 <!-- Component Performance Distribution (Stacked Classification per Component) -->
-                <section
-                    class="report-card rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900"
-                >
-                    <div class="mb-3">
-                        <h2
-                            class="text-sm font-bold text-slate-800 dark:text-white"
-                        >
-                            Component Performance Distribution
-                        </h2>
-                        <p class="text-[11px] text-slate-400">
-                            Identify strong and weak campus components. Click
-                            segments to drill down.
-                        </p>
+                <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:col-span-4">
+                    <div class="mb-4">
+                        <h4 class="text-sm font-bold text-slate-900">Component Performance Distribution</h4>
+                        <p class="text-xs text-slate-500">Identify strong and weak campus components.</p>
                     </div>
-                    <VueApexCharts
-                        height="300"
-                        type="bar"
-                        :options="componentPerformanceOptions"
-                        :series="componentPerformanceSeries"
-                    />
-                </section>
+                    <div class="h-[300px]">
+                        <VueApexCharts
+                            height="100%"
+                            type="bar"
+                            :options="componentPerformanceOptions"
+                            :series="componentPerformanceSeries"
+                        />
+                    </div>
+                </article>
+
+                <!-- Priority Alerts -->
+                <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:col-span-3">
+                    <div class="mb-4">
+                        <h4 class="text-sm font-bold text-slate-900">Priority Alerts</h4>
+                        <p class="text-xs text-slate-500">Items needing immediate action</p>
+                    </div>
+
+                    <div class="flex flex-col justify-between space-y-3 h-[300px] overflow-y-auto pr-1">
+                        <div class="rounded-xl border border-red-100 bg-red-50 p-3">
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-red-600">High Risk</p>
+                            <p class="mt-1 text-xs font-semibold text-slate-900">174 students have unresolved PAR-Q clearance</p>
+                        </div>
+                        <div class="rounded-xl border border-orange-100 bg-orange-50 p-3">
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-orange-600">Performance Concern</p>
+                            <p class="mt-1 text-xs font-semibold text-slate-900">Reaction time is the weakest university component</p>
+                        </div>
+                        <div class="rounded-xl border border-amber-100 bg-amber-50 p-3">
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-amber-600">Participation Gap</p>
+                            <p class="mt-1 text-xs font-semibold text-slate-900">M’lang Campus is 13% below target</p>
+                        </div>
+                        <div class="rounded-xl border border-blue-100 bg-blue-50 p-3">
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-blue-600">Data Quality</p>
+                            <p class="mt-1 text-xs font-semibold text-slate-900">93 student records have incomplete assessments</p>
+                        </div>
+                    </div>
+                </article>
             </div>
 
-            <!-- Radar Ranking and Comparisons -->
-            <div class="grid gap-4 lg:grid-cols-3">
-                <!-- Radar Component Ranking -->
-                <section
-                    class="report-card rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900"
-                >
-                    <h2
-                        class="mb-1 text-sm font-bold text-slate-800 dark:text-white"
-                    >
-                        Component Strength Radar
-                    </h2>
-                    <p class="mb-3 text-[11px] text-slate-400">
-                        Overall visual campus strengths and weaknesses ranking.
-                    </p>
-                    <VueApexCharts
-                        height="280"
-                        type="radar"
-                        :options="componentRadarOptions"
-                        :series="componentRadarSeries"
-                    />
-                </section>
+            <!-- COMPARISONS -->
+            <section id="comparisons" class="space-y-4">
+                <div>
+                    <h3 class="text-xl font-extrabold text-slate-900">Comparative Analytics</h3>
+                    <p class="text-sm text-slate-500">Campus, college, section, and term trend comparisons</p>
+                </div>
 
-                <!-- College Comparison -->
-                <section
-                    class="report-card rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900"
-                >
-                    <h2
-                        class="mb-1 text-sm font-bold text-slate-800 dark:text-white"
-                    >
-                        College Comparison
-                    </h2>
-                    <p class="mb-3 text-[11px] text-slate-400">
-                        Average performance score across campus colleges.
-                    </p>
-                    <VueApexCharts
-                        height="280"
-                        type="bar"
-                        :options="collegeComparisonOptions"
-                        :series="collegeComparisonSeries"
-                    />
-                </section>
+                <div class="grid gap-4 xl:grid-cols-12">
+                    <!-- Campus Comparison -->
+                    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:col-span-6">
+                        <div class="mb-4">
+                            <h4 class="text-sm font-bold text-slate-900">Campus Comparison</h4>
+                            <p class="text-xs text-slate-500">Compare PFT results counts across regional campuses.</p>
+                        </div>
+                        <div class="h-[300px]">
+                            <VueApexCharts
+                                height="100%"
+                                type="bar"
+                                :options="campusComparisonOptions"
+                                :series="campusComparisonSeries"
+                            />
+                        </div>
+                    </article>
 
-                <!-- Section Comparison -->
-                <section
-                    class="report-card rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900"
-                >
-                    <h2
-                        class="mb-1 text-sm font-bold text-slate-800 dark:text-white"
-                    >
-                        Section Comparison
-                    </h2>
-                    <p class="mb-3 text-[11px] text-slate-400">
-                        Average performance scores for top 15 sections.
-                    </p>
-                    <VueApexCharts
-                        height="280"
-                        type="bar"
-                        :options="sectionComparisonOptions"
-                        :series="sectionComparisonSeries"
-                    />
-                </section>
-            </div>
+                    <!-- Term Trend Analysis -->
+                    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:col-span-6">
+                        <div class="mb-4">
+                            <h4 class="text-sm font-bold text-slate-900">Academic Term Trend Analysis</h4>
+                            <p class="text-xs text-slate-500">Historical changes of fitness scores over terms.</p>
+                        </div>
+                        <div class="h-[300px]">
+                            <VueApexCharts
+                                height="100%"
+                                type="line"
+                                :options="termTrendOptions"
+                                :series="termTrendSeries"
+                            />
+                        </div>
+                    </article>
 
-            <!-- Trend and Campuses comparisons -->
-            <div class="grid gap-4 lg:grid-cols-2">
-                <!-- Term trends line -->
-                <section
-                    class="report-card rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900"
-                >
-                    <h2
-                        class="mb-1 text-sm font-bold text-slate-800 dark:text-white"
-                    >
-                        Academic Term Trend Analysis
-                    </h2>
-                    <p class="mb-3 text-[11px] text-slate-400">
-                        Historical changes of fitness scores over terms.
-                    </p>
-                    <VueApexCharts
-                        height="280"
-                        type="line"
-                        :options="termTrendOptions"
-                        :series="termTrendSeries"
-                    />
-                </section>
+                    <!-- Radar Component Ranking -->
+                    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:col-span-4">
+                        <div class="mb-4">
+                            <h4 class="text-sm font-bold text-slate-900">Component Strength Radar</h4>
+                            <p class="text-xs text-slate-500">Overall visual campus strengths and weaknesses ranking.</p>
+                        </div>
+                        <div class="h-[300px]">
+                            <VueApexCharts
+                                height="100%"
+                                type="radar"
+                                :options="componentRadarOptions"
+                                :series="componentRadarSeries"
+                            />
+                        </div>
+                    </article>
 
-                <!-- Campuses comparison list -->
-                <section
-                    class="report-card rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900"
-                >
-                    <h2
-                        class="mb-1 text-sm font-bold text-slate-800 dark:text-white"
-                    >
-                        Campus Comparisons
-                    </h2>
-                    <p class="mb-3 text-[11px] text-slate-400">
-                        Compare PFT results counts across regional campuses.
-                    </p>
-                    <VueApexCharts
-                        height="280"
-                        type="bar"
-                        :options="campusComparisonOptions"
-                        :series="campusComparisonSeries"
-                    />
-                </section>
-            </div>
+                    <!-- College Comparison -->
+                    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:col-span-4">
+                        <div class="mb-4">
+                            <h4 class="text-sm font-bold text-slate-900">College Comparison</h4>
+                            <p class="text-xs text-slate-500">Average performance score across campus colleges.</p>
+                        </div>
+                        <div class="h-[300px]">
+                            <VueApexCharts
+                                height="100%"
+                                type="bar"
+                                :options="collegeComparisonOptions"
+                                :series="collegeComparisonSeries"
+                            />
+                        </div>
+                    </article>
 
-            <!-- Intervention Priority Dashboard -->
+                    <!-- Section Comparison -->
+                    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:col-span-4">
+                        <div class="mb-4">
+                            <h4 class="text-sm font-bold text-slate-900">Section Comparison</h4>
+                            <p class="text-xs text-slate-500">Average performance scores for top 15 sections.</p>
+                        </div>
+                        <div class="h-[300px]">
+                            <VueApexCharts
+                                height="100%"
+                                type="bar"
+                                :options="sectionComparisonOptions"
+                                :series="sectionComparisonSeries"
+                            />
+                        </div>
+                    </article>
+
+                    <!-- Year Level Progression -->
+                    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900 xl:col-span-6">
+                        <div class="mb-4">
+                            <h4 class="text-sm font-bold text-slate-900 dark:text-white">Year Level Progression</h4>
+                            <p class="text-xs text-slate-500">How fitness changes from first to fourth year.</p>
+                        </div>
+                        <div class="h-[300px]">
+                            <VueApexCharts
+                                height="100%"
+                                type="line"
+                                :options="yearLevelProgressionOptions"
+                                :series="yearLevelProgressionSeries"
+                            />
+                        </div>
+                    </article>
+
+                    <!-- College Ranking Table -->
+                    <article class="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/5 dark:bg-slate-900 xl:col-span-7 overflow-hidden">
+                        <div class="flex items-center justify-between border-b border-slate-100 px-4 py-4 dark:border-slate-800">
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-900 dark:text-white">College Ranking</h4>
+                                <p class="text-xs text-slate-500">Overall performance, participation, and risk indicators</p>
+                            </div>
+                            <button class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Export</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full text-sm">
+                                <thead class="bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500 dark:bg-slate-800/50">
+                                    <tr>
+                                        <th class="px-4 py-3">Rank</th>
+                                        <th class="px-4 py-3">College</th>
+                                        <th class="px-4 py-3">Students</th>
+                                        <th class="px-4 py-3">Fitness</th>
+                                        <th class="px-4 py-3">BMI</th>
+                                        <th class="px-4 py-3">Participation</th>
+                                        <th class="px-4 py-3">Risk</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                    <tr v-for="(rank, index) in apiData?.comparisons?.college_ranking ?? []" :key="rank.college">
+                                        <td class="px-4 py-3 text-slate-600 dark:text-slate-400">{{ index + 1 }}</td>
+                                        <td class="px-4 py-3 font-semibold text-slate-900 dark:text-white">{{ rank.college }}</td>
+                                        <td class="px-4 py-3 text-slate-600 dark:text-slate-400">{{ rank.students.toLocaleString() }}</td>
+                                        <td class="px-4 py-3 text-slate-600 dark:text-slate-400">{{ rank.fitness.toFixed(1) }}</td>
+                                        <td class="px-4 py-3 text-slate-600 dark:text-slate-400">{{ rank.bmi }}</td>
+                                        <td class="px-4 py-3 text-slate-600 dark:text-slate-400">{{ rank.participation }}</td>
+                                        <td class="px-4 py-3">
+                                            <span class="rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider"
+                                                :class="{
+                                                    'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400': rank.risk.color === 'emerald',
+                                                    'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400': rank.risk.color === 'amber',
+                                                    'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400': rank.risk.color === 'orange',
+                                                    'bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400': rank.risk.color === 'red',
+                                                }">
+                                                {{ rank.risk.label }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    <tr v-if="!(apiData?.comparisons?.college_ranking?.length)">
+                                        <td colspan="7" class="px-4 py-8 text-center text-sm text-slate-500">No college ranking data available</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </article>
+
+                    <!-- Program Performance Matrix -->
+                    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900 xl:col-span-5">
+                        <div class="mb-4">
+                            <h4 class="text-sm font-bold text-slate-900 dark:text-white">Program Performance Matrix</h4>
+                            <p class="text-xs text-slate-500">Top degree programs by fitness performance</p>
+                        </div>
+                        <div class="h-[300px]">
+                            <VueApexCharts
+                                height="100%"
+                                type="bar"
+                                :options="programPerformanceOptions"
+                                :series="programPerformanceSeries"
+                            />
+                        </div>
+                    </article>
+
+                    <!-- Male vs Female Performance -->
+                    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900 xl:col-span-6">
+                        <div class="mb-4">
+                            <h4 class="text-sm font-bold text-slate-900 dark:text-white">Male vs Female Performance</h4>
+                            <p class="text-xs text-slate-500">Average normalized scores across components</p>
+                        </div>
+                        <div class="h-[300px]">
+                            <VueApexCharts
+                                height="100%"
+                                type="bar"
+                                :options="maleFemalePerformanceOptions"
+                                :series="maleFemalePerformanceSeries"
+                            />
+                        </div>
+                    </article>
+
+                    <!-- Campus-College Heatmap -->
+                    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900 xl:col-span-6 overflow-hidden">
+                        <div class="mb-4">
+                            <h4 class="text-sm font-bold text-slate-900 dark:text-white">Campus-College Heatmap</h4>
+                            <p class="text-xs text-slate-500">Quick identification of strengths and weaknesses</p>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full text-xs">
+                                <thead>
+                                    <tr class="text-slate-500 border-b border-slate-100 dark:border-slate-800">
+                                        <th class="px-3 py-2 text-left">Unit</th>
+                                        <th class="px-3 py-2">BMI</th>
+                                        <th class="px-3 py-2">Cardio</th>
+                                        <th class="px-3 py-2">Strength</th>
+                                        <th class="px-3 py-2">Flexibility</th>
+                                        <th class="px-3 py-2">Speed</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 dark:divide-slate-800 text-center">
+                                    <tr v-for="unit in apiData?.comparisons?.heatmap ?? []" :key="unit.unit">
+                                        <td class="px-3 py-3 text-left font-semibold text-slate-900 dark:text-white">{{ unit.unit }}</td>
+                                        <td :class="heatmapClass(unit['Body Composition']?.color_class)">{{ unit['Body Composition']?.label ?? '-' }}</td>
+                                        <td :class="heatmapClass(unit['Cardiovascular Endurance']?.color_class)">{{ unit['Cardiovascular Endurance']?.label ?? '-' }}</td>
+                                        <td :class="heatmapClass(unit['Muscular Strength']?.color_class)">{{ unit['Muscular Strength']?.label ?? '-' }}</td>
+                                        <td :class="heatmapClass(unit['Flexibility']?.color_class)">{{ unit['Flexibility']?.label ?? '-' }}</td>
+                                        <td :class="heatmapClass(unit['Muscular Endurance']?.color_class)">{{ unit['Muscular Endurance']?.label ?? '-' }}</td>
+                                    </tr>
+                                    <tr v-if="!(apiData?.comparisons?.heatmap?.length)">
+                                        <td colspan="6" class="px-3 py-8 text-center text-slate-500">No heatmap data available</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </article>
+                </div>
+            </section>
+
+            <!-- HEALTH -->
+            <section id="health" class="space-y-4">
+                <div>
+                    <h3 class="text-xl font-extrabold text-slate-900 dark:text-white">Health and BMI Analytics</h3>
+                    <p class="text-sm text-slate-500">Body composition, lifestyle, and health risk patterns</p>
+                </div>
+
+                <div class="grid gap-4 xl:grid-cols-12">
+                    <!-- BMI Distribution -->
+                    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900 xl:col-span-4">
+                        <div class="mb-4">
+                            <h4 class="text-sm font-bold text-slate-900 dark:text-white">BMI Distribution</h4>
+                            <p class="text-xs text-slate-500">WHO classification of assessed students</p>
+                        </div>
+                        <div class="h-[300px]">
+                            <VueApexCharts
+                                height="100%"
+                                type="donut"
+                                :options="bmiDistributionOptions"
+                                :series="bmiDistributionSeries"
+                            />
+                        </div>
+                    </article>
+
+                    <!-- BMI by Campus -->
+                    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900 xl:col-span-4">
+                        <div class="mb-4">
+                            <h4 class="text-sm font-bold text-slate-900 dark:text-white">BMI by Campus</h4>
+                            <p class="text-xs text-slate-500">Average BMI and overweight prevalence</p>
+                        </div>
+                        <div class="h-[300px]">
+                            <VueApexCharts
+                                height="100%"
+                                type="bar"
+                                :options="bmiByCampusOptions"
+                                :series="bmiByCampusSeries"
+                            />
+                        </div>
+                    </article>
+
+                    <!-- Lifestyle Risk Profile -->
+                    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900 xl:col-span-4">
+                        <div class="mb-4">
+                            <h4 class="text-sm font-bold text-slate-900 dark:text-white">Lifestyle Risk Profile</h4>
+                            <p class="text-xs text-slate-500">Smoking, alcohol, medication, and medical conditions</p>
+                        </div>
+                        <div class="h-[300px]">
+                            <VueApexCharts
+                                height="100%"
+                                type="polarArea"
+                                :options="lifestyleRiskOptions"
+                                :series="lifestyleRiskSeries"
+                            />
+                        </div>
+                    </article>
+                </div>
+            </section>
             <section
                 class="report-card rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-slate-900"
             >
-                <div class="mb-4">
-                    <h2
-                        class="text-sm font-bold text-slate-800 dark:text-white"
-                    >
-                        Intervention Planning Panel
-                    </h2>
-                    <p class="text-[11px] text-slate-400">
-                        Classifications flagged for immediate wellness
-                        intervention. Sorted highest priority first.
-                    </p>
-                </div>
-                <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    <div
-                        v-for="item in apiData.interventions"
-                        :key="`${item.component}-${item.classification}`"
-                        class="flex cursor-pointer flex-col justify-between rounded-xl border p-4 transition-all hover:shadow-md"
-                        :class="{
-                            'border-rose-200/80 bg-rose-50/50 hover:border-rose-300 dark:border-rose-900/50 dark:bg-rose-950/10':
-                                item.priority === 'High',
-                            'border-orange-200/80 bg-orange-50/50 hover:border-orange-300 dark:border-orange-900/50 dark:bg-orange-950/10':
-                                item.priority === 'Medium',
-                            'border-amber-200/80 bg-amber-50/50 hover:border-amber-300 dark:border-amber-900/50 dark:bg-amber-950/10':
-                                item.priority === 'Low',
-                        }"
-                        @click="
-                            openDrilldown({
-                                classification: item.classification,
-                                title: `Intervention: ${item.classification}`,
-                            })
-                        "
-                    >
-                        <div>
-                            <div class="flex items-center justify-between">
-                                <span
-                                    class="rounded-full px-2.5 py-0.5 text-[10px] font-black tracking-wider uppercase"
-                                    :class="{
-                                        'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300':
-                                            item.priority === 'High',
-                                        'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300':
-                                            item.priority === 'Medium',
-                                        'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300':
-                                            item.priority === 'Low',
-                                    }"
-                                >
-                                    {{ item.priority }} Priority
-                                </span>
-                                <span class="text-xs font-bold text-slate-500">
-                                    {{ item.student_count }} Students ({{
-                                        item.percentage
-                                    }}%)
-                                </span>
-                            </div>
-                            <h3
-                                class="mt-2.5 text-xs font-bold text-slate-800 dark:text-white"
-                            >
-                                {{ item.classification }}
-                            </h3>
-                            <p
-                                class="mt-1 text-[10.5px] text-slate-500 dark:text-slate-400"
-                            >
-                                Component: {{ item.component }} &middot; Test
-                                Type: {{ item.test_type }}
-                            </p>
-                        </div>
-                        <div
-                            class="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800/50"
+                <div class="flex cursor-pointer items-start justify-between" @click="toggleInterventionPanel">
+                    <div>
+                        <h2
+                            class="text-sm font-bold text-slate-800 dark:text-white"
                         >
-                            <span
-                                class="block text-[10px] font-bold tracking-wider text-slate-400 uppercase"
-                                >Suggested Intervention:</span
+                            Intervention Planning Panel
+                        </h2>
+                        <p class="text-[11px] text-slate-400">
+                            Classifications flagged for immediate wellness
+                            intervention. Sorted highest priority first.
+                        </p>
+                    </div>
+                    <button type="button" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                        <ChevronDown v-if="interventionPanelOpen" class="h-5 w-5" />
+                        <ChevronRight v-else class="h-5 w-5" />
+                    </button>
+                </div>
+                <div v-if="interventionPanelOpen" class="mt-4 flex flex-col gap-6">
+                    <div v-for="(items, testType) in groupedInterventions" :key="testType" class="flex flex-col gap-3">
+                        <div class="border-b border-slate-100 pb-2 dark:border-slate-800">
+                            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">{{ testType }}</h3>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <div
+                                v-for="item in items"
+                                :key="`${item.component}-${item.classification}`"
+                                class="group flex cursor-pointer items-start gap-4 rounded-xl border border-slate-200 bg-white p-4 transition-all hover:border-slate-300 hover:shadow-md dark:border-white/5 dark:bg-slate-800/50 dark:hover:border-white/10"
+                                @click="
+                                    openDrilldown({
+                                        classification: item.classification,
+                                        title: `Intervention: ${item.classification}`,
+                                    })
+                                "
                             >
-                            <p
-                                class="mt-0.5 line-clamp-2 text-[11px] font-medium text-slate-700 dark:text-slate-300"
-                            >
-                                {{ item.suggested_intervention }}
-                            </p>
+                                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                                    :class="{
+                                        'bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400': item.priority === 'High',
+                                        'bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400': item.priority === 'Medium',
+                                        'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400': item.priority === 'Low',
+                                    }">
+                                    <Activity class="h-5 w-5" />
+                                </div>
+                                <div class="flex-1">
+                                    <div class="flex items-center justify-between">
+                                        <h4 class="text-sm font-bold text-slate-900 dark:text-white">{{ item.classification }}</h4>
+                                        <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                                            :class="{
+                                                'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400': item.priority === 'High',
+                                                'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400': item.priority === 'Medium',
+                                                'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400': item.priority === 'Low',
+                                            }">
+                                            {{ item.priority }} Priority
+                                        </span>
+                                    </div>
+                                    <p class="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">{{ item.suggested_intervention }}</p>
+                                    <div class="mt-3 flex items-center gap-3">
+                                        <div class="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                                            <Users class="h-3.5 w-3.5" />
+                                            <span>{{ item.student_count }} Students ({{ item.percentage }}%)</span>
+                                        </div>
+                                        <div class="flex items-center gap-1.5 text-xs text-slate-400">
+                                            <span class="h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-700"></span>
+                                            <span>{{ item.component }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div
                         v-if="!apiData.interventions.length"
-                        class="col-span-full py-8 text-center text-xs text-slate-400"
+                        class="py-8 text-center text-xs text-slate-400"
                     >
                         No students are currently flagged for priority
                         interventions based on the current search query.
@@ -3622,5 +3739,132 @@ onMounted(() => {
                 </span>
             </div>
         </div>
+        </div>
+        </main>
     </div>
 </template>
+
+<style>
+@reference "tailwindcss";
+.report-card {
+    background-color: #ffffff !important;
+    color: #334155 !important;
+    border-color: #e2e8f0 !important;
+}
+.report-input {
+    @apply h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-100;
+    color-scheme: light;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #e2e8f0 !important;
+}
+.report-input::placeholder {
+    color: #94a3b8 !important;
+}
+.report-input option {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+}
+.report-btn {
+    @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200;
+    background-color: #ffffff !important;
+    color: #475569 !important;
+    border-color: #e2e8f0 !important;
+}
+.report-btn-primary {
+    @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white hover:bg-emerald-700;
+}
+.report-th {
+    @apply px-3 py-2 text-left text-[10px] font-bold tracking-wide text-slate-500 uppercase;
+}
+.report-td {
+    @apply px-3 py-2 text-xs text-slate-600 dark:text-slate-300;
+    color: #334155 !important;
+}
+.page-btn {
+    @apply min-w-7 rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold disabled:opacity-40 dark:border-white/10;
+    background-color: #ffffff !important;
+    color: #475569 !important;
+    border-color: #e2e8f0 !important;
+}
+.stat-card:is(.dark *) {
+    background-color: #020617 !important;
+    color: #94a3b8 !important;
+}
+.stat-card:is(.dark *) strong {
+    color: #ffffff !important;
+}
+.report-card:is(.dark *) {
+    background-color: #020617 !important;
+    color: #cbd5e1 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+.report-input:is(.dark *) {
+    color-scheme: dark;
+    background-color: #0f172a !important;
+    color: #f1f5f9 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+.report-input:is(.dark *)::placeholder {
+    color: #64748b !important;
+}
+.report-input:is(.dark *) option {
+    background-color: #0f172a !important;
+    color: #f1f5f9 !important;
+}
+.report-btn:is(.dark *),
+.page-btn:is(.dark *) {
+    background-color: #0f172a !important;
+    color: #e2e8f0 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+.report-th:is(.dark *) {
+    color: #94a3b8 !important;
+}
+.report-td:is(.dark *) {
+    color: #cbd5e1 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dark .pft-analytics-page {
+    background-color: #020617 !important;
+    color: #cbd5e1 !important;
+}
+
+.dark .pft-analytics-page [class*='bg-white'],
+.dark .pft-analytics-page [class*='bg-slate-50'] {
+    background-color: #0f172a !important;
+}
+
+.dark .pft-analytics-page [class*='bg-white/'],
+.dark .pft-analytics-page [class*='bg-slate-50/'] {
+    background-color: rgba(15, 23, 42, 0.84) !important;
+}
+
+.dark .pft-analytics-page [class*='border-slate-100'],
+.dark .pft-analytics-page [class*='border-slate-200'] {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dark .pft-analytics-page [class*='text-slate-900'],
+.dark .pft-analytics-page [class*='text-slate-800'],
+.dark .pft-analytics-page [class*='text-slate-700'] {
+    color: #f8fafc !important;
+}
+
+.dark .pft-analytics-page [class*='text-slate-600'],
+.dark .pft-analytics-page [class*='text-slate-500'] {
+    color: #94a3b8 !important;
+}
+
+.dark .pft-analytics-page [class*='hover:bg-slate-50']:hover {
+    background-color: #1e293b !important;
+}
+
+.dark .pft-analytics-page [class*='bg-red-50'],
+.dark .pft-analytics-page [class*='bg-orange-50'],
+.dark .pft-analytics-page [class*='bg-yellow-50'],
+.dark .pft-analytics-page [class*='bg-blue-50'] {
+    background-color: #111827 !important;
+}
+</style>

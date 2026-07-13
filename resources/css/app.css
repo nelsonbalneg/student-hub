@@ -68,6 +68,11 @@
     --shadow-xl:
         0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
     --shadow-premium: 0 10px 40px -10px rgba(0, 0, 0, 0.05);
+    --shadow-soft: 0 10px 30px rgba(15, 23, 42, 0.06);
+    
+    --color-navy-800: #12345F;
+    --color-navy-900: #0B2343;
+    --color-navy-950: #071426;
 }
 
 @layer base {

@@ -8,22 +8,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable([
-    'pft_test_type_id',
-    'field_name',
-    'sex',
-    'label',
-    'classification',
-    'interpretation',
-    'suggested_intervention',
-    'min_value',
-    'max_value',
-    'color',
-    'color_class',
-    'sort_order',
-    'is_active',
-])]
-class PftInterpretationRule extends Model
+#[Fillable(['pft_test_type_id', 'step_no', 'description', 'is_active'])]
+class PftProcedure extends Model
 {
     use SoftDeletes;
 
@@ -40,10 +26,8 @@ class PftInterpretationRule extends Model
     protected function casts(): array
     {
         return [
-            'min_value' => 'float',
-            'max_value' => 'float',
-            'sort_order' => 'integer',
             'is_active' => 'boolean',
+            'step_no' => 'integer',
         ];
     }
 }

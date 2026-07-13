@@ -288,6 +288,52 @@ class AcademicApiService
         return $this->academicReference('College', $collegeId, $tenantId, 'college');
     }
 
+    public function classSection(int|string|null $campusId, int|string|null $sectionId, int|string|null $tenantId = 1): array
+    {
+        if (blank($campusId) || blank($sectionId) || blank($tenantId)) {
+            return [
+                'data' => null,
+                'error' => 'Missing campus, section or tenant ID.',
+            ];
+        }
+
+        $endpoint = "ClassSections/campus/{$campusId}/section/{$sectionId}";
+
+        try {
+            $response = $this->client()->get($endpoint, [
+                'tenantId' => $tenantId,
+            ]);
+
+            if ($response->status() === 404) {
+                return [
+                    'data' => null,
+                    'error' => "No class section was found.",
+                ];
+            }
+
+            $response->throw();
+
+            return [
+                'data' => $response->json(),
+                'error' => null,
+            ];
+        } catch (Throwable $exception) {
+            Log::warning('Unable to load class section', [
+                'campus_id' => $campusId,
+                'section_id' => $sectionId,
+                'tenant_id' => $tenantId,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+                'url' => $this->urlFor($endpoint),
+            ]);
+
+            return [
+                'data' => null,
+                'error' => 'Unable to load class section right now.',
+            ];
+        }
+    }
+
     public function updateProfileForStudent(?string $studentNo, int|string|null $campusId, ?string $tenantId, array $payload): array
     {
         if (blank($studentNo)) {

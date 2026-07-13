@@ -8,6 +8,7 @@ use App\Models\PftComponent;
 use App\Models\PftConfiguration;
 use App\Models\PftInterpretationRule;
 use App\Models\PftMedicalCondition;
+use App\Models\PftProcedure;
 use App\Models\PftTestType;
 use App\Models\SiteSetting;
 use App\Services\PhysicalFitnessPermissionService;
@@ -263,6 +264,43 @@ class PhysicalFitnessConfigurationController extends Controller
         return to_route('site-settings.physical-fitness.configuration.index')->with('success', 'PFT interpretation rule deleted.');
     }
 
+    public function storeProcedure(Request $request): RedirectResponse
+    {
+        $request->user()->can('pft.configuration.create') || abort(403);
+
+        DB::transaction(fn () => PftProcedure::query()->create($this->validateProcedure($request)));
+
+        return to_route('site-settings.physical-fitness.configuration.index')->with('success', 'PFT procedure step created.');
+    }
+
+    public function updateProcedure(Request $request, PftProcedure $procedure): RedirectResponse
+    {
+        $request->user()->can('pft.configuration.update') || abort(403);
+
+        DB::transaction(fn () => $procedure->update($this->validateProcedure($request)));
+
+        return to_route('site-settings.physical-fitness.configuration.index')->with('success', 'PFT procedure step updated.');
+    }
+
+    public function destroyProcedure(Request $request, PftProcedure $procedure): RedirectResponse
+    {
+        $request->user()->can('pft.configuration.delete') || abort(403);
+
+        DB::transaction(fn () => $procedure->delete());
+
+        return to_route('site-settings.physical-fitness.configuration.index')->with('success', 'PFT procedure step deleted.');
+    }
+
+    private function validateProcedure(Request $request): array
+    {
+        return $request->validate([
+            'pft_test_type_id' => ['required', 'exists:pft_test_types,id'],
+            'step_no' => ['required', 'integer', 'min:1'],
+            'description' => ['required', 'string'],
+            'is_active' => ['boolean'],
+        ]);
+    }
+
     private function validateComponent(Request $request, ?PftComponent $component = null): array
     {
         return $request->validate([
@@ -336,6 +374,7 @@ class PhysicalFitnessConfigurationController extends Controller
         return $request->validate([
             'pft_test_type_id' => ['required', 'exists:pft_test_types,id'],
             'field_name' => ['required', 'string', 'max:255'],
+            'sex' => ['nullable', Rule::in(['male', 'female'])],
             'label' => ['required', 'string', 'max:255'],
             'min_value' => ['nullable', 'numeric'],
             'max_value' => ['nullable', 'numeric'],
@@ -353,6 +392,7 @@ class PhysicalFitnessConfigurationController extends Controller
                 'categories.testTypes' => fn ($query) => $query->when(! $includeInactive, fn ($query) => $query->active())->withCount('results')->orderBy('sort_order')->orderBy('name'),
                 'categories.testTypes.configurations' => fn ($query) => $query->when(! $includeInactive, fn ($query) => $query->active())->orderBy('sort_order')->orderBy('field_label'),
                 'categories.testTypes.interpretationRules' => fn ($query) => $query->when(! $includeInactive, fn ($query) => $query->active())->orderBy('sort_order')->orderBy('id'),
+                'categories.testTypes.procedures' => fn ($query) => $query->when(! $includeInactive, fn ($query) => $query->active())->orderBy('step_no')->orderBy('id'),
             ])
             ->when(! $includeInactive, fn ($query) => $query->active())
             ->orderBy('sort_order')

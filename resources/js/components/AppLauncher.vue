@@ -352,6 +352,7 @@ const menuItems: LauncherItem[] = [
     ),
     ...[
         ['Reporting Overview', '/admin/reporting/overview', Activity, 'reporting.overview.view'],
+        ['PFT PAR-Q', '/admin/reporting/pft-parq', Dumbbell, 'reporting.pft_result.view'],
         ['PFT Results', '/admin/reporting/pft-result', Dumbbell, 'reporting.pft_result.view'],
         ['Audit Logs', '/admin/reporting/audit-logs', FileText, 'reporting.audit_logs.view'],
         ['Carbon Footprint', '/admin/reporting/carbon-footprint', Leaf, 'reporting.carbon_footprint.view'],

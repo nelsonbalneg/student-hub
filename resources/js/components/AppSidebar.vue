@@ -341,6 +341,13 @@ const siteAdministrationNavItems: NavItem[] = [
         ],
     },
     {
+        title: 'Physical Fitness Tests',
+        href: '/admin/reporting/pft-result/analytics',
+        icon: Dumbbell,
+        permission: 'reporting.pft_result.view',
+        routeName: 'admin.reporting.pft-result.analytics',
+    },
+    {
         title: 'Reporting',
         href: '/admin/reporting/overview',
         icon: BarChart3,
@@ -353,13 +360,7 @@ const siteAdministrationNavItems: NavItem[] = [
                 permission: 'reporting.overview.view',
                 routeName: 'reporting.overview.index',
             },
-            {
-                title: 'PFT Result',
-                href: '/admin/reporting/pft-result',
-                icon: Dumbbell,
-                permission: 'reporting.pft_result.view',
-                routeName: 'admin.reporting.pft-result.index',
-            },
+
             {
                 title: 'Audit Logs',
                 href: '/admin/reporting/audit-logs',
@@ -416,16 +417,6 @@ const siteAdministrationNavItems: NavItem[] = [
                 icon: Building2,
                 permission: 'site-settings.view',
                 routeName: 'site-settings.campuses.index',
-            },
-            {
-                title: 'Student Profile',
-                href: '/admin/site-settings/student-profile',
-                icon: User,
-                permission: [
-                    'site-settings.student-profile.view',
-                    'site-settings.view',
-                ],
-                routeName: 'site-settings.student-profile.index',
             },
             {
                 title: 'Feature Management',

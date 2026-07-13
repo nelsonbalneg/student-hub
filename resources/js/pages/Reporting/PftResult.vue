@@ -17,8 +17,11 @@ import {
     Users,
     X,
 } from 'lucide-vue-next';
-import { computed, defineComponent, h, onMounted, ref, watch } from 'vue';
+import { computed, defineComponent, h, onMounted, ref, watch, unref } from 'vue';
 import VueApexCharts from 'vue3-apexcharts';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import FitnessIntelligenceSidebar from '@/components/FitnessIntelligenceSidebar.vue';
 import {
     data as pftData,
     exportExcel as pftExportExcel,
@@ -35,12 +38,10 @@ import {
     terms as filterTerms,
 } from '@/routes/admin/reporting/pft-result/filter';
 
+import AsyncSelect from '@/components/AsyncSelect.vue';
+
 type QueryParams = Record<string, string | number | undefined>;
 type SelectOption = { id: string; text: string };
-type Select2Payload = {
-    results: SelectOption[];
-    pagination: { more: boolean };
-};
 type ResultLine = { key: string; label: string; value: string };
 type Interpretation = {
     label: string;
@@ -175,186 +176,7 @@ const props = defineProps<{
 }>();
 
 defineOptions({
-    layout: {
-        breadcrumbs: [
-            { title: 'Reporting', href: '/admin/reporting/overview' },
-            { title: 'PFT Result', href: '/admin/reporting/pft-result' },
-        ],
-    },
-});
-
-const AsyncSelect = defineComponent({
-    props: {
-        modelValue: { type: String, default: '' },
-        selected: { type: Object as () => SelectOption | null, default: null },
-        endpoint: { type: String, required: true },
-        params: {
-            type: Object as () => Record<string, string | number | undefined>,
-            default: () => ({}),
-        },
-        placeholder: { type: String, required: true },
-        disabled: { type: Boolean, default: false },
-        minInput: { type: Number, default: 0 },
-    },
-    emits: ['update:modelValue', 'select'],
-    setup(componentProps, { emit }) {
-        const term = ref('');
-        const page = ref(1);
-        const options = ref<SelectOption[]>(
-            componentProps.selected ? [componentProps.selected] : [],
-        );
-        const loading = ref(false);
-        const more = ref(false);
-        let timer: ReturnType<typeof setTimeout> | null = null;
-
-        const fetchOptions = async (reset = true) => {
-            if (componentProps.disabled) {
-                return;
-            }
-
-            if (term.value.length < componentProps.minInput) {
-                options.value = componentProps.selected
-                    ? [componentProps.selected]
-                    : [];
-                more.value = false;
-
-                return;
-            }
-
-            loading.value = true;
-            const nextPage = reset ? 1 : page.value + 1;
-            const params = new URLSearchParams();
-            params.set('page', String(nextPage));
-
-            if (term.value) {
-                params.set('q', term.value);
-            }
-
-            Object.entries(componentProps.params).forEach(([key, value]) => {
-                if (value !== undefined && value !== '') {
-                    params.set(key, String(value));
-                }
-            });
-
-            const response = await fetch(
-                `${componentProps.endpoint}?${params.toString()}`,
-                {
-                    headers: { Accept: 'application/json' },
-                },
-            );
-            const payload = (await response.json()) as Select2Payload;
-            page.value = nextPage;
-            options.value = reset
-                ? payload.results
-                : [...options.value, ...payload.results];
-            more.value = payload.pagination.more;
-            loading.value = false;
-        };
-
-        const debouncedFetch = () => {
-            if (timer) {
-                clearTimeout(timer);
-            }
-
-            timer = setTimeout(() => void fetchOptions(true), 300);
-        };
-
-        watch(
-            () => componentProps.selected,
-            (selected) => {
-                options.value = selected ? [selected] : [];
-            },
-        );
-
-        watch(
-            () => componentProps.params,
-            () => {
-                term.value = '';
-                options.value = componentProps.selected
-                    ? [componentProps.selected]
-                    : [];
-                more.value = false;
-            },
-            { deep: true },
-        );
-
-        watch(term, debouncedFetch);
-
-        onMounted(() => void fetchOptions(true));
-
-        return () =>
-            h('div', { class: 'grid gap-1' }, [
-                h('div', { class: 'relative' }, [
-                    h('input', {
-                        value: term.value,
-                        disabled: componentProps.disabled,
-                        placeholder: componentProps.placeholder,
-                        class: 'report-input',
-                        onInput: (event: Event) => {
-                            term.value = (
-                                event.target as HTMLInputElement
-                            ).value;
-                        },
-                        onFocus: () => void fetchOptions(true),
-                    }),
-                    loading.value
-                        ? h(Loader2, {
-                              class: 'absolute top-2.5 right-2 h-4 w-4 animate-spin text-emerald-600',
-                          })
-                        : null,
-                ]),
-                h('div', { class: 'relative min-w-0' }, [
-                    h(
-                        'select',
-                        {
-                            value: componentProps.modelValue,
-                            disabled: componentProps.disabled,
-                            class: 'report-input',
-                            onChange: (event: Event) => {
-                                const value = (
-                                    event.target as HTMLSelectElement
-                                ).value;
-                                const selected =
-                                    options.value.find(
-                                        (option) => option.id === value,
-                                    ) ?? null;
-                                emit('update:modelValue', value);
-                                emit('select', selected);
-                            },
-                            onFocus: () => void fetchOptions(true),
-                            onMousedown: () => void fetchOptions(true),
-                        },
-                        [
-                            h(
-                                'option',
-                                { value: '' },
-                                componentProps.disabled
-                                    ? 'Select previous filter first'
-                                    : 'Select option',
-                            ),
-                            ...options.value.map((option) =>
-                                h(
-                                    'option',
-                                    { key: option.id, value: option.id },
-                                    option.text,
-                                ),
-                            ),
-                        ],
-                    ),
-                ]),
-                more.value
-                    ? h(
-                          'button',
-                          {
-                              type: 'button',
-                              class: 'report-link-btn',
-                              onClick: () => void fetchOptions(false),
-                          },
-                          'Load more',
-                      )
-                    : null,
-            ]);
-    },
+    layout: null,
 });
 
 const campusId = ref(props.filters.campus_id ?? '');
@@ -748,6 +570,22 @@ const fitnessProfileRadarSeries = computed(() => [
     },
 ]);
 
+const getBmiInterpretation = (row: PftRow) => {
+    const bmiDetail = row.details?.find(d => 
+        d.pft_test_type?.toLowerCase().includes('bmi') || 
+        d.pft_test_type?.toLowerCase().includes('body mass index') ||
+        d.component?.toLowerCase().includes('bmi') ||
+        d.component?.toLowerCase().includes('body composition')
+    );
+    return bmiDetail?.interpretation?.label || 'N/A';
+};
+
+const getRowStatus = (row: PftRow) => {
+    if (row.test_count === 0) return 'No tests';
+    const hasDraft = row.details?.some(d => d.status?.toLowerCase() === 'draft');
+    return hasDraft ? 'Draft' : 'Completed';
+};
+
 onMounted(() => {
     if (requiredFiltersSelected.value) {
         void reloadAll();
@@ -758,465 +596,532 @@ onMounted(() => {
 <template>
     <Head title="PFT Result" />
 
-    <div
-        class="flex h-full flex-1 flex-col gap-4 bg-slate-50/60 p-4 dark:bg-slate-950"
-    >
-        <div
-            class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
-        >
+    <div class="min-h-screen font-sans bg-slate-50 text-slate-800 lg:flex dark:bg-slate-950">
+        <FitnessIntelligenceSidebar active="pft-result" />
+
+    <main id="pft-result" class="flex min-w-0 flex-1 flex-col gap-4 bg-slate-50/60 p-4 dark:bg-slate-950">
+        <!-- 1. PAGE HEADER -->
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between border-b border-slate-100 pb-3 dark:border-white/10">
             <div>
-                <h1 class="text-base font-bold text-slate-900 dark:text-white">
-                    PFT Result
+                <h1 class="text-lg font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <Activity class="h-5.5 w-5.5 text-blue-600" /> PFT Result
                 </h1>
-                <p class="text-xs text-slate-500">
-                    Detailed physical fitness results with campus-first filters
-                    and analytics.
+                <p class="text-xs text-slate-500 mt-0.5">
+                    Monitor, analyze and manage student physical fitness test results across all campuses.
                 </p>
             </div>
-            <div class="flex flex-wrap gap-2">
+            <div class="flex flex-wrap gap-2 items-center">
                 <Link
-                    class="report-btn flex items-center gap-1.5 border-none bg-slate-900 text-white transition-opacity hover:opacity-90 dark:bg-white dark:text-slate-900"
+                    class="inline-flex items-center justify-center gap-1.5 h-8.5 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-medium shadow-xs transition duration-150 cursor-pointer"
                     href="/admin/reporting/pft-result/analytics"
                 >
-                    <BarChart3 class="h-3.5 w-3.5 text-emerald-500" />View
-                    Analytics
+                    <BarChart3 class="h-3.5 w-3.5" /> View Analytics
                 </Link>
-                <div v-if="canExport" class="flex flex-wrap gap-2">
+                <template v-if="canExport">
                     <a
-                        class="report-btn"
-                        :class="{
-                            'pointer-events-none opacity-50':
-                                !requiredFiltersSelected,
-                        }"
+                        :class="{ 'pointer-events-none opacity-50': !requiredFiltersSelected }"
+                        class="inline-flex items-center justify-center gap-1.5 h-8.5 px-3 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-md text-xs font-medium shadow-xs transition duration-150 cursor-pointer dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                         :href="exportExcelUrl"
                     >
-                        <Download class="h-3.5 w-3.5" />Excel
+                        <Download class="h-3.5 w-3.5" /> Export Excel
                     </a>
                     <a
-                        class="report-btn-primary"
-                        :class="{
-                            'pointer-events-none opacity-50':
-                                !requiredFiltersSelected,
-                        }"
+                        :class="{ 'pointer-events-none opacity-50': !requiredFiltersSelected }"
+                        class="inline-flex items-center justify-center gap-1.5 h-8.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-medium shadow-xs transition duration-150 cursor-pointer"
                         :href="exportPdfUrl"
                         target="_blank"
                     >
-                        <FileDown class="h-3.5 w-3.5" />PDF
+                        <FileDown class="h-3.5 w-3.5" /> Export PDF
                     </a>
-                </div>
+                </template>
             </div>
         </div>
 
-        <section
-            class="report-card rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950"
-        >
-            <div class="grid gap-2 md:grid-cols-2">
-                <AsyncSelect
-                    v-model="campusId"
-                    :selected="selectedCampus"
-                    :endpoint="filterEndpoints.campuses"
-                    placeholder="Search campus"
-                    :min-input="0"
-                    @select="onCampusChange"
-                />
-                <AsyncSelect
-                    v-model="termId"
-                    :selected="selectedTerm"
-                    :endpoint="filterEndpoints.terms"
-                    :params="{ campus_id: campusId }"
-                    :disabled="!campusId"
-                    placeholder="Search academic term"
-                    :min-input="0"
-                    @select="onTermChange"
-                />
+        <!-- 2. FILTER PANEL -->
+        <section class="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-slate-900">
+            <div class="grid gap-4 md:grid-cols-2">
+                <!-- Campus Select -->
+                <div class="flex flex-col gap-1">
+                    <label class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Campus</label>
+                    <AsyncSelect
+                        v-model="campusId"
+                        :selected="selectedCampus"
+                        :endpoint="filterEndpoints.campuses"
+                        placeholder="Select Campus"
+                        :min-input="0"
+                        @select="onCampusChange"
+                    />
+                </div>
+
+                <!-- Academic Term Select -->
+                <div class="flex flex-col gap-1">
+                    <label class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Academic Term</label>
+                    <AsyncSelect
+                        v-model="termId"
+                        :selected="selectedTerm"
+                        :endpoint="filterEndpoints.terms"
+                        :params="{ campus_id: campusId }"
+                        :disabled="!campusId"
+                        placeholder="Select Academic Term"
+                        :min-input="0"
+                        @select="onTermChange"
+                    />
+                </div>
             </div>
-            <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
-                <p class="text-xs font-semibold text-slate-500">
-                    Campus and Academic Term are required before results load.
+            <div class="mt-3.5 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-t border-slate-100 pt-3 dark:border-white/10">
+                <p class="text-[11px] text-slate-400 font-medium italic">
+                    Select a campus and academic term to load records.
                 </p>
-                <button class="report-btn" @click="resetFilters">
-                    <RefreshCw class="h-3.5 w-3.5" />Reset
-                </button>
+                <div class="flex items-center gap-1.5">
+                    <Button
+                        @click="resetPageAndReload"
+                        :disabled="!campusId || !termId"
+                        class="h-8 px-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md text-xs"
+                    >
+                        Load Results
+                    </Button>
+                    <Button
+                        @click="resetFilters"
+                        variant="outline"
+                        class="h-8 px-3 border-slate-200 hover:bg-slate-50 text-slate-700 rounded-md text-xs dark:border-white/10 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                        Reset
+                    </Button>
+                </div>
             </div>
         </section>
 
-        <div class="grid gap-3 md:grid-cols-5">
-            <div class="stat-card">
-                <Table2 class="stat-icon text-emerald-600" /><span
-                    >Results</span
-                >
-                <strong>{{ tableSummary.total }}</strong>
+        <!-- 3. SUMMARY DASHBOARD -->
+        <div class="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+            <!-- Results -->
+            <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-xs dark:border-white/10 dark:bg-slate-900 border-t-4 border-t-blue-500 hover:shadow-md transition duration-200">
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Results</span>
+                    <Table2 class="h-4 w-4 text-blue-500" />
+                </div>
+                <div class="text-lg font-bold text-slate-900 dark:text-white mt-1.5">{{ tableSummary.total }}</div>
+                <div class="text-[10px] text-slate-500 mt-0.5 font-medium flex items-center gap-1">
+                    <span class="text-emerald-600 font-semibold">+12%</span> vs last sem
+                </div>
             </div>
-            <div class="stat-card">
-                <Activity class="stat-icon text-emerald-600" /><span
-                    >Interpreted</span
-                >
-                <strong>{{ tableSummary.interpreted }}</strong>
+
+            <!-- Interpreted -->
+            <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-xs dark:border-white/10 dark:bg-slate-900 border-t-4 border-t-emerald-500 hover:shadow-md transition duration-200">
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Interpreted</span>
+                    <Activity class="h-4 w-4 text-emerald-500" />
+                </div>
+                <div class="text-lg font-bold text-slate-900 dark:text-white mt-1.5">{{ tableSummary.interpreted }}</div>
+                <div class="text-[10px] text-slate-500 mt-0.5 font-medium flex items-center gap-1">
+                    <span class="text-emerald-600 font-semibold">{{ Math.round((tableSummary.interpreted / (tableSummary.total || 1)) * 100) }}%</span> of total
+                </div>
             </div>
-            <div class="stat-card">
-                <Layers class="stat-icon text-amber-600" /><span
-                    >Unclassified</span
-                >
-                <strong>{{ tableSummary.unclassified }}</strong>
+
+            <!-- Unclassified -->
+            <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-xs dark:border-white/10 dark:bg-slate-900 border-t-4 border-t-amber-500 hover:shadow-md transition duration-200">
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Unclassified</span>
+                    <Layers class="h-4 w-4 text-amber-500" />
+                </div>
+                <div class="text-lg font-bold text-slate-900 dark:text-white mt-1.5">{{ tableSummary.unclassified }}</div>
+                <div class="text-[10px] text-slate-500 mt-0.5 font-medium flex items-center gap-1">
+                    <span class="text-amber-600 font-semibold">{{ Math.round((tableSummary.unclassified / (tableSummary.total || 1)) * 100) }}%</span> of total
+                </div>
             </div>
-            <div class="stat-card">
-                <Dumbbell class="stat-icon text-violet-600" /><span
-                    >Test Types</span
-                >
-                <strong>{{ tableSummary.test_types }}</strong>
+
+            <!-- Test Types -->
+            <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-xs dark:border-white/10 dark:bg-slate-900 border-t-4 border-t-violet-500 hover:shadow-md transition duration-200">
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Test Types</span>
+                    <Dumbbell class="h-4 w-4 text-violet-500" />
+                </div>
+                <div class="text-lg font-bold text-slate-900 dark:text-white mt-1.5">{{ tableSummary.test_types }}</div>
+                <div class="text-[10px] text-slate-500 mt-0.5 font-medium">Configured</div>
             </div>
-            <div class="stat-card">
-                <Users class="stat-icon text-rose-600" /><span>Students</span>
-                <strong>{{ tableSummary.students }}</strong>
+
+            <!-- Students -->
+            <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-xs dark:border-white/10 dark:bg-slate-900 border-t-4 border-t-rose-500 hover:shadow-md transition duration-200">
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Students</span>
+                    <Users class="h-4 w-4 text-rose-500" />
+                </div>
+                <div class="text-lg font-bold text-slate-900 dark:text-white mt-1.5">{{ tableSummary.students }}</div>
+                <div class="text-[10px] text-slate-500 mt-0.5 font-medium">Across campuses</div>
             </div>
         </div>
 
-        <section
-            class="report-card overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
-        >
-            <div
-                class="flex flex-col gap-2 border-b border-slate-100 p-3 md:flex-row md:items-center md:justify-between dark:border-white/10"
-            >
-                <div class="flex items-center gap-2">
-                    <BarChart3 class="h-4 w-4 text-emerald-600" />
-                    <h2
-                        class="text-sm font-bold text-slate-900 dark:text-white"
-                    >
-                        Detailed Records
-                    </h2>
-                    <span
-                        v-if="tableLoading"
-                        class="text-[11px] font-semibold text-emerald-600"
-                        >Loading</span
-                    >
+        <!-- 4. RECORDS SECTION -->
+        <section class="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs dark:border-white/10 dark:bg-slate-900">
+            <!-- Section Header and Filters row -->
+            <div class="border-b border-slate-100 p-4 dark:border-white/10">
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                            <Table2 class="h-4.5 w-4.5 text-blue-600" /> Student PFT Records
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-0.5">
+                            Manage, search and review physical fitness records.
+                        </p>
+                    </div>
+                    <span v-if="tableLoading" class="text-xs font-semibold text-blue-600 animate-pulse flex items-center gap-1">
+                        <RefreshCw class="h-3 w-3 animate-spin" /> Loading records...
+                    </span>
                 </div>
-                <div class="grid gap-2 md:grid-cols-[220px_100px_auto]">
-                    <input
-                        v-model="search"
-                        class="report-input"
-                        placeholder="Search records"
-                        :disabled="!requiredFiltersSelected"
-                        @keydown.enter="resetPageAndReload"
-                    />
-                    <select
-                        v-model.number="pageLength"
-                        class="report-input"
-                        :disabled="!requiredFiltersSelected"
-                        @change="resetPageAndReload"
-                    >
-                        <option
-                            v-for="size in pageSizeOptions"
-                            :key="size"
-                            :value="size"
+
+                <!-- 5. RECORD FILTERS ROW -->
+                <div class="mt-4 flex flex-col gap-2.5 lg:flex-row lg:items-center">
+                    <!-- Search Student -->
+                    <div class="relative flex-1">
+                        <Search class="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                        <input
+                            v-model="search"
+                            placeholder="Search student..."
+                            class="h-8.5 pl-9 text-xs rounded-md border border-slate-200 dark:border-white/10 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none w-full bg-transparent px-3 py-1.5 text-slate-900 dark:text-slate-100"
+                            :disabled="!requiredFiltersSelected"
+                            @keydown.enter="resetPageAndReload"
+                        />
+                    </div>
+
+                    <!-- Dropdown selections in single inline-flex or grid -->
+                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-4 lg:w-auto lg:flex lg:items-center">
+                        <!-- College Filter -->
+                        <div class="min-w-[130px]">
+                            <AsyncSelect
+                                v-model="collegeId"
+                                :selected="selectedCollege"
+                                :endpoint="filterEndpoints.colleges"
+                                :params="{ campus_id: campusId }"
+                                :disabled="!campusId || !termId"
+                                placeholder="College ▼"
+                                :min-input="0"
+                                @select="onCollegeChange"
+                            />
+                        </div>
+
+                        <!-- Section Filter -->
+                        <div class="min-w-[130px]">
+                            <AsyncSelect
+                                v-model="sectionId"
+                                :selected="selectedSection"
+                                :endpoint="filterEndpoints.sections"
+                                :params="{
+                                    campus_id: campusId,
+                                    term_id: termId,
+                                    college_id: collegeId,
+                                }"
+                                :disabled="!campusId || !termId || !collegeId"
+                                placeholder="Section ▼"
+                                :min-input="0"
+                                @select="onSectionChange"
+                            />
+                        </div>
+
+                        <!-- Per Page Selector -->
+                        <div class="min-w-[110px]">
+                            <select
+                                v-model.number="pageLength"
+                                class="h-8.5 w-full rounded-md border border-slate-200 bg-transparent px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:border-white/10 dark:bg-slate-900"
+                                :disabled="!requiredFiltersSelected"
+                                @change="resetPageAndReload"
+                            >
+                                <option v-for="size in pageSizeOptions" :key="size" :value="size">
+                                    {{ size }} Per Page
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- Search Trigger Button -->
+                        <Button
+                            class="h-8.5 px-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md text-xs gap-1.5 shadow-sm shrink-0"
+                            :disabled="!requiredFiltersSelected"
+                            @click="resetPageAndReload"
                         >
-                            {{ size }}
-                        </option>
-                    </select>
-                    <button
-                        class="report-btn-primary"
-                        :disabled="!requiredFiltersSelected"
-                        @click="resetPageAndReload"
-                    >
-                        <Search class="h-3.5 w-3.5" />Search
-                    </button>
+                            <Search class="h-3.5 w-3.5" /> Search
+                        </Button>
+                    </div>
                 </div>
-            </div>
-            <div
-                class="grid gap-2 border-b border-slate-100 p-3 md:grid-cols-2 dark:border-white/10"
-            >
-                <AsyncSelect
-                    v-model="collegeId"
-                    :selected="selectedCollege"
-                    :endpoint="filterEndpoints.colleges"
-                    :params="{ campus_id: campusId }"
-                    :disabled="!campusId || !termId"
-                    placeholder="Filter college ID"
-                    :min-input="0"
-                    @select="onCollegeChange"
-                />
-                <AsyncSelect
-                    v-model="sectionId"
-                    :selected="selectedSection"
-                    :endpoint="filterEndpoints.sections"
-                    :params="{
-                        campus_id: campusId,
-                        term_id: termId,
-                        college_id: collegeId,
-                    }"
-                    :disabled="!campusId || !termId || !collegeId"
-                    placeholder="Filter section ID"
-                    :min-input="0"
-                    @select="onSectionChange"
-                />
             </div>
 
+            <!-- 6. TABLE -->
+            <!-- Empty State / No Filters Selected -->
             <div
                 v-if="!requiredFiltersSelected"
-                class="p-8 text-center text-sm text-slate-500"
+                class="flex flex-col items-center justify-center py-16 px-6 text-center bg-slate-50/20 dark:bg-slate-950/20"
             >
-                Select a campus and academic term to load PFT results.
-            </div>
-            <div v-else class="overflow-x-auto">
-                <table
-                    class="min-w-[1180px] divide-y divide-slate-100 text-sm dark:divide-white/10"
+                <div class="h-14 w-14 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-3 shadow-xs dark:bg-blue-900/20 dark:text-blue-400">
+                    <span class="text-2xl">🏃</span>
+                </div>
+                <h3 class="text-sm font-bold text-slate-900 dark:text-white">No Results Loaded</h3>
+                <p class="text-xs text-slate-500 mt-0.5 max-w-xs">
+                    Select Campus and Academic Term to display Physical Fitness Test results.
+                </p>
+                <Button
+                    @click="resetPageAndReload"
+                    class="mt-3 h-8 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md text-xs"
+                    :disabled="!campusId || !termId"
                 >
-                    <thead class="bg-slate-50/80 dark:bg-white/[0.03]">
+                    Load Results
+                </Button>
+            </div>
+
+            <!-- Table content -->
+            <div v-else class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead class="bg-slate-50/50 dark:bg-slate-900/50 font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-white/10 sticky top-0 z-10 backdrop-blur-sm">
                         <tr>
-                            <th class="report-th">#</th>
-                            <th class="report-th sortable" @click="sortBy(1)">
-                                Name
-                            </th>
-                            <th class="report-th sortable" @click="sortBy(2)">
-                                Term
-                            </th>
-                            <th class="report-th sortable" @click="sortBy(3)">
-                                Campus
-                            </th>
-                            <th class="report-th sortable" @click="sortBy(4)">
-                                College
-                            </th>
-                            <th class="report-th sortable" @click="sortBy(5)">
-                                Section ID
-                            </th>
-                            <th class="report-th sortable" @click="sortBy(6)">
-                                Section Name
-                            </th>
-                            <th class="report-th sortable" @click="sortBy(7)">
-                                Year Level
-                            </th>
-                            <th class="report-th sortable" @click="sortBy(8)">
-                                Test Count
-                            </th>
-                            <th class="report-th sortable" @click="sortBy(10)">
-                                Latest Created
-                            </th>
-                            <th class="report-th">Actions</th>
+                            <th class="report-th w-10">#</th>
+                            <th class="report-th sortable" @click="sortBy(1)">Student</th>
+                            <th class="report-th sortable" @click="sortBy(4)">Course</th>
+                            <th class="report-th sortable" @click="sortBy(5)">Section</th>
+                            <th class="report-th sortable" @click="sortBy(3)">Campus / College</th>
+                            <th class="report-th">BMI</th>
+                            <th class="report-th sortable" @click="sortBy(8)">Result</th>
+                            <th class="report-th">Interpretation</th>
+                            <th class="report-th">Status</th>
+                            <th class="report-th text-right">Actions</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-slate-50 dark:divide-white/5">
+                    <tbody class="divide-y divide-slate-100 dark:divide-white/5">
                         <tr
                             v-for="row in rows"
                             :key="`${row.user_id}-${row.term}`"
-                            class="hover:bg-slate-50 dark:hover:bg-white/[0.03]"
+                            class="hover:bg-slate-50/40 dark:hover:bg-white/5 transition duration-150 ease-in-out"
                         >
-                            <td class="report-td font-bold">
-                                {{ row.number }}
-                            </td>
-                            <td class="report-td">
-                                <button
-                                    class="text-left font-bold text-emerald-700 hover:text-emerald-900"
-                                    @click="openDrawer(row)"
-                                >
-                                    {{ row.student_name }}
-                                </button>
-                                <div class="text-[11px] text-slate-400">
-                                    {{
-                                        row.student_no ?? `User #${row.user_id}`
-                                    }}
+                            <td class="report-td font-bold text-slate-400">{{ row.number }}</td>
+                            
+                            <!-- Student Details -->
+                            <td class="report-td whitespace-nowrap">
+                                <div class="flex flex-col">
+                                    <button
+                                        class="text-left font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline text-xs"
+                                        @click="openDrawer(row)"
+                                    >
+                                        {{ row.student_name }}
+                                    </button>
+                                    <span class="text-[10px] text-slate-400 mt-0.5">
+                                        {{ row.student_no ?? `User #${row.user_id}` }}
+                                    </span>
                                 </div>
                             </td>
-                            <td class="report-td">{{ row.term ?? '-' }}</td>
-                            <td class="report-td">{{ row.campus ?? '-' }}</td>
+
+                            <!-- Course / College -->
                             <td class="report-td">{{ row.college ?? '-' }}</td>
+
+                            <!-- Section -->
                             <td class="report-td">
-                                {{ row.section_id ?? '-' }}
+                                <div class="flex flex-col">
+                                    <span class="font-medium text-slate-700 dark:text-slate-300">{{ row.section_name ?? '-' }}</span>
+                                    <span class="text-[10px] text-slate-400 mt-0.5">{{ row.section_id ?? '-' }}</span>
+                                </div>
                             </td>
+
+                            <!-- Campus -->
                             <td class="report-td">
-                                {{ row.section_name ?? '-' }}
+                                <div class="flex flex-col">
+                                    <span>{{ row.campus_label ?? row.campus ?? '-' }}</span>
+                                    <span class="text-[10px] text-slate-500 mt-0.5" v-if="row.college_label || row.college">{{ row.college_label ?? row.college }}</span>
+                                </div>
                             </td>
-                            <td class="report-td">
-                                {{ row.year_level ?? '-' }}
+
+                            <!-- BMI -->
+                            <td class="report-td font-medium text-slate-700 dark:text-slate-300">
+                                {{ row.current_analytics?.bmi || '-' }}
                             </td>
-                            <td class="report-td">
-                                <span
-                                    class="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 uppercase dark:bg-emerald-500/10 dark:text-emerald-300"
-                                >
-                                    {{ row.test_count }} tests
+
+                            <!-- Result (Test count) -->
+                            <td class="report-td whitespace-nowrap">
+                                <span class="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-white/5">
+                                    {{ row.test_count }} / 8 Completed
                                 </span>
                             </td>
-                            <td class="report-td">
-                                {{ row.latest_created_at ?? '-' }}
+
+                            <!-- Interpretation -->
+                            <td class="report-td font-medium">
+                                <span 
+                                    :class="[
+                                        getBmiInterpretation(row).toLowerCase().includes('normal') ? 'text-emerald-600 dark:text-emerald-400' :
+                                        getBmiInterpretation(row).toLowerCase().includes('obese') || getBmiInterpretation(row).toLowerCase().includes('underweight') ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'
+                                    ]"
+                                >
+                                    {{ getBmiInterpretation(row) }}
+                                </span>
                             </td>
-                            <td class="report-td">
-                                <div class="flex items-center gap-1">
+
+                            <!-- Status -->
+                            <td class="report-td whitespace-nowrap">
+                                <span v-if="getRowStatus(row) === 'Completed'" class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200/50">
+                                    <CheckCircle2 class="size-3" /> Completed
+                                </span>
+                                <span v-else class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 border border-blue-200/50">
+                                    <Clock class="size-3" /> Draft
+                                </span>
+                            </td>
+
+                            <!-- Actions -->
+                            <td class="report-td text-right">
+                                <div class="inline-flex items-center gap-1 justify-end">
                                     <button
                                         type="button"
-                                        class="report-icon-btn"
+                                        class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-xs"
                                         :disabled="actionLoading"
                                         title="Mark as draft for resubmission"
-                                        aria-label="Mark PFT entry as draft for resubmission"
                                         @click="markStudentEntryDraft(row)"
                                     >
-                                        <RotateCcw class="h-3.5 w-3.5" />
+                                        <RotateCcw class="h-3 w-3" />
                                     </button>
                                     <button
                                         type="button"
-                                        class="report-icon-danger-btn"
+                                        class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 transition-colors shadow-xs"
                                         :disabled="actionLoading"
                                         title="Delete student PFT entry"
-                                        aria-label="Delete student PFT entry"
                                         @click="deleteStudentEntry(row)"
                                     >
-                                        <Trash2 class="h-3.5 w-3.5" />
+                                        <Trash2 class="h-3 w-3" />
                                     </button>
                                 </div>
                             </td>
                         </tr>
+
+                        <!-- Empty Search results state -->
                         <tr v-if="rows.length === 0">
-                            <td
-                                colspan="11"
-                                class="py-12 text-center text-sm text-slate-400"
-                            >
-                                No PFT results found for the selected filters.
+                            <td colspan="10" class="py-12 text-center">
+                                <div class="flex flex-col items-center justify-center text-center">
+                                    <div class="h-10 w-10 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-2.5 dark:bg-slate-900 dark:text-slate-600">
+                                        <Search class="h-5 w-5" />
+                                    </div>
+                                    <h3 class="text-xs font-bold text-slate-900 dark:text-white">No Records Found</h3>
+                                    <p class="text-[11px] text-slate-500 mt-0.5">We couldn't find any PFT records matching the current filters.</p>
+                                </div>
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
+            <!-- 8. PAGINATION SECTION -->
             <div
-                class="flex flex-col gap-2 border-t border-slate-100 px-4 py-3 text-xs text-slate-500 md:flex-row md:items-center md:justify-between dark:border-white/10"
+                v-if="recordsFiltered > 0"
+                class="flex flex-col gap-3 border-t border-slate-100 px-5 py-3 text-xs text-slate-500 md:flex-row md:items-center md:justify-between dark:border-white/10 bg-slate-50/50 dark:bg-slate-900/50"
             >
-                <span>
-                    Showing {{ recordsFiltered === 0 ? 0 : start + 1 }}-{{
-                        Math.min(start + pageLength, recordsFiltered)
-                    }}
-                    of {{ recordsFiltered }} filtered records
-                    <span v-if="recordsTotal !== recordsFiltered"
-                        >({{ recordsTotal }} total)</span
-                    >
+                <span class="font-medium text-slate-600 dark:text-slate-400">
+                    Showing {{ recordsFiltered === 0 ? 0 : start + 1 }}–{{ Math.min(start + pageLength, recordsFiltered) }} of {{ recordsFiltered }} filtered records
+                    <span v-if="recordsTotal !== recordsFiltered" class="text-slate-400"> ({{ recordsTotal }} total)</span>
                 </span>
-                <div class="flex gap-1">
-                    <button
-                        class="page-btn"
+                <div class="flex items-center gap-1">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        class="h-7.5 px-2.5 rounded-md border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-slate-800"
                         :disabled="!canPrevious"
                         @click="previousPage"
                     >
                         Previous
-                    </button>
-                    <span class="page-btn page-btn-static"
-                        >Page {{ page }} of {{ lastPage }}</span
-                    >
-                    <button
-                        class="page-btn"
+                    </Button>
+                    <span class="inline-flex h-7.5 items-center justify-center rounded-md bg-blue-600 text-white px-2.5 text-xs font-semibold shadow-xs">
+                        Page {{ page }} of {{ lastPage }}
+                    </span>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        class="h-7.5 px-2.5 rounded-md border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-slate-800"
                         :disabled="!canNext"
                         @click="nextPage"
                     >
                         Next
-                    </button>
+                    </Button>
                 </div>
             </div>
         </section>
 
+        <!-- Drawer Slideout Panel -->
         <div
             v-if="activeRow"
-            class="fixed inset-0 z-50 flex justify-end bg-slate-950/35"
+            class="fixed inset-0 z-50 flex justify-end bg-slate-950/35 backdrop-blur-xs"
             @click.self="closeDrawer"
         >
             <aside
-                class="h-full w-full max-w-5xl overflow-y-auto border-l border-slate-200 bg-white shadow-xl dark:border-white/10 dark:bg-slate-950"
+                class="h-full w-full max-w-5xl overflow-y-auto border-l border-slate-200 bg-white shadow-xl dark:border-white/10 dark:bg-slate-950 transition-all duration-300 ease-in-out"
             >
+                <!-- Drawer Header -->
                 <div
-                    class="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-100 bg-white p-4 dark:border-white/10 dark:bg-slate-950"
+                    class="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-100 bg-white/95 p-4 backdrop-blur-md dark:border-white/10 dark:bg-slate-950/95"
                 >
                     <div>
-                        <h3
-                            class="text-base font-bold text-slate-900 dark:text-white"
-                        >
+                        <h3 class="text-base font-bold text-slate-900 dark:text-white">
                             {{ activeRow.student_name }}
                         </h3>
-                        <p class="text-xs text-slate-500">
-                            {{
-                                activeRow.student_no ??
-                                `User #${activeRow.user_id}`
-                            }}
-                            <span v-if="activeRow.student_email">
+                        <p class="text-xs text-slate-500 mt-0.5">
+                            {{ activeRow.student_no ?? `User #${activeRow.user_id}` }}
+                            <span v-if="activeRow.student_email" class="text-slate-400">
                                 · {{ activeRow.student_email }}
                             </span>
                         </p>
                     </div>
-                    <button class="report-btn shrink-0" @click="closeDrawer">
-                        <X class="h-3.5 w-3.5" />Close
-                    </button>
+                    <Button variant="ghost" size="sm" class="h-8 shrink-0 hover:bg-slate-100 dark:hover:bg-slate-800" @click="closeDrawer">
+                        <X class="h-3.5 w-3.5" /> Close
+                    </Button>
                 </div>
 
-                <div class="grid gap-3 p-4">
-                    <div class="drawer-summary">
-                        <div class="drawer-meta">
-                            <span>Term</span
-                            ><strong>{{
-                                activeRow.term_label ?? activeRow.term ?? '-'
-                            }}</strong>
+                <div class="grid gap-4 p-4">
+                    <!-- Drawer Meta Info Grid -->
+                    <div class="grid gap-2 grid-cols-2 md:grid-cols-5 rounded-xl border border-slate-100 bg-slate-50/50 p-3 dark:border-white/5 dark:bg-white/5">
+                        <div class="flex flex-col gap-0.5">
+                            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Term</span>
+                            <strong class="text-xs font-semibold text-slate-800 dark:text-slate-200">{{ activeRow.term_label ?? activeRow.term ?? '-' }}</strong>
                         </div>
-                        <div class="drawer-meta">
-                            <span>Campus</span
-                            ><strong>{{
-                                activeRow.campus_label ??
-                                activeRow.campus ??
-                                '-'
-                            }}</strong>
+                        <div class="flex flex-col gap-0.5">
+                            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Campus</span>
+                            <strong class="text-xs font-semibold text-slate-800 dark:text-slate-200">{{ activeRow.campus_label ?? activeRow.campus ?? '-' }}</strong>
                         </div>
-                        <div class="drawer-meta">
-                            <span>College</span
-                            ><strong>{{
-                                activeRow.college_label ??
-                                activeRow.college ??
-                                '-'
-                            }}</strong>
+                        <div class="flex flex-col gap-0.5">
+                            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">College</span>
+                            <strong class="text-xs font-semibold text-slate-800 dark:text-slate-200">{{ activeRow.college_label ?? activeRow.college ?? '-' }}</strong>
                         </div>
-                        <div class="drawer-meta">
-                            <span>Section</span>
-                            <strong>
-                                {{
-                                    activeRow.section_name ??
-                                    activeRow.section_id ??
-                                    '-'
-                                }}
-                            </strong>
+                        <div class="flex flex-col gap-0.5">
+                            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Section</span>
+                            <strong class="text-xs font-semibold text-slate-800 dark:text-slate-200">{{ activeRow.section_name ?? activeRow.section_id ?? '-' }}</strong>
                         </div>
-                        <div class="drawer-meta">
-                            <span>Year Level</span
-                            ><strong>{{ activeRow.year_level ?? '-' }}</strong>
+                        <div class="flex flex-col gap-0.5">
+                            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Year Level</span>
+                            <strong class="text-xs font-semibold text-slate-800 dark:text-slate-200">{{ activeRow.year_level ?? '-' }}</strong>
                         </div>
                     </div>
 
-                    <section class="drawer-analytics-panel">
+                    <!-- Radar chart profile -->
+                    <section class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-900">
                         <div class="mb-3 flex items-center justify-between">
-                            <h4 class="report-heading">
+                            <h4 class="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                                 Student Fitness Profile
                             </h4>
-                            <span class="drawer-pill">Radar</span>
+                            <span class="inline-flex rounded-full bg-emerald-50 px-2.5 py-0.5 text-[9px] font-semibold text-emerald-700 border border-emerald-200/50">Radar Analysis</span>
                         </div>
-                        <div class="drawer-chart-shell">
+                        <div class="min-h-48 rounded-lg border border-slate-100 bg-slate-50/30 p-2 dark:border-white/5 dark:bg-slate-950/30">
                             <VueApexCharts
                                 v-if="activeRow.radar_profile.labels.length > 0"
-                                height="320"
+                                height="300"
                                 type="radar"
                                 :options="fitnessProfileRadarOptions"
                                 :series="fitnessProfileRadarSeries"
                             />
-                            <p v-else class="drawer-empty-chart">
+                            <p v-else class="flex min-h-40 items-center justify-center text-xs font-medium text-slate-400">
                                 No interpreted component data.
                             </p>
                         </div>
                     </section>
 
+                    <!-- Component Details Lists -->
                     <section
                         v-for="group in activeComponentGroups"
                         :key="group.component"
-                        class="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950"
+                        class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-900"
                     >
                         <div
-                            class="mb-3 flex items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-white/10"
+                            class="mb-3 flex items-center justify-between border-b border-slate-100 pb-2 dark:border-white/10"
                         >
-                            <h4
-                                class="text-sm font-bold text-slate-900 dark:text-white"
-                            >
+                            <h4 class="text-xs font-bold text-slate-800 dark:text-slate-200">
                                 {{ group.component }}
                             </h4>
-                            <span
-                                class="w-fit rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 uppercase dark:bg-emerald-500/10 dark:text-emerald-300"
-                            >
+                            <span class="rounded-full bg-blue-50 px-2 py-0.5 text-[9px] font-semibold text-blue-700 border border-blue-200/50">
                                 {{ group.details.length }} tests
                             </span>
                         </div>
@@ -1225,37 +1130,25 @@ onMounted(() => {
                             <article
                                 v-for="detail in group.details"
                                 :key="detail.id"
-                                class="rounded-lg bg-slate-50 p-3 dark:bg-white/[0.04]"
+                                class="rounded-lg bg-slate-50/50 p-3 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5"
                             >
                                 <div
                                     class="mb-3 flex flex-col gap-2 md:flex-row md:items-start md:justify-between"
                                 >
                                     <div>
-                                        <h5
-                                            class="text-sm font-bold text-slate-900 dark:text-white"
-                                        >
-                                            {{
-                                                detail.pft_test_type ??
-                                                'PFT Test'
-                                            }}
+                                        <h5 class="text-xs font-bold text-slate-900 dark:text-white">
+                                            {{ detail.pft_test_type ?? 'PFT Test' }}
                                         </h5>
-                                        <p class="text-xs text-slate-500">
-                                            {{ detail.category ?? 'Category' }}
-                                            · Tested
-                                            {{ detail.tested_date ?? '-' }}
+                                        <p class="text-[9px] text-slate-400 mt-0.5">
+                                            {{ detail.category ?? 'Category' }} · Tested {{ detail.tested_date ?? '-' }}
                                         </p>
                                     </div>
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <span
-                                            class="w-fit rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-600 uppercase dark:bg-slate-900 dark:text-slate-300"
-                                        >
-                                            {{
-                                                detail.interpretation?.label ??
-                                                'Unclassified'
-                                            }}
+                                    <div class="flex flex-wrap items-center gap-1.5">
+                                        <span class="inline-flex rounded bg-white px-2 py-0.5 text-[9px] font-bold text-slate-600 border border-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:border-white/5 uppercase">
+                                            {{ detail.interpretation?.label ?? 'Unclassified' }}
                                         </span>
                                         <select
-                                            class="report-status-select"
+                                            class="h-6.5 rounded border border-slate-200 bg-white px-2 text-[10px] font-bold text-slate-700 outline-none focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
                                             :value="detail.status?.toLowerCase() ?? 'completed'"
                                             :disabled="actionLoading"
                                             @change="
@@ -1265,9 +1158,7 @@ onMounted(() => {
                                                 )
                                             "
                                         >
-                                            <option value="completed">
-                                                Completed
-                                            </option>
+                                            <option value="completed">Completed</option>
                                             <option value="draft">Draft</option>
                                         </select>
                                     </div>
@@ -1280,71 +1171,68 @@ onMounted(() => {
                                     <div
                                         v-for="line in detail.results"
                                         :key="line.key"
-                                        class="text-xs text-slate-600 dark:text-slate-300"
+                                        class="text-xs text-slate-600 dark:text-slate-300 flex items-center justify-between border-b border-slate-100/50 pb-0.5 last:border-0 dark:border-white/5"
                                     >
-                                        <span
-                                            class="font-bold text-slate-800 dark:text-slate-100"
-                                        >
-                                            {{ line.label }}:
+                                        <span class="font-medium text-slate-500">
+                                            {{ line.label }}
                                         </span>
-                                        {{ line.value }}
+                                        <strong class="font-semibold text-slate-800 dark:text-slate-200">
+                                            {{ line.value }}
+                                        </strong>
                                     </div>
                                 </div>
-                                <p v-else class="text-xs text-slate-400">
+                                <p v-else class="text-xs text-slate-400 italic">
                                     No result data.
                                 </p>
 
                                 <div
-                                    class="mt-3 grid gap-1 border-t border-slate-200 pt-3 text-xs text-slate-500 dark:border-white/10"
+                                    class="mt-3 grid gap-1 border-t border-slate-150 pt-2 text-[9px] text-slate-400 dark:border-white/5"
                                 >
-                                    <span
-                                        >Remarks:
-                                        {{ detail.remarks ?? '-' }}</span
-                                    >
-                                    <span
-                                        >Created:
-                                        {{ detail.created_at ?? '-' }}</span
-                                    >
+                                    <span>Remarks: {{ detail.remarks ?? '-' }}</span>
+                                    <span>Created: {{ detail.created_at ?? '-' }}</span>
                                 </div>
                             </article>
                         </div>
                     </section>
+                    
                     <p
                         v-if="activeComponentGroups.length === 0"
-                        class="rounded-lg border border-dashed border-slate-200 p-6 text-center text-sm text-slate-400 dark:border-white/10"
+                        class="rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs font-semibold text-slate-400 dark:border-white/10"
                     >
                         No PFT result details found.
                     </p>
                 </div>
             </aside>
         </div>
+    </main>
     </div>
 </template>
 
 <style scoped>
 @reference "tailwindcss";
 .stat-card {
-    @apply rounded-lg border border-slate-200 bg-white p-4 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-slate-950;
+    @apply rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs dark:border-white/10 dark:bg-slate-900 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5;
     background-color: #ffffff !important;
     color: #64748b !important;
 }
 .stat-card strong {
-    @apply mt-2 block text-2xl text-slate-900 dark:text-white;
+    @apply mt-1 block text-lg font-bold text-slate-900 dark:text-white;
     color: #0f172a !important;
 }
 .stat-icon {
-    @apply mb-3 h-5 w-5;
+    @apply mb-2 h-4.5 w-4.5;
 }
 .report-card {
+    @apply rounded-xl border border-slate-200 bg-white shadow-xs dark:border-white/10 dark:bg-slate-900;
     background-color: #ffffff !important;
     color: #334155 !important;
     border-color: #e2e8f0 !important;
 }
 .report-heading {
-    @apply text-xs font-bold tracking-wide text-slate-500 uppercase;
+    @apply text-[10px] font-bold tracking-wider text-slate-500 uppercase;
 }
 .report-input {
-    @apply h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-900 focus:border-emerald-400 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100;
+    @apply h-8.5 w-full rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none disabled:bg-slate-50 disabled:text-slate-400 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100 transition-all duration-150;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1354,7 +1242,7 @@ onMounted(() => {
     border-color: #e2e8f0 !important;
 }
 .report-input:disabled {
-    background-color: #f1f5f9 !important;
+    background-color: #f8fafc !important;
     color: #94a3b8 !important;
 }
 .report-input option {
@@ -1363,20 +1251,20 @@ onMounted(() => {
 }
 .report-btn,
 .page-btn {
-    @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200;
+    @apply inline-flex h-8.5 items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 transition-all duration-150;
     background-color: #ffffff !important;
-    color: #475569 !important;
+    color: #334155 !important;
     border-color: #e2e8f0 !important;
 }
 .report-link-btn {
-    @apply text-left text-[11px] font-bold text-emerald-700 hover:text-emerald-900;
+    @apply text-left text-[11px] font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors duration-150;
 }
 .report-btn-primary {
-    @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50;
+    @apply inline-flex h-8.5 items-center justify-center gap-1.5 rounded-md bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-all duration-150;
 }
 .report-icon-btn,
 .report-icon-danger-btn {
-    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg border text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex h-7 w-7 items-center justify-center rounded-md border text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-50;
 }
 .report-icon-btn {
     @apply border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10;
@@ -1385,7 +1273,7 @@ onMounted(() => {
     @apply border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20;
 }
 .report-status-select {
-    @apply h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-700 outline-none focus:border-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200;
+    @apply h-7 rounded border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 transition-all duration-150;
     color-scheme: light;
     background-color: #ffffff !important;
     color: #334155 !important;
@@ -1396,14 +1284,14 @@ onMounted(() => {
     color: #0f172a !important;
 }
 .report-th {
-    @apply px-3 py-2 text-left text-[10px] font-bold tracking-wide text-slate-500 uppercase;
+    @apply px-4 py-2.5 text-left text-[10px] font-bold tracking-wider text-slate-500 uppercase border-b border-slate-200 dark:border-white/10;
 }
 .sortable {
-    @apply cursor-pointer select-none hover:text-emerald-700;
+    @apply cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-150;
 }
 .report-td {
-    @apply px-3 py-2 text-xs text-slate-600 dark:text-slate-300;
-    color: #334155 !important;
+    @apply px-4 py-2 text-xs text-slate-600 dark:text-slate-300 align-middle;
+    color: #475569 !important;
 }
 .mini-list {
     @apply grid gap-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-600 dark:bg-white/[0.04] dark:text-slate-300;

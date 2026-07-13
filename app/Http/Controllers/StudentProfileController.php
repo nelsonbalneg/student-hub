@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Achievement;
 use App\Models\CcdCaresEvaluationPeriod;
+use App\Models\EvaluationTemplate;
 use App\Models\PftComponent;
 use App\Models\PftDataPrivacyConsent;
 use App\Models\PftHealthQuestionnaire;
@@ -82,6 +83,10 @@ class StudentProfileController extends Controller
             ->orderByDesc('start_date')
             ->orderByDesc('id')
             ->get();
+        $parqTemplate = EvaluationTemplate::query()
+            ->where('name', 'PARQ')
+            ->where('status', 'active')
+            ->first();
 
         return Inertia::render('StudentProfile/Index', [
             'profile' => $this->academicApi->profileForStudent($studentNo, $tenantId),
@@ -98,6 +103,7 @@ class StudentProfileController extends Controller
                         'categories.testTypes' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('name'),
                         'categories.testTypes.configurations' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('field_label'),
                         'categories.testTypes.interpretationRules' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('id'),
+                        'categories.testTypes.procedures' => fn ($query) => $query->active()->orderBy('step_no'),
                     ])
                     ->orderBy('sort_order')
                     ->orderBy('name')
@@ -159,6 +165,9 @@ class StudentProfileController extends Controller
                     ->orderBy('sort_order')
                     ->pluck('name')
                     ->all(),
+                'parqTemplate' => $parqTemplate
+                    ? $this->evaluationTemplates->build($parqTemplate)
+                    : null,
             ],
             'ccdCares' => [
                 'assessments' => $ccdCaresPeriods->map(function (CcdCaresEvaluationPeriod $period): array {
