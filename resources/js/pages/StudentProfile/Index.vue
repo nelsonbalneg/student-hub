@@ -137,10 +137,20 @@ type PftConfiguration = {
 type PftInterpretationRule = {
     id: number;
     field_name: string;
+    fieldName?: string;
+    sex?: string | null;
     label: string;
+    classification?: string | null;
+    interpretation?: string | null;
+    suggested_intervention?: string | null;
+    suggestedIntervention?: string | null;
     min_value: number | null;
+    minValue?: number | null;
     max_value: number | null;
+    maxValue?: number | null;
     color: string | null;
+    color_class?: string | null;
+    colorClass?: string | null;
     is_active: boolean;
 };
 
@@ -559,6 +569,35 @@ const activePftTerm = computed(
             (term) => term.status?.toLowerCase() === 'active',
         ) ?? selectedPftTerm.value,
 );
+
+const formatPftSemester = (semester?: string | number | null) => {
+    const value = String(semester ?? '').trim();
+
+    if (!value) return '-';
+    if (/semester/i.test(value)) return value;
+
+    const semesterNumber = Number.parseInt(value, 10);
+
+    if (Number.isNaN(semesterNumber)) return value;
+
+    const lastTwo = semesterNumber % 100;
+    const last = semesterNumber % 10;
+    const suffix =
+        lastTwo >= 11 && lastTwo <= 13
+            ? 'th'
+            : last === 1
+              ? 'st'
+              : last === 2
+                ? 'nd'
+                : last === 3
+                  ? 'rd'
+                  : 'th';
+
+    return `${semesterNumber}${suffix} Semester`;
+};
+
+const formatPftTerm = (term?: PftTerm | null) =>
+    term ? `${term.school_year ?? '-'}, ${formatPftSemester(term.semester)}` : '-';
 
 watch(selectedPftComponentId, () => {
     selectedPftCategoryId.value =
@@ -1406,15 +1445,17 @@ const pftAnalyticsOverview = computed(() => {
     return overview;
 });
 
+const pftAnalyticsAcademicTermLabel = computed(() => {
+    const academicYear = pftAnalyticsOverview.value.academicYear ?? '-';
+    const semester = formatPftSemester(pftAnalyticsOverview.value.semester);
+
+    return academicYear === '-' ? '-' : `${academicYear}, ${semester}`;
+});
+
 const pftAnalyticsSummaryCards = computed(() => [
     {
-        label: 'Academic Year',
-        value: pftAnalyticsOverview.value.academicYear,
-        tone: 'text-slate-950 dark:text-white',
-    },
-    {
-        label: 'Semester',
-        value: pftAnalyticsOverview.value.semester,
+        label: 'Academic Term',
+        value: pftAnalyticsAcademicTermLabel.value,
         tone: 'text-slate-950 dark:text-white',
     },
     {
@@ -1723,6 +1764,135 @@ const pftAnalyticsFitnessIndex = computed(
             weights: { healthRelated: 60, skillRelated: 40 },
         },
 );
+
+const pftAnalyticsRuleCards = computed(() => {
+    const components = pftAnalyticsData.value?.filters?.components ?? [];
+
+    return components.flatMap((component: Record<string, any>) =>
+        (component.categories ?? []).flatMap((category: Record<string, any>) =>
+            (category.testTypes ?? [])
+                .filter((testType: Record<string, any>) => {
+                    if (
+                        pftAnalyticsFilterComponentId.value &&
+                        String(component.id) !==
+                            String(pftAnalyticsFilterComponentId.value)
+                    ) {
+                        return false;
+                    }
+
+                    if (
+                        pftAnalyticsFilterCategoryId.value &&
+                        String(category.id) !==
+                            String(pftAnalyticsFilterCategoryId.value)
+                    ) {
+                        return false;
+                    }
+
+                    if (
+                        pftAnalyticsFilterTestTypeId.value &&
+                        String(testType.id) !==
+                            String(pftAnalyticsFilterTestTypeId.value)
+                    ) {
+                        return false;
+                    }
+
+                    return true;
+                })
+                .flatMap((testType: Record<string, any>) =>
+                    (testType.interpretationRules ?? []).map(
+                        (rule: Record<string, any>) => ({
+                            ...rule,
+                            component: component.name,
+                            category: category.name,
+                            testType: testType.name,
+                            unit: testType.unit,
+                        }),
+                    ),
+                ),
+        ),
+    );
+});
+
+const pftRuleRangeLabel = (rule: Record<string, any>) => {
+    const min = rule.minValue ?? rule.min_value;
+    const max = rule.maxValue ?? rule.max_value;
+    const unit = rule.unit ? ` ${rule.unit}` : '';
+
+    if (min !== null && min !== undefined && max !== null && max !== undefined) {
+        return `${min} - ${max}${unit}`;
+    }
+
+    if (min !== null && min !== undefined) return `${min}${unit} and above`;
+    if (max !== null && max !== undefined) return `Up to ${max}${unit}`;
+
+    return 'Any recorded value';
+};
+
+const pftInterpretationToneClass = (value?: string | null) => {
+    const tone = String(value ?? '').toLowerCase();
+
+    if (tone.includes('red') || tone.includes('poor') || tone.includes('obese')) {
+        return 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300';
+    }
+
+    if (
+        tone.includes('orange') ||
+        tone.includes('amber') ||
+        tone.includes('overweight') ||
+        tone.includes('fair')
+    ) {
+        return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300';
+    }
+
+    if (tone.includes('blue') || tone.includes('underweight')) {
+        return 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300';
+    }
+
+    if (tone.includes('violet') || tone.includes('good')) {
+        return 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/20 dark:bg-violet-500/10 dark:text-violet-300';
+    }
+
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300';
+};
+
+const pftAnalyticsClassificationStats = computed(() => {
+    const stats = new Map<
+        string,
+        { label: string; count: number; colorClass: string | null }
+    >();
+
+    for (const row of pftAnalyticsTimeline.value) {
+        const label = String(row.classification ?? row.rating ?? '').trim();
+
+        if (!label || label === '-') continue;
+
+        const current = stats.get(label) ?? {
+            label,
+            count: 0,
+            colorClass: row.colorClass ?? null,
+        };
+        current.count += 1;
+        current.colorClass ||= row.colorClass ?? null;
+        stats.set(label, current);
+    }
+
+    return Array.from(stats.values()).sort((a, b) => b.count - a.count);
+});
+
+const pftAnalyticsInterventionItems = computed(() => {
+    const seen = new Set<string>();
+
+    return pftAnalyticsTimeline.value
+        .filter((row: Record<string, any>) => {
+            const intervention = String(row.suggestedIntervention ?? '').trim();
+
+            if (!intervention || seen.has(intervention)) return false;
+
+            seen.add(intervention);
+            return true;
+        })
+        .slice(0, 6);
+});
 
 const loadPftAnalytics = async () => {
     pftAnalyticsLoading.value = true;
@@ -3513,16 +3683,7 @@ watch(editMode, (val) => {
                                             <h3
                                                 class="mt-1 text-lg font-light text-slate-950 dark:text-white"
                                             >
-                                                AY
-                                                {{
-                                                    activePftTerm?.school_year ??
-                                                    '-'
-                                                }}
-                                                ·
-                                                {{
-                                                    activePftTerm?.semester ??
-                                                    '-'
-                                                }}
+                                                {{ formatPftTerm(activePftTerm) }}
                                             </h3>
                                             <p
                                                 class="text-xs font-light text-slate-500 dark:text-slate-400"
@@ -3614,12 +3775,7 @@ watch(editMode, (val) => {
                                                         <p
                                                             class="text-sm font-medium text-slate-900 dark:text-white"
                                                         >
-                                                            AY
-                                                            {{
-                                                                term.school_year
-                                                            }}
-                                                            ·
-                                                            {{ term.semester }}
+                                                            {{ formatPftTerm(term) }}
                                                         </p>
 
                                                     </div>
@@ -3724,10 +3880,7 @@ watch(editMode, (val) => {
                                                 >
                                                     <tr>
                                                         <th class="px-3 py-3">
-                                                            AY
-                                                        </th>
-                                                        <th class="px-3 py-3">
-                                                            Semester
+                                                            AY &amp; Semester
                                                         </th>
 
                                                         <th class="px-3 py-3">
@@ -3768,17 +3921,7 @@ watch(editMode, (val) => {
                                                         <td
                                                             class="px-3 py-3 font-light text-slate-900 dark:text-white"
                                                         >
-                                                            {{
-                                                                term.school_year
-                                                            }}
-                                                        </td>
-                                                        <td
-                                                            v-if="
-                                                                physicalFitness.canFillUp
-                                                            "
-                                                            class="px-3 py-3 text-slate-600 dark:text-slate-300"
-                                                        >
-                                                            {{ term.semester }}
+                                                            {{ formatPftTerm(term) }}
                                                         </td>
 
                                                         <td
@@ -3791,6 +3934,9 @@ watch(editMode, (val) => {
                                                             }}
                                                         </td>
                                                         <td
+                                                            v-if="
+                                                                physicalFitness.canFillUp
+                                                            "
                                                             class="px-3 py-3 text-slate-600 dark:text-slate-300"
                                                         >
                                                             {{
@@ -3883,9 +4029,10 @@ watch(editMode, (val) => {
                                                     <p
                                                         class="text-xs text-slate-500 dark:text-slate-400"
                                                     >
-                                                        Dynamic results from
-                                                        your submitted fitness
-                                                        test records.
+                                                        Interpretation ranges,
+                                                        classifications, and
+                                                        guidance from your
+                                                        submitted test records.
                                                     </p>
                                                 </div>
                                                 <Button
@@ -4160,6 +4307,298 @@ watch(editMode, (val) => {
                                                             >
                                                                 {{ card.value }}
                                                             </p>
+                                                        </div>
+                                                    </div>
+                                                </section>
+
+                                                <section class="mt-6 space-y-3">
+                                                    <div>
+                                                        <p
+                                                            class="text-sm text-slate-950 dark:text-white"
+                                                        >
+                                                            Interpretation
+                                                            Results
+                                                        </p>
+                                                        <p
+                                                            class="text-xs text-slate-500 dark:text-slate-400"
+                                                        >
+                                                            Classifications and
+                                                            recommendations are
+                                                            based on the active
+                                                            interpretation rules
+                                                            configured for each
+                                                            PFT test.
+                                                        </p>
+                                                    </div>
+                                                    <div
+                                                        class="grid gap-4 xl:grid-cols-[1fr_1.2fr]"
+                                                    >
+                                                        <div
+                                                            class="rounded-lg border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/5"
+                                                        >
+                                                            <div
+                                                                class="flex items-center justify-between gap-3"
+                                                            >
+                                                                <div>
+                                                                    <p
+                                                                        class="text-sm text-slate-950 dark:text-white"
+                                                                    >
+                                                                        Classification
+                                                                        Summary
+                                                                    </p>
+                                                                    <p
+                                                                        class="text-xs text-slate-500 dark:text-slate-400"
+                                                                    >
+                                                                        Latest
+                                                                        saved
+                                                                        records
+                                                                        grouped
+                                                                        by rule
+                                                                        output.
+                                                                    </p>
+                                                                </div>
+                                                                <span
+                                                                    class="rounded-full border border-slate-200 px-2.5 py-1 text-xs text-slate-600 dark:border-white/10 dark:text-slate-300"
+                                                                >
+                                                                    {{
+                                                                        pftAnalyticsTimeline
+                                                                            .length
+                                                                    }}
+                                                                    records
+                                                                </span>
+                                                            </div>
+                                                            <div
+                                                                class="mt-4 flex flex-wrap gap-2"
+                                                            >
+                                                                <span
+                                                                    v-for="stat in pftAnalyticsClassificationStats"
+                                                                    :key="
+                                                                        stat.label
+                                                                    "
+                                                                    class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs"
+                                                                    :class="
+                                                                        pftInterpretationToneClass(
+                                                                            stat.colorClass ??
+                                                                                stat.label,
+                                                                        )
+                                                                    "
+                                                                >
+                                                                    <span
+                                                                        class="font-medium"
+                                                                        >{{
+                                                                            stat.label
+                                                                        }}</span
+                                                                    >
+                                                                    <span
+                                                                        class="rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] text-slate-700 dark:bg-slate-950/30 dark:text-slate-100"
+                                                                        >{{
+                                                                            stat.count
+                                                                        }}</span
+                                                                    >
+                                                                </span>
+                                                                <p
+                                                                    v-if="
+                                                                        pftAnalyticsClassificationStats.length ===
+                                                                        0
+                                                                    "
+                                                                    class="text-sm text-slate-500 dark:text-slate-400"
+                                                                >
+                                                                    No
+                                                                    interpreted
+                                                                    records yet.
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div
+                                                            class="rounded-lg border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/5"
+                                                        >
+                                                            <p
+                                                                class="text-sm text-slate-950 dark:text-white"
+                                                            >
+                                                                Suggested
+                                                                Interventions
+                                                            </p>
+                                                            <p
+                                                                class="text-xs text-slate-500 dark:text-slate-400"
+                                                            >
+                                                                Guidance pulled
+                                                                directly from
+                                                                matched
+                                                                interpretation
+                                                                rules.
+                                                            </p>
+                                                            <div
+                                                                class="mt-4 grid gap-2"
+                                                            >
+                                                                <div
+                                                                    v-for="row in pftAnalyticsInterventionItems"
+                                                                    :key="
+                                                                        `${row.id}:${row.suggestedIntervention}`
+                                                                    "
+                                                                    class="rounded-lg border p-3"
+                                                                    :class="
+                                                                        pftInterpretationToneClass(
+                                                                            row.colorClass ??
+                                                                                row.classification,
+                                                                        )
+                                                                    "
+                                                                >
+                                                                    <div
+                                                                        class="flex flex-wrap items-center gap-2 text-xs"
+                                                                    >
+                                                                        <span
+                                                                            class="font-medium"
+                                                                            >{{
+                                                                                row.testType
+                                                                            }}</span
+                                                                        >
+                                                                        <span
+                                                                            class="opacity-80"
+                                                                            >{{
+                                                                                row.classification
+                                                                            }}</span
+                                                                        >
+                                                                    </div>
+                                                                    <p
+                                                                        class="mt-2 text-sm leading-relaxed"
+                                                                    >
+                                                                        {{
+                                                                            row.suggestedIntervention
+                                                                        }}
+                                                                    </p>
+                                                                </div>
+                                                                <p
+                                                                    v-if="
+                                                                        pftAnalyticsInterventionItems.length ===
+                                                                        0
+                                                                    "
+                                                                    class="text-sm text-slate-500 dark:text-slate-400"
+                                                                >
+                                                                    No
+                                                                    intervention
+                                                                    guidance is
+                                                                    available
+                                                                    for the
+                                                                    current
+                                                                    filters.
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </section>
+
+                                                <section class="mt-6 space-y-3">
+                                                    <div>
+                                                        <p
+                                                            class="text-sm text-slate-950 dark:text-white"
+                                                        >
+                                                            Active Rule Ranges
+                                                        </p>
+                                                        <p
+                                                            class="text-xs text-slate-500 dark:text-slate-400"
+                                                        >
+                                                            These are the
+                                                            configured
+                                                            interpretation
+                                                            ranges used to
+                                                            classify submitted
+                                                            results.
+                                                        </p>
+                                                    </div>
+                                                    <div
+                                                        class="grid gap-3 md:grid-cols-2 xl:grid-cols-3"
+                                                    >
+                                                        <div
+                                                            v-for="rule in pftAnalyticsRuleCards.slice(0, 12)"
+                                                            :key="
+                                                                `${rule.testType}:${rule.id}`
+                                                            "
+                                                            class="rounded-lg border p-4"
+                                                            :class="
+                                                                pftInterpretationToneClass(
+                                                                    rule.colorClass ??
+                                                                        rule.color ??
+                                                                        rule.classification ??
+                                                                        rule.label,
+                                                                )
+                                                            "
+                                                        >
+                                                            <div
+                                                                class="flex items-start justify-between gap-3"
+                                                            >
+                                                                <div
+                                                                    class="min-w-0"
+                                                                >
+                                                                    <p
+                                                                        class="truncate text-sm font-medium"
+                                                                    >
+                                                                        {{
+                                                                            rule.testType
+                                                                        }}
+                                                                    </p>
+                                                                    <p
+                                                                        class="mt-0.5 text-xs opacity-80"
+                                                                    >
+                                                                        {{
+                                                                            rule.component
+                                                                        }}
+                                                                        ·
+                                                                        {{
+                                                                            rule.category
+                                                                        }}
+                                                                    </p>
+                                                                </div>
+                                                                <span
+                                                                    v-if="
+                                                                        rule.sex
+                                                                    "
+                                                                    class="shrink-0 rounded-full bg-white/70 px-2 py-0.5 text-[10px] uppercase text-slate-700 dark:bg-slate-950/30 dark:text-slate-100"
+                                                                    >{{
+                                                                        rule.sex
+                                                                    }}</span
+                                                                >
+                                                            </div>
+                                                            <div
+                                                                class="mt-3 flex items-center justify-between gap-3"
+                                                            >
+                                                                <span
+                                                                    class="text-lg font-medium"
+                                                                    >{{
+                                                                        rule.classification ??
+                                                                        rule.label
+                                                                    }}</span
+                                                                >
+                                                                <span
+                                                                    class="text-right text-xs"
+                                                                    >{{
+                                                                        pftRuleRangeLabel(
+                                                                            rule,
+                                                                        )
+                                                                    }}</span
+                                                                >
+                                                            </div>
+                                                            <p
+                                                                v-if="
+                                                                    rule.interpretation
+                                                                "
+                                                                class="mt-2 line-clamp-2 text-xs leading-relaxed opacity-80"
+                                                            >
+                                                                {{
+                                                                    rule.interpretation
+                                                                }}
+                                                            </p>
+                                                        </div>
+                                                        <div
+                                                            v-if="
+                                                                pftAnalyticsRuleCards.length ===
+                                                                0
+                                                            "
+                                                            class="rounded-lg border border-dashed border-slate-200 px-3 py-8 text-center text-sm text-slate-500 md:col-span-2 xl:col-span-3 dark:border-white/10 dark:text-slate-400"
+                                                        >
+                                                            No interpretation
+                                                            rules match the
+                                                            current filters.
                                                         </div>
                                                     </div>
                                                 </section>
@@ -4563,7 +5002,7 @@ watch(editMode, (val) => {
                                                                         class="overflow-x-auto border-t border-slate-100 dark:border-white/10"
                                                                     >
                                                                         <table
-                                                                            class="min-w-[720px] text-left text-sm"
+                                                                            class="min-w-[920px] text-left text-sm"
                                                                         >
                                                                             <thead
                                                                                 class="border-b border-slate-100 bg-slate-50 text-[11px] tracking-wide text-slate-500 uppercase dark:border-white/10 dark:bg-white/5 dark:text-slate-400"
@@ -4580,6 +5019,16 @@ watch(editMode, (val) => {
                                                                                         Result
                                                                                         /
                                                                                         Score
+                                                                                    </th>
+                                                                                    <th
+                                                                                        class="px-3 py-3"
+                                                                                    >
+                                                                                        Classification
+                                                                                    </th>
+                                                                                    <th
+                                                                                        class="px-3 py-3"
+                                                                                    >
+                                                                                        Guidance
                                                                                     </th>
                                                                                     <th
                                                                                         class="px-3 py-3"
@@ -4640,6 +5089,42 @@ watch(editMode, (val) => {
                                                                                                 row.rating
                                                                                             }})
                                                                                         </span>
+                                                                                    </td>
+                                                                                    <td
+                                                                                        class="px-3 py-3"
+                                                                                    >
+                                                                                        <span
+                                                                                            v-if="
+                                                                                                row.classification &&
+                                                                                                row.classification !==
+                                                                                                    '-'
+                                                                                            "
+                                                                                            class="inline-flex rounded-full border px-2 py-1 text-[11px]"
+                                                                                            :class="
+                                                                                                pftInterpretationToneClass(
+                                                                                                    row.colorClass ??
+                                                                                                        row.classification,
+                                                                                                )
+                                                                                            "
+                                                                                        >
+                                                                                            {{
+                                                                                                row.classification
+                                                                                            }}
+                                                                                        </span>
+                                                                                        <span
+                                                                                            v-else
+                                                                                            class="text-slate-400"
+                                                                                            >-</span
+                                                                                        >
+                                                                                    </td>
+                                                                                    <td
+                                                                                        class="max-w-xs px-3 py-3 text-xs leading-relaxed"
+                                                                                    >
+                                                                                        {{
+                                                                                            row.suggestedIntervention ??
+                                                                                            row.interpretation ??
+                                                                                            '-'
+                                                                                        }}
                                                                                     </td>
                                                                                     <td
                                                                                         class="px-3 py-3"
@@ -8253,9 +8738,7 @@ watch(editMode, (val) => {
                             >Term</span
                         >
                         <span class="text-slate-900 dark:text-white">
-                            AY
-                            {{ selectedPftSummaryRow.term.school_year }} ·
-                            <span class="font-medium">{{ selectedPftSummaryRow.term.semester }}</span>
+                            {{ formatPftTerm(selectedPftSummaryRow.term) }}
                         </span>
                     </div>
                     <div class="grid gap-1 sm:grid-cols-[120px_1fr]">

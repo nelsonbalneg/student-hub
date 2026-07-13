@@ -404,13 +404,13 @@ const siteAdministrationNavItems: NavItem[] = [
                 permission: ['roles.view', 'permissions.view'],
                 routeName: 'user-management.roles.index',
             },
-            {
-                title: 'Reference Lookups',
-                href: '/admin/reference-lookups',
-                icon: BookOpen,
-                permission: 'roles.view',
-                routeName: 'admin.reference-lookups.index',
-            },
+            // {
+            //     title: 'Reference Lookups',
+            //     href: '/admin/reference-lookups',
+            //     icon: BookOpen,
+            //     permission: 'roles.view',
+            //     routeName: 'admin.reference-lookups.index',
+            // },
             {
                 title: 'Site Settings',
                 href: '/admin/site-settings/campuses',

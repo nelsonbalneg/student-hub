@@ -219,6 +219,7 @@ class PftAnalyticsService
                 'categories' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('name'),
                 'categories.testTypes' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('name'),
                 'categories.testTypes.configurations' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('field_label'),
+                'categories.testTypes.interpretationRules' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('id'),
             ])
             ->orderBy('sort_order')
             ->orderBy('name')
@@ -299,6 +300,10 @@ class PftAnalyticsService
                 'unit' => $result->testType?->unit,
                 'result' => $this->displayValue($result),
                 'rating' => $result->results_json['rating'] ?? $result->remarks ?? '-',
+                'classification' => $result->classification ?? $result->results_json['interpretation'] ?? $result->remarks ?? '-',
+                'interpretation' => $result->interpretation,
+                'suggestedIntervention' => $result->suggested_intervention,
+                'colorClass' => $result->color_class ?? $result->results_json['interpretation_color'] ?? null,
                 'status' => $result->status ?? 'completed',
                 'dateTested' => optional($result->tested_at)->toDateString() ?? optional($result->updated_at)->toDateString(),
                 'sortDate' => optional($result->tested_at ?? $result->updated_at)->toDateString() ?? '',
@@ -368,6 +373,20 @@ class PftAnalyticsService
                     'testTypes' => $category->testTypes->map(fn ($testType) => [
                         'id' => $testType->id,
                         'name' => $testType->name,
+                        'unit' => $testType->unit,
+                        'interpretationRules' => $testType->interpretationRules->map(fn ($rule) => [
+                            'id' => $rule->id,
+                            'fieldName' => $rule->field_name,
+                            'sex' => $rule->sex,
+                            'label' => $rule->label,
+                            'classification' => $rule->classification,
+                            'interpretation' => $rule->interpretation,
+                            'suggestedIntervention' => $rule->suggested_intervention,
+                            'minValue' => $rule->min_value,
+                            'maxValue' => $rule->max_value,
+                            'color' => $rule->color,
+                            'colorClass' => $rule->color_class,
+                        ])->values(),
                     ])->values(),
                 ])->values(),
             ])->values(),
