@@ -23,6 +23,7 @@ class SiteSettingService
             'fitness_intelligence_name' => 'Fitness Intelligence',
             'fitness_intelligence_tagline' => 'Physical Fitness & Health Assessment Analytics',
             'fitness_intelligence_logo' => null,
+            'sar_enabled' => '1',
         ];
     }
 

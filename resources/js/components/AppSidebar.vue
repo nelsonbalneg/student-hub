@@ -96,7 +96,7 @@ const visibleItems = (items: NavItem[]): NavItem[] =>
     items
         .map((item) => ({
             ...item,
-            badge: item.routeName && featureMaintenance(item.routeName) ? 'Maintenance' : item.badge,
+            badge: item.routeName && item.routeName !== 'enrollment.student-academic-registration' && featureMaintenance(item.routeName) ? 'Maintenance' : item.badge,
             items: item.items ? visibleItems(item.items) : undefined,
         }))
         .filter(

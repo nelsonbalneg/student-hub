@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
-import { AlertTriangle, Home, RefreshCw } from 'lucide-vue-next';
+import { Head, Link } from '@inertiajs/vue3';
+import { ShieldOff, Home, RefreshCw, Clock } from 'lucide-vue-next';
 
 defineProps({
     featureName: {
@@ -15,74 +15,76 @@ defineProps({
 </script>
 
 <template>
-    <div class="min-h-screen bg-[#eef2f3] dark:bg-slate-900 flex items-center justify-center p-6">
-        <!-- Animated background blobs -->
-        <div class="pointer-events-none absolute inset-0 overflow-hidden">
-            <div class="absolute -top-32 -left-32 h-96 w-96 animate-pulse rounded-full bg-amber-400/10 blur-3xl"></div>
-            <div class="absolute bottom-0 right-0 h-96 w-96 animate-pulse rounded-full bg-orange-400/10 blur-3xl" style="animation-delay: 1s;"></div>
-        </div>
+    <Head :title="`${featureName} — Unavailable`" />
 
-        <div class="relative w-full max-w-lg">
-            <!-- Card -->
-            <div class="overflow-hidden rounded-[2rem] bg-white/90 dark:bg-slate-900/90 shadow-2xl ring-1 ring-amber-200 dark:ring-amber-800/50 backdrop-blur-xl">
-                <!-- Top stripe -->
-                <div class="h-1.5 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500"></div>
-
-                <div class="p-8 text-center">
-                    <!-- Icon -->
-                    <div class="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/40 dark:to-orange-900/40 ring-1 ring-amber-200 dark:ring-amber-700/50">
-                        <AlertTriangle class="h-10 w-10 text-amber-500" />
-                    </div>
-
-                    <!-- Feature under maintenance label -->
-                    <div class="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-amber-500 dark:text-amber-400">
-                        Under Maintenance
-                    </div>
-
-                    <!-- Feature name -->
-                    <h1 class="mb-4 text-2xl font-black text-slate-900 dark:text-white">
+    <div class="flex h-full flex-1 flex-col">
+        <!-- Header bar -->
+        <div class="border-b border-slate-200 bg-white px-6 py-4 dark:border-white/10 dark:bg-slate-950">
+            <div class="flex items-center gap-3">
+                <div
+                    class="flex size-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400"
+                >
+                    <ShieldOff class="size-5" />
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-tight text-slate-950 dark:text-white">
                         {{ featureName }}
                     </h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                        This feature is currently unavailable
+                    </p>
+                </div>
+            </div>
+        </div>
 
-                    <!-- Divider -->
-                    <div class="mx-auto mb-6 h-px w-16 bg-gradient-to-r from-transparent via-amber-300 to-transparent dark:via-amber-700"></div>
+        <!-- Main content -->
+        <div class="flex flex-1 flex-col items-center justify-center p-6 lg:p-10">
+            <div class="w-full max-w-xl space-y-8 text-center">
+                <!-- Status icon -->
+                <div class="mx-auto flex size-20 items-center justify-center rounded-full bg-amber-50 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:ring-amber-500/20">
+                    <Clock class="size-10 text-amber-500 dark:text-amber-400" />
+                </div>
 
-                    <!-- Message box -->
-                    <div class="mb-8 rounded-2xl bg-amber-50 dark:bg-amber-950/40 p-5 text-left ring-1 ring-amber-200 dark:ring-amber-800/50">
-                        <p class="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-2">
-                            Reason
-                        </p>
-                        <p class="text-sm font-medium text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
-                            {{ maintenanceMessage }}
-                        </p>
-                    </div>
+                <!-- Status heading -->
+                <div class="space-y-2">
+                    <p class="text-xs font-bold uppercase tracking-[0.2em] text-amber-600 dark:text-amber-400">
+                        Temporarily Unavailable
+                    </p>
+                    <h2 class="text-2xl font-bold tracking-tight text-slate-950 dark:text-white lg:text-3xl">
+                        {{ featureName }} is currently closed
+                    </h2>
+                </div>
 
-                    <!-- Actions -->
-                    <div class="flex items-center justify-center gap-3">
-                        <Link
-                            href="/dashboard"
-                            class="inline-flex items-center gap-2 rounded-xl bg-slate-900 dark:bg-slate-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-slate-700 dark:hover:bg-slate-600 active:scale-95"
-                        >
-                            <Home class="h-4 w-4" />
-                            Back to Dashboard
-                        </Link>
-                        <button
-                            type="button"
-                            @click="$router?.go(0) ?? window.location.reload()"
-                            class="inline-flex items-center gap-2 rounded-xl bg-amber-100 dark:bg-amber-900/40 px-5 py-2.5 text-sm font-bold text-amber-700 dark:text-amber-300 shadow-sm ring-1 ring-amber-200 dark:ring-amber-700/50 transition hover:bg-amber-200 dark:hover:bg-amber-900/60 active:scale-95"
-                        >
-                            <RefreshCw class="h-4 w-4" />
-                            Retry
-                        </button>
-                    </div>
+                <!-- Message -->
+                <div class="rounded-xl border border-slate-200 bg-white p-6 text-left shadow-sm dark:border-white/10 dark:bg-slate-950">
+                    <p class="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                        {{ maintenanceMessage }}
+                    </p>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center justify-center gap-3">
+                    <Link
+                        href="/dashboard"
+                        class="inline-flex h-10 items-center gap-2 rounded-lg bg-slate-900 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 active:scale-[0.98] dark:bg-slate-700 dark:hover:bg-slate-600"
+                    >
+                        <Home class="size-4" />
+                        Back to Dashboard
+                    </Link>
+                    <button
+                        type="button"
+                        class="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 active:scale-[0.98] dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                        @click="$router?.go(0) ?? window.location.reload()"
+                    >
+                        <RefreshCw class="size-4" />
+                        Retry
+                    </button>
                 </div>
 
                 <!-- Footer note -->
-                <div class="border-t border-amber-100 dark:border-slate-800 bg-amber-50/60 dark:bg-slate-950/40 px-8 py-4 text-center">
-                    <p class="text-[10px] font-semibold text-slate-400 dark:text-slate-500">
-                        This page will be available again once maintenance is complete.
-                    </p>
-                </div>
+                <p class="text-xs text-slate-400 dark:text-slate-500">
+                    Contact your administrator if you believe this is an error.
+                </p>
             </div>
         </div>
     </div>
