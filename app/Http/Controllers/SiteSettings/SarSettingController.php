@@ -48,6 +48,6 @@ class SarSettingController extends Controller
 
         SystemFeature::clearCache();
 
-        return redirect()->back()->with('success', 'SAR settings updated successfully.');
+        return redirect()->route('site-settings.sar')->with('success', 'SAR settings updated successfully.');
     }
 }
