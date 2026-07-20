@@ -37,6 +37,7 @@ class CheckFeatureAvailability
 
     private array $alwaysAllowedPrefixes = [
         'settings.feature-management.',
+        'enrollment.student-academic-registration',
     ];
 
     public function handle(Request $request, Closure $next): Response

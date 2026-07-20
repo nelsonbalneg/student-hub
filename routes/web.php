@@ -140,9 +140,9 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
     Route::get('academic/cor/download', [ClassScheduleController::class, 'downloadCOR'])
         ->middleware('role_or_permission:Student|Super Admin|download cor')
         ->name('academic.cor.download');
-    Route::get('student-academic-registration', fn () => Inertia::render('Enrollment/StudentAcademicRegistration'))
+    Route::get('student-academic-registration', [EnrollmentController::class, 'index'])
         ->name('enrollment.student-academic-registration');
-    Route::get('student-academic-registration/confirm', fn () => redirect()->route('enrollment.student-academic-registration'));
+    Route::get('student-academic-registration/confirm', [EnrollmentController::class, 'confirm']);
     Route::post('student-academic-registration/confirm', [EnrollmentController::class, 'submitConfirmation'])
         ->name('enrollment.student-academic-registration.confirm');
     Route::get('student-academic-registration/status', [EnrollmentController::class, 'status'])
@@ -693,7 +693,8 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                     Route::post('site-settings', 'updateSiteSettings')->middleware('can:pft.configuration.update')->name('site-settings.update');
                 });
 
-            Route::get('sar', fn () => Inertia::render('SiteSettings/Placeholder', ['title' => 'SAR']))->name('sar');
+            Route::get('sar', [\App\Http\Controllers\SiteSettings\SarSettingController::class, 'index'])->name('sar');
+            Route::post('sar', [\App\Http\Controllers\SiteSettings\SarSettingController::class, 'update'])->name('sar.update');
 
             Route::get('site-settings', [SiteBrandingController::class, 'index'])->name('branding.index');
             Route::post('site-settings', [SiteBrandingController::class, 'update'])->name('branding.update');

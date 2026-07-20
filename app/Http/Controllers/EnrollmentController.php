@@ -9,13 +9,81 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
+use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
+use Illuminate\Http\RedirectResponse;
+use App\Services\SiteSettingService;
 
 class EnrollmentController extends Controller
 {
-    public function __construct(private readonly AcademicApiService $academicApi) {}
+    public function __construct(
+        private readonly AcademicApiService $academicApi,
+        private readonly SiteSettingService $siteSettings
+    ) {}
+
+    private function isSarClosed(): bool
+    {
+        $settings = $this->siteSettings->all();
+
+        return ! (isset($settings['sar_enabled']) ? (bool) $settings['sar_enabled'] : true);
+    }
+
+    private function hasExistingSubmission(Request $request): bool
+    {
+        try {
+            $user = $request->user();
+            $studentNo = $this->academicApi->studentNumberFor($user);
+            $campusId = $user->campus_id;
+            $activeSemester = $this->academicApi->getActiveSemesterForUser($user);
+            $termId = $activeSemester['termId'] ?? null;
+
+            if (! $studentNo || ! $termId || ! $campusId) {
+                return false;
+            }
+
+            $sar = $this->academicApi->sarTrialProgramByStudentTerm((string) $studentNo, (string) $termId, (string) $campusId);
+            $record = $sar['data'] ?? null;
+            $status = strtolower($record['status'] ?? '');
+
+            return $status === 'submitted' || $status === 'enrolled' || ! empty($record['submitted']);
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    public function index(Request $request): InertiaResponse
+    {
+        if ($this->isSarClosed()) {
+            $hasSubmission = $this->hasExistingSubmission($request);
+
+            $message = $hasSubmission
+                ? 'Student Academic Registration is currently closed. Don\'t worry — your submission has been received and is being processed. No further action is needed on your part.'
+                : 'Student Academic Registration is currently closed and is not accepting submissions at this time. Please check back later or contact your registrar\'s office for more information.';
+
+            return Inertia::render('FeatureMaintenance', [
+                'featureName' => 'Student Academic Registration',
+                'maintenanceMessage' => $message,
+            ]);
+        }
+
+        return Inertia::render('Enrollment/StudentAcademicRegistration');
+    }
+
+    public function confirm(): RedirectResponse
+    {
+        if ($this->isSarClosed()) {
+            abort(403, 'Student Academic Registration is currently closed.');
+        }
+        
+        return redirect()->route('enrollment.student-academic-registration');
+    }
 
     public function status(Request $request): JsonResponse
     {
+        if ($this->isSarClosed()) {
+            abort(403, 'Student Academic Registration is currently closed.');
+        }
+
         $user = $request->user();
         $studentNo = $this->academicApi->studentNumberFor($user);
         $campusId = $user->campus_id;
@@ -56,6 +124,10 @@ class EnrollmentController extends Controller
 
     public function submitConfirmation(Request $request): JsonResponse
     {
+        if ($this->isSarClosed()) {
+            abort(403, 'Student Academic Registration is currently closed.');
+        }
+
         $user = $request->user();
         $studentNo = $this->academicApi->studentNumberFor($user);
         $campusId = $user->campus_id;
