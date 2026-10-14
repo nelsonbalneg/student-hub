@@ -19,27 +19,29 @@ import {
 } from 'lucide-vue-next';
 import { computed, defineComponent, h, onMounted, ref, watch, unref } from 'vue';
 import VueApexCharts from 'vue3-apexcharts';
+import AppearanceToggle from '@/components/AppearanceToggle.vue';
+import AsyncSelect from '@/components/AsyncSelect.vue';
+import FitnessIntelligenceSidebar from '@/components/FitnessIntelligenceSidebar.vue';
+import PftSessionComparison from '@/components/PftSessionComparison.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import FitnessIntelligenceSidebar from '@/components/FitnessIntelligenceSidebar.vue';
-import AppearanceToggle from '@/components/AppearanceToggle.vue';
 import {
     data as pftData,
     exportExcel as pftExportExcel,
     exportPdf as pftExportPdf,
     index as pftIndex,
 } from '@/routes/admin/reporting/pft-result';
-import * as pftStatus from '@/routes/admin/reporting/pft-result/status';
-import * as pftStudentEntry from '@/routes/admin/reporting/pft-result/student-entry';
-import * as pftStudentEntryStatus from '@/routes/admin/reporting/pft-result/student-entry/status';
+import { studentComparison } from '@/routes/admin/reporting/pft-result';
 import {
     campuses as filterCampuses,
     colleges as filterColleges,
     sections as filterSections,
     terms as filterTerms,
 } from '@/routes/admin/reporting/pft-result/filter';
+import * as pftStatus from '@/routes/admin/reporting/pft-result/status';
+import * as pftStudentEntry from '@/routes/admin/reporting/pft-result/student-entry';
+import * as pftStudentEntryStatus from '@/routes/admin/reporting/pft-result/student-entry/status';
 
-import AsyncSelect from '@/components/AsyncSelect.vue';
 
 type QueryParams = Record<string, string | number | undefined>;
 type SelectOption = { id: string; text: string };
@@ -206,6 +208,69 @@ const tableSummary = ref<TableSummary>({
 });
 const tableLoading = ref(false);
 const actionLoading = ref(false);
+const drawerTab = ref<'analytics' | 'comparison'>('analytics');
+const comparisonData = ref<InstanceType<typeof PftSessionComparison>['$props'] | null>(null);
+const comparisonLoading = ref(false);
+const comparisonError = ref('');
+let comparisonRequest: AbortController | null = null;
+const loadStudentComparison = async () => {
+    if (!activeRow.value) {
+return;
+}
+
+    comparisonRequest?.abort();
+    const controller = new AbortController();
+    comparisonRequest = controller;
+    comparisonLoading.value = true;
+    comparisonError.value = '';
+    const row = activeRow.value;
+
+    try {
+        const response = await fetch(studentComparison.url(row.user_id, { query: { campus_id: row.campus ?? '' } }), {
+            headers: { Accept: 'application/json' },
+            signal: controller.signal,
+        });
+
+        if (!response.ok) {
+throw new Error('Unable to load this student’s comparison sessions.');
+}
+
+        const data = await response.json();
+
+        if (!controller.signal.aborted && activeRow.value?.user_id === row.user_id) {
+comparisonData.value = data;
+}
+    } catch (error) {
+        if (!controller.signal.aborted) {
+comparisonError.value = error instanceof Error ? error.message : 'Unable to load comparison sessions.';
+}
+    } finally {
+        if (comparisonRequest === controller) {
+comparisonLoading.value = false;
+}
+    }
+};
+const selectDrawerTab = (tab: 'analytics' | 'comparison') => {
+    drawerTab.value = tab;
+
+    if (tab === 'comparison' && !comparisonData.value && !comparisonLoading.value) {
+void loadStudentComparison();
+}
+};
+const interpretationBadgeClasses = (color: string | undefined) => {
+    const palette: Record<string, string> = {
+        emerald: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30',
+        lime: 'bg-lime-50 text-lime-700 ring-lime-200 dark:bg-lime-500/10 dark:text-lime-300 dark:ring-lime-500/30',
+        blue: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:ring-blue-500/30',
+        amber: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30',
+        orange: 'bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-500/10 dark:text-orange-300 dark:ring-orange-500/30',
+        red: 'bg-red-50 text-red-700 ring-red-200 dark:bg-red-500/10 dark:text-red-300 dark:ring-red-500/30',
+    };
+    const name = Object.keys(palette).find(name => color === name || color?.includes(`-${name}-`));
+
+    return name ? palette[name] : 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-white/5 dark:text-slate-300 dark:ring-white/10';
+};
+
 const activeRow = ref<PftRow | null>(null);
 const activeComponentGroups = computed<ComponentGroup[]>(() => {
     if (!activeRow.value) {
@@ -377,10 +442,16 @@ const resetFilters = () => {
 };
 
 const openDrawer = (row: PftRow) => {
+    comparisonRequest?.abort();
+    comparisonLoading.value = false;
+    comparisonData.value = null;
+    comparisonError.value = '';
+    drawerTab.value = 'analytics';
     activeRow.value = row;
 };
 
 const closeDrawer = () => {
+    comparisonRequest?.abort();
     activeRow.value = null;
 };
 
@@ -578,12 +649,17 @@ const getBmiInterpretation = (row: PftRow) => {
         d.component?.toLowerCase().includes('bmi') ||
         d.component?.toLowerCase().includes('body composition')
     );
+
     return bmiDetail?.interpretation?.label || 'N/A';
 };
 
 const getRowStatus = (row: PftRow) => {
-    if (row.test_count === 0) return 'No tests';
+    if (row.test_count === 0) {
+return 'No tests';
+}
+
     const hasDraft = row.details?.some(d => d.status?.toLowerCase() === 'draft');
+
     return hasDraft ? 'Draft' : 'Completed';
 };
 
@@ -1089,6 +1165,18 @@ onMounted(() => {
                         </div>
                     </div>
 
+                    <div class="flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/5" role="tablist" aria-label="Student fitness analytics">
+                        <button id="admin-pft-tab" type="button" role="tab" :aria-selected="drawerTab === 'analytics'" aria-controls="admin-pft-panel" class="flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold" :class="drawerTab === 'analytics' ? 'bg-white text-emerald-700 shadow-sm dark:bg-slate-800 dark:text-emerald-400' : 'text-slate-500'" @click="selectDrawerTab('analytics')">PFT Analytics</button>
+                        <button id="admin-comparison-tab" type="button" role="tab" :aria-selected="drawerTab === 'comparison'" aria-controls="admin-comparison-panel" class="flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold" :class="drawerTab === 'comparison' ? 'bg-white text-emerald-700 shadow-sm dark:bg-slate-800 dark:text-emerald-400' : 'text-slate-500'" @click="selectDrawerTab('comparison')">Comparative Analytics</button>
+                    </div>
+                    <section v-if="drawerTab === 'comparison'" id="admin-comparison-panel" role="tabpanel" aria-labelledby="admin-comparison-tab">
+                        <p v-if="comparisonLoading" role="status" class="flex items-center gap-2 py-8 text-sm text-slate-500"><Loader2 class="size-4 animate-spin" /> Loading test sessions…</p>
+                        <div v-else-if="comparisonError" role="alert" class="space-y-3 rounded-lg bg-red-50 p-4 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">
+                            <p>{{ comparisonError }}</p><Button variant="outline" size="sm" @click="loadStudentComparison">Try again</Button>
+                        </div>
+                        <PftSessionComparison v-else-if="comparisonData" :key="activeRow.user_id" :terms="comparisonData.terms" :components="comparisonData.components" :results="comparisonData.results" />
+                    </section>
+                    <div v-show="drawerTab === 'analytics'" id="admin-pft-panel" role="tabpanel" aria-labelledby="admin-pft-tab" class="grid gap-4">
                     <!-- Radar chart profile -->
                     <section class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-900">
                         <div class="mb-3 flex items-center justify-between">
@@ -1146,7 +1234,7 @@ onMounted(() => {
                                         </p>
                                     </div>
                                     <div class="flex flex-wrap items-center gap-1.5">
-                                        <span class="inline-flex rounded bg-white px-2 py-0.5 text-[9px] font-bold text-slate-600 border border-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:border-white/5 uppercase">
+                                        <span class="inline-flex rounded px-2 py-0.5 text-[9px] font-bold ring-1 ring-inset uppercase" :class="interpretationBadgeClasses(detail.interpretation?.color)">
                                             {{ detail.interpretation?.label ?? 'Unclassified' }}
                                         </span>
                                         <select
@@ -1171,7 +1259,7 @@ onMounted(() => {
                                     class="grid gap-1"
                                 >
                                     <div
-                                        v-for="line in detail.results"
+                                        v-for="line in detail.results.filter(line => !['interpretation_color', 'color_class', 'interpretation'].includes(line.key))"
                                         :key="line.key"
                                         class="text-xs text-slate-600 dark:text-slate-300 flex items-center justify-between border-b border-slate-100/50 pb-0.5 last:border-0 dark:border-white/5"
                                     >
@@ -1203,6 +1291,7 @@ onMounted(() => {
                     >
                         No PFT result details found.
                     </p>
+                    </div>
                 </div>
             </aside>
         </div>

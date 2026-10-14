@@ -10,9 +10,12 @@ class PftParq extends Model
 {
     use HasFactory;
 
+    protected $attributes = ['test_phase' => 'pre'];
+
     protected $fillable = [
         'user_id',
         'term_id',
+        'test_phase',
         'q1',
         'q2',
         'q3',

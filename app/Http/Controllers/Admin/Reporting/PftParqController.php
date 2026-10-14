@@ -3,11 +3,16 @@
 namespace App\Http\Controllers\Admin\Reporting;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UpdatePftHealthQuestionnaireRequest;
+use App\Models\PftHealthQuestionnaire;
+use App\Models\PftMedicalCondition;
 use App\Models\PftParq;
 use App\Models\SiteAcademicTerm;
 use App\Models\SiteCampus;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -17,7 +22,8 @@ class PftParqController extends Controller
     {
         $request->user()->can('reporting.pft_result.view') || abort(403);
 
-        $filters = $request->only(['search', 'campus', 'term', 'status']);
+        $filters = $request->only(['search', 'campus', 'term', 'status', 'tab']);
+        $filters['tab'] = $request->input('tab') === 'health' ? 'health' : 'parq';
         $pageSize = $request->integer('per_page', 20);
 
         $selectedCampus = filled($filters['campus'] ?? null)
@@ -41,7 +47,7 @@ class PftParqController extends Controller
             ->when($filters['search'] ?? null, function ($query, $search) {
                 $query->whereHas('user', function ($q) use ($search) {
                     $q->where('name', 'like', "%{$search}%")
-                      ->orWhere('id_number', 'like', "%{$search}%");
+                        ->orWhere('id_number', 'like', "%{$search}%");
                 });
             })
             ->when($filters['campus'] ?? null, function ($query, $campusId) {
@@ -69,6 +75,26 @@ class PftParqController extends Controller
             ->latest();
 
         $parqs = $query->paginate($pageSize)->withQueryString();
+
+        $healthQuestionnaires = PftHealthQuestionnaire::query()
+            ->with('user')
+            ->when($filters['search'] ?? null, fn ($query, $search) => $query->whereHas('user', fn ($userQuery) => $userQuery
+                ->where(fn ($names) => $names->where('name', 'like', "%{$search}%")->orWhere('id_number', 'like', "%{$search}%"))))
+            ->when($filters['campus'] ?? null, fn ($query, $campus) => $query->whereHas('user', fn ($users) => $users->where('campus_id', $campus)))
+            ->when($filters['term'] ?? null, fn ($query, $term) => $query->where('term_id', $term))
+            ->latest()
+            ->paginate($pageSize)
+            ->withQueryString();
+
+        $healthTerms = SiteAcademicTerm::query()
+            ->with('campus')
+            ->whereIn('term_id', $healthQuestionnaires->pluck('term_id'))
+            ->get();
+        $healthQuestionnaires->getCollection()->each(function ($questionnaire) use ($healthTerms) {
+            $questionnaire->setRelation('term', $healthTerms->first(fn ($term) => (string) $term->term_id === (string) $questionnaire->term_id
+                && (string) $term->campus?->real_campus_id === (string) $questionnaire->user?->campus_id
+            ));
+        });
 
         // Get filter options
         $campuses = SiteCampus::query()
@@ -102,15 +128,55 @@ class PftParqController extends Controller
 
         return Inertia::render('Reporting/PftParq', [
             'parqs' => $parqs,
+            'healthQuestionnaires' => $healthQuestionnaires,
             'filters' => $filters,
             'stats' => $stats,
             'options' => [
+                'medicalConditions' => PftMedicalCondition::query()->where('is_active', true)->orderBy('sort_order')->pluck('name')->all(),
                 'campuses' => $campuses,
                 'terms' => $terms,
                 'statuses' => $statuses,
             ],
             'pageSizeOptions' => [20, 50, 100],
         ]);
+    }
+
+    public function destroyHealth(Request $request, PftHealthQuestionnaire $questionnaire): RedirectResponse
+    {
+        abort_unless($request->user()->can('reporting.pft_result.view'), 403);
+        $questionnaire->delete();
+        Log::info('PFT health questionnaire deleted by admin.', ['admin_id' => $request->user()->id, 'questionnaire_id' => $questionnaire->id]);
+
+        return back()->with('success', 'Health submission deleted.');
+    }
+
+    public function updateHealth(UpdatePftHealthQuestionnaireRequest $request, PftHealthQuestionnaire $questionnaire): RedirectResponse
+    {
+        $data = $request->validated();
+        if ($data['clearance_granted'] && ! $questionnaire->medical_clearance_path) {
+            throw ValidationException::withMessages(['clearance_granted' => 'A medical certificate must be uploaded before granting clearance.']);
+        }
+        $data['clearance_granted_by'] = $data['clearance_granted'] ? $request->user()->id : null;
+        $data['clearance_granted_at'] = $data['clearance_granted'] ? now() : null;
+        $questionnaire->update($data);
+        Log::info('PFT health questionnaire updated by admin.', ['admin_id' => $request->user()->id, 'questionnaire_id' => $questionnaire->id, 'clearance_granted' => $data['clearance_granted']]);
+
+        return back()->with('success', 'Health submission updated.');
+    }
+
+    public function destroy(Request $request, PftParq $parq): RedirectResponse
+    {
+        $request->user()->can('reporting.pft_result.view') || abort(403);
+
+        $parq->delete();
+
+        Log::info('PAR-Q entry deleted by admin.', [
+            'admin_id' => $request->user()->id,
+            'parq_id' => $parq->id,
+            'student_id' => $parq->user_id,
+        ]);
+
+        return back()->with('success', 'PAR-Q entry deleted successfully.');
     }
 
     public function verify(Request $request, PftParq $parq)

@@ -53,6 +53,8 @@ import * as achievementsRoutes from '@/routes/achievements';
 import * as pftRoutes from '@/routes/student-profile/physical-fitness';
 import * as pftConsentRoutes from '@/routes/student-profile/physical-fitness/consent';
 import * as pftHealthRoutes from '@/routes/student-profile/physical-fitness/health-questionnaire';
+import PhysicalFitnessOverview from '@/components/PhysicalFitnessOverview.vue';
+import PftSessionComparison from '@/components/PftSessionComparison.vue';
 import * as trainingsRoutes from '@/routes/trainings';
 import { Heart } from 'lucide-vue-next';
 import * as ccdCaresEvaluationRoutes from '@/routes/student-profile/ccd-cares/evaluation';
@@ -254,6 +256,7 @@ const props = defineProps<{
         nationalities?: Array<{ nationalityId: number; nationality: string }>;
     };
     physicalFitness: {
+        testSchedules: Array<{ site_academic_term_id: number; phase: string; opens_on: string; closes_on: string }>;
         components: PftComponent[];
         results: Record<string, PftResult>;
         terms: PftTerm[];
@@ -264,6 +267,7 @@ const props = defineProps<{
         questionnaireTermIds: string[];
         unclearedQuestionnaireTermIds: string[];
         parqs: any[];
+        healthQuestionnaires: any[];
         medicalConditions: string[];
         parqTemplate: EvaluationTemplatePayload | null;
     };
@@ -330,6 +334,11 @@ const isValidTab = (tab: string | null) =>
 
 const setActiveTab = (tab: string) => {
     if (!isValidTab(tab)) return;
+
+    if (pftDrawerOpen.value && pftHasUnsavedChanges.value) {
+        requestPftNavigation(() => { pftDrawerOpen.value = false; setActiveTab(tab); });
+        return;
+    }
 
     activeTab.value = tab;
 
@@ -508,7 +517,7 @@ const activeTabDescription = computed(() =>
     activeTab.value === 'documents'
         ? 'Student profile information synced with the usmcee system.'
         : activeTab.value === 'physical-fitness-test'
-          ? 'Physical fitness tests are loaded from the active campus configuration.'
+          ? 'Monitor your fitness assessments, requirements, and progress.'
           : activeTab.value === 'ccd-cares'
             ? 'Access your CCD Cares evaluation forms and view your result interpretations.'
             : 'Student profile information synced with the academic system.',
@@ -527,6 +536,7 @@ const selectedPftTestTypeId = ref<number | null>(
 const selectedPftTermId = ref(props.physicalFitness.terms[0]?.term_id ?? null);
 const pftDrawerOpen = ref(false);
 const pftAnalyticsDrawerOpen = ref(false);
+const pftAnalyticsTab = ref<'analytics' | 'comparison'>('analytics');
 const pftAnalyticsChartsReady = ref(false);
 const pftAnalyticsChartKey = ref(0);
 const pftAnalyticsLoading = ref(false);
@@ -565,9 +575,9 @@ const selectedPftTerm = computed(() =>
 );
 const activePftTerm = computed(
     () =>
-        props.physicalFitness.terms.find(
+        selectedPftTerm.value ?? props.physicalFitness.terms.find(
             (term) => term.status?.toLowerCase() === 'active',
-        ) ?? selectedPftTerm.value,
+        ),
 );
 
 const formatPftSemester = (semester?: string | number | null) => {
@@ -616,8 +626,15 @@ watch(selectedPftTestTypeId, () => {
     showProcedures.value = false;
 });
 
+const selectedTestPhase = ref<'pre' | 'post'>('pre');
+const scheduleForTerm = (term: PftTerm) => props.physicalFitness.testSchedules.find(schedule => String(schedule.site_academic_term_id) === String(term.id) && schedule.phase === selectedTestPhase.value);
+const scheduleIsOpen = (term: PftTerm) => {
+    const schedule = scheduleForTerm(term);
+    const currentDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    return Boolean(schedule && schedule.opens_on.slice(0, 10) <= currentDate && schedule.closes_on.slice(0, 10) >= currentDate);
+};
 const pftResultKey = (termId?: string | null, testTypeId?: number | null) =>
-    termId && testTypeId ? `${termId}:${testTypeId}` : '';
+    termId && testTypeId ? `${termId}:${selectedTestPhase.value}:${testTypeId}` : '';
 
 const pftResultFor = (
     testTypeId?: number | null,
@@ -709,6 +726,25 @@ const pftTermPendingCount = (termId: string) =>
 
 const pftTermSavedCount = (termId: string) =>
     pftRowsForTerm(termId).filter((row) => row.result).length;
+
+const overviewTermId = ref(props.physicalFitness.terms.find(term => term.status?.toLowerCase() === 'active')?.term_id ?? props.physicalFitness.terms[0]?.term_id ?? '');
+const overviewTerm = computed(() => props.physicalFitness.terms.find(term => term.term_id === overviewTermId.value));
+const overviewRows = computed(() => pftRequirementRows.value.filter(row => row.term.term_id === overviewTermId.value));
+const overviewCompleted = computed(() => overviewRows.value.filter(pftRowIsCompleted).length);
+const overviewStarted = computed(() => overviewRows.value.some(row => Boolean(row.result)));
+const overviewSchedule = computed(() => overviewTerm.value ? scheduleForTerm(overviewTerm.value) : undefined);
+const overviewAvailability = computed<'Not Scheduled' | 'Upcoming' | 'Open' | 'Closed'>(() => {
+    if (!overviewSchedule.value) return 'Not Scheduled';
+    if (overviewTerm.value && scheduleIsOpen(overviewTerm.value)) return 'Open';
+    const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    return overviewSchedule.value.opens_on.slice(0, 10) > date ? 'Upcoming' : 'Closed';
+});
+const selectOverviewTerm = (id: string) => {
+    overviewTermId.value = id;
+    selectedPftTermId.value = id;
+    pftDrawerOpen.value = false;
+    showParqPanel.value = false;
+};
 
 const pftComponentTestCount = (component: PftComponent) =>
     component.categories.reduce(
@@ -806,8 +842,11 @@ const pftHealthModalStep = ref<'health' | 'parq'>('health');
 const showParqPanel = ref(false);
 const localQuestionnaireTermIds = ref<string[]>([...props.physicalFitness.questionnaireTermIds]);
 const localUnclearedQuestionnaireTermIds = ref<string[]>([...props.physicalFitness.unclearedQuestionnaireTermIds]);
+const screeningKey = (termId: string, phase = selectedTestPhase.value) => `${termId}:${phase}`;
+const screeningMatches = (record: any, termId: string, phase = selectedTestPhase.value) =>
+    String(record.term_id) === String(termId) && (record.test_phase ?? 'pre') === phase;
 const localParqTermIds = ref<string[]>(
-    props.physicalFitness.parqs.map((parq) => String(parq.term_id)),
+    props.physicalFitness.parqs.map((parq) => screeningKey(String(parq.term_id), parq.test_phase ?? 'pre')),
 );
 
 const pftConsentForm = useForm<{ term_id: string }>({
@@ -816,6 +855,7 @@ const pftConsentForm = useForm<{ term_id: string }>({
 
 const pftHealthForm = useForm({
     term_id: '',
+    test_phase: 'pre' as 'pre' | 'post',
     civil_status: '',
     household_monthly_income: '',
     father_occupation: '',
@@ -829,6 +869,45 @@ const pftHealthForm = useForm({
     specific_conditions: [] as string[],
     other_condition: '',
     medical_clearance: null as File | null,
+});
+
+const healthPreventsProceeding = computed(() =>
+    pftHealthForm.has_medical_condition || pftHealthForm.has_medication,
+);
+watch(healthPreventsProceeding, (requiresCertificate) => {
+    if (!requiresCertificate) {
+        pftHealthForm.medical_clearance = null;
+        pftHealthForm.clearErrors('medical_clearance');
+    }
+});
+
+const submittedHealth = computed(() => props.physicalFitness.healthQuestionnaires.find(
+    health => screeningMatches(health, pftHealthForm.term_id, pftHealthForm.test_phase),
+));
+const healthSubmissionLocked = computed(() => Boolean(submittedHealth.value?.medical_clearance_path));
+
+const openHealthCondition = (term: PftTerm) => {
+    const submission = props.physicalFitness.healthQuestionnaires.find(health => screeningMatches(health, term.term_id));
+    pftHealthForm.reset();
+    if (submission) {
+        for (const key of Object.keys(pftHealthForm.data())) {
+            if (key !== 'medical_clearance' && submission[key] != null) {
+                (pftHealthForm as any)[key] = submission[key];
+            }
+        }
+    }
+    pftHealthForm.term_id = term.term_id;
+    pftHealthForm.test_phase = selectedTestPhase.value;
+    pendingHealthTerm.value = term;
+    pftHealthModalStep.value = 'health';
+    pftHealthModalOpen.value = true;
+};
+
+watch(() => props.physicalFitness.unclearedQuestionnaireTermIds, (terms) => {
+    localUnclearedQuestionnaireTermIds.value = [...terms];
+});
+watch(() => props.physicalFitness.questionnaireTermIds, (terms) => {
+    localQuestionnaireTermIds.value = [...terms];
 });
 
 const fallbackParqStatements: EvaluationTemplateStatement[] = [
@@ -909,15 +988,19 @@ const hasConsentForTerm = (termId: string) =>
     localConsentedTermIds.value.includes(termId);
 
 const hasQuestionnaireForTerm = (termId: string) =>
-    localQuestionnaireTermIds.value.includes(termId);
+    localQuestionnaireTermIds.value.includes(screeningKey(termId));
 
 const hasUnclearedQuestionnaireForTerm = (termId: string) =>
-    localUnclearedQuestionnaireTermIds.value.includes(termId);
+    localUnclearedQuestionnaireTermIds.value.includes(screeningKey(termId));
 
 const hasParqForTerm = (termId: string) =>
-    localParqTermIds.value.includes(String(termId));
+    localParqTermIds.value.includes(screeningKey(termId));
 
 const handlePftTermAction = (term: PftTerm) => {
+    if (!scheduleIsOpen(term)) {
+        openPftTermSummary(term);
+        return;
+    }
     if (
         !props.physicalFitness.canFillUp ||
         pftTermPendingCount(term.term_id) === 0
@@ -934,23 +1017,29 @@ const handlePftTermAction = (term: PftTerm) => {
     }
 
     if (!hasQuestionnaireForTerm(term.term_id)) {
+        pftHealthForm.reset();
+        pftHealthForm.clearErrors();
         pendingHealthTerm.value = term;
         pftHealthModalStep.value = 'health';
         pftHealthForm.term_id = term.term_id;
+        pftHealthForm.test_phase = selectedTestPhase.value;
         pftHealthModalOpen.value = true;
         return;
     }
 
-    // The Health Questionnaire no longer blocks for medical clearance, as PAR-Q handles it.
+    if (hasUnclearedQuestionnaireForTerm(term.term_id)) {
+        openHealthCondition(term);
+        return;
+    }
 
     if (!hasParqForTerm(term.term_id)) {
         openParqModal(term);
         return;
     }
 
-    const parq = props.physicalFitness.parqs.find(p => p.term_id === term.term_id);
-    
-    if (parq && parq.clearance_status !== 'verified') {
+    const parq = props.physicalFitness.parqs.find(p => screeningMatches(p, term.term_id));
+
+    if (parq && (parq.clearance_status !== 'verified')) {
         const message = parq.clearance_status === 'pending_evaluation' 
             ? 'Your PAR-Q medical clearance is pending evaluation by an administrator. You cannot take the test yet.'
             : 'You cannot take the physical fitness test because your PAR-Q requires medical clearance.';
@@ -993,23 +1082,36 @@ const cancelPftConsent = () => {
 };
 
 const submitPftHealth = () => {
+    if (healthSubmissionLocked.value) return;
     pftHealthForm.post(pftHealthRoutes.store.url(), {
         forceFormData: true,
         preserveScroll: true,
         preserveState: true,
         onSuccess: () => {
-            if (!localQuestionnaireTermIds.value.includes(pftHealthForm.term_id)) {
-                localQuestionnaireTermIds.value.push(pftHealthForm.term_id);
+            if (pftHealthForm.medical_clearance) {
+                pendingHealthTerm.value = null;
+                toast.success('Health condition submitted for administrator review.');
+                return;
+            }
+            if (healthPreventsProceeding.value) {
+                pftHealthModalOpen.value = false;
+                pendingHealthTerm.value = null;
+                toast.success('Health submission saved. An administrator must grant clearance before you can take the test.');
+                return;
+            }
+            if (!localQuestionnaireTermIds.value.includes(screeningKey(pftHealthForm.term_id, pftHealthForm.test_phase))) {
+                localQuestionnaireTermIds.value.push(screeningKey(pftHealthForm.term_id, pftHealthForm.test_phase));
             }
             if (
                 (pftHealthForm.has_medical_condition || pftHealthForm.has_medication) &&
-                !localUnclearedQuestionnaireTermIds.value.includes(pftHealthForm.term_id)
+                !localUnclearedQuestionnaireTermIds.value.includes(screeningKey(pftHealthForm.term_id, pftHealthForm.test_phase))
             ) {
-                localUnclearedQuestionnaireTermIds.value.push(pftHealthForm.term_id);
+                localUnclearedQuestionnaireTermIds.value.push(screeningKey(pftHealthForm.term_id, pftHealthForm.test_phase));
             }
             parqForm.reset();
             parqTemplateAnswers.value = {};
             parqForm.term_id = pftHealthForm.term_id;
+            parqForm.test_phase = pftHealthForm.test_phase;
             pftHealthModalStep.value = 'parq';
 
             if (pendingHealthTerm.value) {
@@ -1046,6 +1148,7 @@ const pftClearanceForm = useForm({
 const pendingParqTerm = ref<PftTerm | null>(null);
 const parqForm = useForm({
     term_id: '',
+    test_phase: 'pre' as 'pre' | 'post',
     q1: false,
     q2: false,
     q3: false,
@@ -1142,6 +1245,7 @@ const openParqModal = (term: PftTerm) => {
     parqForm.reset();
     parqTemplateAnswers.value = {};
     parqForm.term_id = term.term_id;
+    parqForm.test_phase = selectedTestPhase.value;
     pftHealthModalStep.value = 'parq';
     pftHealthModalOpen.value = true;
 };
@@ -1156,13 +1260,17 @@ const cancelParq = () => {
 };
 
 const submitParq = () => {
+    if (parqHasYesAnswer.value && !parqForm.medical_clearance) {
+        toast.error('Please attach a medical clearance document before submitting.');
+        return;
+    }
     parqForm.post(parqRoutes.store.url(), {
         forceFormData: true,
         preserveScroll: true,
         preserveState: true,
         onSuccess: () => {
-            if (!localParqTermIds.value.includes(parqForm.term_id)) {
-                localParqTermIds.value.push(parqForm.term_id);
+            if (!localParqTermIds.value.includes(screeningKey(parqForm.term_id, parqForm.test_phase))) {
+                localParqTermIds.value.push(screeningKey(parqForm.term_id, parqForm.test_phase));
             }
             pftHealthModalOpen.value = false;
             pftHealthModalStep.value = 'health';
@@ -1200,9 +1308,9 @@ const openClearanceModal = (questionnaireId: number) => {
 
 const submitPftClearance = () => {
     if (!pendingClearanceQuestionnaireId.value) return;
-    
+
     pftClearanceForm.post(
-        route('student-profile.physical-fitness.parq.clearance', {
+        parqRoutes.clearance.url({
             parq: pendingClearanceQuestionnaireId.value
         }),
         {
@@ -1975,23 +2083,67 @@ const openPftTermSummary = (term: PftTerm) => {
 
 const pftForm = useForm<{
     term_id: string;
+    test_phase: string;
     results: Record<string, any>;
     is_draft: boolean;
 }>({
     term_id: '',
+    test_phase: 'pre',
     results: {},
     is_draft: false,
 });
+
+const pftSavedSnapshot = ref('');
+const pftResultsSnapshot = () => JSON.stringify(
+    Object.entries(pftForm.results).sort(([a], [b]) => a.localeCompare(b)),
+);
+const pftHasUnsavedChanges = computed(() => pftResultsSnapshot() !== pftSavedSnapshot.value);
+const pftUnsavedDialogOpen = ref(false);
+let pendingPftNavigation: (() => void) | null = null;
+const requestPftNavigation = (navigate: () => void) => {
+    if (pftForm.processing) return;
+    if (pftHasUnsavedChanges.value) {
+        pendingPftNavigation = navigate;
+        pftUnsavedDialogOpen.value = true;
+        return;
+    }
+    navigate();
+};
+const cancelPftNavigation = () => {
+    if (pftForm.processing) return;
+    pendingPftNavigation = null;
+    pftUnsavedDialogOpen.value = false;
+};
+const completePftNavigation = () => {
+    const navigate = pendingPftNavigation;
+    pendingPftNavigation = null;
+    pftUnsavedDialogOpen.value = false;
+    navigate?.();
+};
+const discardPftChanges = () => {
+    loadPftResult();
+    pftSavedSnapshot.value = pftResultsSnapshot();
+    completePftNavigation();
+};
+const switchPftSelection = (kind: 'component' | 'category' | 'test', id: number) => {
+    const selection = kind === 'component' ? selectedPftComponentId : kind === 'category' ? selectedPftCategoryId : selectedPftTestTypeId;
+    if (selection.value === id) return;
+    requestPftNavigation(() => { selection.value = id; });
+};
+const closePftDrawer = () => requestPftNavigation(() => { pftDrawerOpen.value = false; });
 
 const loadPftResult = () => {
     pftForm.term_id = selectedPftTermId.value ?? '';
     const result = pftResultFor(selectedPftTestTypeId.value);
     pftForm.results = { ...(result?.results_json ?? {}) };
     pftForm.is_draft = false;
+    pftForm.clearErrors();
+    nextTick(() => { pftSavedSnapshot.value = pftResultsSnapshot(); });
 };
 
 watch(selectedPftTestTypeId, loadPftResult, { immediate: true });
 watch(selectedPftTermId, loadPftResult);
+watch(selectedTestPhase, () => { pftForm.test_phase = selectedTestPhase.value; loadPftResult(); pftDrawerOpen.value = false; });
 
 const interpretPftResults = (
     testType: PftTestType | null | undefined,
@@ -2052,7 +2204,7 @@ watch(
     { deep: true },
 );
 
-const submitPftResult = (isDraft = false) => {
+const submitPftResult = (isDraft = false, afterSave?: () => void) => {
     if (
         !props.physicalFitness.canFillUp ||
         !selectedPftTestType.value ||
@@ -2062,12 +2214,15 @@ const submitPftResult = (isDraft = false) => {
     }
 
     pftForm.term_id = selectedPftTermId.value;
+    pftForm.test_phase = selectedTestPhase.value;
     pftForm.is_draft = isDraft;
     pftForm.post(pftRoutes.store.url(selectedPftTestType.value.id), {
         preserveScroll: true,
         preserveState: true,
         onSuccess: () => {
             pftForm.is_draft = false;
+            pftSavedSnapshot.value = pftResultsSnapshot();
+            afterSave?.();
         },
         onError: (errors) => {
             pftForm.is_draft = false;
@@ -2611,7 +2766,7 @@ const evaluationForm = useForm({
 const startEvaluation = (assessment: any) => {
     activeEvaluationPeriod.value = assessment;
     evaluationForm.period_id = assessment.period.id;
-    
+
     // Initialize answers: arrays for checkboxes, nulls for everything else
     const initialAnswers: Record<number, any> = {};
     assessment.template.categories.forEach((cat: any) => {
@@ -2667,7 +2822,7 @@ const ccdCaresChartOptions = computed(() => {
     const categories = selectedAssessment.value?.submission?.interpretation_results?.map(
         (res: any) => res.category_name
     ) ?? [];
-    
+
     return {
         chart: {
             type: 'bar',
@@ -2782,11 +2937,11 @@ watch(editMode, (val) => {
         <Transition name="fade-transform" mode="out-in">
             <!-- View Mode -->
             <div
-                v-if="profile.data && !editMode"
+                v-if="!editMode"
                 key="view-mode"
                 class="flex flex-col gap-4"
             >
-                <section class="flex flex-col gap-3 border-b border-slate-200 pb-4 md:flex-row md:items-center md:justify-between dark:border-white/10">
+                <section v-if="profile.data" class="flex flex-col gap-2 border-b border-slate-200 pb-3 md:flex-row md:items-center md:justify-between dark:border-white/10">
                     <div class="flex min-w-0 items-center gap-3">
                         <div
                             class="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-sm font-bold text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-white"
@@ -2798,7 +2953,7 @@ watch(editMode, (val) => {
                                 class="size-full object-cover"
                             />
                             <span v-else>{{
-                                getInitials(profile.data.firstName)
+                                getInitials(profile.data?.firstName ?? '')
                             }}</span>
                         </div>
                         <div class="min-w-0">
@@ -2814,13 +2969,13 @@ watch(editMode, (val) => {
                                     class="inline-flex items-center gap-1"
                                 >
                                     <IdCard class="size-3.5" />
-                                    {{ profile.data.studentNo }}
+                                    {{ profile.data?.studentNo }}
                                 </span>
                                 <span
                                     class="inline-flex items-center gap-1"
                                 >
                                     <School class="size-3.5" />
-                                    {{ profile.data.statusRemarks || '-' }}
+                                    {{ profile.data?.statusRemarks || '-' }}
                                 </span>
                             </div>
                         </div>
@@ -2935,12 +3090,12 @@ watch(editMode, (val) => {
                                         <div class="flex items-center gap-3 py-2.5 text-xs">
                                             <Mail class="size-4 shrink-0 text-slate-400" />
                                             <span class="font-medium text-slate-500 dark:text-slate-400 w-28">Email</span>
-                                            <span class="truncate font-semibold text-slate-900 dark:text-white">{{ profile.data.email || '-' }}</span>
+                                            <span class="truncate font-semibold text-slate-900 dark:text-white">{{ profile.data?.email || '-' }}</span>
                                         </div>
                                         <div class="flex items-center gap-3 py-2.5 text-xs">
                                             <Phone class="size-4 shrink-0 text-slate-400" />
                                             <span class="font-medium text-slate-500 dark:text-slate-400 w-28">Mobile</span>
-                                            <span class="truncate font-semibold text-slate-900 dark:text-white">{{ profile.data.mobileNo || '-' }}</span>
+                                            <span class="truncate font-semibold text-slate-900 dark:text-white">{{ profile.data?.mobileNo || '-' }}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -2955,13 +3110,13 @@ watch(editMode, (val) => {
                                                 Residential
                                             </div>
                                             <p class="font-semibold text-slate-900 dark:text-white leading-relaxed">
-                                                {{ profile.data.resAddress }}
-                                                {{ profile.data.resStreet }}
-                                                {{ profile.data.resBarangay }}
+                                                {{ profile.data?.resAddress }}
+                                                {{ profile.data?.resStreet }}
+                                                {{ profile.data?.resBarangay }}
                                             </p>
                                             <p class="mt-0.5 text-slate-500 dark:text-slate-400">
-                                                {{ profile.data.resTownCity }}
-                                                {{ profile.data.resProvince }}
+                                                {{ profile.data?.resTownCity }}
+                                                {{ profile.data?.resProvince }}
                                             </p>
                                         </div>
                                         <div>
@@ -2970,7 +3125,7 @@ watch(editMode, (val) => {
                                                 Permanent
                                             </div>
                                             <p class="font-semibold text-slate-900 dark:text-white leading-relaxed">
-                                                {{ profile.data.permAddress || '-' }}
+                                                {{ profile.data?.permAddress || '-' }}
                                             </p>
                                         </div>
                                     </div>
@@ -3671,337 +3826,27 @@ watch(editMode, (val) => {
                                 </div>
 
                                 <template v-else>
-                                    <div
-                                        class="flex flex-col gap-3 rounded-lg border border-emerald-100 bg-emerald-50/70 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-emerald-500/20 dark:bg-emerald-500/10"
-                                    >
-                                        <div>
-                                            <p
-                                                class="text-[11px] font-light tracking-wide text-emerald-700 uppercase dark:text-emerald-300"
-                                            >
-                                                Physical Fitness Test
-                                            </p>
-                                            <h3
-                                                class="mt-1 text-lg font-light text-slate-950 dark:text-white"
-                                            >
-                                                {{ formatPftTerm(activePftTerm) }}
-                                            </h3>
-                                            <p
-                                                class="text-xs font-light text-slate-500 dark:text-slate-400"
-                                            >
-                                                Active academic year and
-                                                semester.
-                                                {{
-                                                    physicalFitness.canFillUp
-                                                        ? 'Open a term to fill up the component, category, and test type requirements.'
-                                                        : 'Completed Physical Fitness Test records are listed below.'
-                                                }}
-                                            </p>
-                                        </div>
-                                        <div
-                                            class="flex flex-col gap-2 sm:items-end"
-                                        >
-                                            <div
-                                                class="flex flex-wrap items-center gap-2 text-xs font-light text-slate-600 dark:text-slate-300"
-                                            >
-                                                <span
-                                                    class="rounded-full bg-white px-3 py-1 text-emerald-700 ring-1 ring-emerald-100 dark:bg-white/10 dark:text-emerald-300 dark:ring-white/10"
-                                                >
-                                                    {{
-                                                        physicalFitness.terms
-                                                            .length
-                                                    }}
-                                                    term{{
-                                                        physicalFitness.terms
-                                                            .length === 1
-                                                            ? ''
-                                                            : 's'
-                                                    }}
-                                                </span>
-                                                <span
-                                                    v-if="
-                                                        physicalFitness.canFillUp
-                                                    "
-                                                    class="rounded-full bg-white px-3 py-1 text-amber-700 ring-1 ring-amber-100 dark:bg-white/10 dark:text-amber-300 dark:ring-white/10"
-                                                >
-                                                    {{ totalPftPendingCount }}
-                                                    total pending
-                                                </span>
-                                            </div>
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                class="h-9 w-full border-emerald-200 bg-white px-4 text-xs font-light text-emerald-700 hover:bg-emerald-50 sm:w-auto dark:border-emerald-500/30 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
-                                                @click="openPftAnalyticsDrawer"
-                                            >
-                                                <ChartColumnIncreasing
-                                                    class="mr-2 h-4 w-4"
-                                                />
-                                                View My Analytics
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                class="h-9 w-full border-emerald-200 bg-white px-4 text-xs font-light sm:w-auto dark:border-emerald-500/30 dark:bg-white/10 dark:hover:bg-emerald-500/10"
-                                                :class="showParqPanel ? 'text-emerald-700 bg-emerald-50 dark:text-emerald-300' : 'text-slate-600 dark:text-slate-300'"
-                                                @click="showParqPanel = !showParqPanel"
-                                            >
-                                                <FileCheck class="mr-2 h-4 w-4" />
-                                                PAR-Q &amp; Clearance
-                                            </Button>
-                                        </div>
-                                    </div>
-
-                                    <div
-                                        class="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
-                                    >
-                                        <div
-                                            class="divide-y divide-slate-100 md:hidden dark:divide-white/10"
-                                        >
-                                            <article
-                                                v-for="term in physicalFitness.terms"
-                                                :key="term.term_id"
-                                                class="space-y-3 p-3"
-                                                :class="
-                                                    selectedPftTermId ===
-                                                    term.term_id
-                                                        ? 'bg-emerald-50 dark:bg-emerald-500/10'
-                                                        : ''
-                                                "
-                                            >
-                                                <div
-                                                    class="flex items-start justify-between gap-2"
-                                                >
-                                                    <div class="min-w-0">
-                                                        <p
-                                                            class="text-sm font-medium text-slate-900 dark:text-white"
-                                                        >
-                                                            {{ formatPftTerm(term) }}
-                                                        </p>
-
-                                                    </div>
-                                                    <span
-                                                        class="inline-flex shrink-0 rounded-full px-2 py-1 text-[9px] font-light"
-                                                        :class="
-                                                            pftTermPendingCount(
-                                                                term.term_id,
-                                                            ) === 0
-                                                                ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20'
-                                                                : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20'
-                                                        "
-                                                    >
-                                                        {{
-                                                            pftTermPendingCount(
-                                                                term.term_id,
-                                                            ) === 0
-                                                                ? 'Complete'
-                                                                : physicalFitness.canFillUp
-                                                                  ? 'Needs fill up'
-                                                                  : 'Completed'
-                                                        }}
-                                                    </span>
-                                                </div>
-
-                                                <div
-                                                    class="grid grid-cols-2 gap-2"
-                                                >
-                                                    <div
-                                                        class="rounded-md bg-slate-50 px-3 py-2 dark:bg-white/5"
-                                                    >
-                                                        <p
-                                                            class="text-[9px] tracking-wide text-slate-400 uppercase"
-                                                        >
-                                                            Tests
-                                                        </p>
-                                                        <p
-                                                            class="mt-0.5 text-sm text-slate-800 dark:text-slate-100"
-                                                        >
-                                                            {{
-                                                                pftRowsForTerm(
-                                                                    term.term_id,
-                                                                ).length
-                                                            }}
-                                                        </p>
-                                                    </div>
-                                                    <div
-                                                        class="rounded-md bg-slate-50 px-3 py-2 dark:bg-white/5"
-                                                    >
-                                                        <p
-                                                            class="text-[9px] tracking-wide text-slate-400 uppercase"
-                                                        >
-                                                            Pending
-                                                        </p>
-                                                        <p
-                                                            class="mt-0.5 text-sm text-slate-800 dark:text-slate-100"
-                                                        >
-                                                            {{
-                                                                pftTermPendingCount(
-                                                                    term.term_id,
-                                                                )
-                                                            }}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <template v-if="physicalFitness.canFillUp && pftTermPendingCount(term.term_id) > 0">
-                                                    <div v-if="physicalFitness.parqs.find(p => p.term_id === term.term_id)?.clearance_status === 'pending_evaluation'" class="text-[10px] text-slate-500 dark:text-slate-400 italic font-medium text-center bg-slate-50 dark:bg-white/5 py-2 rounded-md">
-                                                        For Verification of the uploaded Medical Clearance
-                                                    </div>
-                                                    <div v-else-if="physicalFitness.parqs.find(p => p.term_id === term.term_id)?.clearance_status === 'pending'" class="text-[10px] text-amber-600 dark:text-amber-400 font-medium text-center bg-amber-50 dark:bg-amber-500/10 py-2 rounded-md">
-                                                        Clearance Required
-                                                    </div>
-                                                    <Button
-                                                        v-else
-                                                        type="button"
-                                                        size="sm"
-                                                        class="h-8 w-full bg-emerald-600 text-xs text-white hover:bg-emerald-700"
-                                                        @click="handlePftTermAction(term)"
-                                                    >
-                                                        {{ pftTermSavedCount(term.term_id) > 0 ? 'Open' : 'Fill Up' }}
-                                                    </Button>
-                                                </template>
-                                                <Button
-                                                    v-else
-                                                    type="button"
-                                                    size="sm"
-                                                    class="h-8 w-full bg-emerald-600 text-xs text-white hover:bg-emerald-700"
-                                                    @click="handlePftTermAction(term)"
-                                                >
-                                                    View Summary
-                                                </Button>
-                                            </article>
-                                        </div>
-
-                                        <div
-                                            class="hidden overflow-x-auto md:block"
-                                        >
-                                            <table class="min-w-full text-left">
-                                                <thead
-                                                    class="border-b border-slate-100 bg-slate-50 text-[11px] font-light tracking-wide text-slate-500 uppercase dark:border-white/10 dark:bg-white/5 dark:text-slate-400"
-                                                >
-                                                    <tr>
-                                                        <th class="px-3 py-3">
-                                                            AY &amp; Semester
-                                                        </th>
-
-                                                        <th class="px-3 py-3">
-                                                            Tests
-                                                        </th>
-                                                        <th
-                                                            v-if="
-                                                                physicalFitness.canFillUp
-                                                            "
-                                                            class="px-3 py-3"
-                                                        >
-                                                            Pending
-                                                        </th>
-                                                        <th class="px-3 py-3">
-                                                            Status
-                                                        </th>
-                                                        <th
-                                                            class="px-3 py-3 text-right"
-                                                        >
-                                                            Action
-                                                        </th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody
-                                                    class="divide-y divide-slate-100 text-sm dark:divide-white/10"
-                                                >
-                                                    <tr
-                                                        v-for="term in physicalFitness.terms"
-                                                        :key="term.term_id"
-                                                        class="transition hover:bg-emerald-50/50 dark:hover:bg-emerald-500/10"
-                                                        :class="
-                                                            selectedPftTermId ===
-                                                            term.term_id
-                                                                ? 'bg-emerald-50 dark:bg-emerald-500/10'
-                                                                : ''
-                                                        "
-                                                    >
-                                                        <td
-                                                            class="px-3 py-3 font-light text-slate-900 dark:text-white"
-                                                        >
-                                                            {{ formatPftTerm(term) }}
-                                                        </td>
-
-                                                        <td
-                                                            class="px-3 py-3 text-slate-600 dark:text-slate-300"
-                                                        >
-                                                            {{
-                                                                pftRowsForTerm(
-                                                                    term.term_id,
-                                                                ).length
-                                                            }}
-                                                        </td>
-                                                        <td
-                                                            v-if="
-                                                                physicalFitness.canFillUp
-                                                            "
-                                                            class="px-3 py-3 text-slate-600 dark:text-slate-300"
-                                                        >
-                                                            {{
-                                                                pftTermPendingCount(
-                                                                    term.term_id,
-                                                                )
-                                                            }}
-                                                        </td>
-                                                        <td class="px-3 py-3">
-                                                            <span
-                                                                class="inline-flex rounded-full px-2 py-1 text-[11px] font-light"
-                                                                :class="
-                                                                    pftTermPendingCount(
-                                                                        term.term_id,
-                                                                    ) === 0
-                                                                        ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20'
-                                                                        : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20'
-                                                                "
-                                                            >
-                                                                {{
-                                                                    pftTermPendingCount(
-                                                                        term.term_id,
-                                                                    ) === 0
-                                                                        ? 'Complete'
-                                                                        : physicalFitness.canFillUp
-                                                                          ? 'Needs fill up'
-                                                                          : 'Completed records'
-                                                                }}
-                                                            </span>
-                                                        </td>
-                                                        <td
-                                                            class="px-3 py-3 text-right"
-                                                        >
-                                                            <template v-if="physicalFitness.canFillUp && pftTermPendingCount(term.term_id) > 0">
-                                                                <div v-if="physicalFitness.parqs.find(p => p.term_id === term.term_id)?.clearance_status === 'pending_evaluation'" class="text-[10px] text-slate-500 dark:text-slate-400 italic font-medium">
-                                                                    For Verification of the uploaded Medical Clearance
-                                                                </div>
-                                                                <div v-else-if="physicalFitness.parqs.find(p => p.term_id === term.term_id)?.clearance_status === 'pending'" class="text-[10px] text-amber-600 dark:text-amber-500 font-medium">
-                                                                    Clearance Required
-                                                                </div>
-                                                                <Button
-                                                                    v-else
-                                                                    type="button"
-                                                                    size="sm"
-                                                                    class="h-8 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
-                                                                    @click="handlePftTermAction(term)"
-                                                                >
-                                                                    {{ pftTermSavedCount(term.term_id) > 0 ? 'Open' : 'Fill Up' }}
-                                                                </Button>
-                                                            </template>
-                                                            <Button
-                                                                v-else
-                                                                type="button"
-                                                                size="sm"
-                                                                class="h-8 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
-                                                                @click="handlePftTermAction(term)"
-                                                            >
-                                                                View Summary
-                                                            </Button>
-                                                        </td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
+                                    <PhysicalFitnessOverview
+                                        :terms="physicalFitness.terms"
+                                        :term-id="overviewTermId"
+                                        :phase="selectedTestPhase"
+                                        :required="overviewRows.length"
+                                        :completed="overviewCompleted"
+                                        :started="overviewStarted"
+                                        :availability="overviewAvailability"
+                                        :opens-on="overviewSchedule?.opens_on"
+                                        :closes-on="overviewSchedule?.closes_on"
+                                        :can-fill-up="physicalFitness.canFillUp"
+                                        :can-submit="physicalFitness.canSubmit"
+                                        :parq-open="showParqPanel"
+                                        @term="selectOverviewTerm"
+                                        @phase="selectedTestPhase = $event"
+                                        @fill="overviewTerm && handlePftTermAction(overviewTerm)"
+                                        @summary="overviewTerm && openPftTermSummary(overviewTerm)"
+                                        @analytics="openPftAnalyticsDrawer"
+                                        @parq="selectedPftTermId = overviewTermId; showParqPanel = !showParqPanel"
+                                        @health="overviewTerm && openHealthCondition(overviewTerm)"
+                                    />
 
                                     <div
                                         v-if="pftAnalyticsDrawerOpen"
@@ -4051,6 +3896,14 @@ watch(editMode, (val) => {
                                             <div
                                                 class="min-h-0 flex-1 overflow-y-auto px-5 py-4 font-light"
                                             >
+                                                <div class="mb-5 flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/5" role="tablist" aria-label="Fitness analytics views">
+                                                    <button id="my-pft-analytics-tab" type="button" role="tab" :aria-selected="pftAnalyticsTab === 'analytics'" aria-controls="my-pft-analytics-panel" class="flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition" :class="pftAnalyticsTab === 'analytics' ? 'bg-white text-emerald-700 shadow-sm dark:bg-slate-800 dark:text-emerald-400' : 'text-slate-500'" @click="pftAnalyticsTab = 'analytics'">My PFT Analytics</button>
+                                                    <button id="pft-comparison-tab" type="button" role="tab" :aria-selected="pftAnalyticsTab === 'comparison'" aria-controls="pft-comparison-panel" class="flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition" :class="pftAnalyticsTab === 'comparison' ? 'bg-white text-emerald-700 shadow-sm dark:bg-slate-800 dark:text-emerald-400' : 'text-slate-500'" @click="pftAnalyticsTab = 'comparison'">Comparative Analytics</button>
+                                                </div>
+                                                <div v-if="pftAnalyticsTab === 'comparison'" id="pft-comparison-panel" role="tabpanel" aria-labelledby="pft-comparison-tab">
+                                                    <PftSessionComparison :terms="physicalFitness.terms" :components="physicalFitness.components" :results="physicalFitness.results" />
+                                                </div>
+                                                <div v-show="pftAnalyticsTab === 'analytics'" id="my-pft-analytics-panel" role="tabpanel" aria-labelledby="my-pft-analytics-tab">
                                                 <div
                                                     v-if="pftAnalyticsError"
                                                     class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
@@ -5172,6 +5025,7 @@ watch(editMode, (val) => {
                                                         </div>
                                                     </div>
                                                 </section>
+                                                </div>
                                             </div>
                                         </aside>
                                     </div>
@@ -5184,7 +5038,7 @@ watch(editMode, (val) => {
                                             selectedPftTerm
                                         "
                                         class="fixed inset-0 z-50 flex justify-end bg-slate-950/40 backdrop-blur-[2px]"
-                                        @click.self="pftDrawerOpen = false"
+                                        @click.self="closePftDrawer"
                                     >
                                         <aside
                                             class="flex h-full w-full max-w-[96rem] flex-col bg-white shadow-2xl dark:bg-slate-950"
@@ -5229,9 +5083,7 @@ watch(editMode, (val) => {
                                                         variant="outline"
                                                         size="sm"
                                                         class="h-9"
-                                                        @click="
-                                                            pftDrawerOpen = false
-                                                        "
+                                                        @click="closePftDrawer"
                                                     >
                                                         Close
                                                     </Button>
@@ -5351,10 +5203,7 @@ watch(editMode, (val) => {
                                                                         component.id
                                                                     "
                                                                     :aria-label="`Select ${component.name} component`"
-                                                                    @click="
-                                                                        selectedPftComponentId =
-                                                                            component.id
-                                                                    "
+                                                                    @click="switchPftSelection('component', component.id)"
                                                                 >
                                                                     <span
                                                                         class="block text-sm font-light"
@@ -5427,10 +5276,7 @@ watch(editMode, (val) => {
                                                                     <button
                                                                         type="button"
                                                                         class="flex-1 px-2 py-2 text-left text-sm font-light focus:outline-none"
-                                                                        @click="
-                                                                            selectedPftCategoryId =
-                                                                                category.id
-                                                                        "
+                                                                        @click="switchPftSelection('category', category.id)"
                                                                     >
                                                                         {{
                                                                             category.name
@@ -5509,10 +5355,7 @@ watch(editMode, (val) => {
                                                                             ? 'bg-emerald-600 text-white shadow-sm'
                                                                             : 'bg-slate-50 text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200'
                                                                     "
-                                                                    @click="
-                                                                        selectedPftTestTypeId =
-                                                                            testType.id
-                                                                    "
+                                                                    @click="switchPftSelection('test', testType.id)"
                                                                 >
                                                                     <div
                                                                         class="flex items-center gap-2"
@@ -5934,7 +5777,7 @@ watch(editMode, (val) => {
                                         <p class="text-xs text-slate-500 dark:text-slate-400">Physical Activity Readiness Questionnaire</p>
                                     </div>
                                     <Button
-                                        v-if="physicalFitness.canFillUp && activePftTerm && !physicalFitness.parqs.some(p => p.term_id === activePftTerm?.term_id)"
+                                        v-if="physicalFitness.canFillUp && activePftTerm && !physicalFitness.parqs.some(p => screeningMatches(p, activePftTerm?.term_id ?? ''))"
                                         size="sm"
                                         class="bg-emerald-600 text-white hover:bg-emerald-700"
                                         @click="openParqModal(activePftTerm)"
@@ -5948,7 +5791,7 @@ watch(editMode, (val) => {
                                     class="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 dark:divide-white/10 dark:border-white/10"
                                 >
                                     <article
-                                        v-for="parq in physicalFitness.parqs"
+                                        v-for="parq in physicalFitness.parqs.filter(p => screeningMatches(p, overviewTermId))"
                                         :key="parq.id"
                                         class="space-y-3 p-4"
                                     >
@@ -5958,7 +5801,7 @@ watch(editMode, (val) => {
                                                     {{
                                                         (() => {
                                                             const term = physicalFitness.terms.find(t => String(t.term_id) === String(parq.term_id));
-                                                    return term ? `${term.school_year}, ${term.semester}` : `Term ${parq.term_id}`;
+                                                    return `${term ? `${term.school_year}, ${term.semester}` : `Term ${parq.term_id}`} · ${parq.test_phase === 'post' ? 'Post-test' : 'Pre-test'}`;
                                                         })()
                                                     }}
                                                 </p>
@@ -8465,7 +8308,7 @@ watch(editMode, (val) => {
                                     <span v-if="stmt.is_required" class="text-red-500">*</span>
                                 </label>
                                 <p v-if="stmt.help_text" class="text-[11px] text-slate-500 dark:text-slate-400 font-light">{{ stmt.help_text }}</p>
-                                
+
                                 <!-- Input types -->
                                 <div class="mt-2">
                                     <!-- Likert / Rating Scale -->
@@ -8825,6 +8668,48 @@ watch(editMode, (val) => {
         </DialogContent>
     </Dialog>
 
+    <Dialog :open="pftUnsavedDialogOpen" @update:open="open => { if (!open) cancelPftNavigation(); }">
+        <DialogContent
+            class="gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-lg"
+            :show-close-button="!pftForm.processing"
+            @escape-key-down="event => { if (pftForm.processing) event.preventDefault(); }"
+            @interact-outside="event => { if (pftForm.processing) event.preventDefault(); }"
+        >
+            <div class="space-y-5 p-6 sm:p-7">
+                <div class="flex size-11 items-center justify-center rounded-xl bg-amber-50 text-amber-600 ring-1 ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-400 dark:ring-amber-500/20">
+                    <AlertCircle class="size-5" aria-hidden="true" />
+                </div>
+                <DialogHeader class="space-y-2 text-left">
+                    <DialogTitle class="text-xl font-bold tracking-tight text-slate-950 dark:text-white">You have unsaved changes</DialogTitle>
+                    <DialogDescription class="text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+                        Save your progress before leaving this test. Your changes will be lost if you discard them.
+                    </DialogDescription>
+                </DialogHeader>
+                <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-white/5">
+                    <p class="text-[10px] font-bold tracking-wider text-slate-400 uppercase">Current test</p>
+                    <p class="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">{{ selectedPftTestType?.name }}</p>
+                </div>
+                <div v-if="Object.keys(pftForm.errors).length" role="alert" class="space-y-1 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+                    <p v-for="error in pftForm.errors" :key="error">{{ error }}</p>
+                </div>
+                <div class="grid gap-2.5">
+                    <Button class="h-11 w-full rounded-lg bg-emerald-600 text-white shadow-sm hover:bg-emerald-700" :disabled="pftForm.processing" @click="submitPftResult(false, completePftNavigation)">
+                        <CheckCircle2 class="size-4" aria-hidden="true" />
+                        {{ pftForm.processing ? 'Saving…' : 'Save result & continue' }}
+                    </Button>
+                    <Button variant="outline" class="h-11 w-full rounded-lg shadow-none" :disabled="pftForm.processing" @click="submitPftResult(true, completePftNavigation)">
+                        <FileText class="size-4" aria-hidden="true" /> Save draft &amp; continue
+                    </Button>
+                    <p class="text-center text-xs text-slate-400">Not finished yet? Save a draft and complete it later.</p>
+                </div>
+            </div>
+            <DialogFooter class="grid grid-cols-1 gap-2 border-t border-slate-200 bg-slate-50/70 px-6 py-4 sm:grid-cols-2 sm:px-7 dark:border-white/10 dark:bg-white/5">
+                <Button variant="outline" class="h-10 rounded-lg bg-white shadow-none dark:bg-transparent" :disabled="pftForm.processing" @click="cancelPftNavigation">Keep editing</Button>
+                <Button variant="ghost" class="h-10 rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-500/10" :disabled="pftForm.processing" @click="discardPftChanges">Discard changes</Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
     <Dialog :open="pftConsentModalOpen" @update:open="(val: boolean) => { if (!val) cancelPftConsent(); }">
         <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
             <DialogHeader>
@@ -8949,6 +8834,7 @@ watch(editMode, (val) => {
                 <DialogTitle class="text-lg font-semibold text-slate-950 dark:text-white">
                     Health Questionnaire
                 </DialogTitle>
+                <p class="text-xs font-semibold text-emerald-600 dark:text-emerald-400">{{ (pftHealthModalStep === 'health' ? pftHealthForm.test_phase : parqForm.test_phase) === 'post' ? 'Post-test' : 'Pre-test' }} · Answer separately for each test phase.</p>
                 <DialogDescription class="text-sm text-slate-600 dark:text-slate-400">
                     <template v-if="pftHealthModalStep === 'health'">
                         Please provide your updated health and socio-demographic information.
@@ -8959,7 +8845,7 @@ watch(editMode, (val) => {
                 </DialogDescription>
             </DialogHeader>
 
-            <div
+            <fieldset :disabled="healthSubmissionLocked"
                 v-if="pftHealthModalStep === 'health'"
                 class="space-y-6 py-4 text-sm text-slate-700 dark:text-slate-300"
             >
@@ -9055,12 +8941,12 @@ watch(editMode, (val) => {
                                 <span class="text-sm leading-tight">{{ condition }}</span>
                             </label>
                         </div>
-                        
+
                         <div class="space-y-2 pt-2">
                             <Label>Other Condition (Specify)</Label>
                             <Input v-model="pftHealthForm.other_condition" class="pft-profile-input" />
                         </div>
-                        
+
                         <div class="space-y-2 pt-2">
                             <Label>Further Details (Optional)</Label>
                             <Input v-model="pftHealthForm.medical_condition_details" class="pft-profile-input" placeholder="Additional details..." />
@@ -9085,7 +8971,8 @@ watch(editMode, (val) => {
                         <Input v-model="pftHealthForm.medication_details" class="pft-profile-input" />
                     </div>
                 </div>
-            </div>
+
+            </fieldset>
 
             <div
                 v-else
@@ -9218,7 +9105,7 @@ watch(editMode, (val) => {
                 >
                     <p class="font-bold">Medical Clearance Required</p>
                     <p class="mt-1 text-xs">
-                        Since you answered YES to one or more questions, you must consult a physician and upload a medical clearance before participating in the physical fitness test.
+                        You answered Yes to one or more PAR-Q questions. Attach a medical clearance document and submit it for administrator review. You cannot take the test until it is verified.
                     </p>
                     <div class="mt-3 space-y-2">
                         <Label for="parq-clearance-file" class="text-xs">
@@ -9238,6 +9125,29 @@ watch(editMode, (val) => {
                 </div>
             </div>
 
+            <div v-if="pftHealthModalStep === 'health' && healthSubmissionLocked" class="mt-4 space-y-3 rounded-xl border border-emerald-300 bg-emerald-50 p-5 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+                <p class="font-semibold text-emerald-800 dark:text-emerald-200">Health condition submitted — editing is locked.</p>
+                <p class="text-sm">{{ submittedHealth?.clearance_granted ? 'Clearance granted.' : 'Awaiting administrator review. You cannot take the test until clearance is granted.' }}</p>
+                <p class="font-semibold">Uploaded Medical Certificate</p>
+                <a :href="`/storage/${submittedHealth.medical_clearance_path}`" target="_blank" rel="noopener" class="text-sm text-emerald-700 underline dark:text-emerald-300">Open uploaded file</a>
+                <iframe v-if="submittedHealth.medical_clearance_path.toLowerCase().endsWith('.pdf')" :src="`/storage/${submittedHealth.medical_clearance_path}`" title="Uploaded medical certificate" class="h-96 w-full rounded border bg-white" />
+                <img v-else :src="`/storage/${submittedHealth.medical_clearance_path}`" alt="Uploaded medical certificate" class="max-h-96 w-full rounded object-contain" />
+            </div>
+            <p v-if="pftHealthModalStep === 'health' && healthPreventsProceeding && !healthSubmissionLocked" role="alert" class="mt-4 text-sm text-amber-700 dark:text-amber-300">Save your health condition and medical certificate for administrator review. You cannot take the test until clearance is granted.</p>
+            <div v-if="pftHealthModalStep === 'health' && healthPreventsProceeding && !healthSubmissionLocked" class="mt-4 space-y-3 rounded-xl border-2 border-dashed border-emerald-400 bg-emerald-50 p-5 dark:border-emerald-500 dark:bg-emerald-500/10">
+                <div class="flex items-center gap-2 text-emerald-800 dark:text-emerald-200">
+                    <FileCheck class="size-5 shrink-0" />
+                    <Label for="health-medical-certificate" class="text-base font-semibold">Upload Medical Certificate</Label>
+                </div>
+                <p class="text-sm text-emerald-800 dark:text-emerald-200">Choose a PDF or image (JPG/PNG), up to 5MB, for administrator review.</p>
+                <Input id="health-medical-certificate" type="file" accept=".pdf,.jpg,.jpeg,.png" class="h-auto cursor-pointer bg-white p-3 file:mr-3 file:rounded-md file:bg-emerald-600 file:px-4 file:py-2 file:font-semibold file:text-white dark:bg-slate-950" @change="pftHealthForm.medical_clearance = ($event.target as HTMLInputElement).files?.[0] || null" />
+                <p v-if="pftHealthForm.errors.medical_clearance" role="alert" class="text-sm text-red-600 dark:text-red-400">{{ pftHealthForm.errors.medical_clearance }}</p>
+                <p v-if="pftHealthForm.medical_clearance" class="text-sm font-semibold text-emerald-800 dark:text-emerald-200">Selected: {{ pftHealthForm.medical_clearance.name }}</p>
+                <p v-else-if="physicalFitness.healthQuestionnaires.find(health => screeningMatches(health, pftHealthForm.term_id, pftHealthForm.test_phase))" class="text-sm font-medium text-emerald-800 dark:text-emerald-200">
+                    {{ physicalFitness.healthQuestionnaires.find(health => screeningMatches(health, pftHealthForm.term_id, pftHealthForm.test_phase))?.clearance_granted ? 'Clearance granted' : physicalFitness.healthQuestionnaires.find(health => screeningMatches(health, pftHealthForm.term_id, pftHealthForm.test_phase))?.medical_clearance_path ? 'Certificate submitted — awaiting clearance' : 'No medical certificate uploaded' }}
+                </p>
+                <p class="text-xs text-emerald-700 dark:text-emerald-300">Uploading or replacing your certificate requires a new administrator review.</p>
+            </div>
             <DialogFooter class="flex flex-col gap-2 sm:flex-row mt-6">
                 <Button
                     type="button"
@@ -9246,9 +9156,10 @@ watch(editMode, (val) => {
                     :disabled="pftHealthForm.processing || parqForm.processing"
                     @click="cancelPftHealth"
                 >
-                    Cancel
+                    {{ healthSubmissionLocked ? 'Close' : 'Cancel' }}
                 </Button>
                 <Button
+                    v-if="pftHealthModalStep !== 'health' || !healthSubmissionLocked"
                     type="button"
                     class="bg-emerald-600 font-light text-white hover:bg-emerald-700"
                     :disabled="
@@ -9265,7 +9176,7 @@ watch(editMode, (val) => {
                         Save & Submit
                     </template>
                     <template v-else>
-                        Submit & Proceed
+                        {{ healthPreventsProceeding ? 'Save Health Condition' : 'Submit & Proceed' }}
                     </template>
                 </Button>
             </DialogFooter>

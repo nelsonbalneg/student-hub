@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable([
     'user_id',
     'term_id',
+    'test_phase',
     'civil_status',
     'household_monthly_income',
     'father_occupation',
@@ -22,9 +23,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'specific_conditions',
     'other_condition',
     'medical_clearance_path',
+    'clearance_granted',
+    'clearance_granted_by',
+    'clearance_granted_at',
 ])]
 class PftHealthQuestionnaire extends Model
 {
+    protected $attributes = ['test_phase' => 'pre'];
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
@@ -39,6 +45,8 @@ class PftHealthQuestionnaire extends Model
             'has_medical_condition' => 'boolean',
             'has_medication' => 'boolean',
             'specific_conditions' => 'array',
+            'clearance_granted' => 'boolean',
+            'clearance_granted_at' => 'datetime',
         ];
     }
 }

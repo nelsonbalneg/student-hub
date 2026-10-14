@@ -222,6 +222,9 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
         ->middleware('can:reporting.pft_result.view')
         ->group(function () {
             Route::get('/', 'index')->name('index');
+            Route::delete('/{parq}', 'destroy')->name('destroy');
+            Route::delete('/health/{questionnaire}', 'destroyHealth')->name('health.destroy');
+            Route::patch('/health/{questionnaire}', 'updateHealth')->name('health.update');
             Route::patch('/{parq}/verify', 'verify')->name('verify');
             Route::patch('/{parq}/reject', 'reject')->name('reject');
             Route::patch('/{parq}/update-status', 'updateStatus')->name('update-status');
@@ -234,6 +237,7 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
         ->group(function () {
             Route::get('/', 'index')->name('index');
             Route::get('/data', 'data')->name('data');
+            Route::get('/students/{user}/comparison', 'studentComparison')->name('student-comparison');
             Route::get('/analytics', 'analyticsPage')->name('analytics');
             Route::get('/analytics/data', 'analyticsData')->name('analytics-data');
             Route::get('/analytics/comparative', 'comparativeAnalyticsPage')->name('analytics.comparative');
@@ -586,6 +590,7 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                 ->controller(EvaluationTemplateController::class)
                 ->group(function () {
                     Route::get('/', 'index')->name('index');
+
                     Route::post('templates', 'storeTemplate')->name('templates.store');
                     Route::post('templates/{template}/clone', 'cloneTemplate')->name('templates.clone');
                     Route::patch('templates/{template}', 'updateTemplate')->name('templates.update');
@@ -672,6 +677,8 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                 ->middleware('can:pft.configuration.view')
                 ->group(function () {
                     Route::get('/', 'index')->name('index');
+                    Route::post('test-schedules', 'storeTestSchedules')->middleware('can:pft.permission.manage')->name('test-schedules.store');
+                    Route::delete('test-schedules/{term}', 'destroyTestSchedules')->middleware('can:pft.permission.manage')->name('test-schedules.destroy');
                     Route::post('components', 'storeComponent')->middleware('can:pft.configuration.create')->name('components.store');
                     Route::patch('components/{component}', 'updateComponent')->middleware('can:pft.configuration.update')->name('components.update');
                     Route::delete('components/{component}', 'destroyComponent')->middleware('can:pft.configuration.delete')->name('components.destroy');

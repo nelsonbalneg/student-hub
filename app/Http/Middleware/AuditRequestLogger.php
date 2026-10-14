@@ -70,7 +70,7 @@ class AuditRequestLogger
             return null;
         }
 
-        $payload = Arr::except($request->all(), self::SENSITIVE_KEYS);
+        $payload = Arr::except($request->input(), self::SENSITIVE_KEYS);
 
         return $payload === [] ? null : $payload;
     }

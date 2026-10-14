@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\PftDataPrivacyConsent;
 use App\Models\PftHealthQuestionnaire;
+use App\Models\PftParq;
 use App\Models\PftTestType;
 use App\Models\SiteAcademicTerm;
 use App\Models\StudentPftResult;
@@ -11,15 +12,17 @@ use App\Services\AcademicApiService;
 use App\Services\PftAnalyticsService;
 use App\Services\PftInterpretationService;
 use App\Services\PhysicalFitnessPermissionService;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class StudentPftResultController extends Controller
@@ -85,9 +88,16 @@ class StudentPftResultController extends Controller
     public function storeHealthQuestionnaire(Request $request): RedirectResponse
     {
         $request->user()->can('pft.submit') || abort(403);
+        abort_if(PftHealthQuestionnaire::query()
+            ->where('user_id', $request->user()->id)
+            ->where('term_id', (string) $request->input('term_id'))
+            ->where('test_phase', (string) $request->input('test_phase', 'pre'))
+            ->whereNotNull('medical_clearance_path')->where('medical_clearance_path', '<>', '')->exists(),
+            403, 'Your health submission is locked after submitting a medical certificate.');
 
         $validated = $request->validate([
             'term_id' => ['required', 'string'],
+            'test_phase' => ['sometimes', 'required', 'in:pre,post'],
             'civil_status' => ['nullable', 'string', 'max:255'],
             'household_monthly_income' => ['nullable', 'string', 'max:255'],
             'father_occupation' => ['nullable', 'string', 'max:255'],
@@ -105,6 +115,7 @@ class StudentPftResultController extends Controller
         ]);
 
         $termId = (string) $validated['term_id'];
+        $testPhase = (string) ($validated['test_phase'] ?? 'pre');
         $termExists = SiteAcademicTerm::query()
             ->where('term_id', $termId)
             ->where('status', 'Active')
@@ -119,20 +130,14 @@ class StudentPftResultController extends Controller
 
         $medicalClearancePath = null;
         $clearanceFile = $request->file('medical_clearance');
-        if ($clearanceFile instanceof \Illuminate\Http\UploadedFile && $clearanceFile->isValid()) {
-            $extension = strtolower(
-                pathinfo($clearanceFile->getClientOriginalName(), PATHINFO_EXTENSION) ?: 'bin'
-            );
-            $storedFilename = Str::uuid()->toString() . '.' . $extension;
-            $destination = storage_path('app/public/pft-clearances');
-            if (! is_dir($destination)) {
-                mkdir($destination, 0755, true);
-            }
-            $clearanceFile->move($destination, $storedFilename);
-            $medicalClearancePath = 'pft-clearances/' . $storedFilename;
+        if ($clearanceFile instanceof UploadedFile && $clearanceFile->isValid()) {
+            $medicalClearancePath = $this->storeMedicalCertificate($clearanceFile);
         }
 
-        $dataToStore = Arr::except($validated, ['term_id', 'declaration_agreed', 'medical_clearance']);
+        $dataToStore = Arr::except($validated, ['term_id', 'test_phase', 'declaration_agreed', 'medical_clearance']);
+        $dataToStore['clearance_granted'] = false;
+        $dataToStore['clearance_granted_by'] = null;
+        $dataToStore['clearance_granted_at'] = null;
         if ($medicalClearancePath) {
             $dataToStore['medical_clearance_path'] = $medicalClearancePath;
         }
@@ -141,6 +146,7 @@ class StudentPftResultController extends Controller
             [
                 'user_id' => $request->user()->id,
                 'term_id' => $termId,
+                'test_phase' => $testPhase,
             ],
             $dataToStore
         );
@@ -148,11 +154,30 @@ class StudentPftResultController extends Controller
         Log::info('PFT health questionnaire recorded.', [
             'user_id' => $request->user()->id,
             'term_id' => $termId,
-            'medical_clearance_uploaded' => (bool)$medicalClearancePath,
+            'test_phase' => $testPhase,
+            'medical_clearance_uploaded' => (bool) $medicalClearancePath,
         ]);
 
         return to_route('student-profile.index')
             ->with('success', 'Health questionnaire recorded.');
+    }
+
+    private function storeMedicalCertificate(UploadedFile $file): string
+    {
+        $stream = fopen($file->getPathname(), 'rb');
+        if ($stream === false) {
+            throw ValidationException::withMessages(['medical_clearance' => 'Unable to read the medical certificate. Please select the file again.']);
+        }
+        try {
+            $path = 'pft-clearances/'.$file->hashName();
+            if (! Storage::disk('public')->put($path, $stream)) {
+                throw ValidationException::withMessages(['medical_clearance' => 'Unable to save the medical certificate. Please try again.']);
+            }
+
+            return $path;
+        } finally {
+            fclose($stream);
+        }
     }
 
     public function uploadMedicalClearance(Request $request, PftHealthQuestionnaire $questionnaire): RedirectResponse
@@ -162,6 +187,7 @@ class StudentPftResultController extends Controller
         if ($questionnaire->user_id !== $request->user()->id) {
             abort(403, 'Unauthorized access to this health questionnaire.');
         }
+        abort_if(filled($questionnaire->medical_clearance_path), 403, 'Your health submission is locked after submitting a medical certificate.');
 
         $request->validate([
             'medical_clearance' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
@@ -169,20 +195,14 @@ class StudentPftResultController extends Controller
 
         if ($request->hasFile('medical_clearance')) {
             $uploadedFile = $request->file('medical_clearance');
-            if ($uploadedFile instanceof \Illuminate\Http\UploadedFile && $uploadedFile->isValid()) {
-                $extension = strtolower(
-                    pathinfo($uploadedFile->getClientOriginalName(), PATHINFO_EXTENSION) ?: 'bin'
-                );
-                $storedFilename = Str::uuid()->toString() . '.' . $extension;
-                $destination = storage_path('app/public/pft-clearances');
-                if (! is_dir($destination)) {
-                    mkdir($destination, 0755, true);
-                }
-                $uploadedFile->move($destination, $storedFilename);
-                $path = 'pft-clearances/' . $storedFilename;
+            if ($uploadedFile instanceof UploadedFile && $uploadedFile->isValid()) {
+                $path = $this->storeMedicalCertificate($uploadedFile);
 
                 $questionnaire->update([
                     'medical_clearance_path' => $path,
+                    'clearance_granted' => false,
+                    'clearance_granted_by' => null,
+                    'clearance_granted_at' => null,
                 ]);
 
                 Log::info('PFT medical clearance uploaded via separate endpoint.', [
@@ -196,7 +216,7 @@ class StudentPftResultController extends Controller
         return to_route('student-profile.index')->with('success', 'Medical clearance uploaded successfully.');
     }
 
-    public function uploadParqMedicalClearance(Request $request, \App\Models\PftParq $parq): RedirectResponse
+    public function uploadParqMedicalClearance(Request $request, PftParq $parq): RedirectResponse
     {
         $request->user()->can('pft.submit') || abort(403);
 
@@ -210,17 +230,17 @@ class StudentPftResultController extends Controller
 
         if ($request->hasFile('medical_clearance')) {
             $uploadedFile = $request->file('medical_clearance');
-            if ($uploadedFile instanceof \Illuminate\Http\UploadedFile && $uploadedFile->isValid()) {
+            if ($uploadedFile instanceof UploadedFile && $uploadedFile->isValid()) {
                 $extension = strtolower(
                     pathinfo($uploadedFile->getClientOriginalName(), PATHINFO_EXTENSION) ?: 'bin'
                 );
-                $storedFilename = Str::uuid()->toString() . '.' . $extension;
+                $storedFilename = Str::uuid()->toString().'.'.$extension;
                 $destination = storage_path('app/public/pft-clearances');
                 if (! is_dir($destination)) {
                     mkdir($destination, 0755, true);
                 }
                 $uploadedFile->move($destination, $storedFilename);
-                $path = 'pft-clearances/' . $storedFilename;
+                $path = 'pft-clearances/'.$storedFilename;
 
                 $parq->update([
                     'medical_clearance_path' => $path,
@@ -244,6 +264,7 @@ class StudentPftResultController extends Controller
 
         $validated = $request->validate([
             'term_id' => ['required', 'string'],
+            'test_phase' => ['sometimes', 'required', 'in:pre,post'],
             'q1' => ['required', 'boolean'],
             'q2' => ['required', 'boolean'],
             'q3' => ['required', 'boolean'],
@@ -254,7 +275,13 @@ class StudentPftResultController extends Controller
             'medical_clearance' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
         ]);
 
+        $requiresClearance = collect($validated)->only(['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7'])->contains(fn ($answer) => (bool) $answer);
+        if ($requiresClearance && ! $request->hasFile('medical_clearance')) {
+            throw ValidationException::withMessages(['medical_clearance' => 'Please attach a medical clearance document before submitting.']);
+        }
+
         $termId = (string) $validated['term_id'];
+        $testPhase = (string) ($validated['test_phase'] ?? 'pre');
         $termExists = SiteAcademicTerm::query()
             ->where('term_id', $termId)
             ->where('status', 'Active')
@@ -269,30 +296,19 @@ class StudentPftResultController extends Controller
 
         $medicalClearancePath = null;
         $clearanceFile = $request->file('medical_clearance');
-        if ($clearanceFile instanceof \Illuminate\Http\UploadedFile && $clearanceFile->isValid()) {
-            $extension = strtolower(
-                pathinfo($clearanceFile->getClientOriginalName(), PATHINFO_EXTENSION) ?: 'bin'
-            );
-            $storedFilename = Str::uuid()->toString() . '.' . $extension;
-            $destination = storage_path('app/public/pft-clearances');
-
-            if (! is_dir($destination)) {
-                mkdir($destination, 0755, true);
-            }
-
-            $clearanceFile->move($destination, $storedFilename);
-            $medicalClearancePath = 'pft-clearances/' . $storedFilename;
+        if ($clearanceFile instanceof UploadedFile && $clearanceFile->isValid()) {
+            $medicalClearancePath = $this->storeMedicalCertificate($clearanceFile);
         }
 
-        $dataToStore = Arr::except($validated, ['term_id', 'declaration_agreed', 'medical_clearance']);
+        $dataToStore = Arr::except($validated, ['term_id', 'test_phase', 'declaration_agreed', 'medical_clearance']);
         $dataToStore['declaration_agreed'] = true;
-        
+
         if ($medicalClearancePath) {
             $dataToStore['medical_clearance_path'] = $medicalClearancePath;
         }
 
         $requiresClearance = $dataToStore['q1'] || $dataToStore['q2'] || $dataToStore['q3'] || $dataToStore['q4'] || $dataToStore['q5'] || $dataToStore['q6'] || $dataToStore['q7'];
-        
+
         if ($requiresClearance) {
             $dataToStore['clearance_status'] = $medicalClearancePath ? 'pending_evaluation' : 'pending';
         } else {
@@ -300,10 +316,11 @@ class StudentPftResultController extends Controller
             $dataToStore['verified_at'] = now();
         }
 
-        \App\Models\PftParq::query()->updateOrCreate(
+        PftParq::query()->updateOrCreate(
             [
                 'user_id' => $request->user()->id,
                 'term_id' => $termId,
+                'test_phase' => $testPhase,
             ],
             $dataToStore
         );
@@ -311,7 +328,8 @@ class StudentPftResultController extends Controller
         Log::info('PFT PAR-Q recorded.', [
             'user_id' => $request->user()->id,
             'term_id' => $termId,
-            'medical_clearance_uploaded' => (bool)$medicalClearancePath,
+            'test_phase' => $testPhase,
+            'medical_clearance_uploaded' => (bool) $medicalClearancePath,
         ]);
 
         return to_route('student-profile.index')
@@ -324,8 +342,7 @@ class StudentPftResultController extends Controller
         PhysicalFitnessPermissionService $permission,
         AcademicApiService $academicApi,
         PftInterpretationService $interpretationService,
-    ): RedirectResponse
-    {
+    ): RedirectResponse {
         $request->user()->can('pft.submit') || abort(403);
         abort_unless(
             $permission->canFillUp($request->user()),
@@ -334,6 +351,18 @@ class StudentPftResultController extends Controller
         );
 
         $submittedTermId = (string) $request->input('term_id', '');
+        $testPhase = (string) $request->input('test_phase', 'pre');
+        $schedule = \App\Models\PftTestSchedule::query()
+            ->where('phase', $testPhase)
+            ->whereIn('site_academic_term_id', SiteAcademicTerm::query()->select('id')
+                ->where('term_id', $submittedTermId)
+                ->whereHas('campus', fn ($query) => $query->where('real_campus_id', (string) $request->user()->campus_id)))
+            ->whereDate('opens_on', '<=', today('Asia/Singapore')->toDateString())
+            ->whereDate('closes_on', '>=', today('Asia/Singapore')->toDateString())
+            ->exists();
+        if (! $schedule) {
+            throw ValidationException::withMessages(['test_phase' => 'Fill up is not open for this term and test phase.']);
+        }
         $hasConsent = PftDataPrivacyConsent::query()
             ->where('user_id', $request->user()->id)
             ->where('term_id', $submittedTermId)
@@ -348,22 +377,43 @@ class StudentPftResultController extends Controller
         $hasQuestionnaire = PftHealthQuestionnaire::query()
             ->where('user_id', $request->user()->id)
             ->where('term_id', $submittedTermId)
+            ->where('test_phase', $testPhase)
             ->exists();
 
         if (! $hasQuestionnaire) {
             throw ValidationException::withMessages([
-                'term_id' => 'You must complete the health questionnaire before submitting results for this term.',
+                'term_id' => 'You must complete the health questionnaire before submitting results for this term and test phase.',
             ]);
         }
 
-        $hasParq = \App\Models\PftParq::query()
+        $hasParq = PftParq::query()
             ->where('user_id', $request->user()->id)
             ->where('term_id', $submittedTermId)
+            ->where('test_phase', $testPhase)
             ->exists();
 
         if (! $hasParq) {
             throw ValidationException::withMessages([
-                'term_id' => 'You must complete the PAR-Q before submitting results for this term.',
+                'term_id' => 'You must complete the PAR-Q before submitting results for this term and test phase.',
+            ]);
+        }
+
+        $healthRisk = PftHealthQuestionnaire::query()
+            ->where('user_id', $request->user()->id)
+            ->where('term_id', $submittedTermId)
+            ->where('test_phase', $testPhase)
+            ->where('clearance_granted', false)
+            ->where(fn ($query) => $query->where('has_medical_condition', true)->orWhere('has_medication', true))
+            ->exists();
+        $parq = PftParq::query()
+            ->where('user_id', $request->user()->id)
+            ->where('term_id', $submittedTermId)
+            ->where('test_phase', $testPhase)
+            ->first();
+
+        if ($healthRisk || $parq->clearance_status !== 'verified') {
+            throw ValidationException::withMessages([
+                'term_id' => 'You cannot proceed because your health questionnaire or PAR-Q reports a risk affecting exercise.',
             ]);
         }
 
@@ -389,6 +439,7 @@ class StudentPftResultController extends Controller
 
         $rules = [
             'term_id' => ['required', 'string'],
+            'test_phase' => ['sometimes', 'required', 'in:pre,post'],
             'is_draft' => ['sometimes', 'boolean'],
             'remarks' => ['nullable', 'string'],
             'tested_at' => ['nullable', 'date'],
@@ -479,12 +530,13 @@ class StudentPftResultController extends Controller
         ]);
 
         try {
-            $result = DB::transaction(function () use ($request, $testType, $validated, $results, $termId, $isDraft, $academicContext, $interpretation): StudentPftResult {
+            $result = DB::transaction(function () use ($request, $testType, $validated, $results, $termId, $testPhase, $isDraft, $academicContext, $interpretation): StudentPftResult {
                 return StudentPftResult::query()->updateOrCreate(
                     [
                         'user_id' => $request->user()->id,
                         'pft_test_type_id' => $testType->id,
                         'term_id' => $termId,
+                        'test_phase' => $testPhase,
                     ],
                     [
                         'status' => $isDraft ? 'draft' : 'completed',
@@ -552,7 +604,7 @@ class StudentPftResultController extends Controller
                 $sex = $profileResult['data']['gender'] ?? null;
             }
         } catch (Throwable $e) {
-            Log::warning('PFT result sex lookup failed: ' . $e->getMessage());
+            Log::warning('PFT result sex lookup failed: '.$e->getMessage());
         }
 
         $context = [

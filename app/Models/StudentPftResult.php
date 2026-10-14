@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'user_id',
     'pft_test_type_id',
     'term_id',
+    'test_phase',
     'college_id',
     'campus_id',
     'year_level_id',

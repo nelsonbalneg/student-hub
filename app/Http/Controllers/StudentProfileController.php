@@ -118,7 +118,8 @@ class StudentProfileController extends Controller
                         fn ($query) => $query->whereRaw('1 = 0'),
                     )
                     ->get()
-                    ->keyBy(fn (StudentPftResult $result): string => "{$result->term_id}:{$result->pft_test_type_id}"),
+                    ->keyBy(fn (StudentPftResult $result): string => "{$result->term_id}:{$result->test_phase}:{$result->pft_test_type_id}"),
+                'testSchedules' => \App\Models\PftTestSchedule::query()->whereIn('site_academic_term_id', $pftTerms->pluck('id'))->get(),
                 'terms' => $pftTerms,
                 'canView' => $canViewPft,
                 'canSubmit' => $canSubmitPft,
@@ -136,8 +137,8 @@ class StudentProfileController extends Controller
                     ? PftHealthQuestionnaire::query()
                         ->where('user_id', $user->id)
                         ->whereIn('term_id', $pftTermIds)
-                        ->pluck('term_id')
-                        ->map(fn ($termId): string => (string) $termId)
+                        ->get(['term_id', 'test_phase'])
+                        ->map(fn (PftHealthQuestionnaire $questionnaire): string => "{$questionnaire->term_id}:{$questionnaire->test_phase}")
                         ->values()
                         ->all()
                     : [],
@@ -145,12 +146,13 @@ class StudentProfileController extends Controller
                     ? PftHealthQuestionnaire::query()
                         ->where('user_id', $user->id)
                         ->whereIn('term_id', $pftTermIds)
+                        ->where('clearance_granted', false)
                         ->where(function ($query) {
                             $query->where('has_medical_condition', true)
-                                  ->orWhere('has_medication', true);
+                                ->orWhere('has_medication', true);
                         })
-                        ->pluck('term_id')
-                        ->map(fn ($termId): string => (string) $termId)
+                        ->get(['term_id', 'test_phase'])
+                        ->map(fn (PftHealthQuestionnaire $questionnaire): string => "{$questionnaire->term_id}:{$questionnaire->test_phase}")
                         ->values()
                         ->all()
                     : [],
@@ -159,6 +161,9 @@ class StudentProfileController extends Controller
                         ->where('user_id', $user->id)
                         ->whereIn('term_id', $pftTermIds)
                         ->get()
+                    : [],
+                'healthQuestionnaires' => $canFillUpPft
+                    ? PftHealthQuestionnaire::query()->where('user_id', $user->id)->whereIn('term_id', $pftTermIds)->get()
                     : [],
                 'medicalConditions' => PftMedicalCondition::query()
                     ->where('is_active', true)

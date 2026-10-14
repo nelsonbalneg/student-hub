@@ -4,6 +4,10 @@ namespace App\Http\Controllers\Admin\Reporting;
 
 use App\Http\Controllers\Controller;
 use App\Models\Office;
+use App\Models\PftComponent;
+use App\Models\PftHealthQuestionnaire;
+use App\Models\PftInterpretationRule;
+use App\Models\PftParq;
 use App\Models\PftTestType;
 use App\Models\SiteAcademicTerm;
 use App\Models\SiteCampus;
@@ -16,6 +20,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Response as ResponseFactory;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -150,6 +155,51 @@ class PftResultController extends Controller
         ]);
     }
 
+    public function studentComparison(Request $request, User $user): JsonResponse
+    {
+        $validated = $request->validate([
+            'campus_id' => ['required', 'string', 'max:255'],
+        ]);
+        $campus = $this->campusFor($validated['campus_id']);
+        abort_unless($campus, 404);
+
+        $results = StudentPftResult::query()
+            ->where('user_id', $user->id)
+            ->where('campus_id', $validated['campus_id'])
+            ->where('status', 'completed')
+            ->orderByDesc('id')
+            ->get();
+        $terms = SiteAcademicTerm::query()
+            ->where('site_campus_id', $campus->id)
+            ->whereIn('term_id', $results->pluck('term_id')->filter()->unique())
+            ->orderByDesc('start_date')
+            ->orderByDesc('id')
+            ->get(['term_id', 'school_year', 'semester']);
+        $components = PftComponent::query()
+            ->active()
+            ->with([
+                'categories' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('name'),
+                'categories.testTypes' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('name'),
+                'categories.testTypes.configurations' => fn ($query) => $query->active()->orderBy('sort_order')->orderBy('field_label'),
+            ])
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json([
+            'terms' => $terms,
+            'components' => $components,
+            'results' => $results
+                ->whereIn('term_id', $terms->pluck('term_id'))
+                ->unique(fn (StudentPftResult $result): string => $result->term_id.':'.($result->test_phase ?: 'pre').':'.$result->pft_test_type_id)
+                ->mapWithKeys(fn (StudentPftResult $result): array => [
+                    $result->term_id.':'.($result->test_phase ?: 'pre').':'.$result->pft_test_type_id => $result->only([
+                        'pft_test_type_id', 'term_id', 'status', 'results_json', 'remarks', 'interpretation', 'color_class',
+                    ]),
+                ]),
+        ]);
+    }
+
     public function comparativeAnalyticsPage(Request $request): InertiaResponse
     {
         $filters = $this->analyticsFilters($request);
@@ -179,7 +229,7 @@ class PftResultController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $data
+            'data' => $data,
         ]);
     }
 
@@ -191,8 +241,8 @@ class PftResultController extends Controller
 
         // Calculate executive stats
         $totalStudentsTested = (clone $query)->distinct('user_id')->count('user_id');
-        $totalComponents = \App\Models\PftComponent::active()->count();
-        $totalTestTypes = \App\Models\PftTestType::active()->count();
+        $totalComponents = PftComponent::active()->count();
+        $totalTestTypes = PftTestType::active()->count();
         $totalCampuses = (clone $query)->whereNotNull('campus_id')->distinct('campus_id')->count('campus_id');
         $totalColleges = (clone $query)->whereNotNull('college_id')->distinct('college_id')->count('college_id');
         $totalSections = (clone $query)->whereNotNull('section_id')->distinct('section_id')->count('section_id');
@@ -220,22 +270,22 @@ class PftResultController extends Controller
             ]);
 
         // Rules & Stats
-        $rules = \App\Models\PftInterpretationRule::active()->with('testType.category.component')->get();
+        $rules = PftInterpretationRule::active()->with('testType.category.component')->get();
         $classificationStats = (clone $query)
             ->selectRaw('pft_test_type_id, classification, COUNT(DISTINCT user_id) as total')
             ->groupBy('pft_test_type_id', 'classification')
             ->get()
-            ->groupBy(fn ($row) => $row->pft_test_type_id . '::' . $row->classification);
+            ->groupBy(fn ($row) => $row->pft_test_type_id.'::'.$row->classification);
 
         $classifications = $rules->map(function ($rule) use ($classificationStats, $query) {
-            $key = $rule->pft_test_type_id . '::' . ($rule->classification ?: $rule->label);
+            $key = $rule->pft_test_type_id.'::'.($rule->classification ?: $rule->label);
             $count = isset($classificationStats[$key]) ? (int) $classificationStats[$key]->first()->total : 0;
-            
+
             $testTypeTotal = (clone $query)
                 ->where('pft_test_type_id', $rule->pft_test_type_id)
                 ->distinct('user_id')
                 ->count('user_id');
-                
+
             $percentage = $testTypeTotal > 0 ? round(($count / $testTypeTotal) * 100, 1) : 0;
 
             return [
@@ -286,7 +336,7 @@ class PftResultController extends Controller
             ->values();
 
         // Components List
-        $components = \App\Models\PftComponent::active()
+        $components = PftComponent::active()
             ->with(['categories.testTypes'])
             ->orderBy('sort_order')
             ->get()
@@ -294,7 +344,7 @@ class PftResultController extends Controller
                 $compResults = (clone $query)
                     ->whereHas('testType.category', fn ($q) => $q->where('pft_component_id', $comp->id))
                     ->get();
-                    
+
                 $classifications = $compResults->groupBy('classification')
                     ->map(fn ($group) => $group->count());
 
@@ -307,7 +357,7 @@ class PftResultController extends Controller
                     $catResults = (clone $query)
                         ->whereHas('testType', fn ($q) => $q->where('pft_category_id', $cat->id))
                         ->get();
-                        
+
                     $catClassifications = $catResults->groupBy('classification')
                         ->map(fn ($group) => $group->count());
 
@@ -320,7 +370,7 @@ class PftResultController extends Controller
                         $typeResults = (clone $query)
                             ->where('pft_test_type_id', $type->id)
                             ->get();
-                            
+
                         $typeClassifications = $typeResults->groupBy('classification')
                             ->map(fn ($group) => $group->count());
 
@@ -353,14 +403,14 @@ class PftResultController extends Controller
             });
 
         // Test Types List
-        $testTypes = \App\Models\PftTestType::active()
+        $testTypes = PftTestType::active()
             ->with('category.component')
             ->get()
             ->map(function ($type) use ($query) {
                 $typeResults = (clone $query)
                     ->where('pft_test_type_id', $type->id)
                     ->get();
-                    
+
                 $classifications = $typeResults->groupBy('classification')
                     ->map(fn ($group) => $group->count());
 
@@ -486,13 +536,13 @@ class PftResultController extends Controller
             : [];
 
         // Dynamic Executive Stats (Clearance)
-        $parqQuery = \App\Models\PftParq::query();
+        $parqQuery = PftParq::query();
         if ($request->filled('term_id')) {
             $parqQuery->where('term_id', $request->input('term_id'));
         }
         $cleared = (clone $parqQuery)->where('clearance_status', 'verified')->count();
         $clearanceUploaded = (clone $parqQuery)->whereNotNull('medical_clearance_path')->count();
-        $clearanceRequired = (clone $parqQuery)->where(function($q) {
+        $clearanceRequired = (clone $parqQuery)->where(function ($q) {
             $q->where('q1', true)->orWhere('q2', true)->orWhere('q3', true)->orWhere('q4', true)->orWhere('q5', true)->orWhere('q6', true)->orWhere('q7', true);
         })->count();
 
@@ -502,18 +552,20 @@ class PftResultController extends Controller
         $bmiCount = 0;
         $bmiDistribution = [];
         $bmiByCampusMap = [];
-        
+
         foreach ($bmiResults as $r) {
             if (isset($r->results_json['bmi']) && is_numeric($r->results_json['bmi'])) {
                 $totalBmi += $r->results_json['bmi'];
                 $bmiCount++;
             }
             $className = $r->classification ?: 'Unknown';
-            if (!isset($bmiDistribution[$className])) $bmiDistribution[$className] = 0;
+            if (! isset($bmiDistribution[$className])) {
+                $bmiDistribution[$className] = 0;
+            }
             $bmiDistribution[$className]++;
-            
+
             $campus = $r->campus_id ?: 'Unknown';
-            if (!isset($bmiByCampusMap[$campus])) {
+            if (! isset($bmiByCampusMap[$campus])) {
                 $bmiByCampusMap[$campus] = ['total' => 0, 'count' => 0, 'overweight' => 0];
             }
             if (isset($r->results_json['bmi']) && is_numeric($r->results_json['bmi'])) {
@@ -525,8 +577,8 @@ class PftResultController extends Controller
             }
         }
         $averageBmi = $bmiCount > 0 ? round($totalBmi / $bmiCount, 1) : 0;
-        
-        $bmiByCampus = collect($bmiByCampusMap)->map(function($data, $campus) {
+
+        $bmiByCampus = collect($bmiByCampusMap)->map(function ($data, $campus) {
             return [
                 'campus' => $campus,
                 'avg_bmi' => $data['count'] > 0 ? round($data['total'] / $data['count'], 1) : 0,
@@ -540,22 +592,22 @@ class PftResultController extends Controller
             ->join('pft_categories', 'pft_categories.id', '=', 'pft_test_types.pft_category_id')
             ->join('pft_components', 'pft_components.id', '=', 'pft_categories.pft_component_id')
             ->select(
-                'student_pft_results.user_id', 
-                'student_pft_results.year_level_id', 
-                'student_pft_results.sex', 
-                'student_pft_results.college_id', 
-                'student_pft_results.campus_id', 
-                'student_pft_results.classification', 
+                'student_pft_results.user_id',
+                'student_pft_results.year_level_id',
+                'student_pft_results.sex',
+                'student_pft_results.college_id',
+                'student_pft_results.campus_id',
+                'student_pft_results.classification',
                 'student_pft_results.color_class',
                 'pft_components.name as component_name'
             )
             ->get();
-            
+
         $totalPrograms = (clone $query)->join('users', 'student_pft_results.user_id', '=', 'users.id')
             ->whereNotNull('users.department')
             ->distinct('users.department')
             ->count('users.department') ?: 67; // fallback to 67 if department empty
-            
+
         $fitnessScoreMap = [
             'emerald' => 100, 'green' => 100, 'excellent' => 100,
             'lime' => 80, 'very good' => 80, 'good' => 80, 'normal' => 80,
@@ -564,7 +616,7 @@ class PftResultController extends Controller
             'orange' => 40, 'needs improvement' => 40,
             'red' => 20, 'rose' => 20, 'poor' => 20, 'obese' => 20, 'underweight' => 20,
         ];
-        
+
         $totalScore = 0;
         $scoreCount = 0;
         $yearLevelScores = [];
@@ -572,16 +624,18 @@ class PftResultController extends Controller
         $femaleScores = [];
         $collegeRankingMap = [];
         $campusCollegeHeatmapMap = [];
-        
+
         foreach ($allResults as $r) {
             $class = strtolower($r->color_class ?: $r->classification);
             $score = $fitnessScoreMap[$class] ?? 50;
-            
+
             $totalScore += $score;
             $scoreCount++;
-            
+
             if ($r->year_level_id) {
-                if (!isset($yearLevelScores[$r->year_level_id])) $yearLevelScores[$r->year_level_id] = ['total' => 0, 'count' => 0];
+                if (! isset($yearLevelScores[$r->year_level_id])) {
+                    $yearLevelScores[$r->year_level_id] = ['total' => 0, 'count' => 0];
+                }
                 $yearLevelScores[$r->year_level_id]['total'] += $score;
                 $yearLevelScores[$r->year_level_id]['count']++;
             }
@@ -593,82 +647,110 @@ class PftResultController extends Controller
                     $femaleScores[] = $score;
                 }
             }
-            
-            $unitKey = ($r->campus_id ?: 'Unknown') . ' - ' . ($r->college_id ?: 'Unknown');
-            if (!isset($campusCollegeHeatmapMap[$unitKey])) $campusCollegeHeatmapMap[$unitKey] = [];
+
+            $unitKey = ($r->campus_id ?: 'Unknown').' - '.($r->college_id ?: 'Unknown');
+            if (! isset($campusCollegeHeatmapMap[$unitKey])) {
+                $campusCollegeHeatmapMap[$unitKey] = [];
+            }
             $comp = $r->component_name ?: 'Unknown';
-            if (!isset($campusCollegeHeatmapMap[$unitKey][$comp])) $campusCollegeHeatmapMap[$unitKey][$comp] = ['total' => 0, 'count' => 0];
-            
+            if (! isset($campusCollegeHeatmapMap[$unitKey][$comp])) {
+                $campusCollegeHeatmapMap[$unitKey][$comp] = ['total' => 0, 'count' => 0];
+            }
+
             $campusCollegeHeatmapMap[$unitKey][$comp]['total'] += $score;
             $campusCollegeHeatmapMap[$unitKey][$comp]['count']++;
-            
+
             if ($r->college_id) {
-                if (!isset($collegeRankingMap[$r->college_id])) {
+                if (! isset($collegeRankingMap[$r->college_id])) {
                     $collegeRankingMap[$r->college_id] = ['college' => $r->college_id, 'students' => [], 'total_score' => 0, 'score_count' => 0, 'risk_count' => 0];
                 }
                 $collegeRankingMap[$r->college_id]['students'][$r->user_id] = true;
                 $collegeRankingMap[$r->college_id]['total_score'] += $score;
                 $collegeRankingMap[$r->college_id]['score_count']++;
-                if ($score <= 40) $collegeRankingMap[$r->college_id]['risk_count']++;
+                if ($score <= 40) {
+                    $collegeRankingMap[$r->college_id]['risk_count']++;
+                }
             }
         }
-        
+
         $fitnessIndex = $scoreCount > 0 ? round($totalScore / $scoreCount, 1) : 0;
-        
-        $yearLevelProgression = collect($yearLevelScores)->map(function($data, $year) {
-            return ['year' => 'Year ' . $year, 'score' => round($data['total'] / $data['count'], 1)];
+
+        $yearLevelProgression = collect($yearLevelScores)->map(function ($data, $year) {
+            return ['year' => 'Year '.$year, 'score' => round($data['total'] / $data['count'], 1)];
         })->values()->toArray();
 
         $maleFemalePerformance = [
             'Male' => count($maleScores) > 0 ? round(array_sum($maleScores) / count($maleScores), 1) : 0,
             'Female' => count($femaleScores) > 0 ? round(array_sum($femaleScores) / count($femaleScores), 1) : 0,
         ];
-        
-        $campusCollegeHeatmap = collect($campusCollegeHeatmapMap)->map(function($components, $unit) {
+
+        $campusCollegeHeatmap = collect($campusCollegeHeatmapMap)->map(function ($components, $unit) {
             $row = ['unit' => $unit];
             foreach (['Cardiovascular Endurance', 'Muscular Strength', 'Muscular Endurance', 'Flexibility', 'Body Composition'] as $comp) {
-                if (!isset($components[$comp])) {
+                if (! isset($components[$comp])) {
                     $row[$comp] = ['label' => 'N/A', 'color_class' => 'slate', 'score' => 0];
+
                     continue;
                 }
                 $avg = $components[$comp]['count'] > 0 ? round($components[$comp]['total'] / $components[$comp]['count'], 1) : 0;
-                $label = 'Average'; $color = 'amber';
-                if ($avg >= 90) { $label = 'Excellent'; $color = 'emerald'; }
-                elseif ($avg >= 80) { $label = 'Good'; $color = 'emerald'; }
-                elseif ($avg >= 70) { $label = 'Very Good'; $color = 'blue'; }
-                elseif ($avg >= 60) { $label = 'Fair'; $color = 'amber'; }
-                else { $label = 'Below Avg.'; $color = 'orange'; }
-                
+                $label = 'Average';
+                $color = 'amber';
+                if ($avg >= 90) {
+                    $label = 'Excellent';
+                    $color = 'emerald';
+                } elseif ($avg >= 80) {
+                    $label = 'Good';
+                    $color = 'emerald';
+                } elseif ($avg >= 70) {
+                    $label = 'Very Good';
+                    $color = 'blue';
+                } elseif ($avg >= 60) {
+                    $label = 'Fair';
+                    $color = 'amber';
+                } else {
+                    $label = 'Below Avg.';
+                    $color = 'orange';
+                }
+
                 $row[$comp] = ['label' => $label, 'color_class' => $color, 'score' => $avg];
             }
+
             return $row;
         })->values()->toArray();
-        
-        $collegeRanking = collect($collegeRankingMap)->map(function($data) {
+
+        $collegeRanking = collect($collegeRankingMap)->map(function ($data) {
             $studentCount = count($data['students']);
             $avgScore = $data['score_count'] > 0 ? round($data['total_score'] / $data['score_count'], 1) : 0;
             $riskPrevalence = $data['score_count'] > 0 ? ($data['risk_count'] / $data['score_count']) : 0;
-            
-            $riskLevel = 'Low'; $riskColor = 'emerald';
-            if ($riskPrevalence > 0.3) { $riskLevel = 'High'; $riskColor = 'red'; }
-            elseif ($riskPrevalence > 0.15) { $riskLevel = 'Elevated'; $riskColor = 'orange'; }
-            elseif ($riskPrevalence > 0.05) { $riskLevel = 'Moderate'; $riskColor = 'amber'; }
-            
+
+            $riskLevel = 'Low';
+            $riskColor = 'emerald';
+            if ($riskPrevalence > 0.3) {
+                $riskLevel = 'High';
+                $riskColor = 'red';
+            } elseif ($riskPrevalence > 0.15) {
+                $riskLevel = 'Elevated';
+                $riskColor = 'orange';
+            } elseif ($riskPrevalence > 0.05) {
+                $riskLevel = 'Moderate';
+                $riskColor = 'amber';
+            }
+
             return [
                 'college' => $data['college'],
                 'students' => $studentCount,
                 'fitness' => $avgScore,
                 'bmi' => 23.5, // Mocked per college for now
-                'participation' => '85%', 
-                'risk' => ['label' => $riskLevel, 'color' => $riskColor]
+                'participation' => '85%',
+                'risk' => ['label' => $riskLevel, 'color' => $riskColor],
             ];
         })->sortByDesc('fitness')->values()->toArray();
-        
-        $programPerformance = collect($collegeRanking)->take(5)->map(function($c) {
+
+        $programPerformance = collect($collegeRanking)->take(5)->map(function ($c) {
             return ['program' => $c['college'], 'score' => $c['fitness']];
         })->toArray();
 
-        $healthQuery = \App\Models\PftHealthQuestionnaire::query();
+        $healthQuery = PftHealthQuestionnaire::query();
         if ($request->filled('term_id')) {
             $healthQuery->where('term_id', $request->input('term_id'));
         }
@@ -695,7 +777,7 @@ class PftResultController extends Controller
                 'total_sections' => $totalSections,
                 'requiring_intervention' => $studentsIntervention,
                 'target_performance' => $studentsTarget,
-                
+
                 'cleared' => $cleared,
                 'clearance_required' => $clearanceRequired,
                 'clearance_uploaded' => $clearanceUploaded,
@@ -743,9 +825,9 @@ class PftResultController extends Controller
                     $query->where('name', 'like', "%{$search}%")
                         ->orWhere('student_no', 'like', "%{$search}%");
                 })
-                ->orWhere('student_pft_results.section_name', 'like', "%{$search}%")
-                ->orWhere('student_pft_results.remarks', 'like', "%{$search}%")
-                ->orWhere('student_pft_results.classification', 'like', "%{$search}%");
+                    ->orWhere('student_pft_results.section_name', 'like', "%{$search}%")
+                    ->orWhere('student_pft_results.remarks', 'like', "%{$search}%")
+                    ->orWhere('student_pft_results.classification', 'like', "%{$search}%");
             });
         }
 
@@ -891,7 +973,7 @@ class PftResultController extends Controller
         $filters = $this->analyticsFilters($request);
         $classification = $request->input('classification');
         $labels = $this->drilldownLabels();
-        
+
         $rows = $this->filteredAnalyticsQuery($filters)
             ->with(['user', 'testType.category.component'])
             ->when($classification, fn ($q, $v) => $q->where('student_pft_results.classification', $v))
@@ -900,9 +982,9 @@ class PftResultController extends Controller
             ->orderBy('student_pft_results.user_id')
             ->orderBy('student_pft_results.tested_at', 'desc')
             ->get();
-            
+
         $filename = 'pft-drilldown-export-'.now()->format('Ymd-His').'.csv';
-        
+
         return ResponseFactory::streamDownload(function () use ($rows, $labels): void {
             $handle = fopen('php://output', 'w');
             fputcsv($handle, [
@@ -919,7 +1001,7 @@ class PftResultController extends Controller
                 'Remarks',
                 'Test Date',
             ]);
-            
+
             foreach ($rows as $row) {
                 $payload = $this->drilldownRowPayload($row, $labels);
 
@@ -1641,7 +1723,8 @@ class PftResultController extends Controller
             'section_id' => $row->section_id,
             'section_name' => $row->section_name,
             'year_level' => $row->year_level_id,
-            'pft_test_type' => $row->testType?->name,
+            'test_phase' => $row->test_phase,
+            'pft_test_type' => $row->testType?->name.' ('.($row->test_phase === 'post' ? 'Post-test' : 'Pre-test').')',
             'results' => $this->resultLines($row),
             'remarks' => $row->remarks,
             'status' => Str::headline((string) $row->status),
@@ -1691,7 +1774,7 @@ class PftResultController extends Controller
         $tenantId = blank($tenantId) ? '1' : $tenantId;
         $cacheKey = "academic.section.{$campusId}.{$sectionId}.{$tenantId}";
 
-        return \Illuminate\Support\Facades\Cache::remember($cacheKey, now()->addHours(24), function () use ($campusId, $sectionId, $tenantId) {
+        return Cache::remember($cacheKey, now()->addHours(24), function () use ($campusId, $sectionId, $tenantId) {
             $response = $this->academicApi->classSection($campusId, $sectionId, $tenantId);
 
             return $response['data']['sectionName'] ?? $response['data']['section_name'] ?? null;
@@ -1900,7 +1983,7 @@ class PftResultController extends Controller
         $results = json_decode($row->getRawOriginal('results_json'), true) ?? [];
         $rawLines = collect($results)
             ->except(['interpretation', 'interpretation_color'])
-            ->map(fn ($val, $key) => Str::headline((string) $key) . ': ' . $val)
+            ->map(fn ($val, $key) => Str::headline((string) $key).': '.$val)
             ->implode(', ');
 
         return [
@@ -1916,7 +1999,8 @@ class PftResultController extends Controller
             'section' => $row->section_name ?: $row->section_id,
             'year_level' => $row->year_level_id,
             'component' => $row->testType?->category?->component?->name,
-            'test_type' => $row->testType?->name,
+            'test_phase' => $row->test_phase,
+            'test_type' => $row->testType?->name.' ('.($row->test_phase === 'post' ? 'Post-test' : 'Pre-test').')',
             'raw_result' => $rawLines,
             'classification' => $row->classification,
             'remarks' => $row->remarks,

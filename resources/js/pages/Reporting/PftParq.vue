@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { Head, Link, router } from '@inertiajs/vue3';
-import { ref, watch } from 'vue';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { destroy, destroyHealth, updateHealth, updateStatus as updateParqStatus, index } from '@/actions/App/Http/Controllers/Admin/Reporting/PftParqController';
+import { computed, ref, watch } from 'vue';
 import debounce from 'lodash/debounce';
 import {
     Activity,
@@ -11,14 +12,16 @@ import {
     CheckCircle2,
     XCircle,
     Clock,
-    MoreHorizontal,
+    MoreVertical,
     Download,
     ChevronDown,
     ZoomIn,
     ZoomOut,
+    Trash2,
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import FitnessIntelligenceSidebar from '@/components/FitnessIntelligenceSidebar.vue';
@@ -26,6 +29,7 @@ import AppearanceToggle from '@/components/AppearanceToggle.vue';
 
 const props = defineProps<{
     parqs: any;
+    healthQuestionnaires: any;
     filters: Record<string, string | undefined>;
     stats: {
         total: number;
@@ -34,6 +38,7 @@ const props = defineProps<{
         pending: number;
     };
     options: {
+        medicalConditions: string[];
         campuses: { value: string; label: string }[];
         terms: { value: string; label: string }[];
         statuses: { value: string; label: string }[];
@@ -52,17 +57,95 @@ const selectedStatus = ref(props.filters.status || '');
 const perPage = ref(props.parqs.per_page || 20);
 
 const isLoading = ref(false);
+const activeTab = ref(props.filters.tab === 'health' ? 'health' : 'parq');
+const displayedRecords = computed(() => activeTab.value === 'health' ? props.healthQuestionnaires : props.parqs);
+const selectedHealth = ref<any>(null);
+const editingHealth = ref<any>(null);
+const healthUpdateForm = useForm({
+    civil_status: '',
+    household_monthly_income: '',
+    father_occupation: '',
+    mother_occupation: '',
+    smoking_status: '',
+    alcohol_consumption: '',
+    has_medical_condition: false,
+    has_medication: false,
+    specific_conditions: [] as string[],
+    other_condition: '',
+    medical_condition_details: '',
+    medication_details: '',
+    clearance_granted: false,
+});
+const openHealthUpdate = (health: any) => {
+    editingHealth.value = health;
+    healthUpdateForm.reset();
+    healthUpdateForm.clearErrors();
+    Object.assign(healthUpdateForm, {
+        civil_status: health.civil_status || '',
+        household_monthly_income: health.household_monthly_income || '',
+        father_occupation: health.father_occupation || '',
+        mother_occupation: health.mother_occupation || '',
+        smoking_status: health.smoking_status || '',
+        alcohol_consumption: health.alcohol_consumption || '',
+        has_medical_condition: health.has_medical_condition,
+        has_medication: health.has_medication,
+        specific_conditions: [...(health.specific_conditions || [])],
+        other_condition: health.other_condition || '',
+        medical_condition_details: health.medical_condition_details || '',
+        medication_details: health.medication_details || '',
+        clearance_granted: health.clearance_granted,
+    });
+};
+const saveHealthUpdate = () => {
+    if (!editingHealth.value) return;
+    healthUpdateForm.patch(updateHealth.url(editingHealth.value.id), {
+        preserveScroll: true,
+        onSuccess: () => { editingHealth.value = null; selectedHealth.value = null; },
+    });
+};
+const switchTab = (tab: string) => {
+    activeTab.value = tab;
+    selectedStatus.value = '';
+    applyFilters();
+};
+const deleteTarget = ref<any>(null);
+const isDeleting = ref(false);
+const deleteError = ref('');
+const deletingHealth = ref(false);
+
+const requestDelete = (parq: any, health = false) => {
+    deletingHealth.value = health;
+    deleteError.value = '';
+    deleteTarget.value = parq;
+};
+
+const deleteEntry = () => {
+    if (!deleteTarget.value || isDeleting.value) return;
+    isDeleting.value = true;
+    deleteError.value = '';
+    router.delete(deletingHealth.value ? destroyHealth.url(deleteTarget.value.id) : destroy.url(deleteTarget.value.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            if (activeParq.value?.id === deleteTarget.value?.id) closePreview();
+            deleteTarget.value = null;
+            selectedHealth.value = null;
+        },
+        onError: () => { deleteError.value = 'Unable to delete this entry. Please try again.'; },
+        onFinish: () => { isDeleting.value = false; },
+    });
+};
 
 const applyFilters = () => {
     isLoading.value = true;
     router.get(
-        '/admin/reporting/pft-parq',
+        index.url(),
         {
             search: search.value,
             campus: selectedCampus.value,
             term: selectedTerm.value,
             status: selectedStatus.value,
             per_page: perPage.value,
+            tab: activeTab.value,
         },
         {
             preserveState: true,
@@ -94,15 +177,33 @@ const resetFilters = () => {
     applyFilters();
 };
 
+const pendingStatusChange = ref<{ id: number; status: string; name: string } | null>(null);
+const isUpdatingStatus = ref(false);
+const statusError = ref('');
+const statusLabels: Record<string, string> = {
+    verified: 'Verified',
+    pending_evaluation: 'Pending Evaluation',
+    pending: 'Clearance Required',
+};
 const updateStatus = (parqId: number, status: string) => {
-    if (!confirm(`Are you sure you want to update the status?`)) return;
-    router.patch(`/admin/reporting/pft-parq/${parqId}/update-status`, { status }, {
+    const parq = props.parqs.data.find((entry: any) => entry.id === parqId) || activeParq.value;
+    statusError.value = '';
+    pendingStatusChange.value = { id: parqId, status, name: parq?.user?.name || 'this student' };
+};
+const confirmStatusChange = () => {
+    if (!pendingStatusChange.value || isUpdatingStatus.value) return;
+    const { id: parqId, status } = pendingStatusChange.value;
+    isUpdatingStatus.value = true;
+    router.patch(updateParqStatus.url(parqId), { status }, {
         preserveScroll: true,
         onSuccess: () => {
+            pendingStatusChange.value = null;
             if (activeParq.value && activeParq.value.id === parqId) {
                 activeParq.value = props.parqs.data.find((p: any) => p.id === parqId) || activeParq.value;
             }
-        }
+        },
+        onError: () => { statusError.value = 'Unable to update the status. Please try again.'; },
+        onFinish: () => { isUpdatingStatus.value = false; },
     });
 };
 
@@ -128,6 +229,24 @@ const isPdf = (path: string | null | undefined) => {
 };
 
 const exportCSV = () => {
+    if (activeTab.value === 'health') {
+        const headers = ['Student', 'ID Number', 'Campus', 'Term', 'Medical Condition', 'Conditions', 'Other Condition', 'Condition Details', 'Medication Affecting Exercise', 'Medication Details'];
+        const rows = props.healthQuestionnaires.data.map((health: any) => [
+            health.user?.name || '', health.user?.id_number || '', health.user?.campus_name || '',
+            health.term ? `AY ${health.term.school_year} - ${health.term.semester}` : health.term_id,
+            health.has_medical_condition ? 'Yes' : 'No', (health.specific_conditions || []).join('; '),
+            health.other_condition || '', health.medical_condition_details || '',
+            health.has_medication ? 'Yes' : 'No', health.medication_details || '',
+        ]);
+        const csv = [headers, ...rows].map((row: any[]) => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n');
+        const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `pft_health_answers_${new Date().toISOString().slice(0, 10)}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+        return;
+    }
     const headers = ['Student Name', 'ID Number', 'Campus', 'Academic Term', 'Status', 'Verified By'];
     const rows = props.parqs.data.map((parq: any) => [
         parq.user?.name || '',
@@ -162,7 +281,7 @@ const exportCSV = () => {
             <div class="flex items-start justify-between gap-3 lg:block">
                 <div>
                     <h1 class="text-lg font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <Activity class="h-5 w-5 text-blue-600" /> PFT PAR-Q Entries
+                        <Activity class="h-5 w-5 text-blue-600" /> PFT Health & PAR-Q Answers
                     </h1>
                     <p class="text-xs text-slate-500 mt-0.5">
                         Review and verify student physical activity readiness questionnaires and medical clearances.
@@ -174,7 +293,7 @@ const exportCSV = () => {
             </div>
             
             <!-- Compact Statistic Cards -->
-            <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex lg:items-center">
+            <div v-if="activeTab === 'parq'" class="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex lg:items-center">
                 <div class="hidden lg:block">
                     <AppearanceToggle />
                 </div>
@@ -202,6 +321,10 @@ const exportCSV = () => {
         </div>
 
         <!-- 2. FILTER SECTION -->
+        <div class="flex gap-2" aria-label="Questionnaire tabs">
+            <Button :variant="activeTab === 'parq' ? 'default' : 'outline'" :aria-pressed="activeTab === 'parq'" @click="switchTab('parq')">PAR-Q</Button>
+            <Button :variant="activeTab === 'health' ? 'default' : 'outline'" :aria-pressed="activeTab === 'health'" @click="switchTab('health')">Health Condition</Button>
+        </div>
         <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-xs dark:border-white/10 dark:bg-slate-900">
             <div class="flex flex-col gap-2.5 lg:flex-row lg:items-center">
                 <!-- Search Student Input -->
@@ -239,7 +362,7 @@ const exportCSV = () => {
                     </div>
 
                     <!-- Status -->
-                    <div class="relative min-w-[140px]">
+                    <div v-if="activeTab === 'parq'" class="relative min-w-[140px]">
                         <select v-model="selectedStatus" class="h-8.5 w-full appearance-none rounded-md border border-slate-200 bg-transparent pl-3 pr-8 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:border-white/10 dark:bg-slate-900 text-slate-700 dark:text-slate-300" @change="applyFilters">
                             <option value="">All Statuses</option>
                             <option v-for="status in options.statuses" :key="status.value" :value="status.value">
@@ -279,7 +402,7 @@ const exportCSV = () => {
 
             <!-- Center: Record info -->
             <div class="text-xs text-slate-600 dark:text-slate-400 font-medium sm:text-center">
-                Showing {{ parqs.from || 0 }}–{{ parqs.to || 0 }} of {{ parqs.total }} records
+                Showing {{ displayedRecords.from || 0 }}–{{ displayedRecords.to || 0 }} of {{ displayedRecords.total }} records
             </div>
 
             <!-- Right: Table Actions -->
@@ -294,7 +417,7 @@ const exportCSV = () => {
         </div>
 
         <!-- 4. TABLE SECTION -->
-        <div class="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs dark:border-white/10 dark:bg-slate-950 relative">
+        <div v-if="activeTab === 'parq'" class="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs dark:border-white/10 dark:bg-slate-950 relative">
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse text-xs">
                     <thead class="border-b border-slate-200 bg-slate-50/50 font-semibold text-slate-500 dark:border-white/10 dark:bg-slate-900/50 dark:text-slate-400 sticky top-0 backdrop-blur-sm z-10">
@@ -304,6 +427,7 @@ const exportCSV = () => {
                             <th class="px-4 py-2.5">Details</th>
                             <th class="px-4 py-2.5">Status</th>
                             <th class="px-4 py-2.5">Medical Clearance</th>
+                            <th class="px-4 py-2.5">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 dark:divide-white/10">
@@ -319,7 +443,7 @@ const exportCSV = () => {
                             <td class="px-4 py-2 whitespace-nowrap">
                                 <div class="flex flex-col">
                                     <span class="font-medium text-slate-700 dark:text-slate-300 text-xs">{{ parq.user?.campus_name || 'N/A' }}</span>
-                                    <span class="text-[10px] text-slate-500 mt-0.5">AY {{ parq.term?.school_year }} - {{ parq.term?.semester }}</span>
+                                    <span class="text-[10px] text-slate-500 mt-0.5">AY {{ parq.term?.school_year }} - {{ parq.term?.semester }} · {{ parq.test_phase === 'post' ? 'Post-test' : 'Pre-test' }}</span>
                                 </div>
                             </td>
                             <!-- Questionnaire Yes Answers -->
@@ -397,11 +521,17 @@ const exportCSV = () => {
                                     </div>
                                 </div>
                             </td>
+                            <td class="px-4 py-2 whitespace-nowrap">
+                                <Button variant="outline" size="sm" class="mr-2 h-7 text-xs" @click="openPreview(parq)">View answers</Button>
+                                <Button variant="outline" size="sm" class="h-7 gap-1 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950" @click="requestDelete(parq)">
+                                    <Trash2 class="size-3.5" /> Delete
+                                </Button>
+                            </td>
                         </tr>
                         
                         <!-- Empty State -->
                         <tr v-if="parqs.data.length === 0">
-                            <td colspan="5" class="px-4 py-10 text-center">
+                            <td colspan="6" class="px-4 py-10 text-center">
                                 <div class="flex flex-col items-center justify-center max-w-sm mx-auto">
                                     <div class="h-12 w-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 dark:bg-slate-900 mb-3 shadow-inner">
                                         <Search class="h-6 w-6" />
@@ -440,6 +570,257 @@ const exportCSV = () => {
         </div>
 
         <!-- Document Preview Dialog -->
+        <Dialog :open="pendingStatusChange !== null" @update:open="(open) => { if (!open && !isUpdatingStatus) pendingStatusChange = null; }">
+            <DialogContent class="z-[100] sm:max-w-md" :show-close-button="!isUpdatingStatus" @escape-key-down="(event) => { if (isUpdatingStatus) event.preventDefault(); }" @interact-outside="(event) => { if (isUpdatingStatus) event.preventDefault(); }">
+                <DialogHeader>
+                    <DialogTitle>Confirm status change</DialogTitle>
+                    <DialogDescription>
+                        Change the PAR-Q status for {{ pendingStatusChange?.name }} to
+                        {{ statusLabels[pendingStatusChange?.status || ''] }}?
+                    </DialogDescription>
+                </DialogHeader>
+                <p v-if="statusError" role="alert" class="text-sm text-red-600 dark:text-red-400">{{ statusError }}</p>
+                <div class="flex justify-end gap-2">
+                    <Button variant="outline" :disabled="isUpdatingStatus" @click="pendingStatusChange = null">Cancel</Button>
+                    <Button :disabled="isUpdatingStatus" @click="confirmStatusChange">{{ isUpdatingStatus ? 'Updating...' : 'Confirm' }}</Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+        <div v-if="activeTab === 'health'" class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs dark:border-white/10 dark:bg-slate-950">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-50 text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                        <tr>
+                            <th class="px-4 py-3">Student</th>
+                            <th class="px-4 py-3">Campus & Term</th>
+                            <th class="px-4 py-3">Existing Medical Condition</th>
+                            <th class="px-4 py-3">Medication Affecting Exercise</th>
+                            <th class="px-4 py-3">Clearance</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 dark:divide-white/10">
+                        <tr v-for="health in healthQuestionnaires.data" :key="health.id" class="align-top">
+                            <td class="px-4 py-3"><p class="font-semibold text-slate-900 dark:text-white">{{ health.user?.name }}</p><p class="text-slate-500">{{ health.user?.id_number }}</p></td>
+                            <td class="px-4 py-3"><p>{{ health.user?.campus_name || 'N/A' }}</p><p class="text-slate-500">{{ health.term ? `AY ${health.term.school_year} - ${health.term.semester}` : health.term_id }} · {{ health.test_phase === 'post' ? 'Post-test' : 'Pre-test' }}</p></td>
+                            <td class="max-w-sm px-4 py-3">
+                                <p :class="health.has_medical_condition ? 'font-semibold text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'">{{ health.has_medical_condition ? 'Yes' : 'No' }}</p>
+                                <p v-if="health.specific_conditions?.length" class="mt-1">{{ health.specific_conditions.join(', ') }}</p>
+                                <p v-if="health.other_condition" class="mt-1">Other: {{ health.other_condition }}</p>
+                                <p v-if="health.medical_condition_details" class="mt-1 text-slate-500">{{ health.medical_condition_details }}</p>
+                            </td>
+                            <td class="max-w-sm px-4 py-3"><p :class="health.has_medication ? 'font-semibold text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'">{{ health.has_medication ? 'Yes' : 'No' }}</p><p v-if="health.medication_details" class="mt-1">{{ health.medication_details }}</p></td>
+                            <td class="px-4 py-3">
+                                <div class="flex items-center gap-2 whitespace-nowrap">
+                                <p class="text-xs font-semibold" :class="health.clearance_granted ? 'text-emerald-600' : 'text-amber-600'">{{ health.clearance_granted ? 'Clearance granted' : health.medical_clearance_path ? 'Awaiting review' : 'No clearance' }}</p>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger as-child>
+                                        <Button variant="ghost" size="icon" class="size-7 shrink-0" :aria-label="`Actions for ${health.user?.name || 'health submission'}`"><MoreVertical class="size-4" /></Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem @select="selectedHealth = health">View answers</DropdownMenuItem>
+                                        <DropdownMenuItem @select="openHealthUpdate(health)">Update</DropdownMenuItem>
+                                        <DropdownMenuItem class="text-red-600 focus:text-red-600" @select="requestDelete(health, true)">Delete</DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr v-if="!healthQuestionnaires.data.length"><td colspan="5" class="px-4 py-10 text-center text-slate-500">No health condition answers found.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex justify-center gap-1 border-t border-slate-100 p-3 dark:border-white/10">
+                <Link v-for="(link, idx) in healthQuestionnaires.links" :key="idx" :href="link.url || '#'" :preserve-scroll="true" class="rounded-lg px-3 py-1 text-xs" :class="link.active ? 'bg-blue-600 text-white' : link.url ? 'text-slate-600 dark:text-slate-300' : 'pointer-events-none text-slate-300'" v-html="link.label" />
+            </div>
+        </div>
+        <Dialog :open="selectedHealth !== null" @update:open="(open) => { if (!open) selectedHealth = null; }">
+            <DialogContent class="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+                <DialogHeader>
+                    <DialogTitle>Health Questionnaire Answers</DialogTitle>
+                    <DialogDescription>{{ selectedHealth?.user?.name }} — {{ selectedHealth?.term ? `AY ${selectedHealth.term.school_year} - ${selectedHealth.term.semester}` : selectedHealth?.term_id }}</DialogDescription>
+                </DialogHeader>
+                <dl v-if="selectedHealth" class="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+                    <div v-for="(label, field) in { civil_status: 'Civil Status', household_monthly_income: 'Household Monthly Income', father_occupation: `Father’s Occupation`, mother_occupation: `Mother’s Occupation`, smoking_status: 'Smoking Status', alcohol_consumption: 'Alcohol Consumption', other_condition: 'Other Condition', medical_condition_details: 'Condition Details', medication_details: 'Medication Details' }" :key="field">
+                        <dt class="text-slate-500">{{ label }}</dt><dd class="mt-1 whitespace-pre-wrap">{{ selectedHealth[field] || 'Not provided' }}</dd>
+                    </div>
+                    <div><dt class="text-slate-500">Existing Medical Condition</dt><dd>{{ selectedHealth.has_medical_condition ? 'Yes' : 'No' }}</dd></div>
+                    <div><dt class="text-slate-500">Medication Affecting Exercise</dt><dd>{{ selectedHealth.has_medication ? 'Yes' : 'No' }}</dd></div>
+                    <div class="sm:col-span-2"><dt class="text-slate-500">Selected Conditions</dt><dd class="mt-1">{{ selectedHealth.specific_conditions?.join(', ') || 'None selected' }}</dd></div>
+                </dl>
+                <div v-if="selectedHealth?.medical_clearance_path" class="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+                    <p class="text-sm font-semibold">Uploaded Medical Certificate</p>
+                    <a :href="`/storage/${selectedHealth.medical_clearance_path}`" target="_blank" rel="noopener" class="text-sm text-blue-600 underline">Open medical certificate</a>
+                    <iframe v-if="isPdf(selectedHealth.medical_clearance_path)" :src="`/storage/${selectedHealth.medical_clearance_path}`" title="Medical certificate" class="h-80 w-full rounded border" />
+                    <img v-else :src="`/storage/${selectedHealth.medical_clearance_path}`" alt="Medical certificate" class="max-h-96 w-full object-contain" />
+                </div>
+                <p v-else class="rounded-lg border p-4 text-sm text-slate-500">No medical certificate uploaded.</p>
+                <Button v-if="selectedHealth" @click="openHealthUpdate(selectedHealth); selectedHealth = null">Update / Grant Clearance</Button>
+            </DialogContent>
+        </Dialog>
+
+        <Dialog :open="editingHealth !== null" @update:open="(open) => { if (!open && !healthUpdateForm.processing) editingHealth = null; }">
+            <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+                <DialogHeader><DialogTitle class="text-lg font-semibold">Health Questionnaire</DialogTitle><DialogDescription>Please provide your updated health and socio-demographic information.</DialogDescription></DialogHeader>
+                <form class="space-y-4" @submit.prevent="saveHealthUpdate">
+                    <div class="space-y-6 py-4 text-sm text-slate-700 dark:text-slate-300">
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="space-y-2">
+                        <Label>Civil Status</Label>
+                        <select
+                            v-model="healthUpdateForm.civil_status"
+                            class="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"
+                        >
+                            <option value="">Select...</option>
+                            <option value="Single">Single</option>
+                            <option value="Married">Married</option>
+                            <option value="Widowed">Widowed</option>
+                            <option value="Separated">Separated</option>
+                            <option value="Prefer not to say">Prefer not to say</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-2">
+                        <Label>Household Monthly Income</Label>
+                        <select
+                            v-model="healthUpdateForm.household_monthly_income"
+                            class="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"
+                        >
+                            <option value="">Select...</option>
+                            <option value="Less than ₱10,000">Less than ₱10,000</option>
+                            <option value="₱10,000–₱19,999">₱10,000–₱19,999</option>
+                            <option value="₱20,000–₱39,999">₱20,000–₱39,999</option>
+                            <option value="₱40,000–₱59,999">₱40,000–₱59,999</option>
+                            <option value="₱60,000–₱99,999">₱60,000–₱99,999</option>
+                            <option value="₱100,000 and above">₱100,000 and above</option>
+                            <option value="Prefer not to answer">Prefer not to answer</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="space-y-2">
+                        <Label>Father's Occupation</Label>
+                        <Input v-model="healthUpdateForm.father_occupation" class="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" />
+                    </div>
+                    <div class="space-y-2">
+                        <Label>Mother's Occupation</Label>
+                        <Input v-model="healthUpdateForm.mother_occupation" class="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" />
+                    </div>
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="space-y-2">
+                        <Label>Smoking Status</Label>
+                        <select
+                            v-model="healthUpdateForm.smoking_status"
+                            class="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"
+                        >
+                            <option value="">Select...</option>
+                            <option value="Never">Never</option>
+                            <option value="Former">Former</option>
+                            <option value="Current">Current</option>
+                        </select>
+                    </div>
+                    <div class="space-y-2">
+                        <Label>Alcohol Consumption</Label>
+                        <select
+                            v-model="healthUpdateForm.alcohol_consumption"
+                            class="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"
+                        >
+                            <option value="">Select...</option>
+                            <option value="Never">Never</option>
+                            <option value="Occasional">Occasional</option>
+                            <option value="Regular">Regular</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <Label class="text-base font-medium">Do you have any existing medical condition?</Label>
+                    <div class="flex items-center space-x-6">
+                        <label class="flex items-center space-x-2">
+                            <input type="radio" :value="false" v-model="healthUpdateForm.has_medical_condition" class="text-emerald-600 focus:ring-emerald-500 h-4 w-4 rounded-full border-slate-300" />
+                            <span>No</span>
+                        </label>
+                        <label class="flex items-center space-x-2">
+                            <input type="radio" :value="true" v-model="healthUpdateForm.has_medical_condition" class="text-emerald-600 focus:ring-emerald-500 h-4 w-4 rounded-full border-slate-300" />
+                            <span>Yes</span>
+                        </label>
+                    </div>
+                    <div v-if="healthUpdateForm.has_medical_condition" class="space-y-3 rounded-md bg-slate-50 p-4 dark:bg-white/5">
+                        <Label class="font-medium">Select all that apply:</Label>
+                        <div class="grid gap-2 sm:grid-cols-2">
+                            <label v-for="condition in [...new Set([...options.medicalConditions, ...healthUpdateForm.specific_conditions])]" :key="condition" class="flex items-start space-x-2">
+                                <input type="checkbox" :value="condition" v-model="healthUpdateForm.specific_conditions" class="text-emerald-600 focus:ring-emerald-500 mt-1 h-4 w-4 rounded border-slate-300" />
+                                <span class="text-sm leading-tight">{{ condition }}</span>
+                            </label>
+                        </div>
+
+                        <div class="space-y-2 pt-2">
+                            <Label>Other Condition (Specify)</Label>
+                            <Input v-model="healthUpdateForm.other_condition" class="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" />
+                        </div>
+
+                        <div class="space-y-2 pt-2">
+                            <Label>Further Details (Optional)</Label>
+                            <Input v-model="healthUpdateForm.medical_condition_details" class="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Additional details..." />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <Label class="text-base font-medium">Current Medication Affecting Exercise</Label>
+                    <div class="flex items-center space-x-6">
+                        <label class="flex items-center space-x-2">
+                            <input type="radio" :value="false" v-model="healthUpdateForm.has_medication" class="text-emerald-600 focus:ring-emerald-500 h-4 w-4 rounded-full border-slate-300" />
+                            <span>No</span>
+                        </label>
+                        <label class="flex items-center space-x-2">
+                            <input type="radio" :value="true" v-model="healthUpdateForm.has_medication" class="text-emerald-600 focus:ring-emerald-500 h-4 w-4 rounded-full border-slate-300" />
+                            <span>Yes</span>
+                        </label>
+                    </div>
+                    <div v-if="healthUpdateForm.has_medication" class="space-y-2">
+                        <Label>If Yes, Please Specify</Label>
+                        <Input v-model="healthUpdateForm.medication_details" class="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" />
+                    </div>
+                </div>
+
+
+</div>
+                    <div v-if="editingHealth?.medical_clearance_path" class="space-y-2">
+                        <a :href="`/storage/${editingHealth.medical_clearance_path}`" target="_blank" rel="noopener" class="text-sm text-blue-600 underline">Open medical certificate</a>
+                        <iframe v-if="isPdf(editingHealth.medical_clearance_path)" :src="`/storage/${editingHealth.medical_clearance_path}`" title="Medical certificate" class="h-72 w-full rounded border" />
+                        <img v-else :src="`/storage/${editingHealth.medical_clearance_path}`" alt="Medical certificate" class="max-h-72 w-full object-contain" />
+                    </div>
+                    <p v-else class="text-sm text-amber-600">The student must upload a medical certificate before clearance can be granted.</p>
+                    <label class="flex items-center gap-2 rounded border p-3 text-sm font-semibold"><input v-model="healthUpdateForm.clearance_granted" type="checkbox" :disabled="!editingHealth?.medical_clearance_path" /> Grant Clearance to take the test</label>
+                    <p v-for="(error, field) in healthUpdateForm.errors" :key="field" class="text-sm text-red-600" role="alert">{{ error }}</p>
+                    <div class="flex justify-end gap-2"><Button type="button" variant="outline" :disabled="healthUpdateForm.processing" @click="editingHealth = null">Cancel</Button><Button type="submit" :disabled="healthUpdateForm.processing">{{ healthUpdateForm.processing ? 'Saving...' : 'Save update' }}</Button></div>
+                </form>
+            </DialogContent>
+        </Dialog>
+
+        <Dialog :open="deleteTarget !== null" @update:open="(open) => { if (!open && !isDeleting) deleteTarget = null; }">
+            <DialogContent class="sm:max-w-md" @escape-key-down="(event) => { if (isDeleting) event.preventDefault(); }" @interact-outside="(event) => { if (isDeleting) event.preventDefault(); }">
+                <DialogHeader>
+                    <DialogTitle>Delete {{ deletingHealth ? 'health submission' : 'PAR-Q entry' }}?</DialogTitle>
+                    <DialogDescription>
+                        This will permanently delete the {{ deletingHealth ? 'health submission' : 'PAR-Q entry' }} for {{ deleteTarget?.user?.name }}
+                        (AY {{ deleteTarget?.term?.school_year }} - {{ deleteTarget?.term?.semester }}).
+                        This action cannot be undone.
+                    </DialogDescription>
+                </DialogHeader>
+                <p v-if="deleteError" role="alert" class="text-sm text-red-600 dark:text-red-400">{{ deleteError }}</p>
+                <div class="flex justify-end gap-2">
+                    <Button variant="outline" :disabled="isDeleting" @click="deleteTarget = null">Cancel</Button>
+                    <Button variant="destructive" :disabled="isDeleting" @click="deleteEntry">
+                        {{ isDeleting ? 'Deleting...' : 'Delete entry' }}
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+
         <Dialog :open="isPreviewOpen" @update:open="closePreview">
             <DialogContent class="sm:max-w-5xl max-h-[90vh] flex flex-col p-5 rounded-xl">
                 <DialogHeader>

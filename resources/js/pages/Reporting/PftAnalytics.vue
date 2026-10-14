@@ -22,7 +22,6 @@ import {
 import { computed, defineComponent, h, onMounted, ref, watch, unref } from 'vue';
 import VueApexCharts from 'vue3-apexcharts';
 import {
-    analyticsPage as pftAnalyticsPage,
     analyticsData as pftAnalyticsData,
     analyticsDrilldown as pftAnalyticsDrilldown,
     exportDrilldownExcel as pftExportDrilldownExcel,
@@ -305,6 +304,7 @@ const selectedTerm = ref<SelectOption | null>(props.selectedOptions.term);
 const selectedCollege = ref<SelectOption | null>(props.selectedOptions.college);
 const selectedSection = ref<SelectOption | null>(props.selectedOptions.section);
 
+const dashboardTab = ref<'analytics' | 'comparison'>('analytics');
 const apiData = ref<AnalyticsData | null>(null);
 const loading = ref(false);
 
@@ -1573,6 +1573,22 @@ const termTrendOptions = computed<ApexOptions>(() =>
     }),
 );
 
+const comparisonTables = computed(() => {
+    const data = apiData.value;
+    if (!data) return [];
+    return [
+        { title: 'Campus Comparison', headers: ['Campus', 'Students assessed', 'PFT results'], rows: data.campuses.map(item => [item.name, item.total_students, item.total_results]) },
+        { title: 'Academic Term Trends', headers: ['Academic term', 'Fitness score'], rows: data.term_trends.map(item => [item.term, item.score]) },
+        { title: 'College Comparison', headers: ['College', 'Fitness score'], rows: data.college_comparison.map(item => [item.college, item.score]) },
+        { title: 'Section Comparison', headers: ['Section', 'Fitness score'], rows: data.section_comparison.map(item => [item.section, item.score]) },
+        { title: 'Year Level Progression', headers: ['Year level', 'Fitness score'], rows: (data.comparisons?.year_level_progression ?? []).map(item => [item.year, item.score]) },
+        { title: 'Program Performance', headers: ['Program', 'Fitness score'], rows: (data.comparisons?.program_performance ?? []).map(item => [item.program, item.score]) },
+        { title: 'Male / Female Comparison', headers: ['Sex', 'Fitness score'], rows: data.comparisons ? [['Male', data.comparisons.male_female.Male], ['Female', data.comparisons.male_female.Female]] : [] },
+        { title: 'College Ranking', headers: ['College', 'Students', 'Fitness score', 'Average BMI', 'Participation', 'Risk'], rows: (data.comparisons?.college_ranking ?? []).map(item => [item.college, item.students, item.fitness, item.bmi, item.participation, item.risk.label]) },
+    ];
+});
+const comparisonValue = (value: string | number) => typeof value === 'number' ? new Intl.NumberFormat('en', { maximumFractionDigits: 2 }).format(value) : value;
+
 // Campus Comparison
 const campusCategories = computed(
     () => apiData.value?.campuses.map((item) => item.name) ?? [],
@@ -1925,6 +1941,32 @@ onMounted(() => {
             </section>
 
             <div class="space-y-6 p-4 sm:p-6">
+                <div class="flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/5" role="tablist" aria-label="Dashboard analytics views">
+                    <button id="dashboard-analytics-tab" type="button" role="tab" :aria-selected="dashboardTab === 'analytics'" aria-controls="dashboard-analytics-panel" class="flex-1 rounded-lg px-4 py-3 text-sm font-semibold transition" :class="dashboardTab === 'analytics' ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-800 dark:text-blue-400' : 'text-slate-500'" @click="dashboardTab = 'analytics'">PFT Analytics</button>
+                    <button id="dashboard-comparison-tab" type="button" role="tab" :aria-selected="dashboardTab === 'comparison'" aria-controls="dashboard-comparison-panel" class="flex-1 rounded-lg px-4 py-3 text-sm font-semibold transition" :class="dashboardTab === 'comparison' ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-800 dark:text-blue-400' : 'text-slate-500'" @click="dashboardTab = 'comparison'">Comparative Analytics</button>
+                </div>
+                <section v-if="dashboardTab === 'comparison' && apiData && !loading" id="dashboard-comparison-panel" role="tabpanel" aria-labelledby="dashboard-comparison-tab" class="space-y-5">
+                    <div>
+                        <h3 class="text-xl font-bold text-slate-900 dark:text-white">Comparative Analytics</h3>
+                        <p class="mt-1 text-sm text-slate-500">Campus, college, section, and academic term comparisons using the applied dashboard filters.</p>
+                    </div>
+                    <div class="grid items-start gap-5 xl:grid-cols-2">
+                        <article v-for="table in comparisonTables" :key="table.title" class="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
+                            <h4 class="border-b border-slate-100 px-4 py-4 text-sm font-bold text-slate-900 dark:border-white/10 dark:text-white">{{ table.title }}</h4>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-sm">
+                                    <caption class="sr-only">{{ table.title }}</caption>
+                                    <thead class="bg-slate-50 text-xs text-slate-500 dark:bg-white/5"><tr><th v-for="header in table.headers" :key="header" scope="col" class="whitespace-nowrap px-4 py-3 font-semibold">{{ header }}</th></tr></thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-white/10">
+                                        <tr v-for="(row, index) in table.rows" :key="index" class="text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5"><td v-for="(value, column) in row" :key="column" class="px-4 py-3" :class="column === 0 ? 'font-medium' : 'whitespace-nowrap tabular-nums'">{{ comparisonValue(value) }}</td></tr>
+                                        <tr v-if="!table.rows.length"><td :colspan="table.headers.length" class="px-4 py-8 text-center text-sm text-slate-400">No comparison data for the selected filters.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </article>
+                    </div>
+                </section>
+
                 <div v-if="loading" class="flex h-64 items-center justify-center">
                     <Loader2 class="h-8 w-8 animate-spin text-slate-400" />
                 </div>
@@ -1935,7 +1977,7 @@ onMounted(() => {
                     <p class="text-sm">Please select a campus and academic term to load data.</p>
                 </div>
 
-                <div v-else class="grid gap-4 animate-fade-in">
+                <div v-else v-show="dashboardTab === 'analytics'" id="dashboard-analytics-panel" role="tabpanel" aria-labelledby="dashboard-analytics-tab" class="grid gap-4 animate-fade-in">
                     <!-- Old dashboard content will render here -->
             <!-- Executive Statistics Cards -->
             <section id="executive" class="space-y-4">

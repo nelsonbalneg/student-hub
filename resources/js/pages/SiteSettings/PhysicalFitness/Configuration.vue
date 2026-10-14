@@ -3,6 +3,7 @@ import { Head, router, useForm, Link } from '@inertiajs/vue3';
 import { CheckCircle2, Dumbbell, Maximize2, Minimize2, Pencil, Plus, Trash2 } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import FitnessIntelligenceSidebar from '@/components/FitnessIntelligenceSidebar.vue';
@@ -16,6 +17,8 @@ import * as fieldRoutes from '@/routes/site-settings/physical-fitness/configurat
 import * as interpretationRuleRoutes from '@/routes/site-settings/physical-fitness/configuration/interpretation-rules';
 import * as procedureRoutes from '@/routes/site-settings/physical-fitness/configuration/procedures';
 import * as testTypeRoutes from '@/routes/site-settings/physical-fitness/configuration/test-types';
+import PftTestScheduleManager from '@/components/PftTestScheduleManager.vue';
+import type { ScheduleRow } from '@/components/PftTestScheduleManager.vue';
 
 type PftField = {
     id: number;
@@ -97,6 +100,8 @@ type PftComponent = {
 
 const props = defineProps<{
     components: PftComponent[];
+    scheduleRows: ScheduleRow[];
+    scheduleToday: string;
     fieldTypes: string[];
     medicalConditions: {
         data: PftMedicalCondition[];
@@ -560,16 +565,31 @@ const submitModal = () => {
         : fieldForm.post(fieldRoutes.store.url(), close);
 };
 
+const pendingDelete = ref<{ type: string; id: number; name: string } | null>(null);
+const isDeletingRecord = ref(false);
+const recordDeleteError = ref('');
 const destroyRecord = (type: string, id: number) => {
-    if (
-        !confirm(
-            'Delete this PFT record? If results exist, it will be deactivated instead.',
-        )
-    ) {
-        return;
-    }
-
-    const options = { preserveScroll: true };
+    const names: Record<string, string | undefined> = {
+        component: selectedComponent.value?.name,
+        category: selectedCategory.value?.name,
+        testType: selectedTestType.value?.name,
+        field: selectedTestType.value?.configurations.find(item => item.id === id)?.field_label,
+        interpretationRule: selectedTestType.value?.interpretation_rules.find(item => item.id === id)?.label,
+        procedure: selectedTestType.value?.procedures.find(item => item.id === id)?.description,
+    };
+    recordDeleteError.value = '';
+    pendingDelete.value = { type, id, name: names[type] || 'this record' };
+};
+const executeDeleteRecord = () => {
+    if (!pendingDelete.value || isDeletingRecord.value) return;
+    const { type, id } = pendingDelete.value;
+    isDeletingRecord.value = true;
+    const options = {
+        preserveScroll: true,
+        onSuccess: () => { pendingDelete.value = null; },
+        onError: () => { recordDeleteError.value = 'Unable to delete this record. Please try again.'; },
+        onFinish: () => { isDeletingRecord.value = false; },
+    };
 
     if (type === 'component') {
         router.delete(componentRoutes.destroy.url(id), options);
@@ -794,7 +814,13 @@ defineOptions({
                     </section>
 
                     <section v-if="settingsVerticalTab === 'permissions'" class="flex flex-col gap-6">
-                        <div class="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950 max-w-3xl overflow-hidden">
+                        <PftTestScheduleManager
+                            class="w-full"
+                            :rows="scheduleRows"
+                            :today="scheduleToday"
+                            :can-manage="Boolean(can.managePhysicalFitnessPermission)"
+                        />
+                        <div class="w-full rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950 overflow-hidden">
                             <div class="flex items-center justify-between border-b border-slate-100 p-6 dark:border-white/5">
                                 <div>
                                     <p class="font-bold text-slate-900 dark:text-white">Show in Grades</p>
@@ -1488,6 +1514,19 @@ defineOptions({
         </DialogContent>
     </Dialog>
 
+    <Dialog :open="pendingDelete !== null" @update:open="(open) => { if (!open && !isDeletingRecord) pendingDelete = null; }">
+        <DialogContent class="sm:max-w-md" :show-close-button="!isDeletingRecord" @escape-key-down="(event) => { if (isDeletingRecord) event.preventDefault(); }" @interact-outside="(event) => { if (isDeletingRecord) event.preventDefault(); }">
+            <DialogHeader>
+                <DialogTitle>Confirm deletion</DialogTitle>
+                <DialogDescription>Delete “{{ pendingDelete?.name }}”? If results exist, the record will be deactivated instead.</DialogDescription>
+            </DialogHeader>
+            <p v-if="recordDeleteError" role="alert" class="text-sm text-red-600 dark:text-red-400">{{ recordDeleteError }}</p>
+            <DialogFooter>
+                <Button variant="outline" :disabled="isDeletingRecord" @click="pendingDelete = null">Cancel</Button>
+                <Button variant="destructive" :disabled="isDeletingRecord" @click="executeDeleteRecord">{{ isDeletingRecord ? 'Deleting...' : 'Delete' }}</Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
     <Dialog :open="deleteConditionModalOpen" @update:open="(val) => { if(!val) deleteConditionModalOpen = false; }">
         <DialogContent class="sm:max-w-[425px]">
             <DialogHeader>
