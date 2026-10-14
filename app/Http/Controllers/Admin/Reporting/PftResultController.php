@@ -532,7 +532,7 @@ class PftResultController extends Controller
             ]);
 
         $collegeComponentProfiles = blank($filters['college_id'] ?? null)
-            ? $this->collegeComponentProfiles($query->get(), $labels['colleges'] ?? [])
+            ? $this->collegeComponentProfiles($query->get())
             : [];
 
         // Dynamic Executive Stats (Clearance)
@@ -1818,6 +1818,24 @@ class PftResultController extends Controller
         return $labels;
     }
 
+    private function resolveCollegeName(?string $collegeId, ?string $tenantId): ?string
+    {
+        if (blank($collegeId)) {
+            return null;
+        }
+
+        $tenantId = filled($tenantId) ? $tenantId : '1';
+
+        return Cache::remember("academic.college.{$collegeId}.{$tenantId}", now()->addHours(24), function () use ($collegeId, $tenantId): ?string {
+            $response = $this->academicApi->college($collegeId, $tenantId);
+            $college = $response['data']['data'] ?? $response['data'] ?? null;
+
+            return is_array($college) && filled($college['collegeName'] ?? null)
+                ? $this->collegeLabel($college)
+                : null;
+        });
+    }
+
     private function drilldownLabels(): array
     {
         $campuses = SiteCampus::query()
@@ -2896,16 +2914,16 @@ class PftResultController extends Controller
             ->all();
     }
 
-    private function collegeComponentProfiles(Collection $rows, array $collegeLabels): array
+    private function collegeComponentProfiles(Collection $rows): array
     {
         return $rows
             ->groupBy(fn (StudentPftResult $row): string => filled($row->college_id) ? (string) $row->college_id : 'unassigned')
-            ->map(function (Collection $collegeRows, string $collegeId) use ($collegeLabels): array {
+            ->map(function (Collection $collegeRows, string $collegeId): array {
                 return [
                     'id' => $collegeId,
                     'label' => $collegeId === 'unassigned'
                         ? 'Unassigned College'
-                        : ($collegeLabels[$collegeId] ?? $collegeId),
+                        : ($this->resolveCollegeName($collegeId, $collegeRows->first()?->tenant_id) ?? 'Unknown College'),
                     'results' => $collegeRows->count(),
                     'students' => $collegeRows
                         ->map(fn (StudentPftResult $row): string => $this->groupKey((int) $row->user_id, (string) $row->term_id))
