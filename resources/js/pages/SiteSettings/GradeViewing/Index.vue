@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
 import { Head, useForm, router } from '@inertiajs/vue3';
 import SiteSettingsLayout from '@/layouts/SiteSettingsLayout.vue';
 import {
@@ -14,7 +22,8 @@ import {
     ShieldCheck,
     ShieldAlert,
     History,
-    Search,
+    X,
+    LoaderCircle,
     Trash2,
     Edit2,
     ToggleLeft,
@@ -32,6 +41,12 @@ interface Rule {
     id: number;
     site_campus_id: number;
     rule_name: string;
+    grade_evaluation_mode:
+        | 'disabled_visible'
+        | 'disabled_hidden'
+        | 'enabled_required'
+        | 'enabled_optional';
+    access_scope: 'all_grades' | 'current_term';
     bypass_evaluation: boolean;
     show_gwa_gpa: boolean;
     is_active: boolean;
@@ -67,14 +82,128 @@ const selectedRule = ref<Rule | null>(null);
 const form = useForm({
     site_campus_id: '',
     rule_name: 'Bypass Faculty Evaluation',
+    grade_evaluation_mode: 'enabled_required',
+    access_scope: 'current_term',
     bypass_evaluation: true,
     show_gwa_gpa: true,
     is_active: true,
     description: '',
 });
 
+const policyOptions = [
+    {
+        value: 'enabled_optional',
+        title: 'Evaluation On / View Grades',
+        description:
+            'Show the evaluation button on Grades. Students can view grades without completing evaluation.',
+        evaluation: 'Optional',
+        access: 'Visible',
+    },
+    {
+        value: 'enabled_required',
+        title: 'Evaluation On / Hide Grades Until Evaluated',
+        description:
+            'Show the evaluation button on Grades. Grades in the selected scope stay locked until the required faculty evaluation is completed.',
+        evaluation: 'Required',
+        access: 'Locked Until Evaluation',
+    },
+    {
+        value: 'disabled_visible',
+        title: 'Evaluation Off / View Grades',
+        description:
+            'Hide the evaluation button. Students can view their grades without evaluation.',
+        evaluation: 'Disabled',
+        access: 'Visible',
+    },
+    {
+        value: 'disabled_hidden',
+        title: 'Evaluation Off / Hide Grades',
+        description:
+            'Hide the evaluation button. Grades stay hidden regardless of evaluation status.',
+        evaluation: 'Disabled',
+        access: 'Hidden',
+    },
+] as const;
+const baseline = ref('');
+const modalOpen = computed(
+    () => isCreateModalOpen.value || isEditModalOpen.value,
+);
+const hasChanges = computed(
+    () => JSON.stringify(form.data()) !== baseline.value,
+);
+const preview = computed(() => {
+    const policy =
+        policyOptions.find(
+            (option) => option.value === form.grade_evaluation_mode,
+        ) ?? policyOptions[1];
+    const access = form.bypass_evaluation ? 'Visible' : policy.access;
+    return {
+        evaluation: form.bypass_evaluation
+            ? 'Disabled (bypass enabled)'
+            : policy.evaluation,
+        access,
+        averages: !form.show_gwa_gpa
+            ? 'Hidden'
+            : access === 'Visible'
+              ? 'Visible'
+              : 'Conditional',
+    };
+});
+let returnFocus: HTMLElement | null = null;
+const prepareModal = () => {
+    form.clearErrors();
+    baseline.value = JSON.stringify(form.data());
+    returnFocus =
+        document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+};
+const requestClose = (open = false) => {
+    if (open || form.processing) return;
+    if (
+        hasChanges.value &&
+        !window.confirm('Discard unsaved changes to this grade access rule?')
+    )
+        return;
+    isCreateModalOpen.value = false;
+    isEditModalOpen.value = false;
+};
+const restoreFocus = (event: Event) => {
+    event.preventDefault();
+    returnFocus?.focus();
+};
+const focusFirstError = () =>
+    nextTick(() => {
+        document
+            .querySelector<HTMLElement>(
+                '[data-grade-rule-form] [aria-invalid="true"]',
+            )
+            ?.focus();
+    });
+const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+    if (!modalOpen.value || !hasChanges.value) return;
+    event.preventDefault();
+    event.returnValue = '';
+};
+onMounted(() => window.addEventListener('beforeunload', warnBeforeUnload));
+onBeforeUnmount(() =>
+    window.removeEventListener('beforeunload', warnBeforeUnload),
+);
+
 const openCreateModal = () => {
+    selectedRule.value = null;
+    form.defaults({
+        site_campus_id: '',
+        rule_name: 'Bypass Faculty Evaluation',
+        grade_evaluation_mode: 'enabled_required',
+        access_scope: 'current_term',
+        bypass_evaluation: true,
+        show_gwa_gpa: true,
+        is_active: true,
+        description: '',
+    });
     form.reset();
+    prepareModal();
     isCreateModalOpen.value = true;
 };
 
@@ -82,15 +211,21 @@ const openEditModal = (rule: Rule) => {
     selectedRule.value = rule;
     form.site_campus_id = String(rule.site_campus_id);
     form.rule_name = rule.rule_name;
+    form.grade_evaluation_mode =
+        rule.grade_evaluation_mode ?? 'enabled_required';
+    form.access_scope = rule.access_scope ?? 'current_term';
     form.bypass_evaluation = rule.bypass_evaluation;
     form.show_gwa_gpa = rule.show_gwa_gpa;
     form.is_active = rule.is_active;
     form.description = rule.description || '';
+    prepareModal();
     isEditModalOpen.value = true;
 };
 
 const submitCreate = () => {
+    if (form.processing) return;
     form.post(store.url(), {
+        onError: focusFirstError,
         onSuccess: () => {
             isCreateModalOpen.value = false;
             form.reset();
@@ -99,8 +234,9 @@ const submitCreate = () => {
 };
 
 const submitUpdate = () => {
-    if (!selectedRule.value) return;
+    if (!selectedRule.value || form.processing || !hasChanges.value) return;
     form.patch(update.url(selectedRule.value.id), {
+        onError: focusFirstError,
         onSuccess: () => {
             isEditModalOpen.value = false;
             selectedRule.value = null;
@@ -109,6 +245,7 @@ const submitUpdate = () => {
 };
 
 const deleteRule = (rule: Rule) => {
+    if (rule.is_active) return;
     if (
         confirm(
             'Are you sure you want to delete this rule? This will be logged.',
@@ -118,8 +255,47 @@ const deleteRule = (rule: Rule) => {
     }
 };
 
+const pendingStatusRule = ref<Rule | null>(null);
+const statusSaving = ref(false);
+const statusError = ref('');
+let statusReturnFocus: HTMLElement | null = null;
 const toggleRule = (rule: Rule) => {
-    router.patch(toggle.url(rule.id));
+    if (statusSaving.value) return;
+    statusReturnFocus =
+        document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+    pendingStatusRule.value = rule;
+    statusError.value = '';
+};
+const closeStatusDialog = (open = false) => {
+    if (!open && !statusSaving.value) pendingStatusRule.value = null;
+};
+const restoreStatusFocus = (event: Event) => {
+    event.preventDefault();
+    statusReturnFocus?.focus();
+};
+const confirmStatusChange = () => {
+    if (!pendingStatusRule.value || statusSaving.value) return;
+    statusSaving.value = true;
+    statusError.value = '';
+    router.patch(
+        toggle.url(pendingStatusRule.value.id),
+        {},
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                pendingStatusRule.value = null;
+            },
+            onError: () => {
+                statusError.value =
+                    'The rule status could not be updated. Please try again.';
+            },
+            onFinish: () => {
+                statusSaving.value = false;
+            },
+        },
+    );
 };
 
 const getActionColor = (action: string) => {
@@ -172,7 +348,9 @@ const getActionColor = (action: string) => {
                             >
                                 <tr>
                                     <th class="px-4 py-3">Campus & Rule</th>
-                                    <th class="px-4 py-3">Evaluation Bypass</th>
+                                    <th class="px-4 py-3">
+                                        Grade Access Policy
+                                    </th>
                                     <th class="px-4 py-3">GWA/GPA</th>
                                     <th class="px-4 py-3">Status</th>
                                     <th class="px-4 py-3 text-right">
@@ -252,7 +430,12 @@ const getActionColor = (action: string) => {
                                                 {{
                                                     rule.bypass_evaluation
                                                         ? 'Bypass Enabled'
-                                                        : 'Strict Evaluation'
+                                                        : (policyOptions.find(
+                                                              (option) =>
+                                                                  option.value ===
+                                                                  rule.grade_evaluation_mode,
+                                                          )?.title ??
+                                                          'Evaluation On / Hide Grades Until Evaluated')
                                                 }}
                                             </span>
                                         </div>
@@ -293,33 +476,32 @@ const getActionColor = (action: string) => {
                                         </div>
                                     </td>
                                     <td class="px-4 py-4">
-                                        <button
-                                            @click="toggleRule(rule)"
-                                            class="group inline-flex items-center gap-2 transition"
+                                        <div
+                                            class="inline-flex items-center gap-2.5"
                                         >
-                                            <div
-                                                class="h-1.5 w-1.5 rounded-full"
-                                                :class="
-                                                    rule.is_active
-                                                        ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]'
-                                                        : 'bg-slate-300'
+                                            <Switch
+                                                :id="`rule-status-${rule.id}`"
+                                                :model-value="rule.is_active"
+                                                :disabled="statusSaving"
+                                                :aria-label="`${rule.is_active ? 'Deactivate' : 'Activate'} ${rule.rule_name} for ${rule.campus.campus_name}`"
+                                                @update:model-value="
+                                                    toggleRule(rule)
                                                 "
-                                            ></div>
+                                            />
                                             <span
-                                                class="text-[11px] font-bold tracking-tight uppercase"
+                                                class="text-xs font-medium"
                                                 :class="
                                                     rule.is_active
                                                         ? 'text-emerald-600 dark:text-emerald-400'
-                                                        : 'text-slate-400'
+                                                        : 'text-slate-500 dark:text-slate-400'
                                                 "
-                                            >
-                                                {{
+                                                >{{
                                                     rule.is_active
                                                         ? 'Active'
-                                                        : 'Disabled'
-                                                }}
-                                            </span>
-                                        </button>
+                                                        : 'Inactive'
+                                                }}</span
+                                            >
+                                        </div>
                                     </td>
                                     <td class="px-4 py-4 text-right">
                                         <div
@@ -332,6 +514,8 @@ const getActionColor = (action: string) => {
                                                 <Edit2 class="size-4" />
                                             </button>
                                             <button
+                                                v-if="!rule.is_active"
+                                                aria-label="Delete inactive rule"
                                                 @click="deleteRule(rule)"
                                                 class="flex size-8 items-center justify-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
                                             >
@@ -361,7 +545,8 @@ const getActionColor = (action: string) => {
                                     to view their final grades even if they
                                     haven't completed the faculty evaluation
                                     process. This rule overrides the system
-                                    default strict checking.
+                                    default behavior of hiding grades when no
+                                    campus rule is active.
                                 </p>
                                 <p class="mt-2 leading-relaxed opacity-80">
                                     Use "Show GWA/GPA" to control whether
@@ -408,8 +593,9 @@ const getActionColor = (action: string) => {
                         type="button"
                         class="flex size-8 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-white"
                         @click="isAuditDrawerOpen = false"
+                        aria-label="Close audit logs"
                     >
-                        ×
+                        <X class="size-4" />
                     </button>
                 </div>
 
@@ -470,179 +656,553 @@ const getActionColor = (action: string) => {
             </aside>
         </div>
 
-        <!-- Create/Edit Modal Placeholder (Manual implementation or use a UI library component) -->
-        <div
-            v-if="isCreateModalOpen || isEditModalOpen"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
-        >
-            <div
-                class="flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-slate-900"
+        <Dialog :open="!!pendingStatusRule" @update:open="closeStatusDialog">
+            <DialogContent
+                :show-close-button="false"
+                class="sm:max-w-md"
+                @close-auto-focus="restoreStatusFocus"
             >
-                <div
-                    class="shrink-0 border-b border-slate-200 px-6 py-4 dark:border-white/10"
+                <DialogTitle
+                    >{{
+                        pendingStatusRule?.is_active ? 'Deactivate' : 'Activate'
+                    }}
+                    Grade Access Rule?</DialogTitle
                 >
-                    <h3
-                        class="text-lg font-bold text-slate-900 dark:text-white"
+                <DialogDescription class="text-sm leading-relaxed">
+                    Confirm
+                    {{
+                        pendingStatusRule?.is_active
+                            ? 'deactivation'
+                            : 'activation'
+                    }}
+                    of
+                    <span class="font-medium text-slate-900 dark:text-white">{{
+                        pendingStatusRule?.rule_name
+                    }}</span>
+                    for {{ pendingStatusRule?.campus.campus_name }}.
+                </DialogDescription>
+                <p
+                    class="text-sm leading-relaxed text-slate-600 dark:text-slate-300"
+                >
+                    {{
+                        pendingStatusRule?.is_active
+                            ? 'This rule will stop applying and its Delete action will become available. Students will use the latest remaining active campus rule, or grades will be hidden if no active rule remains.'
+                            : 'This rule will become active and its Delete action will be hidden. Students use the latest active rule for their campus.'
+                    }}
+                </p>
+                <p
+                    v-if="statusError"
+                    role="alert"
+                    class="text-sm text-red-600 dark:text-red-400"
+                >
+                    {{ statusError }}
+                </p>
+                <div class="flex justify-end gap-3">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        :disabled="statusSaving"
+                        @click="closeStatusDialog()"
+                        >Cancel</Button
                     >
+                    <Button
+                        type="button"
+                        :disabled="statusSaving"
+                        @click="confirmStatusChange"
+                    >
+                        <LoaderCircle
+                            v-if="statusSaving"
+                            class="size-4 animate-spin"
+                            aria-hidden="true"
+                        />
                         {{
-                            isCreateModalOpen ? 'Create New Rule' : 'Edit Rule'
+                            statusSaving
+                                ? 'Updating...'
+                                : pendingStatusRule?.is_active
+                                  ? 'Deactivate Rule'
+                                  : 'Activate Rule'
                         }}
-                    </h3>
+                    </Button>
                 </div>
+            </DialogContent>
+        </Dialog>
 
+        <Dialog :open="modalOpen" @update:open="requestClose">
+            <DialogContent
+                :show-close-button="false"
+                class="flex max-h-[90dvh] w-[calc(100%-1.5rem)] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-[620px]"
+                @close-auto-focus="restoreFocus"
+            >
+                <header
+                    class="relative shrink-0 border-b border-slate-200 px-5 py-5 sm:px-6 dark:border-white/10"
+                >
+                    <DialogTitle class="pr-10 text-lg font-semibold">{{
+                        isCreateModalOpen
+                            ? 'Create Grade Access Rule'
+                            : 'Edit Grade Access Rule'
+                    }}</DialogTitle>
+                    <DialogDescription
+                        class="mt-1.5 pr-6 text-sm leading-relaxed"
+                        >Configure faculty evaluation requirements and student
+                        grade visibility.</DialogDescription
+                    >
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Close grade access rule"
+                        :disabled="form.processing"
+                        class="absolute top-4 right-4"
+                        @click="requestClose()"
+                        ><X class="size-4"
+                    /></Button>
+                </header>
                 <form
+                    data-grade-rule-form
+                    class="flex min-h-0 flex-1 flex-col"
                     @submit.prevent="
                         isCreateModalOpen ? submitCreate() : submitUpdate()
                     "
-                    class="flex min-h-0 flex-1 flex-col"
                 >
-                    <div class="min-h-0 flex-1 space-y-4 overflow-y-auto p-6">
-                        <div class="space-y-1.5">
-                            <label
-                                class="text-xs font-bold text-slate-500 uppercase dark:text-slate-400"
-                                >Campus</label
-                            >
-                            <select
-                                v-model="form.site_campus_id"
-                                class="w-full rounded-lg border-slate-200 text-sm dark:border-white/10 dark:bg-slate-800 dark:text-white"
-                            >
-                                <option value="">Select Campus</option>
-                                <option
-                                    v-for="campus in campuses"
-                                    :key="campus.id"
-                                    :value="String(campus.id)"
-                                >
-                                    {{ campus.campus_name }}
-                                </option>
-                            </select>
-                            <div
-                                v-if="form.errors.site_campus_id"
-                                class="text-[10px] text-red-500"
-                            >
-                                {{ form.errors.site_campus_id }}
-                            </div>
-                        </div>
-
-                        <div class="space-y-1.5">
-                            <label
-                                class="text-xs font-bold text-slate-500 uppercase dark:text-slate-400"
-                                >Rule Name</label
-                            >
-                            <input
-                                v-model="form.rule_name"
-                                type="text"
-                                class="w-full rounded-lg border-slate-200 text-sm dark:border-white/10 dark:bg-slate-800 dark:text-white"
-                                placeholder="e.g. End of Semester Policy"
-                            />
-                            <div
-                                v-if="form.errors.rule_name"
-                                class="text-[10px] text-red-500"
-                            >
-                                {{ form.errors.rule_name }}
-                            </div>
-                        </div>
-
-                        <div
-                            class="flex items-center justify-between gap-4 rounded-lg border border-slate-200 p-3 dark:border-white/10"
+                    <div
+                        class="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6"
+                    >
+                        <p
+                            v-if="Object.keys(form.errors).length"
+                            role="alert"
+                            class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
                         >
-                            <div class="flex min-w-0 flex-col gap-0.5">
-                                <span
-                                    class="text-xs font-bold text-slate-900 dark:text-white"
-                                    >Bypass Evaluation</span
+                            Please correct the highlighted fields and save
+                            again.
+                        </p>
+                        <fieldset :disabled="form.processing" class="space-y-4">
+                            <legend class="mb-3 text-sm font-semibold">
+                                Rule Information
+                            </legend>
+                            <div class="space-y-2">
+                                <label
+                                    for="rule-campus"
+                                    class="text-sm font-medium"
+                                    >Campus
+                                    <span class="text-slate-500"
+                                        >(required)</span
+                                    ></label
                                 >
-                                <span class="text-[10px] text-slate-500"
-                                    >Allow grade viewing without
-                                    evaluation</span
+                                <select
+                                    id="rule-campus"
+                                    v-model="form.site_campus_id"
+                                    required
+                                    :aria-invalid="!!form.errors.site_campus_id"
+                                    aria-describedby="rule-campus-error"
+                                    class="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-white/15 dark:bg-slate-800"
                                 >
+                                    <option value="">Select Campus</option>
+                                    <option
+                                        v-if="
+                                            selectedRule &&
+                                            !campuses.some(
+                                                (campus) =>
+                                                    campus.id ===
+                                                    selectedRule?.site_campus_id,
+                                            )
+                                        "
+                                        :value="
+                                            String(selectedRule.site_campus_id)
+                                        "
+                                    >
+                                        {{ selectedRule.campus.campus_name }}
+                                    </option>
+                                    <option
+                                        v-for="campus in campuses"
+                                        :key="campus.id"
+                                        :value="String(campus.id)"
+                                    >
+                                        {{ campus.campus_name }}
+                                    </option>
+                                </select>
+                                <p
+                                    id="rule-campus-error"
+                                    v-if="form.errors.site_campus_id"
+                                    class="text-sm text-red-600 dark:text-red-400"
+                                >
+                                    {{ form.errors.site_campus_id }}
+                                </p>
                             </div>
-                            <button
-                                type="button"
-                                @click="
-                                    form.bypass_evaluation =
-                                        !form.bypass_evaluation
+                            <div class="space-y-2">
+                                <label
+                                    for="rule-name"
+                                    class="text-sm font-medium"
+                                    >Rule Name
+                                    <span class="text-slate-500"
+                                        >(required)</span
+                                    ></label
+                                >
+                                <input
+                                    id="rule-name"
+                                    v-model="form.rule_name"
+                                    required
+                                    maxlength="255"
+                                    :aria-invalid="!!form.errors.rule_name"
+                                    aria-describedby="rule-name-error"
+                                    class="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-white/15 dark:bg-slate-800"
+                                    placeholder="e.g. End of Semester Policy"
+                                />
+                                <p
+                                    id="rule-name-error"
+                                    v-if="form.errors.rule_name"
+                                    class="text-sm text-red-600 dark:text-red-400"
+                                >
+                                    {{ form.errors.rule_name }}
+                                </p>
+                            </div>
+                        </fieldset>
+                        <fieldset
+                            :disabled="form.processing"
+                            aria-describedby="policy-note policy-error"
+                            class="space-y-3 border-t border-slate-200 pt-5 dark:border-white/10"
+                        >
+                            <legend
+                                class="float-left mb-3 w-full text-sm font-semibold"
+                            >
+                                Grade Access Policy
+                            </legend>
+                            <label
+                                v-for="option in policyOptions"
+                                :key="option.value"
+                                class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-2 hover:border-indigo-400 dark:focus-within:ring-offset-slate-900"
+                                :class="
+                                    form.grade_evaluation_mode === option.value
+                                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10'
+                                        : 'border-slate-200 dark:border-white/15'
                                 "
-                                class="shrink-0 transition"
                             >
-                                <ToggleRight
-                                    v-if="form.bypass_evaluation"
-                                    class="size-6 text-indigo-500"
+                                <input
+                                    v-model="form.grade_evaluation_mode"
+                                    type="radio"
+                                    name="grade_evaluation_mode"
+                                    :value="option.value"
+                                    :aria-invalid="
+                                        !!form.errors.grade_evaluation_mode
+                                    "
+                                    class="mt-0.5 size-4 shrink-0 accent-indigo-600"
                                 />
-                                <ToggleLeft
-                                    v-else
-                                    class="size-6 text-slate-300"
-                                />
-                            </button>
-                        </div>
-
-                        <div
-                            class="flex items-center justify-between gap-4 rounded-lg border border-slate-200 p-3 dark:border-white/10"
-                        >
-                            <div class="flex min-w-0 flex-col gap-0.5">
-                                <span
-                                    class="text-xs font-bold text-slate-900 dark:text-white"
-                                    >Show GWA/GPA</span
+                                <span class="space-y-1"
+                                    ><span
+                                        class="block text-sm font-semibold"
+                                        >{{ option.title }}</span
+                                    ><span
+                                        class="block text-sm leading-relaxed text-slate-600 dark:text-slate-300"
+                                        >{{ option.description }}</span
+                                    ></span
                                 >
-                                <span class="text-[10px] text-slate-500"
-                                    >Allow students to view computed Average GWA
-                                    and Semester GPA</span
+                            </label>
+                            <div class="space-y-2 pt-2">
+                                <label
+                                    for="access-scope"
+                                    class="text-sm font-semibold"
+                                    >Apply Access Policy To</label
                                 >
+                                <select
+                                    id="access-scope"
+                                    v-model="form.access_scope"
+                                    :aria-invalid="!!form.errors.access_scope"
+                                    aria-describedby="access-scope-help access-scope-error"
+                                    class="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-white/15 dark:bg-slate-800"
+                                >
+                                    <option value="all_grades">
+                                        All grades (all terms)
+                                    </option>
+                                    <option value="current_term">
+                                        Current active term only
+                                    </option>
+                                </select>
+                                <p
+                                    id="access-scope-help"
+                                    class="text-sm leading-relaxed text-slate-600 dark:text-slate-400"
+                                >
+                                    Current term uses the active term_id
+                                    configured in the selected campus's Terms
+                                    settings. Other terms remain accessible. If
+                                    no active term is configured, no term is
+                                    affected. Show GWA/GPA remains a campus-wide
+                                    display setting.
+                                </p>
+                                <p
+                                    id="access-scope-error"
+                                    v-if="form.errors.access_scope"
+                                    class="text-sm text-red-600 dark:text-red-400"
+                                >
+                                    {{ form.errors.access_scope }}
+                                </p>
                             </div>
-                            <button
-                                type="button"
-                                @click="form.show_gwa_gpa = !form.show_gwa_gpa"
-                                class="shrink-0 transition"
+                            <p
+                                id="policy-note"
+                                class="text-sm leading-relaxed text-slate-600 dark:text-slate-400"
                             >
-                                <ToggleRight
-                                    v-if="form.show_gwa_gpa"
-                                    class="size-6 text-sky-500"
+                                Evaluation and grade access follow the selected
+                                scope.
+                            </p>
+                            <p
+                                id="policy-error"
+                                v-if="form.errors.grade_evaluation_mode"
+                                class="text-sm text-red-600 dark:text-red-400"
+                            >
+                                {{ form.errors.grade_evaluation_mode }}
+                            </p>
+                            <div
+                                class="rounded-lg border border-slate-200 p-4 dark:border-white/15"
+                            >
+                                <div
+                                    class="flex items-center justify-between gap-4"
+                                >
+                                    <div>
+                                        <label
+                                            for="rule-bypass"
+                                            class="text-sm font-semibold"
+                                            >Bypass Evaluation</label
+                                        >
+                                        <p
+                                            id="bypass-description"
+                                            class="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300"
+                                        >
+                                            Overrides every policy and allows
+                                            grade viewing.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        id="rule-bypass"
+                                        v-model="form.bypass_evaluation"
+                                        aria-describedby="bypass-description"
+                                        :aria-invalid="
+                                            !!form.errors.bypass_evaluation
+                                        "
+                                        :disabled="form.processing"
+                                    />
+                                </div>
+                                <p
+                                    class="mt-2 text-sm font-medium"
+                                    :class="
+                                        form.bypass_evaluation
+                                            ? 'text-indigo-600 dark:text-indigo-300'
+                                            : 'text-slate-500'
+                                    "
+                                >
+                                    {{
+                                        form.bypass_evaluation
+                                            ? 'On: selected policy is overridden'
+                                            : 'Off: selected policy applies'
+                                    }}
+                                </p>
+                                <p
+                                    v-if="form.errors.bypass_evaluation"
+                                    class="mt-2 text-sm text-red-600 dark:text-red-400"
+                                >
+                                    {{ form.errors.bypass_evaluation }}
+                                </p>
+                            </div>
+                        </fieldset>
+                        <section
+                            class="space-y-3 border-t border-slate-200 pt-5 dark:border-white/10"
+                            aria-labelledby="display-options-title"
+                        >
+                            <h3
+                                id="display-options-title"
+                                class="text-sm font-semibold"
+                            >
+                                Additional Display Options
+                            </h3>
+                            <div class="flex items-start justify-between gap-4">
+                                <div>
+                                    <label
+                                        for="rule-gwa"
+                                        class="text-sm font-medium"
+                                        >Show GWA/GPA
+                                        <span class="ml-2 text-slate-500">{{
+                                            form.show_gwa_gpa ? 'On' : 'Off'
+                                        }}</span></label
+                                    >
+                                    <p
+                                        id="gwa-description"
+                                        class="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300"
+                                    >
+                                        Allow students to view their computed
+                                        General Weighted Average and Semester
+                                        GPA when grade access is permitted.
+                                    </p>
+                                </div>
+                                <Switch
+                                    id="rule-gwa"
+                                    v-model="form.show_gwa_gpa"
+                                    aria-describedby="gwa-description"
+                                    :aria-invalid="!!form.errors.show_gwa_gpa"
+                                    :disabled="form.processing"
+                                    class="mt-1"
                                 />
-                                <ToggleLeft
-                                    v-else
-                                    class="size-6 text-slate-300"
-                                />
-                            </button>
-                        </div>
-
-                        <div class="space-y-1.5">
+                            </div>
+                            <p
+                                v-if="form.errors.show_gwa_gpa"
+                                class="text-sm text-red-600 dark:text-red-400"
+                            >
+                                {{ form.errors.show_gwa_gpa }}
+                            </p>
+                        </section>
+                        <div
+                            class="space-y-2 border-t border-slate-200 pt-5 dark:border-white/10"
+                        >
                             <label
-                                class="text-xs font-bold text-slate-500 uppercase dark:text-slate-400"
-                                >Description</label
+                                for="rule-description"
+                                class="text-sm font-semibold"
+                                >Description
+                                <span class="font-normal text-slate-500"
+                                    >(optional)</span
+                                ></label
                             >
                             <textarea
+                                id="rule-description"
                                 v-model="form.description"
                                 rows="3"
-                                class="w-full rounded-lg border-slate-200 text-sm dark:border-white/10 dark:bg-slate-800 dark:text-white"
-                            ></textarea>
+                                :disabled="form.processing"
+                                :aria-invalid="!!form.errors.description"
+                                aria-describedby="description-error"
+                                class="min-h-24 w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-white/15 dark:bg-slate-800"
+                                placeholder="Add an administrative note about this rule..."
+                            />
+                            <p
+                                id="description-error"
+                                v-if="form.errors.description"
+                                class="text-sm text-red-600 dark:text-red-400"
+                            >
+                                {{ form.errors.description }}
+                            </p>
                         </div>
+                        <section
+                            aria-labelledby="access-preview-title"
+                            class="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5"
+                        >
+                            <h3
+                                id="access-preview-title"
+                                class="text-sm font-semibold"
+                            >
+                                Student Access Preview
+                            </h3>
+                            <dl
+                                aria-live="polite"
+                                aria-atomic="true"
+                                class="mt-3 space-y-2 text-sm"
+                            >
+                                <div
+                                    class="flex flex-wrap justify-between gap-x-4 gap-y-1"
+                                >
+                                    <dt
+                                        class="text-slate-600 dark:text-slate-300"
+                                    >
+                                        Faculty Evaluation
+                                    </dt>
+                                    <dd class="font-medium">
+                                        {{ preview.evaluation }}
+                                    </dd>
+                                </div>
+                                <div
+                                    class="flex flex-wrap justify-between gap-x-4 gap-y-1"
+                                >
+                                    <dt
+                                        class="text-slate-600 dark:text-slate-300"
+                                    >
+                                        Grade Access
+                                    </dt>
+                                    <dd class="font-medium">
+                                        {{ preview.access }}
+                                    </dd>
+                                </div>
+                                <div
+                                    class="flex flex-wrap justify-between gap-x-4 gap-y-1"
+                                >
+                                    <dt
+                                        class="text-slate-600 dark:text-slate-300"
+                                    >
+                                        GWA/GPA
+                                    </dt>
+                                    <dd class="font-medium">
+                                        {{ preview.averages }}
+                                    </dd>
+                                </div>
+                            </dl>
+                            <p class="mt-3 text-sm font-medium">
+                                Scope:
+                                {{
+                                    form.access_scope === 'all_grades'
+                                        ? 'All grades, across all terms'
+                                        : 'Current active campus term only'
+                                }}
+                            </p>
+                            <p
+                                v-if="preview.averages === 'Conditional'"
+                                class="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300"
+                            >
+                                Semester GPA is hidden while grades are locked.
+                                The overall GWA panel remains visible and uses
+                                available, unlocked grades only.
+                            </p>
+                            <p
+                                v-if="!form.is_active"
+                                class="mt-3 text-sm leading-relaxed text-amber-700 dark:text-amber-300"
+                            >
+                                This rule is inactive. The preview shows its
+                                settings; students use the latest active rule
+                                for their campus, or grades will be hidden if no
+                                active rule remains.
+                            </p>
+                            <p
+                                v-else
+                                class="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400"
+                            >
+                                Applies when this is the latest active rule for
+                                the selected campus.
+                            </p>
+                        </section>
+                        <p
+                            v-if="form.errors.is_active"
+                            role="alert"
+                            class="text-sm text-red-600 dark:text-red-400"
+                        >
+                            {{ form.errors.is_active }}
+                        </p>
                     </div>
-
-                    <div
-                        class="flex shrink-0 items-center justify-end gap-3 border-t border-slate-200 px-6 py-4 dark:border-white/10"
+                    <footer
+                        class="flex shrink-0 justify-end gap-3 border-t border-slate-200 bg-white px-5 py-4 sm:px-6 dark:border-white/10 dark:bg-slate-900"
                     >
-                        <button
+                        <Button
                             type="button"
-                            @click="
-                                isCreateModalOpen = false;
-                                isEditModalOpen = false;
-                            "
-                            class="h-9 px-4 text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
+                            variant="outline"
                             :disabled="form.processing"
-                            class="inline-flex h-9 items-center justify-center rounded-md bg-indigo-600 px-6 text-xs font-bold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                            class="min-h-11 flex-1 sm:flex-none"
+                            @click="requestClose()"
+                            >Cancel</Button
                         >
+                        <Button
+                            type="submit"
+                            :disabled="
+                                form.processing ||
+                                (isEditModalOpen && !hasChanges)
+                            "
+                            class="min-h-11 flex-1 bg-indigo-600 text-white hover:bg-indigo-700 sm:flex-none"
+                        >
+                            <LoaderCircle
+                                v-if="form.processing"
+                                class="size-4 animate-spin"
+                                aria-hidden="true"
+                            />
                             {{
-                                isCreateModalOpen
-                                    ? 'Create Rule'
-                                    : 'Save Changes'
+                                form.processing
+                                    ? 'Saving...'
+                                    : isCreateModalOpen
+                                      ? 'Create Rule'
+                                      : 'Save Changes'
                             }}
-                        </button>
-                    </div>
+                        </Button>
+                    </footer>
                 </form>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     </SiteSettingsLayout>
 </template>

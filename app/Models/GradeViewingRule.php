@@ -13,6 +13,8 @@ class GradeViewingRule extends Model
     protected $fillable = [
         'site_campus_id',
         'rule_name',
+        'grade_evaluation_mode',
+        'access_scope',
         'bypass_evaluation',
         'show_gwa_gpa',
         'is_active',

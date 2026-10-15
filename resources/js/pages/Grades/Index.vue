@@ -41,6 +41,12 @@ type Student = {
     campus_name: string | null;
     tenant_id: string | null;
     bypass_evaluation?: boolean;
+    access_scope?: 'all_grades' | 'current_term';
+    grade_evaluation_mode?:
+        | 'disabled_visible'
+        | 'disabled_hidden'
+        | 'enabled_required'
+        | 'enabled_optional';
     show_gwa_gpa?: boolean;
     evaluation_id?: string | null;
 };
@@ -67,6 +73,7 @@ type EvaluatedEvaluation = PendingEvaluation & {
 
 type GradeRecord = {
     requires_evaluation?: boolean;
+    evaluation_in_scope?: boolean;
     evaluation_status?: string;
     evaluation_period_id?: string;
     subject_for_evaluation_id?: string;
@@ -440,8 +447,7 @@ const isUnpostedGrade = (row: GradeRecord) =>
     hasFinalGrade(row) &&
     postedDateKeys.some(
         (key) =>
-            Object.prototype.hasOwnProperty.call(row, key) &&
-            row[key] === null,
+            Object.prototype.hasOwnProperty.call(row, key) && row[key] === null,
     );
 
 const gradeRemark = (row: GradeRecord) =>
@@ -527,6 +533,21 @@ const openEvaluationChooser = (row: GradeRecord) => {
     submitSuccess.value = null;
     evaluationModalOpen.value = true;
 };
+
+const evaluationEnabled = computed(
+    () =>
+        !props.student.bypass_evaluation &&
+        ['enabled_required', 'enabled_optional'].includes(
+            props.student.grade_evaluation_mode ?? 'enabled_required',
+        ),
+);
+
+const showEvaluationButton = (group: TermGroup, row: GradeRecord) =>
+    evaluationEnabled.value &&
+    (row.evaluation_in_scope ??
+        (props.student.access_scope === 'all_grades' ||
+            isActiveTermGroup(group))) &&
+    (!row.evaluated_evaluations?.length || !!row.pending_evaluations?.length);
 
 const isEvaluationClosed = (row: GradeRecord) => {
     return (
@@ -1407,11 +1428,10 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                         'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400':
                             evaluation_error_type === 'connectivity',
                         'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400':
-                            evaluation_error_type === 'no_data',
+                            evaluation_error_type === 'no_data' ||
+                            !evaluation_error_type,
                         'bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400':
                             evaluation_error_type === 'missing_context',
-                        'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400':
-                            !evaluation_error_type,
                     }"
                 >
                     <WifiOff
@@ -1834,7 +1854,12 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                 Fitness
                                             </button>
                                             <button
-                                                v-if="row.requires_evaluation"
+                                                v-if="
+                                                    showEvaluationButton(
+                                                        group,
+                                                        row,
+                                                    )
+                                                "
                                                 type="button"
                                                 class="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[9px] font-bold text-white"
                                                 :class="
@@ -1854,12 +1879,16 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                 />
                                                 {{
                                                     isEvaluationClosed(row)
-                                                        ? 'Closed'
+                                                        ? row.evaluation_status ===
+                                                          'Grade Viewing Disabled'
+                                                            ? 'Grades unavailable'
+                                                            : 'Evaluation unavailable'
                                                         : 'Evaluate'
                                                 }}
                                             </button>
                                             <button
                                                 v-else-if="
+                                                    evaluationEnabled &&
                                                     evaluatedSummary(row).length
                                                 "
                                                 type="button"
@@ -1876,7 +1905,12 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                             v-if="row.requires_evaluation"
                                             class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[8px] font-bold text-amber-700 uppercase dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300"
                                         >
-                                            Evaluation required
+                                            {{
+                                                row.evaluation_status ===
+                                                'Grade Viewing Disabled'
+                                                    ? 'Grade viewing disabled'
+                                                    : 'Evaluation required'
+                                            }}
                                         </span>
                                         <span
                                             v-else
@@ -2056,7 +2090,10 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                             >
                                                 <template
                                                     v-if="
-                                                        row.requires_evaluation
+                                                        showEvaluationButton(
+                                                            group,
+                                                            row,
+                                                        )
                                                     "
                                                 >
                                                     <button
@@ -2087,7 +2124,10 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                             isEvaluationClosed(
                                                                 row,
                                                             )
-                                                                ? 'Evaluation is closed'
+                                                                ? row.evaluation_status ===
+                                                                  'Grade Viewing Disabled'
+                                                                    ? 'Grade viewing disabled'
+                                                                    : 'Evaluation unavailable'
                                                                 : 'Evaluate'
                                                         }}
                                                     </button>
@@ -2106,6 +2146,7 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                 </template>
                                                 <button
                                                     v-else-if="
+                                                        evaluationEnabled &&
                                                         evaluatedSummary(row)
                                                             .length
                                                     "
@@ -2136,7 +2177,12 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                     <span
                                                         class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 uppercase dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300"
                                                     >
-                                                        Evaluate faculty first
+                                                        {{
+                                                            row.evaluation_status ===
+                                                            'Grade Viewing Disabled'
+                                                                ? 'Grade viewing disabled'
+                                                                : 'Evaluate faculty first'
+                                                        }}
                                                     </span>
                                                 </template>
                                                 <span

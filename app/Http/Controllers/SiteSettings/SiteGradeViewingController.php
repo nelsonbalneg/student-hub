@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers\SiteSettings;
 
+use App\Enums\GradeAccessScope;
+use App\Enums\GradeEvaluationMode;
 use App\Http\Controllers\Controller;
 use App\Models\GradeViewingLog;
 use App\Models\GradeViewingRule;
 use App\Models\SiteCampus;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -32,6 +35,8 @@ class SiteGradeViewingController extends Controller
         $validated = $request->validate([
             'site_campus_id' => 'required|exists:site_campuses,id',
             'rule_name' => 'required|string|max:255',
+            'grade_evaluation_mode' => ['required', Rule::enum(GradeEvaluationMode::class)],
+            'access_scope' => ['required', Rule::enum(GradeAccessScope::class)],
             'bypass_evaluation' => 'required|boolean',
             'show_gwa_gpa' => 'required|boolean',
             'is_active' => 'required|boolean',
@@ -60,6 +65,8 @@ class SiteGradeViewingController extends Controller
         $validated = $request->validate([
             'site_campus_id' => 'required|exists:site_campuses,id',
             'rule_name' => 'required|string|max:255',
+            'grade_evaluation_mode' => ['required', Rule::enum(GradeEvaluationMode::class)],
+            'access_scope' => ['required', Rule::enum(GradeAccessScope::class)],
             'bypass_evaluation' => 'required|boolean',
             'show_gwa_gpa' => 'required|boolean',
             'is_active' => 'required|boolean',
@@ -88,13 +95,14 @@ class SiteGradeViewingController extends Controller
 
     public function destroy(Request $request, GradeViewingRule $rule): RedirectResponse
     {
+        abort_if($rule->is_active, 422, 'Deactivate this rule before deleting it.');
+
         $oldValues = $rule->toArray();
-        $ruleId = $rule->id;
 
         $rule->delete();
 
         GradeViewingLog::create([
-            'rule_id' => $ruleId,
+            'rule_id' => null,
             'user_id' => auth()->id(),
             'action' => 'deleted',
             'changes' => $oldValues,
