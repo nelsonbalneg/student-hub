@@ -157,9 +157,8 @@ const navigatePage = (url: string | null) => {
                             estimated values intended to provide awareness and
                             visibility into the environmental impact of digital
                             platform usage. The calculations are based on
-                            estimated energy consumption, data transfer
-                            activity, and industry-standard carbon conversion
-                            methodologies.
+                            response data size and configured operational energy
+                            and electricity carbon factors.
                         </p>
                         <div class="sustainability-note mt-3">
                             <Info class="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -231,9 +230,14 @@ const navigatePage = (url: string | null) => {
                 <div>
                     <h3>How estimates are computed</h3>
                     <p>
-                        Values are derived from estimated data transfer,
-                        estimated energy consumption, and configured carbon
-                        conversion factors used by the platform.
+                        Response data in decimal GB × energy intensity (default
+                        0.194 kWh/GB) × electricity carbon intensity (default
+                        494 g CO2e/kWh). These defaults use the operational
+                        factors from Sustainable Web Design model v4. Browser
+                        assets, caching, compression after the response, and
+                        embodied emissions are not measured. Unknown streamed
+                        response sizes use a fallback estimate. Older records
+                        retain their original estimates and conversion factors.
                     </p>
                 </div>
                 <div>
@@ -384,7 +388,7 @@ const navigatePage = (url: string | null) => {
                                 {{ log.estimated_data_kb }} KB
                             </td>
                             <td class="report-td">
-                                {{ log.estimated_energy_kwh }}
+                                {{ log.estimated_energy_kwh }} kWh
                             </td>
                             <td
                                 class="report-td font-bold text-emerald-700 dark:text-emerald-300"

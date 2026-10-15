@@ -88,9 +88,10 @@ class CarbonFootprintController extends Controller
             ->withoutEagerLoads()
             ->selectRaw("{$expression} as period, SUM(estimated_co2e_grams) as co2e, COUNT(*) as views")
             ->groupByRaw($expression)
-            ->orderByRaw($expression)
+            ->orderByRaw("{$expression} DESC")
             ->limit(30)
             ->get()
+            ->reverse()
             ->map(fn ($row): array => [
                 'label' => (string) $row->period,
                 'co2e' => round((float) $row->co2e, 4),

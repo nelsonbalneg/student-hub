@@ -122,6 +122,8 @@ export default defineConfig({
             },
         }),
         wayfinder({
+            // Generate from current route definitions, including newly deployed routes.
+            command: 'php artisan route:clear && php artisan wayfinder:generate',
             formVariants: true,
         }),
         normalizeLaravelManifest(),

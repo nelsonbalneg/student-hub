@@ -175,11 +175,15 @@ sudo systemctl start laravel-queue-worker
 ```bash
 php artisan migrate --force
 php artisan config:cache
-php artisan route:cache
 php artisan view:cache
-php artisan wayfinder:generate --no-interaction
 npm run build
+php artisan route:cache
 ```
+
+The Vite build clears the route cache before generating Wayfinder imports. Cache
+routes after the build so newly deployed endpoints are included. If a build reports
+a missing generated route import, confirm the latest route and controller files
+were deployed, then run `npm run build` again.
 
 ## 12. Troubleshooting
 
