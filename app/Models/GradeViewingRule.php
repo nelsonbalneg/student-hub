@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class GradeViewingRule extends Model
@@ -15,6 +16,7 @@ class GradeViewingRule extends Model
         'rule_name',
         'grade_evaluation_mode',
         'access_scope',
+        'site_academic_term_id',
         'bypass_evaluation',
         'show_gwa_gpa',
         'is_active',
@@ -47,5 +49,15 @@ class GradeViewingRule extends Model
     public function logs(): HasMany
     {
         return $this->hasMany(GradeViewingLog::class, 'rule_id');
+    }
+
+    public function overrideUsers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'grade_rule_user_overrides')->withPivot('granted_by')->withTimestamps();
+    }
+
+    public function selectedAcademicTerm(): BelongsTo
+    {
+        return $this->belongsTo(SiteAcademicTerm::class, 'site_academic_term_id');
     }
 }

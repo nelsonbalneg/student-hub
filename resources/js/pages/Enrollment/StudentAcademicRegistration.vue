@@ -1,34 +1,33 @@
 <script setup lang="ts">
 import { Head, usePage } from '@inertiajs/vue3';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import {
-    AlertTriangle,
-    BadgeCheck,
-    BookOpenCheck,
-    CalendarDays,
-    CheckCircle2,
-    ClipboardCheck,
-    FileCheck2,
+    Eye,
     GraduationCap,
     Loader2,
     RefreshCw,
-    ShieldCheck,
-    UserRound,
-    X,
+    Send,
+    CheckCircle2,
+    Clock3,
+    BookOpen,
+    Layers,
+    CircleHelp,
 } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
+import {
+    records as sarStatus,
+    submitConfirmation as submitSar,
+} from '@/actions/App/Http/Controllers/EnrollmentController';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogTitle,
+} from '@/components/ui/dialog';
 
-const page = usePage();
-const user = computed(() => page.props.auth?.user);
-
-const isSubmitting = ref(false);
-const agreed = ref(false);
-const submitted = ref(false);
-const submittedAt = ref<string | null>(null);
-const selectedTransactionType = ref<'Regular' | 'Irregular' | ''>('');
-const showTransactionTypeModal = ref(false);
-const statusLoading = ref(false);
-const statusData = ref<{
+interface SarRecord {
     studentNo: string | null;
     studentName: string | null;
     termId: string | number | null;
@@ -42,593 +41,711 @@ const statusData = ref<{
     campusName: string | null;
     sarId: number | null;
     updatedAt: string | null;
-} | null>(null);
-
-const isAlreadySubmitted = computed(() => {
-    const status = String(statusData.value?.status ?? '').toLowerCase();
-    return (
-        status === 'submitted' ||
-        status === 'enrolled' ||
-        statusData.value?.submitted === true
+    checkedAt?: string | null;
+    can_apply: boolean;
+    registration_open: boolean;
+    verification_error: string | null;
+}
+const page = usePage();
+const user = computed(() => page.props.auth?.user);
+const statusData = ref<SarRecord | null>(null);
+const statusLoading = ref(true);
+const statusError = ref('');
+const records = ref<SarRecord[]>([]);
+const isSubmitting = ref(false);
+const detailsOpen = ref(false);
+const applicationOpen = ref(false);
+const agreed = ref(false);
+const selectedTransactionType = ref<'Regular' | 'Irregular' | ''>('');
+const isRecordSubmitted = (record: SarRecord) =>
+    record.submitted ||
+    ['submitted', 'enrolled'].includes(
+        String(record.status ?? '').toLowerCase(),
     );
-});
-
-const formattedDateChecked = computed(() => {
-    const raw = statusData.value?.dateCreated;
+const isRecordEnrolled = (record: SarRecord) =>
+    String(record.status ?? '')
+        .trim()
+        .toLowerCase() === 'enrolled';
+const registrationStatusLabel = (record: SarRecord) =>
+    isRecordEnrolled(record)
+        ? 'Enrolled'
+        : isRecordSubmitted(record)
+          ? 'Already Submitted'
+          : 'Not Submitted';
+const isAlreadySubmitted = computed(
+    () => !!statusData.value && isRecordSubmitted(statusData.value),
+);
+const openDetails = (row: SarRecord) => {
+    statusData.value = row;
+    detailsOpen.value = true;
+};
+const formatDate = (raw: string | null | undefined) => {
     if (!raw) return '-';
     const date = new Date(raw);
-    if (Number.isNaN(date.getTime())) return raw;
-    return new Intl.DateTimeFormat('en-US', {
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-    }).format(date);
-});
-
-const formattedUpdatedAt = computed(() => {
-    const raw = statusData.value?.updatedAt;
-    if (!raw) return '-';
-    const date = new Date(raw);
-    if (Number.isNaN(date.getTime())) return raw;
-    return new Intl.DateTimeFormat('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-    }).format(date);
-});
-
-const statusLabel = computed(() => {
-    if (statusLoading.value) return 'Checking';
-    if (submitted.value || isAlreadySubmitted.value) return 'Submitted';
-    return statusData.value?.status || 'Not submitted';
-});
-
-const statusTone = computed(() => {
-    const status = String(statusLabel.value).toLowerCase();
-    if (status === 'submitted' || status === 'enrolled') {
-        return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300';
-    }
-    if (status === 'checking') {
-        return 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300';
-    }
-    return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300';
-});
-
-const recordRows = computed(() => [
+    return Number.isNaN(date.getTime())
+        ? raw
+        : new Intl.DateTimeFormat('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit',
+          }).format(date);
+};
+const recordRows = computed<Array<[string, string | number]>>(() => [
     [
-        'Student No.',
-        statusData.value?.studentNo || user.value?.student_number || '-',
+        'Student ID Number',
+        String(
+            statusData.value?.studentNo || user.value?.student_number || '-',
+        ),
     ],
     ['Student Name', statusData.value?.studentName || user.value?.name || '-'],
+    ['Campus', statusData.value?.campusName || '-'],
+    ['Academic Term', statusData.value?.term || '-'],
+    ['Term ID', statusData.value?.termId ?? '-'],
+    ['Type', statusData.value?.transactionType || '-'],
     ['Program', statusData.value?.programName || '-'],
     ['Curriculum', statusData.value?.curriculum || '-'],
-    ['Campus', statusData.value?.campusName || '-'],
-    ['SAR ID', statusData.value?.sarId || '-'],
-    ['Transaction Type', statusData.value?.transactionType || '-'],
-    ['Date Checked', formattedDateChecked.value],
+    ['SAR ID', statusData.value?.sarId ?? '-'],
+    [
+        'Status',
+        statusData.value?.status ||
+            (isAlreadySubmitted.value ? 'Submitted' : 'Not submitted'),
+    ],
+    ['Date Created', formatDate(statusData.value?.dateCreated)],
+    ['Date Updated', formatDate(statusData.value?.updatedAt)],
 ]);
-
-const getCookie = (name: string): string | null => {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) {
-        return parts.pop()?.split(';').shift() ?? null;
-    }
-    return null;
-};
-
 const loadStatus = async () => {
+    if (isSubmitting.value) return;
     statusLoading.value = true;
+    statusError.value = '';
     try {
-        const response = await fetch('/student-academic-registration/status', {
-            method: 'GET',
+        const response = await fetch(sarStatus.url(), {
             credentials: 'same-origin',
-            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
         });
-        const data = await response.json();
-        if (response.ok && data?.data) {
-            statusData.value = data.data;
+        const result = await response.json();
+        if (!response.ok || !Array.isArray(result?.data))
+            throw new Error(
+                result?.message ||
+                    'Unable to load registration status. Please try again.',
+            );
+        records.value = result.data;
+        if (statusData.value) {
+            const updated = records.value.find(
+                (row) =>
+                    String(row.termId) === String(statusData.value?.termId),
+            );
+            statusData.value = updated ?? null;
+            if (!updated) {
+                detailsOpen.value = false;
+                applicationOpen.value = false;
+            }
         }
     } catch (error) {
-        console.log('Enrollment status error:', error);
+        statusError.value =
+            error instanceof Error
+                ? error.message
+                : 'Unable to load registration status. Please try again.';
     } finally {
         statusLoading.value = false;
     }
 };
-
+const openApplication = (row: SarRecord) => {
+    if (
+        statusLoading.value ||
+        statusError.value ||
+        !row.can_apply ||
+        isRecordSubmitted(row)
+    )
+        return;
+    statusData.value = row;
+    agreed.value = false;
+    selectedTransactionType.value = '';
+    applicationOpen.value = true;
+};
+const closeApplication = (open = false) => {
+    if (open || isSubmitting.value) return;
+    applicationOpen.value = false;
+};
+const getCookie = (name: string) => {
+    const parts = `; ${document.cookie}`.split(`; ${name}=`);
+    return parts.length === 2
+        ? (parts.pop()?.split(';').shift() ?? null)
+        : null;
+};
 const submitConfirmation = async () => {
-    if (!selectedTransactionType.value) {
-        toast.warning('Please select transaction type: Regular or Irregular.');
+    if (
+        isSubmitting.value ||
+        isAlreadySubmitted.value ||
+        !statusData.value?.can_apply ||
+        !agreed.value ||
+        !selectedTransactionType.value
+    )
         return;
-    }
-    if (isSubmitting.value) return;
-    if (!agreed.value) {
-        toast.warning(
-            'Please read and agree to the terms above before submitting.',
-        );
-        return;
-    }
-
     isSubmitting.value = true;
-
+    let succeeded = false;
     try {
-        const xsrfToken = getCookie('XSRF-TOKEN');
-        const response = await fetch('/student-academic-registration/confirm', {
+        const token = getCookie('XSRF-TOKEN');
+        const response = await fetch(submitSar.url(), {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
                 'Content-Type': 'application/json',
+                Accept: 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
-                ...(xsrfToken
-                    ? { 'X-XSRF-TOKEN': decodeURIComponent(xsrfToken) }
-                    : {}),
+                ...(token ? { 'X-XSRF-TOKEN': decodeURIComponent(token) } : {}),
             },
             body: JSON.stringify({
                 transactionType: selectedTransactionType.value,
+                term_id: String(statusData.value?.termId),
             }),
         });
-
-        const data = await response.json();
-
-        if (response.ok) {
-            const normalizedMessage = (data?.message || '').toLowerCase();
-            if (normalizedMessage === 'added') {
-                toast.success(
-                    'Enrollment confirmation submitted successfully.',
-                );
-                submitted.value = true;
-                submittedAt.value = new Date().toLocaleString();
-            } else if (normalizedMessage === 'exists') {
-                toast.warning('Enrollment confirmation already exists.');
-                submitted.value = true;
-            } else {
-                toast.success(
-                    data?.message || 'Enrollment confirmation submitted.',
-                );
-                submitted.value = true;
-                submittedAt.value = new Date().toLocaleString();
-            }
-            await loadStatus();
-        } else {
-            toast.error(data?.message || 'Unable to submit confirmation.');
+        const result = await response.json();
+        if (!response.ok)
+            throw new Error(
+                result?.message || 'Unable to submit confirmation.',
+            );
+        if (statusData.value) {
+            statusData.value.submitted = true;
+            statusData.value.status = 'Submitted';
+            statusData.value.transactionType = selectedTransactionType.value;
         }
+        applicationOpen.value = false;
+        succeeded = true;
+        toast.success(
+            String(result?.message ?? '').toLowerCase() === 'exists'
+                ? 'Enrollment confirmation already exists.'
+                : 'Enrollment confirmation submitted successfully.',
+        );
     } catch (error) {
-        toast.error('Unable to submit confirmation.');
-        console.log('Enrollment confirmation error:', error);
+        toast.error(
+            error instanceof Error
+                ? error.message
+                : 'Unable to submit confirmation.',
+        );
     } finally {
         isSubmitting.value = false;
     }
+    if (succeeded) await loadStatus();
 };
-
-const openConfirmationModal = () => {
-    if (!agreed.value) {
-        toast.warning(
-            'Please read and agree to the terms above before submitting.',
-        );
-        return;
-    }
-    if (isAlreadySubmitted.value || isSubmitting.value) return;
-    selectedTransactionType.value = '';
-    showTransactionTypeModal.value = true;
-};
-
 onMounted(loadStatus);
-
-watch(
-    isAlreadySubmitted,
-    (value) => {
-        if (value) {
-            agreed.value = true;
-        }
-    },
-    { immediate: true },
-);
 </script>
 
 <template>
-    <Head title="Student Academic Registration" />
-
-    <div class="flex h-full flex-1 flex-col gap-4 p-4 lg:p-6">
+    <Head title="SAR" />
+    <div
+        class="flex h-full min-w-0 flex-1 flex-col gap-4 p-3 sm:gap-5 sm:p-4 lg:p-6"
+    >
         <section
-            class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+            class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
         >
-            <div
-                class="flex flex-col gap-4 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between dark:border-white/10"
+            <header
+                class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 p-4 dark:border-white/10"
             >
-                <div class="flex min-w-0 items-center gap-3">
+                <div
+                    class="flex min-w-0 flex-1 items-start gap-3 sm:items-center"
+                >
                     <div
-                        class="flex size-11 shrink-0 items-center justify-center rounded-lg border border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300"
+                        class="rounded-lg bg-sky-50 p-3 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300"
                     >
                         <GraduationCap class="size-5" />
                     </div>
-                    <div class="min-w-0">
-                        <h1
-                            class="truncate text-xl font-semibold tracking-tight text-slate-950 dark:text-white"
-                        >
+                    <div>
+                        <h1 class="text-base font-semibold sm:text-lg">
                             Student Academic Registration
                         </h1>
-                        <p class="text-xs text-slate-500 dark:text-slate-400">
-                            Enrollment confirmation workspace for the active
+                        <p
+                            class="mt-1 text-sm text-slate-600 dark:text-slate-400"
+                        >
+                            View your registration or apply for the current
                             academic term.
                         </p>
                     </div>
                 </div>
-
-                <div class="flex flex-wrap items-center gap-2">
-                    <span
-                        class="inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs font-semibold"
-                        :class="statusTone"
-                    >
-                        <Loader2
-                            v-if="statusLoading"
-                            class="size-3.5 animate-spin"
-                        />
-                        <CheckCircle2 v-else class="size-3.5" />
-                        {{ statusLabel }}
-                    </span>
-                    <span
-                        class="inline-flex h-7 items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 text-xs font-semibold text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
-                    >
-                        <CalendarDays class="size-3.5 text-slate-400" />
-                        {{ statusData?.term ?? 'No active term' }}
-                    </span>
-                    <button
-                        type="button"
-                        class="inline-flex h-7 items-center gap-1.5 rounded-md border border-slate-200 px-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 disabled:opacity-60 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-white"
-                        :disabled="statusLoading"
-                        @click="loadStatus"
-                    >
-                        <RefreshCw
-                            class="size-3.5"
-                            :class="{ 'animate-spin': statusLoading }"
-                        />
-                        Refresh
-                    </button>
-                </div>
-            </div>
-
+                <Button
+                    type="button"
+                    variant="outline"
+                    class="min-h-11 w-full sm:w-auto"
+                    :disabled="statusLoading || isSubmitting"
+                    @click="loadStatus"
+                    ><RefreshCw
+                        class="size-4"
+                        :class="{ 'animate-spin': statusLoading }"
+                    />Refresh</Button
+                >
+            </header>
             <div
-                class="grid divide-y divide-slate-200 text-xs sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4 dark:divide-white/10"
+                v-if="statusError"
+                role="alert"
+                class="m-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
             >
-                <div class="flex items-center justify-between gap-3 px-4 py-3">
-                    <span class="font-medium text-slate-500">Student</span>
-                    <span
-                        class="truncate text-right font-semibold text-slate-900 dark:text-white"
+                {{ statusError }} Use Refresh to try again.
+            </div>
+            <div
+                class="space-y-4 bg-slate-50/60 p-3 sm:p-4 xl:hidden dark:bg-white/[0.02]"
+            >
+                <div
+                    v-if="statusLoading"
+                    role="status"
+                    class="flex items-center justify-center gap-2 py-8 text-sm text-slate-500"
+                >
+                    <Loader2 class="size-4 animate-spin" />Loading
+                    registration...
+                </div>
+                <div
+                    v-else-if="!records.length"
+                    class="rounded-lg border border-dashed border-slate-200 p-5 text-center text-sm leading-relaxed text-slate-500 dark:border-white/15"
+                >
+                    No registration terms are configured for your campus.
+                    Registration is closed.
+                </div>
+                <article
+                    v-for="row in statusLoading ? [] : records"
+                    :key="String(row.termId)"
+                    :aria-label="`Registration for ${row.term}`"
+                    class="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
+                >
+                    <header
+                        class="space-y-1 border-b border-slate-100 p-4 dark:border-white/10"
                     >
-                        {{
-                            statusData?.studentNo || user?.student_number || '-'
-                        }}
-                    </span>
-                </div>
-                <div class="flex items-center justify-between gap-3 px-4 py-3">
-                    <span class="font-medium text-slate-500">Campus</span>
-                    <span
-                        class="truncate text-right font-semibold text-slate-900 dark:text-white"
+                        <h2
+                            class="text-base leading-relaxed font-semibold text-slate-950 dark:text-white"
+                        >
+                            {{ row.term }}
+                        </h2>
+                        <p class="text-sm text-slate-600 dark:text-slate-300">
+                            {{ row.campusName || '-' }}
+                        </p>
+                    </header>
+                    <div class="space-y-4 p-4">
+                        <dl class="grid min-w-0 grid-cols-2 gap-4 text-sm">
+                            <div class="min-w-0">
+                                <dt class="text-slate-500 dark:text-slate-400">
+                                    ID Number
+                                </dt>
+                                <dd class="mt-1 font-medium break-words">
+                                    {{ row.studentNo || '-' }}
+                                </dd>
+                            </div>
+                            <div class="min-w-0">
+                                <dt class="text-slate-500 dark:text-slate-400">
+                                    Date Updated
+                                </dt>
+                                <dd class="mt-1 font-medium break-words">
+                                    {{ formatDate(row.updatedAt) }}
+                                </dd>
+                            </div>
+                        </dl>
+                        <dl class="flex flex-wrap gap-x-6 gap-y-3">
+                            <div class="space-y-1.5">
+                                <dt
+                                    class="text-sm text-slate-500 dark:text-slate-400"
+                                >
+                                    Type
+                                </dt>
+                                <dd>
+                                    <Badge
+                                        variant="outline"
+                                        :class="
+                                            row.transactionType?.toLowerCase() ===
+                                            'regular'
+                                                ? 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300'
+                                                : row.transactionType?.toLowerCase() ===
+                                                    'irregular'
+                                                  ? 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300'
+                                                  : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-white/15 dark:bg-white/5 dark:text-slate-300'
+                                        "
+                                    >
+                                        <BookOpen
+                                            v-if="
+                                                row.transactionType?.toLowerCase() ===
+                                                'regular'
+                                            "
+                                            aria-hidden="true"
+                                        />
+                                        <Layers
+                                            v-else-if="
+                                                row.transactionType?.toLowerCase() ===
+                                                'irregular'
+                                            "
+                                            aria-hidden="true"
+                                        />
+                                        <CircleHelp v-else aria-hidden="true" />
+                                        {{
+                                            row.transactionType ||
+                                            'Not selected'
+                                        }}
+                                    </Badge>
+                                </dd>
+                            </div>
+                            <div class="space-y-1.5">
+                                <dt
+                                    class="text-sm text-slate-500 dark:text-slate-400"
+                                >
+                                    Status
+                                </dt>
+                                <dd>
+                                    <Badge
+                                        variant="outline"
+                                        :class="
+                                            isRecordSubmitted(row)
+                                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                                : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300'
+                                        "
+                                    >
+                                        <GraduationCap
+                                            v-if="isRecordEnrolled(row)"
+                                            aria-hidden="true"
+                                        />
+                                        <CheckCircle2
+                                            v-else-if="isRecordSubmitted(row)"
+                                            aria-hidden="true"
+                                        />
+                                        <Clock3 v-else aria-hidden="true" />
+                                        {{ registrationStatusLabel(row) }}
+                                    </Badge>
+                                </dd>
+                            </div>
+                        </dl>
+                        <p
+                            v-if="row.verification_error"
+                            class="text-sm leading-relaxed text-red-600 dark:text-red-400"
+                        >
+                            {{ row.verification_error }}
+                        </p>
+                        <Button
+                            v-if="isRecordSubmitted(row)"
+                            type="button"
+                            variant="outline"
+                            class="min-h-11 w-full"
+                            @click="openDetails(row)"
+                            ><Eye class="size-4" />View Details</Button
+                        >
+                        <Button
+                            v-else-if="row.registration_open"
+                            type="button"
+                            class="min-h-11 w-full"
+                            :disabled="
+                                !row.can_apply || !!statusError || isSubmitting
+                            "
+                            @click="openApplication(row)"
+                            ><Send class="size-4" />Apply</Button
+                        >
+                        <p
+                            v-else
+                            class="rounded-lg bg-slate-100 px-3 py-3 text-center text-sm font-medium text-slate-600 dark:bg-white/5 dark:text-slate-400"
+                        >
+                            Registration Closed
+                        </p>
+                    </div>
+                </article>
+            </div>
+            <div class="hidden overflow-x-auto xl:block">
+                <table class="w-full min-w-[1000px] text-left text-sm">
+                    <caption class="sr-only">
+                        Campus registration terms
+                    </caption>
+                    <thead
+                        class="bg-slate-50 text-slate-600 dark:bg-white/5 dark:text-slate-300"
                     >
-                        {{ statusData?.campusName || '-' }}
-                    </span>
-                </div>
-                <div class="flex items-center justify-between gap-3 px-4 py-3">
-                    <span class="font-medium text-slate-500">Type</span>
-                    <span class="font-semibold text-slate-900 dark:text-white">
-                        {{ statusData?.transactionType || 'Pending' }}
-                    </span>
-                </div>
-                <div class="flex items-center justify-between gap-3 px-4 py-3">
-                    <span class="font-medium text-slate-500">Updated</span>
-                    <span class="font-semibold text-slate-900 dark:text-white">
-                        {{ formattedUpdatedAt }}
-                    </span>
-                </div>
+                        <tr>
+                            <th
+                                v-for="column in [
+                                    'ID Number',
+                                    'Campus',
+                                    'Term',
+                                    'Type',
+                                    'Date Updated',
+                                    'Status',
+                                    'Action',
+                                ]"
+                                :key="column"
+                                scope="col"
+                                class="px-4 py-3 font-semibold"
+                                :class="column === 'Action' ? 'text-right' : ''"
+                            >
+                                {{ column }}
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-if="statusLoading">
+                            <td
+                                colspan="7"
+                                class="px-4 py-8 text-center text-slate-500"
+                            >
+                                <span
+                                    class="inline-flex items-center gap-2"
+                                    role="status"
+                                    ><Loader2
+                                        class="size-4 animate-spin"
+                                    />Loading registration...</span
+                                >
+                            </td>
+                        </tr>
+                        <tr
+                            v-for="row in statusLoading ? [] : records"
+                            :key="String(row.termId)"
+                            class="border-t border-slate-100 dark:border-white/10"
+                        >
+                            <td class="px-4 py-4 font-medium">
+                                {{ row.studentNo || '-' }}
+                            </td>
+                            <td class="px-4 py-4">
+                                {{ row.campusName || '-' }}
+                            </td>
+                            <td class="px-4 py-4">
+                                {{ row.term }}
+                            </td>
+                            <td class="px-4 py-4">
+                                <Badge
+                                    variant="outline"
+                                    :class="
+                                        row.transactionType?.toLowerCase() ===
+                                        'regular'
+                                            ? 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300'
+                                            : row.transactionType?.toLowerCase() ===
+                                                'irregular'
+                                              ? 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300'
+                                              : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-white/15 dark:bg-white/5 dark:text-slate-300'
+                                    "
+                                >
+                                    <BookOpen
+                                        v-if="
+                                            row.transactionType?.toLowerCase() ===
+                                            'regular'
+                                        "
+                                        aria-hidden="true"
+                                    />
+                                    <Layers
+                                        v-else-if="
+                                            row.transactionType?.toLowerCase() ===
+                                            'irregular'
+                                        "
+                                        aria-hidden="true"
+                                    />
+                                    <CircleHelp v-else aria-hidden="true" />
+                                    {{ row.transactionType || 'Not selected' }}
+                                </Badge>
+                            </td>
+                            <td class="px-4 py-4">
+                                {{ formatDate(row.updatedAt) }}
+                            </td>
+                            <td class="px-4 py-4">
+                                <Badge
+                                    variant="outline"
+                                    :class="
+                                        isRecordSubmitted(row)
+                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                            : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300'
+                                    "
+                                >
+                                    <GraduationCap
+                                        v-if="isRecordEnrolled(row)"
+                                        aria-hidden="true"
+                                    />
+                                    <CheckCircle2
+                                        v-else-if="isRecordSubmitted(row)"
+                                        aria-hidden="true"
+                                    />
+                                    <Clock3 v-else aria-hidden="true" />
+                                    {{ registrationStatusLabel(row) }}
+                                </Badge>
+                            </td>
+                            <td class="px-4 py-4 text-right">
+                                <div class="flex flex-col items-end gap-2">
+                                    <span
+                                        v-if="row.verification_error"
+                                        class="max-w-52 text-xs text-red-600 dark:text-red-400"
+                                        >{{ row.verification_error }}</span
+                                    >
+                                    <Button
+                                        v-if="isRecordSubmitted(row)"
+                                        type="button"
+                                        variant="outline"
+                                        @click="openDetails(row)"
+                                        ><Eye class="size-4" />View</Button
+                                    >
+                                    <Button
+                                        v-else-if="row.registration_open"
+                                        type="button"
+                                        :disabled="
+                                            !row.can_apply ||
+                                            !!statusError ||
+                                            isSubmitting
+                                        "
+                                        @click="openApplication(row)"
+                                        ><Send class="size-4" />Apply</Button
+                                    >
+                                    <span v-else class="text-sm text-slate-500"
+                                        >Closed</span
+                                    >
+                                </div>
+                            </td>
+                        </tr>
+                        <tr v-if="!statusLoading && !records.length">
+                            <td
+                                colspan="7"
+                                class="px-4 py-8 text-center text-slate-500"
+                            >
+                                No registration terms are configured for your
+                                campus. Registration is closed.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </section>
-
-        <div class="grid gap-4 xl:grid-cols-[1fr_380px]">
-            <div class="space-y-4">
-                <section
-                    class="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
-                >
-                    <div
-                        class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-white/10"
-                    >
-                        <div class="flex items-center gap-2">
-                            <UserRound class="size-4 text-slate-400" />
-                            <h2
-                                class="text-sm font-semibold text-slate-900 dark:text-white"
-                            >
-                                Current SAR Record
-                            </h2>
-                        </div>
-                        <span
-                            v-if="statusLoading"
-                            class="inline-flex items-center gap-1 text-xs font-medium text-slate-500"
-                        >
-                            <Loader2 class="size-3.5 animate-spin" />
-                            Loading
-                        </span>
-                    </div>
-
-                    <dl
-                        v-if="!statusLoading"
-                        class="grid divide-y divide-slate-100 md:grid-cols-2 md:divide-x dark:divide-white/10 md:[&>*:nth-child(odd)]:border-l-0"
-                    >
-                        <div
-                            v-for="([label, value], index) in recordRows"
-                            :key="label"
-                            class="grid gap-1 px-4 py-3"
-                            :class="
-                                index === 2 || index === 3
-                                    ? 'md:col-span-2 md:border-l-0'
-                                    : ''
-                            "
-                        >
-                            <dt
-                                class="text-[11px] font-bold tracking-wide text-slate-500 uppercase"
-                            >
-                                {{ label }}
-                            </dt>
-                            <dd
-                                class="min-h-5 text-sm font-semibold text-slate-900 dark:text-white"
-                            >
-                                {{ value }}
-                            </dd>
-                        </div>
-                    </dl>
-                    <div v-else class="grid gap-2 p-4 sm:grid-cols-2">
-                        <div
-                            v-for="item in 6"
-                            :key="item"
-                            class="h-14 animate-pulse rounded-md bg-slate-100 dark:bg-white/10"
-                        ></div>
-                    </div>
-                </section>
-
-                <section
-                    class="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950"
-                >
-                    <div
-                        class="flex items-center gap-2 border-b border-slate-200 px-4 py-3 dark:border-white/10"
-                    >
-                        <ShieldCheck class="size-4 text-slate-400" />
-                        <h2
-                            class="text-sm font-semibold text-slate-900 dark:text-white"
-                        >
-                            Compliance Reminders
-                        </h2>
-                    </div>
-
-                    <div class="divide-y divide-slate-100 dark:divide-white/10">
-                        <div class="flex gap-3 px-4 py-3">
-                            <BadgeCheck
-                                class="mt-0.5 size-4 shrink-0 text-sky-600 dark:text-sky-300"
-                            />
-                            <p
-                                class="text-sm text-slate-700 dark:text-slate-300"
-                            >
-                                Provide accurate and truthful information in all
-                                academic profiles and submissions.
-                            </p>
-                        </div>
-                        <div class="flex gap-3 px-4 py-3">
-                            <AlertTriangle
-                                class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-300"
-                            />
-                            <p
-                                class="text-sm text-slate-700 dark:text-slate-300"
-                            >
-                                Incorrect data violates academic policy and can
-                                delay enrollment processing.
-                            </p>
-                        </div>
-                        <div class="flex gap-3 px-4 py-3">
-                            <FileCheck2
-                                class="mt-0.5 size-4 shrink-0 text-red-600 dark:text-red-300"
-                            />
-                            <p
-                                class="text-sm text-slate-700 dark:text-slate-300"
-                            >
-                                Screenshots or unauthorized sharing of sensitive
-                                academic records are prohibited.
-                            </p>
-                        </div>
-                    </div>
-                </section>
-            </div>
-
-            <aside
-                class="rounded-lg border border-emerald-200 bg-white shadow-sm dark:border-emerald-500/20 dark:bg-slate-950"
+        <Dialog v-model:open="detailsOpen">
+            <DialogContent
+                class="max-h-[90dvh] overflow-y-auto sm:max-w-[640px]"
             >
-                <div
-                    class="border-b border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-500/20 dark:bg-emerald-500/10"
+                <DialogTitle>SAR Registration Details</DialogTitle>
+                <DialogDescription
+                    >Your submitted registration for
+                    {{
+                        statusData?.term || 'the current term'
+                    }}.</DialogDescription
                 >
-                    <div class="flex items-center gap-2">
-                        <ClipboardCheck
-                            class="size-4 text-emerald-700 dark:text-emerald-300"
-                        />
-                        <h2
-                            class="text-sm font-semibold text-emerald-950 dark:text-emerald-100"
-                        >
-                            Enrollment Confirmation
-                        </h2>
+                <dl
+                    class="grid gap-4 rounded-lg border border-slate-200 p-4 sm:grid-cols-2 dark:border-white/10"
+                >
+                    <div v-for="[label, value] in recordRows" :key="label">
+                        <dt class="text-sm text-slate-500 dark:text-slate-400">
+                            {{ label }}
+                        </dt>
+                        <dd class="mt-1 text-sm font-medium break-words">
+                            {{ value }}
+                        </dd>
                     </div>
-                    <p
-                        class="mt-1 text-xs text-emerald-800/80 dark:text-emerald-200/80"
+                </dl>
+                <div class="flex justify-end">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        @click="detailsOpen = false"
+                        >Close</Button
                     >
-                        Confirm intent to enroll for the active term.
-                    </p>
                 </div>
-
-                <div class="space-y-4 p-4">
-                    <div class="space-y-2">
-                        <div
-                            class="flex items-start gap-2 rounded-md border border-emerald-100 bg-emerald-50/60 p-3 text-sm text-emerald-950 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-100"
-                        >
-                            <BookOpenCheck class="mt-0.5 size-4 shrink-0" />
-                            <span>
-                                I confirm to enroll at the University of
-                                Southern Mindanao for the next semester.
-                            </span>
-                        </div>
-                        <div
-                            class="flex items-start gap-2 rounded-md border border-slate-200 p-3 text-sm text-slate-700 dark:border-white/10 dark:text-slate-300"
-                        >
-                            <CheckCircle2
-                                class="mt-0.5 size-4 shrink-0 text-emerald-600"
-                            />
-                            <span>
-                                I have reviewed the course offerings, schedules,
-                                and academic policies.
-                            </span>
-                        </div>
-                        <div
-                            class="flex items-start gap-2 rounded-md border border-slate-200 p-3 text-sm text-slate-700 dark:border-white/10 dark:text-slate-300"
-                        >
-                            <ShieldCheck
-                                class="mt-0.5 size-4 shrink-0 text-emerald-600"
-                            />
-                            <span>
-                                I agree to comply with institutional guidelines,
-                                deadlines, and financial obligations.
-                            </span>
-                        </div>
-                    </div>
-
-                    <label
-                        class="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+            </DialogContent>
+        </Dialog>
+        <Dialog :open="applicationOpen" @update:open="closeApplication">
+            <DialogContent
+                :show-close-button="false"
+                class="flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[580px]"
+            >
+                <header class="border-b p-5">
+                    <DialogTitle>Apply for Academic Registration</DialogTitle
+                    ><DialogDescription class="mt-2"
+                        >{{ statusData?.campusName }} / {{ statusData?.term }}.
+                        Confirm your enrollment and select a transaction
+                        type.</DialogDescription
                     >
-                        <input
+                </header>
+                <div class="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
+                    <section
+                        class="space-y-3 rounded-lg border border-slate-200 p-4 text-sm leading-relaxed dark:border-white/10"
+                    >
+                        <h2 class="font-semibold">Enrollment Confirmation</h2>
+                        <p>
+                            I confirm my intent to enroll at the University of
+                            Southern Mindanao for this academic term.
+                        </p>
+                        <p>
+                            I have reviewed the course offerings, schedules, and
+                            academic policies.
+                        </p>
+                        <p>
+                            I agree to comply with institutional guidelines,
+                            deadlines, and financial obligations.
+                        </p>
+                    </section>
+                    <fieldset :disabled="isSubmitting" class="space-y-3">
+                        <legend class="text-sm font-semibold">
+                            Transaction Type
+                        </legend>
+                        <label
+                            v-for="type in ['Regular', 'Irregular'] as const"
+                            :key="type"
+                            class="flex cursor-pointer items-start gap-3 rounded-lg border p-3 focus-within:ring-2 focus-within:ring-emerald-500"
+                            :class="
+                                selectedTransactionType === type
+                                    ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10'
+                                    : 'border-slate-200 dark:border-white/10'
+                            "
+                            ><input
+                                v-model="selectedTransactionType"
+                                type="radio"
+                                name="sar-transaction-type"
+                                :value="type"
+                                class="mt-1 accent-emerald-600"
+                            /><span
+                                ><span class="block text-sm font-medium">{{
+                                    type
+                                }}</span
+                                ><span
+                                    class="mt-1 block text-sm text-slate-600 dark:text-slate-300"
+                                    >{{
+                                        type === 'Regular'
+                                            ? 'Full load based on advised curriculum'
+                                            : 'Customized or partial load'
+                                    }}</span
+                                ></span
+                            ></label
+                        >
+                    </fieldset>
+                    <label
+                        class="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 text-sm dark:border-white/10"
+                        ><input
                             v-model="agreed"
                             type="checkbox"
-                            class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                            :disabled="isAlreadySubmitted"
-                        />
-                        <span>I have read and agree to the terms above.</span>
-                    </label>
-
-                    <button
-                        type="button"
-                        class="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                        :disabled="
-                            isSubmitting || !agreed || isAlreadySubmitted
-                        "
-                        @click="openConfirmationModal"
+                            :disabled="isSubmitting"
+                            class="mt-1 size-4 accent-emerald-600"
+                        /><span
+                            >I have read and agree to the terms above.</span
+                        ></label
                     >
-                        <Loader2
-                            v-if="isSubmitting"
-                            class="size-4 animate-spin"
-                        />
-                        {{
-                            isAlreadySubmitted
-                                ? 'Already Submitted'
-                                : isSubmitting
-                                  ? 'Submitting'
-                                  : 'Submit Confirmation'
-                        }}
-                    </button>
-                </div>
-            </aside>
-        </div>
-
-        <div
-            v-if="showTransactionTypeModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
-        >
-            <div
-                class="w-full max-w-md overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-950"
-            >
-                <div
-                    class="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-3 dark:border-white/10"
-                >
-                    <div>
-                        <h3
-                            class="text-base font-semibold text-slate-900 dark:text-white"
-                        >
-                            Select Transaction Type
-                        </h3>
-                        <p
-                            class="mt-0.5 text-xs text-slate-500 dark:text-slate-400"
-                        >
-                            Choose the enrollment type to complete submission.
-                        </p>
-                    </div>
-                    <button
-                        type="button"
-                        class="flex size-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-white"
-                        @click="showTransactionTypeModal = false"
-                    >
-                        <X class="size-4" />
-                    </button>
-                </div>
-
-                <div class="grid grid-cols-1 gap-2 p-4 sm:grid-cols-2">
-                    <button
-                        type="button"
-                        class="rounded-md border p-3 text-left transition"
-                        :class="
-                            selectedTransactionType === 'Regular'
-                                ? 'border-emerald-500 bg-emerald-50 text-emerald-900 dark:border-emerald-400 dark:bg-emerald-500/20 dark:text-emerald-100'
-                                : 'border-slate-300 bg-white text-slate-900 hover:border-emerald-400 dark:border-white/20 dark:bg-transparent dark:text-white'
-                        "
-                        @click="selectedTransactionType = 'Regular'"
-                    >
-                        <p class="text-sm font-bold">Regular</p>
-                        <p class="mt-1 text-xs opacity-90">
-                            Full load based on advised curriculum
-                        </p>
-                    </button>
-                    <button
-                        type="button"
-                        class="rounded-md border p-3 text-left transition"
-                        :class="
-                            selectedTransactionType === 'Irregular'
-                                ? 'border-emerald-500 bg-emerald-50 text-emerald-900 dark:border-emerald-400 dark:bg-emerald-500/20 dark:text-emerald-100'
-                                : 'border-slate-300 bg-white text-slate-900 hover:border-emerald-400 dark:border-white/20 dark:bg-transparent dark:text-white'
-                        "
-                        @click="selectedTransactionType = 'Irregular'"
-                    >
-                        <p class="text-sm font-bold">Irregular</p>
-                        <p class="mt-1 text-xs opacity-90">
-                            Customized or partial load
-                        </p>
-                    </button>
-
                     <p
-                        v-if="!selectedTransactionType"
-                        class="text-xs font-semibold text-red-600 sm:col-span-2"
+                        class="text-sm leading-relaxed text-slate-600 dark:text-slate-400"
                     >
-                        Please choose Regular or Irregular to continue.
+                        Provide accurate information. Incorrect data may delay
+                        enrollment. Do not share sensitive academic records
+                        without authorization.
                     </p>
                 </div>
-
-                <div
-                    class="flex justify-end gap-2 border-t border-slate-200 px-4 py-3 dark:border-white/10"
+                <footer
+                    class="flex justify-end gap-3 border-t p-4 [&>button]:min-h-11 [&>button]:flex-1 sm:[&>button]:flex-none"
                 >
-                    <button
+                    <Button
                         type="button"
-                        class="inline-flex h-9 items-center rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700 dark:border-white/20 dark:text-white"
-                        @click="showTransactionTypeModal = false"
-                    >
-                        Cancel
-                    </button>
-                    <button
+                        variant="outline"
+                        :disabled="isSubmitting"
+                        @click="closeApplication()"
+                        >Cancel</Button
+                    ><Button
                         type="button"
-                        class="inline-flex h-9 items-center rounded-md bg-emerald-600 px-3 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-70"
-                        :disabled="!selectedTransactionType || isSubmitting"
-                        @click="
-                            showTransactionTypeModal = false;
-                            submitConfirmation();
+                        :disabled="
+                            isSubmitting ||
+                            !agreed ||
+                            !selectedTransactionType ||
+                            isAlreadySubmitted
                         "
+                        @click="submitConfirmation"
+                        ><Loader2
+                            v-if="isSubmitting"
+                            class="size-4 animate-spin"
+                        />{{
+                            isSubmitting
+                                ? 'Submitting...'
+                                : 'Submit Confirmation'
+                        }}</Button
                     >
-                        Continue Submit
-                    </button>
-                </div>
-            </div>
-        </div>
+                </footer>
+            </DialogContent>
+        </Dialog>
     </div>
 </template>

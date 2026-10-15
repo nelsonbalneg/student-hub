@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import {
+    computed,
+    nextTick,
+    onBeforeUnmount,
+    onMounted,
+    ref,
+    watch,
+} from 'vue';
 import {
     Dialog,
     DialogContent,
@@ -29,7 +36,15 @@ import {
     ToggleLeft,
     ToggleRight,
     Info,
+    UserRoundCog,
+    Check,
+    Search,
+    RotateCcw,
 } from 'lucide-vue-next';
+import {
+    searchOverrideStudents,
+    saveOverrides,
+} from '@/actions/App/Http/Controllers/SiteSettings/SiteGradeViewingController';
 import { format } from 'date-fns';
 
 interface Campus {
@@ -44,9 +59,12 @@ interface Rule {
     grade_evaluation_mode:
         | 'disabled_visible'
         | 'disabled_hidden'
+        | 'disabled_evaluated'
         | 'enabled_required'
         | 'enabled_optional';
-    access_scope: 'all_grades' | 'current_term';
+    access_scope: 'all_grades' | 'current_term' | 'specific_term';
+    site_academic_term_id: number | null;
+    override_users_count?: number;
     bypass_evaluation: boolean;
     show_gwa_gpa: boolean;
     is_active: boolean;
@@ -71,6 +89,13 @@ interface Log {
 const props = defineProps<{
     rules: Rule[];
     campuses: Campus[];
+    terms: {
+        id: number;
+        site_campus_id: number;
+        school_year: string;
+        semester: string;
+        term_id: string | number;
+    }[];
     logs: Log[];
 }>();
 
@@ -84,10 +109,58 @@ const form = useForm({
     rule_name: 'Bypass Faculty Evaluation',
     grade_evaluation_mode: 'enabled_required',
     access_scope: 'current_term',
+    site_academic_term_id: null as number | null,
     bypass_evaluation: true,
     show_gwa_gpa: true,
     is_active: true,
     description: '',
+});
+
+const campusTerms = computed(() =>
+    props.terms.filter(
+        (term) => String(term.site_campus_id) === form.site_campus_id,
+    ),
+);
+const accessScopeSelection = computed({
+    get: () =>
+        form.access_scope === 'specific_term'
+            ? `term:${form.site_academic_term_id}`
+            : form.access_scope,
+    set: (value: string) => {
+        if (value.startsWith('term:')) {
+            form.access_scope = 'specific_term';
+            form.site_academic_term_id = Number(value.slice(5));
+        } else {
+            form.access_scope = value;
+            form.site_academic_term_id = null;
+        }
+    },
+});
+watch(
+    () => form.site_campus_id,
+    () => {
+        if (
+            form.access_scope === 'specific_term' &&
+            !campusTerms.value.some(
+                (term) => term.id === form.site_academic_term_id,
+            )
+        ) {
+            form.access_scope = 'current_term';
+            form.site_academic_term_id = null;
+        }
+    },
+);
+const scopePreviewLabel = computed(() => {
+    if (form.access_scope === 'all_grades')
+        return 'All grades, across all terms';
+    if (form.access_scope === 'current_term')
+        return 'Current active campus term only';
+    const term = campusTerms.value.find(
+        (term) => term.id === form.site_academic_term_id,
+    );
+    return term
+        ? `${term.school_year}, ${term.semester} (Term ID: ${term.term_id})`
+        : 'Select a campus term';
 });
 
 const policyOptions = [
@@ -122,6 +195,14 @@ const policyOptions = [
             'Hide the evaluation button. Grades stay hidden regardless of evaluation status.',
         evaluation: 'Disabled',
         access: 'Hidden',
+    },
+    {
+        value: 'disabled_evaluated',
+        title: 'Evaluation Off / Show Grades if Evaluated',
+        description:
+            'Hide the evaluation button. Show grades in the selected scope only when completed faculty evaluation is verified. User overrides can still enable evaluation.',
+        evaluation: 'Disabled',
+        access: 'Visible if Evaluated',
     },
 ] as const;
 const baseline = ref('');
@@ -197,6 +278,7 @@ const openCreateModal = () => {
         rule_name: 'Bypass Faculty Evaluation',
         grade_evaluation_mode: 'enabled_required',
         access_scope: 'current_term',
+        site_academic_term_id: null as number | null,
         bypass_evaluation: true,
         show_gwa_gpa: true,
         is_active: true,
@@ -214,6 +296,7 @@ const openEditModal = (rule: Rule) => {
     form.grade_evaluation_mode =
         rule.grade_evaluation_mode ?? 'enabled_required';
     form.access_scope = rule.access_scope ?? 'current_term';
+    form.site_academic_term_id = rule.site_academic_term_id ?? null;
     form.bypass_evaluation = rule.bypass_evaluation;
     form.show_gwa_gpa = rule.show_gwa_gpa;
     form.is_active = rule.is_active;
@@ -312,6 +395,139 @@ const getActionColor = (action: string) => {
             return 'text-slate-600 bg-slate-50 dark:bg-white/5 dark:text-slate-400';
     }
 };
+interface OverrideStudent {
+    id: number;
+    name: string;
+    student_no: string | null;
+    email: string;
+    overridden: boolean;
+}
+const overrideRule = ref<Rule | null>(null);
+const studentSearch = ref('');
+const selectedOnly = ref(false);
+const searchResults = ref<OverrideStudent[]>([]);
+const searchLoading = ref(false);
+const searchError = ref('');
+const nextSearchPage = ref<number | null>(null);
+const studentChanges = ref<
+    Record<number, { student: OverrideStudent; selected: boolean }>
+>({});
+const overrideForm = useForm({
+    add_user_ids: [] as number[],
+    remove_user_ids: [] as number[],
+});
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
+let searchController: AbortController | null = null;
+let searchVersion = 0;
+const studentSelected = (student: OverrideStudent) =>
+    studentChanges.value[student.id]?.selected ?? student.overridden;
+const toggleStudent = (student: OverrideStudent) => {
+    if (overrideForm.processing) return;
+    const selected = !studentSelected(student);
+    if (selected === student.overridden)
+        delete studentChanges.value[student.id];
+    else studentChanges.value[student.id] = { student, selected };
+};
+const findStudents = async (page = 1) => {
+    if (
+        !overrideRule.value ||
+        (!selectedOnly.value && studentSearch.value.trim().length < 2)
+    )
+        return;
+    const version = ++searchVersion;
+    searchController?.abort();
+    searchController = new AbortController();
+    searchLoading.value = true;
+    searchError.value = '';
+    try {
+        const response = await fetch(
+            searchOverrideStudents.url(overrideRule.value.id, {
+                query: {
+                    q: studentSearch.value.trim(),
+                    selected_only: selectedOnly.value ? 1 : 0,
+                    page,
+                },
+            }),
+            {
+                signal: searchController.signal,
+                headers: { Accept: 'application/json' },
+            },
+        );
+        if (!response.ok)
+            throw new Error('Unable to search students. Please try again.');
+        const data = await response.json();
+        if (version !== searchVersion) return;
+        searchResults.value =
+            page === 1 ? data.data : [...searchResults.value, ...data.data];
+        nextSearchPage.value = data.next_page;
+    } catch (error) {
+        if (
+            version === searchVersion &&
+            !(error instanceof DOMException && error.name === 'AbortError')
+        )
+            searchError.value = 'Unable to search students. Please try again.';
+    } finally {
+        if (version === searchVersion) searchLoading.value = false;
+    }
+};
+watch([studentSearch, selectedOnly, () => overrideRule.value?.id], () => {
+    clearTimeout(searchTimer);
+    searchController?.abort();
+    searchVersion++;
+    searchResults.value = [];
+    nextSearchPage.value = null;
+    searchLoading.value = false;
+    searchError.value = '';
+    if (
+        overrideRule.value &&
+        (selectedOnly.value || studentSearch.value.trim().length >= 2)
+    )
+        searchTimer = setTimeout(() => findStudents(), 300);
+});
+onBeforeUnmount(() => {
+    clearTimeout(searchTimer);
+    searchController?.abort();
+});
+const openOverrides = (rule: Rule) => {
+    studentSearch.value = '';
+    selectedOnly.value = false;
+    studentChanges.value = {};
+    overrideForm.clearErrors();
+    overrideRule.value = rule;
+};
+const closeOverrides = (open = false) => {
+    if (open || overrideForm.processing) return;
+    if (
+        Object.keys(studentChanges.value).length &&
+        !window.confirm('Discard unsaved student override changes?')
+    )
+        return;
+    overrideRule.value = null;
+};
+const saveStudentOverrides = () => {
+    if (!overrideRule.value || overrideForm.processing) return;
+    const changes = Object.values(studentChanges.value);
+    overrideForm.add_user_ids = changes
+        .filter((change) => change.selected)
+        .map((change) => change.student.id);
+    overrideForm.remove_user_ids = changes
+        .filter((change) => !change.selected)
+        .map((change) => change.student.id);
+    overrideForm.post(saveOverrides.url(overrideRule.value.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            overrideRule.value = null;
+        },
+    });
+};
+const focusSearchResult = (index: number) => {
+    const student =
+        searchResults.value[
+            Math.max(0, Math.min(searchResults.value.length - 1, index))
+        ];
+    if (student)
+        document.getElementById(`override-student-${student.id}`)?.focus();
+};
 </script>
 
 <template>
@@ -339,6 +555,15 @@ const getActionColor = (action: string) => {
                             New Rule
                         </button>
                     </div>
+                    <p
+                        class="text-sm leading-relaxed text-slate-500 dark:text-slate-400"
+                    >
+                        Multiple active rules apply by term. Specific term rules
+                        take priority over Current Active Term, then All Grades.
+                        For the same scope, the newest rule wins. Other terms
+                        remain accessible when any campus rule is active;
+                        without active rules, all grades are hidden.
+                    </p>
                     <div
                         class="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900"
                     >
@@ -507,6 +732,15 @@ const getActionColor = (action: string) => {
                                         <div
                                             class="flex items-center justify-end gap-1"
                                         >
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                :aria-label="`Evaluation overrides for ${rule.rule_name}`"
+                                                :title="`User overrides (${rule.override_users_count ?? 0})`"
+                                                @click="openOverrides(rule)"
+                                                ><UserRoundCog class="size-4"
+                                            /></Button>
                                             <button
                                                 @click="openEditModal(rule)"
                                                 class="flex size-8 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-white"
@@ -686,8 +920,8 @@ const getActionColor = (action: string) => {
                 >
                     {{
                         pendingStatusRule?.is_active
-                            ? 'This rule will stop applying and its Delete action will become available. Students will use the latest remaining active campus rule, or grades will be hidden if no active rule remains.'
-                            : 'This rule will become active and its Delete action will be hidden. Students use the latest active rule for their campus.'
+                            ? 'This rule will stop applying and its Delete action will become available. Students will use the remaining matching active campus rules, or grades will be hidden if no active rule remains.'
+                            : 'This rule will become active and its Delete action will be hidden. Students use the matching active rule for their campus.'
                     }}
                 </p>
                 <p
@@ -727,6 +961,248 @@ const getActionColor = (action: string) => {
             </DialogContent>
         </Dialog>
 
+        <Dialog :open="!!overrideRule" @update:open="closeOverrides">
+            <DialogContent
+                :show-close-button="false"
+                class="flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[620px]"
+            >
+                <header class="shrink-0 border-b p-5">
+                    <DialogTitle>Evaluation Access Overrides</DialogTitle>
+                    <DialogDescription class="mt-2"
+                        >{{ overrideRule?.campus.campus_name }} /
+                        {{
+                            overrideRule ? overrideRule.rule_name : ''
+                        }}</DialogDescription
+                    >
+                </header>
+                <div class="min-h-0 flex-1 overflow-y-auto p-5">
+                    <div class="space-y-4">
+                        <div class="min-w-0 space-y-4">
+                            <p
+                                class="text-sm leading-relaxed text-slate-600 dark:text-slate-300"
+                            >
+                                Selected users can see the evaluation button on
+                                Grades even when evaluation is disabled or
+                                bypassed. This exception applies while this is
+                                the matching active rule for their campus,
+                                within its configured term scope. Grade
+                                visibility follows the existing policy.
+                            </p>
+                            <div class="space-y-2">
+                                <Label for="sar-student-search"
+                                    >Search students</Label
+                                >
+                                <div class="relative">
+                                    <Search
+                                        class="absolute top-3 left-3 size-4 text-slate-400"
+                                        aria-hidden="true"
+                                    /><input
+                                        id="sar-student-search"
+                                        v-model="studentSearch"
+                                        type="search"
+                                        role="combobox"
+                                        aria-autocomplete="list"
+                                        aria-controls="sar-student-results"
+                                        :aria-expanded="!!searchResults.length"
+                                        :disabled="overrideForm.processing"
+                                        placeholder="Type a name, email or student number (at least 2 characters)"
+                                        class="h-11 w-full rounded-lg border border-slate-300 bg-white pr-3 pl-10 text-sm focus:ring-2 focus:ring-indigo-500 dark:border-white/15 dark:bg-slate-800"
+                                        @keydown.down.prevent="
+                                            focusSearchResult(0)
+                                        "
+                                    />
+                                </div>
+                                <label class="flex items-center gap-2 text-sm"
+                                    ><input
+                                        v-model="selectedOnly"
+                                        type="checkbox"
+                                        :disabled="overrideForm.processing"
+                                        class="size-4 accent-indigo-600"
+                                    />Show students with existing
+                                    overrides</label
+                                >
+                            </div>
+                            <p
+                                v-if="searchError"
+                                role="alert"
+                                class="text-sm text-red-600 dark:text-red-400"
+                            >
+                                {{ searchError
+                                }}<Button
+                                    type="button"
+                                    variant="ghost"
+                                    @click="findStudents()"
+                                    >Retry</Button
+                                >
+                            </p>
+                            <div
+                                id="sar-student-results"
+                                role="listbox"
+                                aria-label="Matching students"
+                                aria-multiselectable="true"
+                                class="max-h-64 overflow-y-auto rounded-lg border border-slate-200 dark:border-white/10"
+                                :aria-busy="searchLoading"
+                            >
+                                <div
+                                    v-for="(student, index) in searchResults"
+                                    :id="`override-student-${student.id}`"
+                                    :key="student.id"
+                                    role="option"
+                                    :aria-selected="studentSelected(student)"
+                                    :aria-disabled="overrideForm.processing"
+                                    :tabindex="overrideForm.processing ? -1 : 0"
+                                    class="flex min-h-12 w-full items-center justify-between gap-3 border-b border-slate-100 px-3 py-2 text-left text-sm last:border-0 hover:bg-slate-50 focus-visible:bg-indigo-50 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:border-white/10 dark:hover:bg-white/5 dark:focus-visible:bg-indigo-500/10"
+                                    @click="toggleStudent(student)"
+                                    @keydown.enter.self.prevent="
+                                        toggleStudent(student)
+                                    "
+                                    @keydown.space.self.prevent="
+                                        toggleStudent(student)
+                                    "
+                                    @keydown.down.prevent="
+                                        focusSearchResult(index + 1)
+                                    "
+                                    @keydown.up.prevent="
+                                        focusSearchResult(index - 1)
+                                    "
+                                >
+                                    <span>
+                                        <span class="block font-medium">{{
+                                            student.name
+                                        }}</span>
+                                        <span
+                                            class="text-xs text-slate-500 dark:text-slate-400"
+                                            >{{ student.email
+                                            }}<span v-if="student.student_no">
+                                                / {{ student.student_no }}</span
+                                            ></span
+                                        >
+                                        <span
+                                            v-if="
+                                                studentChanges[student.id] &&
+                                                !studentSelected(student)
+                                            "
+                                            class="mt-1 block text-xs font-medium text-red-600 dark:text-red-400"
+                                            >Removal will be confirmed once
+                                            saved.</span
+                                        >
+                                    </span>
+                                    <button
+                                        v-if="
+                                            selectedOnly && student.overridden
+                                        "
+                                        type="button"
+                                        :disabled="overrideForm.processing"
+                                        :aria-label="`${studentSelected(student) ? 'Remove override for' : 'Undo removal for'} ${student.name}`"
+                                        :title="
+                                            studentSelected(student)
+                                                ? 'Remove override'
+                                                : 'Undo removal'
+                                        "
+                                        class="flex size-8 shrink-0 items-center justify-center rounded-md text-red-600 hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-indigo-500 dark:hover:bg-red-500/10"
+                                        @click.stop="toggleStudent(student)"
+                                    >
+                                        <X
+                                            v-if="studentSelected(student)"
+                                            class="size-4"
+                                            aria-hidden="true"
+                                        />
+                                        <RotateCcw
+                                            v-else
+                                            class="size-4"
+                                            aria-hidden="true"
+                                        />
+                                    </button>
+                                    <Check
+                                        v-else-if="studentSelected(student)"
+                                        class="size-4 text-emerald-600"
+                                        aria-hidden="true"
+                                    />
+                                </div>
+                            </div>
+                            <p
+                                v-if="searchLoading"
+                                role="status"
+                                class="flex items-center gap-2 text-sm text-slate-500"
+                            >
+                                <LoaderCircle
+                                    class="size-4 animate-spin"
+                                />Searching students...
+                            </p>
+                            <p
+                                v-else-if="!searchResults.length"
+                                class="text-sm text-slate-500"
+                            >
+                                {{
+                                    selectedOnly ||
+                                    studentSearch.trim().length >= 2
+                                        ? 'No matching students.'
+                                        : 'Search all users by any part of a name, email or student number. Select multiple results.'
+                                }}
+                            </p>
+                            <Button
+                                v-if="nextSearchPage"
+                                type="button"
+                                variant="outline"
+                                :disabled="
+                                    searchLoading || overrideForm.processing
+                                "
+                                @click="findStudents(nextSearchPage)"
+                                >Load more students</Button
+                            >
+                            <p class="text-xs text-slate-500">
+                                {{
+                                    Object.values(studentChanges).filter(
+                                        (change) => change.selected,
+                                    ).length
+                                }}
+                                to allow;
+                                {{
+                                    Object.values(studentChanges).filter(
+                                        (change) => !change.selected,
+                                    ).length
+                                }}
+                                to revoke. Maximum 500 changes of each type per
+                                save.
+                            </p>
+
+                            <p
+                                v-for="(error, key) in overrideForm.errors"
+                                :key="key"
+                                role="alert"
+                                class="text-sm text-red-600 dark:text-red-400"
+                            >
+                                {{ error }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <footer class="flex shrink-0 justify-end gap-3 border-t p-4">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        :disabled="overrideForm.processing"
+                        @click="closeOverrides()"
+                        >Cancel</Button
+                    ><Button
+                        type="button"
+                        :disabled="
+                            overrideForm.processing ||
+                            !Object.keys(studentChanges).length
+                        "
+                        @click="saveStudentOverrides"
+                        ><LoaderCircle
+                            v-if="overrideForm.processing"
+                            class="size-4 animate-spin"
+                        />{{
+                            overrideForm.processing
+                                ? 'Saving...'
+                                : 'Save Overrides'
+                        }}</Button
+                    >
+                </footer>
+            </DialogContent>
+        </Dialog>
         <Dialog :open="modalOpen" @update:open="requestClose">
             <DialogContent
                 :show-close-button="false"
@@ -904,7 +1380,7 @@ const getActionColor = (action: string) => {
                                 >
                                 <select
                                     id="access-scope"
-                                    v-model="form.access_scope"
+                                    v-model="accessScopeSelection"
                                     :aria-invalid="!!form.errors.access_scope"
                                     aria-describedby="access-scope-help access-scope-error"
                                     class="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-white/15 dark:bg-slate-800"
@@ -915,6 +1391,20 @@ const getActionColor = (action: string) => {
                                     <option value="current_term">
                                         Current active term only
                                     </option>
+                                    <optgroup
+                                        v-if="campusTerms.length"
+                                        label="Specific campus term"
+                                    >
+                                        <option
+                                            v-for="term in campusTerms"
+                                            :key="term.id"
+                                            :value="`term:${term.id}`"
+                                        >
+                                            {{ term.school_year }},
+                                            {{ term.semester }} (Term ID:
+                                            {{ term.term_id }})
+                                        </option>
+                                    </optgroup>
                                 </select>
                                 <p
                                     id="access-scope-help"
@@ -925,7 +1415,9 @@ const getActionColor = (action: string) => {
                                     settings. Other terms remain accessible. If
                                     no active term is configured, no term is
                                     affected. Show GWA/GPA remains a campus-wide
-                                    display setting.
+                                    display setting. Selecting a specific term
+                                    applies this policy only to that term,
+                                    including previous terms.
                                 </p>
                                 <p
                                     id="access-scope-error"
@@ -933,6 +1425,12 @@ const getActionColor = (action: string) => {
                                     class="text-sm text-red-600 dark:text-red-400"
                                 >
                                     {{ form.errors.access_scope }}
+                                </p>
+                                <p
+                                    v-if="form.errors.site_academic_term_id"
+                                    class="text-sm text-red-600 dark:text-red-400"
+                                >
+                                    {{ form.errors.site_academic_term_id }}
                                 </p>
                             </div>
                             <p
@@ -1129,11 +1627,7 @@ const getActionColor = (action: string) => {
                             </dl>
                             <p class="mt-3 text-sm font-medium">
                                 Scope:
-                                {{
-                                    form.access_scope === 'all_grades'
-                                        ? 'All grades, across all terms'
-                                        : 'Current active campus term only'
-                                }}
+                                {{ scopePreviewLabel }}
                             </p>
                             <p
                                 v-if="preview.averages === 'Conditional'"
@@ -1148,7 +1642,7 @@ const getActionColor = (action: string) => {
                                 class="mt-3 text-sm leading-relaxed text-amber-700 dark:text-amber-300"
                             >
                                 This rule is inactive. The preview shows its
-                                settings; students use the latest active rule
+                                settings; students use the matching active rule
                                 for their campus, or grades will be hidden if no
                                 active rule remains.
                             </p>
@@ -1156,8 +1650,8 @@ const getActionColor = (action: string) => {
                                 v-else
                                 class="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400"
                             >
-                                Applies when this is the latest active rule for
-                                the selected campus.
+                                Applies when this is the matching active rule
+                                for the selected campus.
                             </p>
                         </section>
                         <p

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\FeatureController;
 use App\Http\Controllers\Admin\ReferenceLookupController;
 use App\Http\Controllers\Admin\RegistrarController;
+use App\Http\Controllers\Admin\Reporting\PftParqController;
 use App\Http\Controllers\Admin\Reporting\PftResultController;
 use App\Http\Controllers\AnnouncementCategoryController;
 use App\Http\Controllers\AnnouncementController;
@@ -35,6 +36,7 @@ use App\Http\Controllers\SiteSettings\ExaminationScheduleController;
 use App\Http\Controllers\SiteSettings\ExaminationScheduleImportController;
 use App\Http\Controllers\SiteSettings\PftMedicalConditionController;
 use App\Http\Controllers\SiteSettings\PhysicalFitnessConfigurationController;
+use App\Http\Controllers\SiteSettings\SarSettingController;
 use App\Http\Controllers\SiteSettings\SiteAcademicTermController;
 use App\Http\Controllers\SiteSettings\SiteBrandingController;
 use App\Http\Controllers\SiteSettings\SiteCampusController;
@@ -60,7 +62,6 @@ use App\Http\Controllers\StudentSemesterClearanceController;
 use App\Http\Controllers\SystemLogController;
 use App\Http\Controllers\UserManagementController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 Route::match(['get', 'post'], 'api/sso-maintenance', [SsoMaintenanceController::class, 'handle']);
 Route::match(['get', 'post'], 'api/sso-features', [SsoFeaturesController::class, 'handle']);
@@ -145,6 +146,7 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
     Route::get('student-academic-registration/confirm', [EnrollmentController::class, 'confirm']);
     Route::post('student-academic-registration/confirm', [EnrollmentController::class, 'submitConfirmation'])
         ->name('enrollment.student-academic-registration.confirm');
+    Route::get('student-academic-registration/records', [EnrollmentController::class, 'records'])->name('enrollment.student-academic-registration.records');
     Route::get('student-academic-registration/status', [EnrollmentController::class, 'status'])
         ->name('enrollment.student-academic-registration.status');
     Route::get('student-profile', StudentProfileController::class)
@@ -218,7 +220,7 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
 
     Route::prefix('admin/reporting/pft-parq')
         ->name('admin.reporting.pft-parq.')
-        ->controller(App\Http\Controllers\Admin\Reporting\PftParqController::class)
+        ->controller(PftParqController::class)
         ->middleware('can:reporting.pft_result.view')
         ->group(function () {
             Route::get('/', 'index')->name('index');
@@ -647,6 +649,8 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
             Route::patch('grade-viewing/{rule}', [SiteGradeViewingController::class, 'update'])->name('grade-viewing.update');
             Route::delete('grade-viewing/{rule}', [SiteGradeViewingController::class, 'destroy'])->name('grade-viewing.destroy');
             Route::patch('grade-viewing/{rule}/toggle', [SiteGradeViewingController::class, 'toggle'])->name('grade-viewing.toggle');
+            Route::get('grade-viewing/{rule}/students', [SiteGradeViewingController::class, 'searchOverrideStudents'])->middleware('throttle:60,1')->name('grade-viewing.students');
+            Route::post('grade-viewing/{rule}/overrides', [SiteGradeViewingController::class, 'saveOverrides'])->name('grade-viewing.overrides');
 
             Route::get('student-profile', [SiteStudentProfileController::class, 'index'])->name('student-profile.index');
             Route::get('student-profile/students/search', [SiteStudentProfileController::class, 'searchStudents'])
@@ -660,7 +664,7 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
             Route::patch('student-profile/physical-fitness-permission', [SiteStudentProfileController::class, 'updatePhysicalFitnessPermission'])
                 ->middleware('can:pft.permission.manage')
                 ->name('student-profile.physical-fitness-permission.update');
-            
+
             Route::prefix('medical-conditions')
                 ->name('medical-conditions.')
                 ->controller(PftMedicalConditionController::class)
@@ -700,8 +704,14 @@ Route::middleware(['auth', 'verified', 'terms.accepted'])->group(function () {
                     Route::post('site-settings', 'updateSiteSettings')->middleware('can:pft.configuration.update')->name('site-settings.update');
                 });
 
-            Route::get('sar', [\App\Http\Controllers\SiteSettings\SarSettingController::class, 'index'])->name('sar');
-            Route::post('sar', [\App\Http\Controllers\SiteSettings\SarSettingController::class, 'update'])->name('sar.update');
+            Route::get('sar', [SarSettingController::class, 'index'])->name('sar');
+            Route::post('sar', [SarSettingController::class, 'update'])->name('sar.update');
+            Route::post('sar/rules', [SarSettingController::class, 'storeRule'])->name('sar.rules.store');
+            Route::put('sar/rules/{rule}', [SarSettingController::class, 'updateRule'])->name('sar.rules.update');
+            Route::patch('sar/rules/{rule}', [SarSettingController::class, 'setRuleStatus'])->name('sar.rules.status');
+            Route::delete('sar/rules/{rule}', [SarSettingController::class, 'destroyRule'])->name('sar.rules.destroy');
+            Route::get('sar/rules/{rule}/students', [SarSettingController::class, 'searchOverrideStudents'])->middleware('throttle:60,1')->name('sar.rules.students');
+            Route::post('sar/rules/{rule}/overrides', [SarSettingController::class, 'saveOverrides'])->name('sar.rules.overrides');
 
             Route::get('site-settings', [SiteBrandingController::class, 'index'])->name('branding.index');
             Route::post('site-settings', [SiteBrandingController::class, 'update'])->name('branding.update');

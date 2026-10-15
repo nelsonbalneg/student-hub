@@ -10,6 +10,7 @@ use App\Models\SiteCampus;
 use App\Services\AcademicApiService;
 use App\Services\GetActiveAcademicTermService;
 use App\Services\GradeComputationService;
+use App\Services\GradeViewingRuleResolver;
 use App\Services\PhysicalFitnessPermissionService;
 use App\Services\StudentEvaluationApiService;
 use Illuminate\Http\RedirectResponse;
@@ -42,15 +43,19 @@ class GradesController extends Controller
         $evaluationId = null;
 
         $bypassEvaluation = false;
+        $evaluationUserOverride = false;
         $showGwaGpa = false;
         $gradeEvaluationMode = GradeEvaluationMode::DisabledHidden;
         $accessScope = GradeAccessScope::AllGrades;
         $ruleCampusId = null;
+        $policyTermId = null;
+        $activeRules = collect();
+        $ruleResolver = new GradeViewingRuleResolver;
         if (! blank($user->campus_id)) {
             try {
                 $realCampusExists = SiteCampus::where('real_campus_id', (string) $user->campus_id)->exists();
 
-                $gradeViewingRule = GradeViewingRule::whereHas('campus', function ($query) use ($realCampusExists, $user) {
+                $activeRules = GradeViewingRule::with('selectedAcademicTerm')->withCount(['overrideUsers as has_evaluation_override' => fn ($query) => $query->whereKey($user->id)])->whereHas('campus', function ($query) use ($realCampusExists, $user) {
                     if ($realCampusExists) {
                         $query->where('real_campus_id', (string) $user->campus_id);
 
@@ -60,15 +65,18 @@ class GradesController extends Controller
                     $query->where('id', $user->campus_id);
                 })
                     ->where('is_active', true)
-                    ->latest()
-                    ->first();
+                    ->latest()->orderByDesc('id')
+                    ->get();
+                $gradeViewingRule = $activeRules->first();
 
                 if ($gradeViewingRule !== null) {
                     $gradeEvaluationMode = GradeEvaluationMode::tryFrom($gradeViewingRule?->grade_evaluation_mode ?? '') ?? GradeEvaluationMode::EnabledRequired;
                     $ruleCampusId = $gradeViewingRule?->site_campus_id;
+                    $policyTermId = $gradeViewingRule->selectedAcademicTerm?->term_id;
                     $accessScope = GradeAccessScope::tryFrom($gradeViewingRule?->access_scope ?? '') ?? GradeAccessScope::CurrentTerm;
                     $bypassEvaluation = (bool) $gradeViewingRule?->bypass_evaluation;
                     $showGwaGpa = $gradeViewingRule?->show_gwa_gpa ?? true;
+                    $evaluationUserOverride = (bool) $gradeViewingRule->has_evaluation_override;
                 }
             } catch (\Throwable $e) {
                 Log::warning('Grade viewing rules lookup failed; hiding grades by default', [
@@ -89,7 +97,11 @@ class GradesController extends Controller
             : $this->activeTermService->execute($user->campus_id);
         $activeTermId = $activeTerm?->term_id;
 
-        if ($gradeEvaluationMode->evaluationEnabled($bypassEvaluation) && $studentNo && $evaluationCampusId && $tenantId) {
+        $needsVerification = $activeRules->contains(fn ($rule) => (bool) $rule->has_evaluation_override || (GradeEvaluationMode::tryFrom($rule->grade_evaluation_mode ?? '') ?? GradeEvaluationMode::EnabledRequired)->verificationRequired((bool) $rule->bypass_evaluation));
+        $verificationCanLock = $activeRules->contains(fn ($rule) => (GradeEvaluationMode::tryFrom($rule->grade_evaluation_mode ?? '') ?? GradeEvaluationMode::EnabledRequired)->verificationRequired((bool) $rule->bypass_evaluation) && (GradeEvaluationMode::tryFrom($rule->grade_evaluation_mode ?? '') ?? GradeEvaluationMode::EnabledRequired)->gradesLocked((bool) $rule->bypass_evaluation, true));
+        $showGwaGpa = $activeRules->contains(fn ($rule) => $rule->show_gwa_gpa ?? true);
+
+        if ($needsVerification && $studentNo && $evaluationCampusId && $tenantId) {
             try {
                 Log::info('Starting grade evaluation verification', [
                     'user_id' => $user->id,
@@ -142,7 +154,7 @@ class GradesController extends Controller
                     ? 'The faculty evaluation service is currently unreachable (network or SSL issue). Your grades are temporarily locked. Please try again in a few minutes.'
                     : 'An unexpected error occurred while verifying your evaluation status. Your grades are temporarily locked. Please contact the registrar if this persists.';
             }
-        } elseif ($gradeEvaluationMode->evaluationEnabled($bypassEvaluation)) {
+        } elseif ($needsVerification) {
             Log::warning('Skipping grade evaluation verification because required context is missing', [
                 'user_id' => $user->id,
                 'student_no' => $studentNo,
@@ -155,30 +167,43 @@ class GradesController extends Controller
             $evaluationError = 'Your account is missing required information (campus or tenant). Please contact your registrar or system administrator to complete your account setup.';
         }
 
-        if (! $gradeEvaluationMode->gradesLocked($bypassEvaluation, true) || ($accessScope === GradeAccessScope::CurrentTerm && $activeTermId === null)) {
+        if (! $verificationCanLock) {
             $evaluationError = null;
             $evaluationErrorType = null;
         }
 
         // Enrich grade data with evaluation status
         if (! empty($gradeReport['data']) && is_array($gradeReport['data'])) {
-            $gradeReport['data'] = array_map(function ($term) use ($evaluationLookup, $evaluationId, $activeTermId, $lockGradesDueToEvaluationVerificationFailure, $gradeEvaluationMode, $bypassEvaluation, $accessScope) {
+            $gradeReport['data'] = array_map(function ($term) use ($evaluationLookup, $evaluationId, $activeTermId, $lockGradesDueToEvaluationVerificationFailure, $gradeEvaluationMode, $bypassEvaluation, $evaluationUserOverride, $activeRules, $ruleResolver) {
                 if (! isset($term['grades']) || ! is_array($term['grades'])) {
                     return $term;
                 }
 
                 $termId = $term['termId'] ?? $term['term_id'] ?? null;
+                $termRule = $ruleResolver->resolve($activeRules, $termId, $activeTermId);
+                $term['show_gwa_gpa'] = $termRule?->show_gwa_gpa ?? ($activeRules->isNotEmpty());
 
-                $term['grades'] = array_map(function ($grade) use ($evaluationLookup, $evaluationId, $termId, $activeTermId, $lockGradesDueToEvaluationVerificationFailure, $gradeEvaluationMode, $bypassEvaluation, $accessScope) {
+                $term['grades'] = array_map(function ($grade) use ($evaluationLookup, $evaluationId, $termId, $activeTermId, $lockGradesDueToEvaluationVerificationFailure, $gradeEvaluationMode, $bypassEvaluation, $evaluationUserOverride, $activeRules, $ruleResolver) {
                     $rowTermId = $grade['termId'] ?? $grade['term_id'] ?? $termId;
-                    $grade['evaluation_in_scope'] = $accessScope->includes($rowTermId, $activeTermId);
+                    $rowRule = $ruleResolver->resolve($activeRules, $rowTermId, $activeTermId);
+                    $grade['evaluation_in_scope'] = $rowRule !== null || $activeRules->isEmpty();
+                    $gradeEvaluationMode = $rowRule ? (GradeEvaluationMode::tryFrom($rowRule->grade_evaluation_mode ?? '') ?? GradeEvaluationMode::EnabledRequired) : GradeEvaluationMode::DisabledHidden;
+                    $bypassEvaluation = (bool) $rowRule?->bypass_evaluation;
+                    $evaluationUserOverride = (bool) $rowRule?->has_evaluation_override;
+                    $grade['grade_evaluation_mode'] = $gradeEvaluationMode->value;
+                    $grade['evaluation_enabled'] = $evaluationUserOverride || $gradeEvaluationMode->evaluationEnabled($bypassEvaluation);
+                    $grade['applied_rule_id'] = $rowRule?->id;
                     if (! $grade['evaluation_in_scope']) {
+                        $courseId = $grade['courseId'] ?? $grade['course_id'] ?? $grade['subjectId'] ?? $grade['subject_id'] ?? null;
+                        $eval = $evaluationLookup["{$rowTermId}-{$courseId}"] ?? null;
+                        $grade['evaluation_completed'] = $eval === null ? null : (! $eval['requires_evaluation'] && (! empty($eval['evaluated_evaluations']) || strtolower(trim($eval['status'] ?? '')) === 'evaluated'));
+                        $grade['evaluation_status'] = $eval['status'] ?? 'Verification Unavailable';
                         $grade['requires_evaluation'] = false;
 
                         return $grade;
                     }
 
-                    if (! $gradeEvaluationMode->evaluationEnabled($bypassEvaluation)) {
+                    if (! $evaluationUserOverride && ! $gradeEvaluationMode->verificationRequired($bypassEvaluation)) {
                         $grade['requires_evaluation'] = $gradeEvaluationMode->gradesLocked($bypassEvaluation, false);
                         $grade['evaluation_status'] = $grade['requires_evaluation'] ? 'Grade Viewing Disabled' : 'Evaluation Disabled';
 
@@ -197,7 +222,11 @@ class GradesController extends Controller
                     $key = "{$rowTermId}-{$courseId}";
                     $eval = $evaluationLookup[$key] ?? null;
 
-                    $grade['requires_evaluation'] = $gradeEvaluationMode->gradesLocked($bypassEvaluation, $eval ? $eval['requires_evaluation'] : false);
+                    $needsEvaluation = $eval ? $eval['requires_evaluation'] : false;
+                    if ($gradeEvaluationMode === GradeEvaluationMode::DisabledEvaluated) {
+                        $needsEvaluation = ! $eval || $needsEvaluation || (empty($eval['evaluated_evaluations']) && strtolower(trim($eval['status'] ?? '')) !== 'evaluated');
+                    }
+                    $grade['requires_evaluation'] = $gradeEvaluationMode->gradesLocked($bypassEvaluation, $needsEvaluation);
                     $grade['evaluation_status'] = $eval['status'] ?? 'Not Found';
 
                     if ($eval) {
@@ -239,8 +268,10 @@ class GradesController extends Controller
                 'campus_name' => $user->campus_name,
                 'tenant_id' => $tenantId,
                 'bypass_evaluation' => $bypassEvaluation,
+                'evaluation_user_override' => $evaluationUserOverride,
                 'grade_evaluation_mode' => $gradeEvaluationMode->value,
                 'access_scope' => $accessScope->value,
+                'policy_term_id' => $policyTermId,
                 'show_gwa_gpa' => $showGwaGpa,
                 'evaluation_id' => $evaluationId,
             ],

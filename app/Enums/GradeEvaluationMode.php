@@ -6,6 +6,7 @@ enum GradeEvaluationMode: string
 {
     case DisabledVisible = 'disabled_visible';
     case DisabledHidden = 'disabled_hidden';
+    case DisabledEvaluated = 'disabled_evaluated';
     case EnabledRequired = 'enabled_required';
     case EnabledOptional = 'enabled_optional';
 
@@ -14,8 +15,13 @@ enum GradeEvaluationMode: string
         return ! $bypass && in_array($this, [self::EnabledRequired, self::EnabledOptional], true);
     }
 
+    public function verificationRequired(bool $bypass): bool
+    {
+        return $this->evaluationEnabled($bypass) || (! $bypass && $this === self::DisabledEvaluated);
+    }
+
     public function gradesLocked(bool $bypass, bool $requiresEvaluation): bool
     {
-        return ! $bypass && ($this === self::DisabledHidden || ($this === self::EnabledRequired && $requiresEvaluation));
+        return ! $bypass && ($this === self::DisabledHidden || (in_array($this, [self::EnabledRequired, self::DisabledEvaluated], true) && $requiresEvaluation));
     }
 }

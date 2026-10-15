@@ -26,6 +26,7 @@ test('grade access follows the evaluation mode and bypass override', function (s
         ->and($policy->evaluationEnabled(true))->toBeFalse();
 })->with([
     'evaluation off, grades visible' => ['disabled_visible', false, false, false],
+    'evaluation off, grades visible only after evaluation' => ['disabled_evaluated', false, true, false],
     'evaluation off, grades hidden' => ['disabled_hidden', false, true, true],
     'evaluation on, completion required' => ['enabled_required', true, true, false],
     'evaluation on, grades visible' => ['enabled_optional', true, false, false],
@@ -113,4 +114,23 @@ test('grades are hidden across all terms without an applicable campus rule', fun
             ->and($term['grades'][0]['midTerm'])->toBe('LOCKED')
             ->and($term['grades'][0]['reExam'])->toBe('LOCKED');
     }
+});
+
+test('evaluation-off evaluated policy verifies completion without enabling the button', function () {
+    $mode = GradeEvaluationMode::DisabledEvaluated;
+    expect($mode->evaluationEnabled(false))->toBeFalse()
+        ->and($mode->verificationRequired(false))->toBeTrue()
+        ->and($mode->verificationRequired(true))->toBeFalse()
+        ->and($mode->gradesLocked(false, true))->toBeTrue()
+        ->and($mode->gradesLocked(false, false))->toBeFalse()
+        ->and($mode->gradesLocked(true, true))->toBeFalse();
+});
+
+test('specific grade term can target a previous term without affecting the current term', function () {
+    $scope = GradeAccessScope::SpecificTerm;
+    expect($scope->includes('500', '501', 500))->toBeTrue()
+        ->and($scope->includes('501', '501', 500))->toBeFalse()
+        ->and($scope->includes('499', '501', 500))->toBeFalse()
+        ->and($scope->includes('500', null, 500))->toBeTrue()
+        ->and($scope->includes('500', '501', null))->toBeFalse();
 });

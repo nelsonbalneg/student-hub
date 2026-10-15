@@ -161,7 +161,7 @@ const overviewNavItems: NavItem[] = [
         icon: FileSignature,
         items: [
             {
-                title: 'Student Academic Registration',
+                title: 'SAR',
                 href: '/student-academic-registration',
                 routeName: 'enrollment.student-academic-registration',
             },

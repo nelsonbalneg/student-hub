@@ -41,10 +41,12 @@ type Student = {
     campus_name: string | null;
     tenant_id: string | null;
     bypass_evaluation?: boolean;
-    access_scope?: 'all_grades' | 'current_term';
+    evaluation_user_override?: boolean;
+    access_scope?: 'all_grades' | 'current_term' | 'specific_term';
     grade_evaluation_mode?:
         | 'disabled_visible'
         | 'disabled_hidden'
+        | 'disabled_evaluated'
         | 'enabled_required'
         | 'enabled_optional';
     show_gwa_gpa?: boolean;
@@ -74,6 +76,9 @@ type EvaluatedEvaluation = PendingEvaluation & {
 type GradeRecord = {
     requires_evaluation?: boolean;
     evaluation_in_scope?: boolean;
+    evaluation_completed?: boolean | null;
+    evaluation_enabled?: boolean;
+    grade_evaluation_mode?: string;
     evaluation_status?: string;
     evaluation_period_id?: string;
     subject_for_evaluation_id?: string;
@@ -95,6 +100,7 @@ type TermGroup = {
     countedUnits: string;
     includedSubjectCount: number;
     excludedSubjectCount: number;
+    showGwaGpa?: boolean;
     rows: GradeRecord[];
 };
 
@@ -274,6 +280,7 @@ const groupedGrades = computed<TermGroup[]>(() => {
                 excludedSubjectCount: Number(
                     term.computed_excluded_subject_count ?? 0,
                 ),
+                showGwaGpa: term.show_gwa_gpa,
                 rows: asArray(term.grades),
             };
         })
@@ -536,14 +543,39 @@ const openEvaluationChooser = (row: GradeRecord) => {
 
 const evaluationEnabled = computed(
     () =>
-        !props.student.bypass_evaluation &&
-        ['enabled_required', 'enabled_optional'].includes(
-            props.student.grade_evaluation_mode ?? 'enabled_required',
-        ),
+        props.student.evaluation_user_override ||
+        (!props.student.bypass_evaluation &&
+            ['enabled_required', 'enabled_optional'].includes(
+                props.student.grade_evaluation_mode ?? 'enabled_required',
+            )),
 );
 
+const evaluationEnabledForRow = (row: GradeRecord) =>
+    row.evaluation_enabled ?? evaluationEnabled.value;
+
+const historicalEvaluationLabel = (row: GradeRecord) => {
+    if (row.evaluation_in_scope !== false) return null;
+    if (row.evaluation_completed === true) return 'Evaluated';
+    if (row.evaluation_completed === false) return 'Not Evaluated';
+    return 'Evaluation status unavailable';
+};
+
+const evaluationDisabledMessage = (row: GradeRecord) =>
+    !evaluationEnabledForRow(row);
+
+const evaluationLockLabel = (row: GradeRecord) => {
+    if (
+        (row.grade_evaluation_mode ?? props.student.grade_evaluation_mode) ===
+        'disabled_evaluated'
+    )
+        return '-';
+    if (row.evaluation_status === 'Grade Viewing Disabled')
+        return 'Grade viewing disabled';
+    return 'Evaluation required';
+};
+
 const showEvaluationButton = (group: TermGroup, row: GradeRecord) =>
-    evaluationEnabled.value &&
+    evaluationEnabledForRow(row) &&
     (row.evaluation_in_scope ??
         (props.student.access_scope === 'all_grades' ||
             isActiveTermGroup(group))) &&
@@ -1716,7 +1748,8 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                         {{ termUnits(group) }} units
                                         <template
                                             v-if="
-                                                canViewGwaGpa &&
+                                                (group.showGwaGpa ??
+                                                    canViewGwaGpa) &&
                                                 groupHasPendingEvaluations(
                                                     group,
                                                 )
@@ -1729,7 +1762,12 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                 GPA Hidden (Evaluation Required)
                                             </span>
                                         </template>
-                                        <template v-else-if="canViewGwaGpa">
+                                        <template
+                                            v-else-if="
+                                                group.showGwaGpa ??
+                                                canViewGwaGpa
+                                            "
+                                        >
                                             / Semester GPA
                                             {{
                                                 group.computedGpa !== '-'
@@ -1853,8 +1891,27 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                 <Dumbbell class="size-3" />
                                                 Fitness
                                             </button>
-                                            <button
+                                            <span
                                                 v-if="
+                                                    historicalEvaluationLabel(
+                                                        row,
+                                                    )
+                                                "
+                                                class="inline-flex rounded-full border px-2 py-1 text-xs font-medium"
+                                                :class="
+                                                    row.evaluation_completed ===
+                                                    true
+                                                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                                        : 'border-slate-200 text-slate-500 dark:border-white/15 dark:text-slate-400'
+                                                "
+                                                >{{
+                                                    historicalEvaluationLabel(
+                                                        row,
+                                                    )
+                                                }}</span
+                                            >
+                                            <button
+                                                v-else-if="
                                                     showEvaluationButton(
                                                         group,
                                                         row,
@@ -1888,7 +1945,9 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                             </button>
                                             <button
                                                 v-else-if="
-                                                    evaluationEnabled &&
+                                                    evaluationEnabledForRow(
+                                                        row,
+                                                    ) &&
                                                     evaluatedSummary(row).length
                                                 "
                                                 type="button"
@@ -1899,18 +1958,22 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                             >
                                                 Evaluated
                                             </button>
+                                            <span
+                                                v-else-if="
+                                                    evaluationDisabledMessage(
+                                                        row,
+                                                    )
+                                                "
+                                                class="text-xs font-medium text-slate-500 dark:text-slate-400"
+                                                >Evaluation is Disabled</span
+                                            >
                                         </div>
 
                                         <span
                                             v-if="row.requires_evaluation"
                                             class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[8px] font-bold text-amber-700 uppercase dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300"
                                         >
-                                            {{
-                                                row.evaluation_status ===
-                                                'Grade Viewing Disabled'
-                                                    ? 'Grade viewing disabled'
-                                                    : 'Evaluation required'
-                                            }}
+                                            {{ evaluationLockLabel(row) }}
                                         </span>
                                         <span
                                             v-else
@@ -2088,8 +2151,27 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                             <td
                                                 class="px-4 py-3 text-center align-top"
                                             >
-                                                <template
+                                                <span
                                                     v-if="
+                                                        historicalEvaluationLabel(
+                                                            row,
+                                                        )
+                                                    "
+                                                    class="inline-flex rounded-full border px-2 py-1 text-xs font-medium"
+                                                    :class="
+                                                        row.evaluation_completed ===
+                                                        true
+                                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                                            : 'border-slate-200 text-slate-500 dark:border-white/15 dark:text-slate-400'
+                                                    "
+                                                    >{{
+                                                        historicalEvaluationLabel(
+                                                            row,
+                                                        )
+                                                    }}</span
+                                                >
+                                                <template
+                                                    v-else-if="
                                                         showEvaluationButton(
                                                             group,
                                                             row,
@@ -2146,7 +2228,9 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                 </template>
                                                 <button
                                                     v-else-if="
-                                                        evaluationEnabled &&
+                                                        evaluationEnabledForRow(
+                                                            row,
+                                                        ) &&
                                                         evaluatedSummary(row)
                                                             .length
                                                     "
@@ -2160,6 +2244,16 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                 >
                                                     Evaluated
                                                 </button>
+                                                <span
+                                                    v-else-if="
+                                                        evaluationDisabledMessage(
+                                                            row,
+                                                        )
+                                                    "
+                                                    class="text-xs font-medium text-slate-500 dark:text-slate-400"
+                                                    >Evaluation is
+                                                    Disabled</span
+                                                >
                                                 <span
                                                     v-else
                                                     class="text-[10px] font-semibold text-slate-400"
@@ -2178,10 +2272,9 @@ const groupHasPendingEvaluations = (group: TermGroup) => {
                                                         class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 uppercase dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300"
                                                     >
                                                         {{
-                                                            row.evaluation_status ===
-                                                            'Grade Viewing Disabled'
-                                                                ? 'Grade viewing disabled'
-                                                                : 'Evaluate faculty first'
+                                                            evaluationLockLabel(
+                                                                row,
+                                                            )
                                                         }}
                                                     </span>
                                                 </template>
